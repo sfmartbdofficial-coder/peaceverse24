@@ -1,0 +1,6 @@
+{
+  "name": "Peace Verse",
+  "description": "YouTube-style Islamic video and recitation platform featuring Quran, Hadith, Dua, and Islamic reminders with 2-column video grid and bottom navigation.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

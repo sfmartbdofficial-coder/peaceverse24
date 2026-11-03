@@ -1,0 +1,132 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "User profile in Peace World",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "handle": { "type": "string" },
+        "avatar": { "type": "string" },
+        "coverPhoto": { "type": "string" },
+        "bio": { "type": "string" },
+        "isVerified": { "type": "boolean" },
+        "friends": { "type": "array" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "name"]
+    },
+    "Post": {
+      "title": "Post",
+      "description": "Social media post in Peace World",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "authorVerified": { "type": "boolean" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "videoUrl": { "type": "string" },
+        "privacy": {
+          "type": "string",
+          "enum": ["public", "friends", "private"]
+        },
+        "status": {
+          "type": "string",
+          "enum": ["approved", "blocked", "rejected"]
+        },
+        "moderationReason": { "type": "string" },
+        "isQuranVerse": { "type": "boolean" },
+        "quranVerseTranslation": { "type": "string" },
+        "likesCount": { "type": "number" },
+        "commentsCount": { "type": "number" },
+        "sharesCount": { "type": "number" },
+        "likes": { "type": "array" },
+        "typingUsers": { "type": "array" },
+        "createdAt": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "authorId", "authorName", "content", "privacy", "status"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Instant comment on a post",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "authorAvatar": { "type": "string" },
+        "text": { "type": "string" },
+        "likesCount": { "type": "number" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "postId", "authorId", "authorName", "text"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "Realtime notification for interactions and moderation",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "recipientId": { "type": "string" },
+        "senderId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "senderAvatar": { "type": "string" },
+        "type": {
+          "type": "string",
+          "enum": ["like", "comment", "share", "follow", "moderation"]
+        },
+        "message": { "type": "string" },
+        "postId": { "type": "string" },
+        "isRead": { "type": "boolean" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "recipientId", "senderId", "senderName", "type", "message"]
+    },
+    "Appeal": {
+      "title": "Appeal",
+      "description": "User appeal for rejected or blocked posts",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "postId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "reason": { "type": "string" },
+        "status": {
+          "type": "string",
+          "enum": ["pending", "reviewed", "resolved"]
+        },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "postId", "userId", "userName", "reason"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles"
+    },
+    "/posts/{postId}": {
+      "schema": "Post",
+      "description": "Posts collection with privacy and moderation status"
+    },
+    "/posts/{postId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Live comments for each post"
+    },
+    "/notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "Real-time user notifications"
+    },
+    "/appeals/{appealId}": {
+      "schema": "Appeal",
+      "description": "Content moderation appeals"
+    }
+  }
+}

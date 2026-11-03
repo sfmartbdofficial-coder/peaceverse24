@@ -1,0 +1,68 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+    <script>
+      // Suppress harmless Vite HMR WebSocket errors in AI Studio iframe environment
+      (function() {
+        window.addEventListener('unhandledrejection', function(event) {
+          if (event.reason && (event.reason.message?.includes('WebSocket') || event.reason.toString().includes('WebSocket'))) {
+            event.preventDefault();
+          }
+        });
+        window.addEventListener('error', function(event) {
+          if (event.message && (event.message.includes('WebSocket') || event.message.includes('ws'))) {
+            event.stopImmediatePropagation();
+            event.preventDefault();
+            return true;
+          }
+        }, true);
+
+        try {
+          const OrigWS = window.WebSocket;
+          if (OrigWS) {
+            window.WebSocket = function(url, protocols) {
+              const ws = protocols !== undefined ? new OrigWS(url, protocols) : new OrigWS(url);
+              ws.addEventListener('error', function(err) {
+                if (err && typeof err.stopImmediatePropagation === 'function') {
+                  err.stopImmediatePropagation();
+                }
+              });
+              return ws;
+            };
+            window.WebSocket.prototype = OrigWS.prototype;
+            window.WebSocket.CONNECTING = OrigWS.CONNECTING;
+            window.WebSocket.OPEN = OrigWS.OPEN;
+            window.WebSocket.CLOSING = OrigWS.CLOSING;
+            window.WebSocket.CLOSED = OrigWS.CLOSED;
+          }
+        } catch (e) {
+          // ignore
+        }
+      })();
+    </script>
+    <title>Qalby (কলবী) - ১০০% হালাল সোশ্যাল নেটওয়ার্ক ও ইসলামিক প্ল্যাটফর্ম</title>
+    <meta name="description" content="Qalby (قلবি) - ফেসবুকের বিকল্প ১০০% হালাল ইসলামিক সোশ্যাল প্ল্যাটফর্ম। পোস্ট, কুরআন-হাদিস শেয়ার, স্টোরিজ, ভিডিও ও উম্মাহ কমিউনিটি।" />
+    <meta property="og:title" content="Qalby (কলবী) - ১০০% হালাল সোশ্যাল মিডিয়া প্ল্যাটফর্ম" />
+    <meta property="og:description" content="ফেসবুকের বিকল্প ১০০% হালাল ও বাদ্যযন্ত্রমুক্ত ইসলামিক সোশ্যাল নেটওয়ার্ক।" />
+    <meta property="og:type" content="website" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="theme-color" content="#1877F2" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Qalby" />
+    <link rel="manifest" href="/manifest.json" />
+    <link rel="icon" type="image/jpeg" href="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg" />
+    <link rel="apple-touch-icon" href="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:ital,wght@0,400;0,700;1,400&family=Hind+Siliguri:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
+

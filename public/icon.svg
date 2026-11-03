@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#1877F2" />
+      <stop offset="100%" stop-color="#0e4fbc" />
+    </linearGradient>
+    <linearGradient id="goldGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#FCD34D" />
+      <stop offset="100%" stop-color="#F59E0B" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="130%" height="130%">
+      <feDropShadow dx="0" dy="8" stdDeviation="12" flood-color="#000" flood-opacity="0.35"/>
+    </filter>
+  </defs>
+  <rect width="512" height="512" rx="128" fill="url(#bgGrad)"/>
+  <circle cx="256" cy="256" r="190" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="4"/>
+  <g filter="url(#shadow)" transform="translate(256, 240)">
+    <!-- Crescent & Star stylized Islamic Qalby emblem -->
+    <path d="M 0 -100 C 65 -100 118 -52 124 12 C 114 4 100 0 85 0 C 27 0 -20 47 -20 105 C -20 120 -17 134 -11 147 C -72 136 -118 83 -118 19 C -118 -47 -65 -100 0 -100 Z" fill="url(#goldGrad)" />
+    <!-- Heart pulse / Quran marker in center -->
+    <path d="M 10 30 C 10 15 25 5 40 5 C 55 5 65 15 65 30 C 65 55 10 90 10 90 C 10 90 -45 55 -45 30 C -45 15 -35 5 -20 5 C -5 5 10 15 10 30 Z" fill="#ffffff" opacity="0.95"/>
+    <!-- Small star -->
+    <polygon points="50,-40 54,-28 66,-28 56,-20 60,-8 50,-16 40,-8 44,-20 34,-28 46,-28" fill="#FCD34D"/>
+  </g>
+  <text x="256" y="440" font-family="system-ui, -apple-system, sans-serif" font-size="52" font-weight="900" fill="#ffffff" text-anchor="middle" letter-spacing="4">QALBY</text>
+</svg>
