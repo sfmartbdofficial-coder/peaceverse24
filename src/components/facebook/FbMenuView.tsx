@@ -74,6 +74,8 @@ interface FbMenuViewProps {
   onOpenMonetization?: () => void;
   onOpenLegalTab?: (tab: LegalTabType) => void;
   onOpenInstallModal?: () => void;
+  onOpenAuth?: () => void;
+  onLogout?: () => void;
   onBack: () => void;
 }
 
@@ -86,6 +88,8 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onOpenMonetization,
   onOpenLegalTab,
   onOpenInstallModal,
+  onOpenAuth,
+  onLogout,
   onBack,
 }) => {
   const { t, currentLangInfo, setShowLanguageModal } = useLanguage();
@@ -225,10 +229,10 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           <div
             onClick={(e) => {
               e.stopPropagation();
-              onOpenProfile();
+              if (onOpenAuth) onOpenAuth();
             }}
-            className="w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] flex items-center justify-center text-[#e4e6eb] transition-colors"
-            title="প্রোফাইল সুইচ"
+            className="w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] flex items-center justify-center text-[#e4e6eb] transition-colors cursor-pointer"
+            title="লগইন / একাউন্ট পরিবর্তন (Firebase Auth)"
           >
             <RefreshCw className="w-4 h-4" />
           </div>
@@ -501,12 +505,12 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
               </div>
               <div>
                 <div className="flex items-center gap-2">
-                  <p className="font-bold text-sm text-white">Peace AI (Meta AI বিকল্প)</p>
-                  <span className="text-[10px] bg-[#1877F2] text-white px-1.5 py-0.2 rounded font-bold">
-                    AI Assistant
+                  <p className="font-bold text-sm text-white">Peaceverse24 AI (Qalby - The Heart)</p>
+                  <span className="text-[10px] bg-gradient-to-r from-[#1877F2] to-emerald-500 text-white px-1.5 py-0.2 rounded font-bold">
+                    Official AI
                   </span>
                 </div>
-                <p className="text-[11px] text-[#b0b3b8]">পোস্ট লেখা, ক্যাপশন ড্রাফট ও ইসলামিক প্রশ্নোত্তর</p>
+                <p className="text-[11px] text-[#b0b3b8]">পোস্ট রাইটার, হালাল রিরাইটার ও হার্ট হিলার (Peaceverse24.com)</p>
               </div>
             </button>
 
@@ -700,13 +704,13 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 <div>
                   <h4 className="font-bold text-xs sm:text-sm text-white">Public presence</h4>
                   <p className="text-[11px] text-[#b0b3b8] leading-tight mt-1">
-                    Get tools to help you grow on Peace World.
+                    Get tools to help you grow on Peaceverse.
                   </p>
                 </div>
               </div>
             </div>
 
-            {/* Card 2: Facebook Plus -> Peace World Plus (Screenshot 3) */}
+            {/* Card 2: Facebook Plus -> Peaceverse Plus (Screenshot 3) */}
             <div
               onClick={() => setSettingsModalType('peace_plus')}
               className="rounded-2xl bg-[#242526] border border-[#393a3b] overflow-hidden hover:border-[#1877F2] transition-all cursor-pointer group shadow-sm flex flex-col"
@@ -733,7 +737,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
               </div>
               <div className="p-3 flex-1 flex flex-col justify-between">
                 <div>
-                  <h4 className="font-bold text-xs sm:text-sm text-white">Peace World Plus</h4>
+                  <h4 className="font-bold text-xs sm:text-sm text-white">Peaceverse Plus</h4>
                   <p className="text-[11px] text-[#b0b3b8] leading-tight mt-1">
                     Unlock exclusive features and more.
                   </p>
@@ -745,7 +749,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* 7. ALSO FROM PEACE WORLD (Also from Meta - Screenshot 4) */}
+      {/* 7. ALSO FROM PEACEVERSE (Also from Meta - Screenshot 4) */}
       {/* ======================================================== */}
       <div className="border-t border-[#393a3b] pt-3 space-y-1">
         <button
@@ -759,7 +763,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
               <span className="w-2 h-2 rounded-sm bg-[#b0b3b8]" />
               <span className="w-2 h-2 rounded-sm bg-[#b0b3b8]" />
             </div>
-            <span className="text-white">Also from Peace World</span>
+            <span className="text-white">Also from Peaceverse</span>
           </div>
           {showAlsoFromPeaceAccordion ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
         </button>
@@ -953,12 +957,27 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       </div>
 
       {/* ======================================================== */}
-      {/* 10. EXACT LOG OUT BUTTON (Screenshot 4) */}
+      {/* 10. EXACT LOG OUT BUTTON & FIREBASE AUTH (Screenshot 4) */}
       {/* ======================================================== */}
-      <div className="pt-2">
+      <div className="pt-2 space-y-2">
+        {onOpenAuth && (
+          <button
+            onClick={onOpenAuth}
+            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#1877F2]/25 via-emerald-600/20 to-[#242526] hover:from-[#1877F2]/35 border border-[#1877F2]/40 text-white font-bold text-xs transition-colors flex items-center justify-between shadow-sm cursor-pointer"
+          >
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="w-4 h-4 text-emerald-400" />
+              <span>{userProfile.email ? `লগইন আছেন: ${userProfile.email}` : 'Firebase লগইন ও সাইন-আপ (Google / Email)'}</span>
+            </div>
+            <span className="text-[10px] bg-[#1877F2] text-white px-2 py-0.5 rounded-full font-bold">
+              {userProfile.email ? 'অ্যাকাউন্ট সুইচ' : 'লগইন'}
+            </span>
+          </button>
+        )}
+
         <button
           onClick={() => setShowLogoutConfirm(true)}
-          className="w-full py-3 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-sm transition-colors text-center"
+          className="w-full py-3 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-sm transition-colors text-center cursor-pointer"
         >
           Log out
         </button>
@@ -975,16 +994,17 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             <div className="flex gap-2.5 pt-2">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white text-xs font-bold transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white text-xs font-bold transition-colors cursor-pointer"
               >
                 বাতিল
               </button>
               <button
                 onClick={() => {
                   setShowLogoutConfirm(false);
+                  if (onLogout) onLogout();
                   onNavigateTab('home');
                 }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow transition-colors"
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow transition-colors cursor-pointer"
               >
                 লগআউট করুন
               </button>

@@ -12,17 +12,33 @@ import {
   query,
   orderBy,
   limit,
+  where,
   serverTimestamp,
   getDocFromServer,
 } from 'firebase/firestore';
+import {
+  getAuth,
+  signInWithPopup,
+  GoogleAuthProvider,
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  signOut,
+  sendPasswordResetEmail,
+  sendEmailVerification,
+  onAuthStateChanged,
+  User as FirebaseUser,
+} from 'firebase/auth';
 import firebaseConfig from '../../firebase-applet-config.json';
-import { PostItem, PostComment, NotificationItem, ReactionType } from '../types';
+import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile } from '../types';
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(firebaseConfig);
 
 // Initialize Firestore with configured databaseId
 export const db = getFirestore(app, firebaseConfig.firestoreDatabaseId || '(default)');
+
+// Initialize Auth
+export const auth = getAuth(app);
 
 // Helper for sound notification (Halal Web Audio Chime)
 export function playNotificationSound() {
@@ -565,4 +581,157 @@ export async function markAllRealtimeNotificationsRead(notifications: Notificati
   } catch (err) {
     console.error('Error marking all notifications read:', err);
   }
+}
+
+// ==========================================
+// REAL-TIME FOLLOW / UNFOLLOW SYSTEM
+// ==========================================
+
+export async function toggleFollowUser(
+  followerId: string,
+  followerName: string,
+  followerAvatar: string,
+  targetId: string,
+  targetName: string,
+  targetAvatar: string
+): Promise<boolean> {
+  try {
+    const followDocId = `${followerId}_${targetId}`;
+    const followRef = doc(db, 'follows', followDocId);
+    const snap = await getDoc(followRef);
+
+    if (snap.exists()) {
+      await deleteDoc(followRef);
+      return false; // Unfollowed
+    } else {
+      await setDoc(followRef, {
+        id: followDocId,
+        followerId,
+        followerName,
+        followerAvatar,
+        targetId,
+        targetName,
+        targetAvatar,
+        createdAt: new Date().toISOString(),
+        createdAtMillis: Date.now(),
+      });
+
+      // Send live notification to target
+      sendRealtimeNotification({
+        id: `notif-follow-${Date.now()}`,
+        type: 'follow',
+        avatar: followerAvatar,
+        title: `${followerName} started following you`,
+        subtitle: 'View profile in Peaceverse',
+        timeAgo: 'Just now',
+        isUnread: true,
+        badgeType: 'heart',
+      });
+
+      return true; // Followed
+    }
+  } catch (err) {
+    console.error('Error toggling follow:', err);
+    return false;
+  }
+}
+
+export function subscribeToFollowStatus(
+  followerId: string,
+  targetId: string,
+  onUpdate: (isFollowing: boolean) => void
+) {
+  try {
+    const followDocId = `${followerId}_${targetId}`;
+    const followRef = doc(db, 'follows', followDocId);
+    return onSnapshot(
+      followRef,
+      (snap) => {
+        onUpdate(snap.exists());
+      },
+      () => onUpdate(false)
+    );
+  } catch {
+    onUpdate(false);
+    return () => {};
+  }
+}
+
+export function subscribeToUserFollowsList(
+  followerId: string,
+  onUpdate: (followingIds: string[]) => void
+) {
+  try {
+    const q = query(collection(db, 'follows'), where('followerId', '==', followerId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const ids = snap.docs.map((d) => d.data().targetId);
+        onUpdate(ids);
+      },
+      () => onUpdate([])
+    );
+  } catch {
+    onUpdate([]);
+    return () => {};
+  }
+}
+
+export function subscribeToFollowersCount(
+  targetId: string,
+  onUpdate: (count: number) => void
+) {
+  try {
+    const q = query(collection(db, 'follows'), where('targetId', '==', targetId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        onUpdate(snap.size);
+      },
+      () => onUpdate(0)
+    );
+  } catch {
+    onUpdate(0);
+    return () => {};
+  }
+}
+
+// ==========================================
+// FIREBASE AUTHENTICATION HELPERS
+// ==========================================
+
+export async function loginWithGoogle(): Promise<FirebaseUser | null> {
+  try {
+    const provider = new GoogleAuthProvider();
+    const result = await signInWithPopup(auth, provider);
+    return result.user;
+  } catch (err) {
+    console.error('Google Sign-In Error:', err);
+    throw err;
+  }
+}
+
+export async function loginWithEmail(email: string, pass: string): Promise<FirebaseUser | null> {
+  const res = await signInWithEmailAndPassword(auth, email, pass);
+  return res.user;
+}
+
+export async function registerWithEmail(
+  email: string,
+  pass: string,
+  displayName: string
+): Promise<FirebaseUser | null> {
+  const res = await createUserWithEmailAndPassword(auth, email, pass);
+  if (res.user) {
+    await sendEmailVerification(res.user).catch(() => {});
+  }
+  return res.user;
+}
+
+export async function resetPassword(email: string): Promise<void> {
+  await sendPasswordResetEmail(auth, email);
+}
+
+export async function logoutUser(): Promise<void> {
+  await signOut(auth);
 }

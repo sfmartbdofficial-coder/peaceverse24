@@ -166,6 +166,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
     const newPost: PostItem = {
       id: `post-${Date.now()}`,
+      authorId: userProfile.id || userProfile.name,
       author: {
         name: userProfile.name,
         avatar: userProfile.avatar,

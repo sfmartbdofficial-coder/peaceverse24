@@ -81,7 +81,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="text-base font-black text-white">Qalby (কলবী)</h2>
+                <h2 className="text-base font-black text-white">Peaceverse (পিসভার্স)</h2>
                 <span className="text-[10px] font-bold bg-[#1877F2]/20 text-[#1877F2] px-2 py-0.5 rounded-full border border-[#1877F2]/30">
                   Google Play & International Certified
                 </span>
@@ -186,7 +186,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                   <div className="space-y-3">
                     <h3 className="text-base font-bold text-white">১. আমাদের রূপকল্প ও মিশন (Vision & Mission)</h3>
                     <p className="text-[#b0b3b8]">
-                      কলবী (Qalby) হলো একটি আন্তর্জাতিক ইসলামিক সোশ্যাল নেটওয়ার্ক এবং কনটেন্ট ডিস্ট্রিবিউশন প্ল্যাটফর্ম। আমাদের মূল লক্ষ্য হলো মুসলিম উম্মাহ এবং নৈতিক মূল্যবোধসম্পন্ন মানুষদের জন্য এমন একটি স্বয়ংসম্পূর্ণ সোশ্যাল অভিজ্ঞতা তৈরি করা যা সম্পূর্ণ শরীয়াহসম্মত, শালীন এবং আত্মিক প্রশান্তিদায়ক। ফেসবুকের মতো আধুনিক সকল সুযোগ-সুবিধা বজায় রেখে অশ্লীল বিজ্ঞাপন, বাদ্যযন্ত্র এবং অশালীন কনটেন্ট থেকে সম্পূর্ণ মুক্ত থাকা আমাদের অঙ্গীকার।
+                      পিসভার্স (Peaceverse) হলো একটি আন্তর্জাতিক ইসলামিক সোশ্যাল নেটওয়ার্ক এবং কনটেন্ট ডিস্ট্রিবিউশন প্ল্যাটফর্ম। আমাদের মূল লক্ষ্য হলো মুসলিম উম্মাহ এবং নৈতিক মূল্যবোধসম্পন্ন মানুষদের জন্য এমন একটি স্বয়ংসম্পূর্ণ সোশ্যাল অভিজ্ঞতা তৈরি করা যা সম্পূর্ণ শরীয়াহসম্মত, শালীন এবং আত্মিক প্রশান্তিদায়ক। ফেসবুকের মতো আধুনিক সকল সুযোগ-সুবিধা বজায় রেখে অশ্লীল বিজ্ঞাপন, বাদ্যযন্ত্র এবং অশালীন কনটেন্ট থেকে সম্পূর্ণ মুক্ত থাকা আমাদের অঙ্গীকার।
                     </p>
                   </div>
 
@@ -212,7 +212,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                   <div className="space-y-2 pt-2">
                     <h3 className="text-base font-bold text-white">২. টেকনিক্যাল স্পেসিফিকেশন ও রিলিজ</h3>
                     <div className="bg-[#18191a] p-4 rounded-xl border border-[#393a3b] space-y-1 text-xs font-mono">
-                      <p><span className="text-[#8a8d91]">App Name:</span> Qalby (কলবী)</p>
+                      <p><span className="text-[#8a8d91]">App Name:</span> Peaceverse (পিসভার্স)</p>
                       <p><span className="text-[#8a8d91]">Version:</span> 2.4.0 (Global Play Store Release)</p>
                       <p><span className="text-[#8a8d91]">Target Platform:</span> Web, Android (PWA / TWA), iOS</p>
                       <p><span className="text-[#8a8d91]">Engine:</span> React 19, TypeScript, Tailwind CSS, Express, Gemini AI</p>

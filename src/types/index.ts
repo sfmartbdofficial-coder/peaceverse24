@@ -165,10 +165,16 @@ export interface ChatFriend {
 }
 
 export interface UserProfile {
+  id?: string;
+  email?: string;
   name: string;
   avatar: string;
   coverPhoto: string;
   friendsCount: number;
+  followersCount?: number;
+  followingCount?: number;
+  isCreator?: boolean;
+  isFollowing?: boolean;
   location: string;
   birthDate: string;
   thoughtBubble?: string;

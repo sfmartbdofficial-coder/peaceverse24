@@ -155,7 +155,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 </h4>
                 <div className="space-y-2">
                   {[
-                    { id: 'public', label: 'পাবলিক (Public)', desc: 'Peace World-এর সবাই আপনার পোস্ট দেখতে পাবে' },
+                    { id: 'public', label: 'পাবলিক (Public)', desc: 'Peaceverse-এর সবাই আপনার পোস্ট দেখতে পাবে' },
                     { id: 'friends', label: 'বন্ধুরা (Friends)', desc: 'শুধুমাত্র আপনার ফ্রেন্ডলিস্টের ব্যক্তিরা দেখতে পাবে' },
                     { id: 'private', label: 'শুধুমাত্র আমি (Only Me)', desc: 'আপনার পোস্ট গোপন থাকবে' },
                   ].map((aud) => (
@@ -516,11 +516,11 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 >
                   <div className="flex items-center gap-3">
                     <div className={`w-10 h-10 rounded-2xl ${icon.bg} flex items-center justify-center text-white font-black text-sm shadow`}>
-                      PW
+                      PV
                     </div>
                     <div>
                       <p className="font-bold text-xs text-white">{icon.label}</p>
-                      <p className="text-[10px] text-[#8a8d91]">Peace World Icon</p>
+                      <p className="text-[10px] text-[#8a8d91]">Peaceverse Icon</p>
                     </div>
                   </div>
                   {selectedIcon === icon.id && <Check className="w-4 h-4 text-emerald-400" />}
@@ -592,7 +592,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
         )}
 
         {/* ======================================================== */}
-        {/* 11. PEACE WORLD PLUS (Facebook Plus clone) */}
+        {/* 11. PEACEVERSE PLUS (Facebook Plus clone) */}
         {/* ======================================================== */}
         {modalType === 'peace_plus' && (
           <>
@@ -602,7 +602,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   <Award className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="font-bold text-base text-white">Peace World Plus (পিস প্লাস)</h2>
+                  <h2 className="font-bold text-base text-white">Peaceverse Plus (পিসভার্স প্লাস)</h2>
                   <p className="text-[11px] text-[#b0b3b8]">ব্লু ভেরিফাইড ব্যাজ ও এক্সক্লুসিভ ফিচার আনলক করুন</p>
                 </div>
               </div>
@@ -614,7 +614,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
               <div className="p-4 rounded-2xl bg-[#18191a] border border-[#393a3b] space-y-3">
                 <h3 className="font-bold text-sm text-white flex items-center gap-1.5">
                   <Sparkles className="w-4 h-4 text-amber-400" />
-                  <span>পিস ওয়ার্ল্ড প্লাস মেম্বারশিপের সুবিধাসমূহ:</span>
+                  <span>পিসভার্স প্লাস মেম্বারশিপের সুবিধাসমূহ:</span>
                 </h3>
                 <div className="space-y-2 text-xs text-[#b0b3b8]">
                   <p className="flex items-center gap-2">

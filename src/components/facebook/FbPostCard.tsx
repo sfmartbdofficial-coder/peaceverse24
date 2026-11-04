@@ -22,7 +22,7 @@ import {
   ShieldAlert,
   Loader2,
 } from 'lucide-react';
-import { submitRealtimeAppeal } from '../../lib/firebase';
+import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
 
 interface FbPostCardProps {
   post: PostItem;
@@ -66,6 +66,31 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
   const [appealSubmitted, setAppealSubmitted] = useState(false);
 
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+
+  // Sync follow status
+  React.useEffect(() => {
+    const authorTargetId = post.authorId || `author-${post.author.name}`;
+    if (!currentUserId || authorTargetId === currentUserId) return;
+    const unsub = subscribeToFollowStatus(currentUserId, authorTargetId, (following) => {
+      setIsFollowingAuthor(following);
+    });
+    return () => unsub();
+  }, [currentUserId, post.authorId, post.author.name]);
+
+  const handleToggleFollowAuthor = async () => {
+    const authorTargetId = post.authorId || `author-${post.author.name}`;
+    setIsFollowingAuthor(!isFollowingAuthor);
+    await toggleFollowUser(
+      currentUserId,
+      currentUserName,
+      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
+      authorTargetId,
+      post.author.name,
+      post.author.avatar
+    );
+  };
+
   const typingTimeoutRef = useRef<any>(null);
 
   const handleCommentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -100,7 +125,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
             <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-            <span>This post violates Peace World guidelines</span>
+            <span>This post violates Peaceverse guidelines</span>
           </div>
           <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
             ব্লক করা হয়েছে
@@ -109,7 +134,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
         <p className="text-xs text-[#b0b3b8] leading-relaxed">
           {post.moderationReason ||
-            'পোস্টটি Peace World ইসলামিক সোশ্যাল নেটওয়ার্কের শালীনতা ও গাইডলাইন লঙ্ঘনের কারণে প্রদর্শন স্থগিত রয়েছে।'}
+            'পোস্টটি Peaceverse ইসলামিক সোশ্যাল নেটওয়ার্কের শালীনতা ও গাইডলাইন লঙ্ঘনের কারণে প্রদর্শন স্থগিত রয়েছে।'}
         </p>
 
         {post.appealStatus === 'pending' || appealSubmitted ? (
@@ -270,6 +295,23 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               </span>
               {post.author.verified && (
                 <CheckCircle2 className="w-3.5 h-3.5 text-[#1877F2] flex-shrink-0" />
+              )}
+              {post.author.name !== currentUserName && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    handleToggleFollowAuthor();
+                  }}
+                  className={`text-[10px] font-bold px-2 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer ml-1 shadow-sm ${
+                    isFollowingAuthor
+                      ? 'bg-emerald-600/20 text-emerald-400 border border-emerald-500/30 hover:bg-rose-500/20 hover:text-rose-300'
+                      : 'bg-[#1877F2]/20 hover:bg-[#1877F2] text-[#2e89ff] hover:text-white border border-[#1877F2]/40'
+                  }`}
+                  title={isFollowingAuthor ? 'Unfollow this creator' : 'Follow this creator'}
+                >
+                  {isFollowingAuthor ? '✓ Following' : '+ Follow'}
+                </button>
               )}
             </div>
 

@@ -214,7 +214,13 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             </div>
           </div>
 
-          <p className="text-xs text-[#b0b3b8] font-medium">{userProfile.friendsCount} friends</p>
+          <div className="flex items-center justify-center gap-2 text-xs text-[#b0b3b8] font-medium">
+            <span>{userProfile.friendsCount} friends</span>
+            <span>•</span>
+            <span className="text-emerald-400 font-semibold">{(userProfile.followersCount || 1420).toLocaleString()} followers</span>
+            <span>•</span>
+            <span>{(userProfile.followingCount || 85).toLocaleString()} following</span>
+          </div>
 
           {/* Bio text */}
           {userProfile.bio && (

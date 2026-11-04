@@ -77,7 +77,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
             <input
               ref={inputRef}
               type="text"
-              placeholder="Qalby-তে খুঁজুন (পোস্ট, আয়াত, উপদেশ, বন্ধু)..."
+              placeholder="Peaceverse-এ খুঁজুন (পোস্ট, আয়াত, উপদেশ, বন্ধু)..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               className="w-full bg-[#3a3b3c] text-white text-xs sm:text-sm pl-9 pr-9 py-2 rounded-full placeholder-[#b0b3b8] focus:outline-none focus:ring-1 focus:ring-[#1877F2]"
@@ -120,8 +120,8 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
             <Menu className="w-6 h-6 stroke-[2.5]" />
           </button>
 
-          <span className="font-extrabold text-2xl tracking-tighter text-[#2e89ff] flex items-center select-none font-sans">
-            qalby
+          <span className="font-black text-2xl tracking-tighter text-[#2e89ff] flex items-center select-none font-sans lowercase">
+            peaceverse
           </span>
         </div>
 

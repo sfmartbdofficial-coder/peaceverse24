@@ -42,6 +42,12 @@ service cloud.firestore {
       allow write: if true;
     }
 
+    // Follows & Subscriptions
+    match /follows/{followId} {
+      allow read: if true;
+      allow write: if true;
+    }
+
     // Default test connection
     match /test/{docId} {
       allow read, write: if true;

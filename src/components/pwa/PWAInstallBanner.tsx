@@ -74,7 +74,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide 
                 />
               </div>
               <p className="text-[11px] sm:text-xs font-medium text-[#e4e6eb] truncate">
-                Qalby অ্যাপ ফোনে ইন্সটল করুন
+                Peaceverse অ্যাপ ফোনে ইন্সটল করুন
               </p>
             </div>
 

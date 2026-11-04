@@ -41,11 +41,15 @@ import { LegalModal, LegalTabType } from './components/legal/LegalModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { CreatorMonetizationModal } from './components/monetization/CreatorMonetizationModal';
+import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
 import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
 import { ArrowLeft, Globe, Users, Lock } from 'lucide-react';
+import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
 import {
+  auth,
+  logoutUser,
   testFirebaseConnection,
   seedInitialPostsIfEmpty,
   subscribeToRealtimePosts,
@@ -90,6 +94,11 @@ export default function App() {
     return window.location.hash === '#monetization' || window.location.hash === '#creator-studio';
   });
 
+  // Firebase Authentication Modal state (supports #login or #auth hash)
+  const [showAuthModal, setShowAuthModal] = useState(() => {
+    return window.location.hash === '#login' || window.location.hash === '#auth';
+  });
+
   // Admin Portal state with direct #admin or #asol-admin-secret or /asol-admin-secret URL support
   const checkIsAdmin = () => {
     const hash = window.location.hash.replace('#', '');
@@ -105,6 +114,22 @@ export default function App() {
   const [showAdminPortal, setShowAdminPortal] = useState(() => checkIsAdmin());
   const [feedPrivacyFilter, setFeedPrivacyFilter] = useState<'all' | 'public' | 'friends' | 'private'>('all');
 
+  // Sync Firebase Auth State
+  useEffect(() => {
+    const unsub = onAuthStateChanged(auth, (usr) => {
+      if (usr) {
+        setUserProfile((prev) => ({
+          ...prev,
+          id: usr.uid,
+          name: usr.displayName || prev.name,
+          email: usr.email || prev.email,
+          avatar: usr.photoURL || prev.avatar,
+        }));
+      }
+    });
+    return () => unsub();
+  }, []);
+
   useEffect(() => {
     const handleHashChange = () => {
       const hash = window.location.hash.replace('#', '');
@@ -113,19 +138,25 @@ export default function App() {
         setLegalModalTab(null);
         setShowInstallModal(false);
         setShowMonetizationModal(false);
+        setShowAuthModal(false);
       } else if (hash === 'install') {
         setShowInstallModal(true);
+        setShowAdminPortal(false);
+      } else if (hash === 'login' || hash === 'auth') {
+        setShowAuthModal(true);
         setShowAdminPortal(false);
       } else if (hash === 'monetization' || hash === 'creator-studio') {
         setShowMonetizationModal(true);
         setShowAdminPortal(false);
         setShowInstallModal(false);
+        setShowAuthModal(false);
         setLegalModalTab(null);
       } else if (['about', 'privacy', 'terms', 'guidelines', 'delete-account', 'contact'].includes(hash)) {
         setLegalModalTab(hash as LegalTabType);
         setShowAdminPortal(false);
         setShowInstallModal(false);
         setShowMonetizationModal(false);
+        setShowAuthModal(false);
       } else {
         setShowAdminPortal(false);
       }
@@ -576,7 +607,7 @@ export default function App() {
                     onDeletePost={handleDeletePost}
                     onOpenProfile={() => navigateToTab('profile')}
                     onTypingChange={handleTypingChange}
-                    currentUserId={userProfile.name}
+                    currentUserId={userProfile.id || 'user-me'}
                     currentUserName={userProfile.name}
                   />
 
@@ -640,6 +671,9 @@ export default function App() {
             onBack={goBack}
             onConfirmRequest={handleConfirmRequest}
             onDeleteRequest={handleDeleteRequest}
+            currentUserId={userProfile.id || 'user-me'}
+            currentUserName={userProfile.name}
+            currentUserAvatar={userProfile.avatar}
           />
         )}
 
@@ -693,6 +727,11 @@ export default function App() {
               window.location.hash = `#${tab}`;
             }}
             onOpenInstallModal={() => setShowInstallModal(true)}
+            onOpenAuth={() => setShowAuthModal(true)}
+            onLogout={() => {
+              logoutUser();
+              setUserProfile(USER_PROFILE);
+            }}
             onBack={goBack}
           />
         )}
@@ -847,6 +886,26 @@ export default function App() {
           }}
         />
       )}
+
+      {/* 11. Firebase Authentication Modal (Google Sign-In, Email/Password, Password Reset) */}
+      <FirebaseAuthModal
+        isOpen={showAuthModal}
+        onClose={() => {
+          setShowAuthModal(false);
+          if (window.location.hash === '#login' || window.location.hash === '#auth') {
+            history.pushState('', document.title, window.location.pathname + window.location.search);
+          }
+        }}
+        onSuccess={(usr) => {
+          setUserProfile((prev) => ({
+            ...prev,
+            id: usr.uid,
+            name: usr.displayName || prev.name,
+            email: usr.email || prev.email,
+            avatar: usr.photoURL || prev.avatar,
+          }));
+        }}
+      />
 
     </div>
   );

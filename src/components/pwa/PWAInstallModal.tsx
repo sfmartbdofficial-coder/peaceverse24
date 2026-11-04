@@ -59,7 +59,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
             </div>
             <div>
               <div className="flex items-center gap-1.5">
-                <h2 className="text-lg font-bold text-white leading-tight">Qalby (কলবী) অ্যাপ</h2>
+                <h2 className="text-lg font-bold text-white leading-tight">Peaceverse (পিসভার্স) অ্যাপ</h2>
                 <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
                   PWA App
                 </span>
@@ -128,7 +128,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
               <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
               <h3 className="text-base font-bold text-white">মাশাআল্লাহ! সফলভাবে ইন্সটল হয়েছে!</h3>
               <p className="text-xs text-[#b0b3b8]">
-                এখন আপনার ফোনের হোম স্ক্রিন থেকে যেকোনো সময় সরাসরি Qalby অ্যাপ ওপেন করতে পারবেন।
+                এখন আপনার ফোনের হোম স্ক্রিন থেকে যেকোনো সময় সরাসরি Peaceverse অ্যাপ ওপেন করতে পারবেন।
               </p>
             </div>
           ) : isInstalled ? (
@@ -190,7 +190,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
                       <div>
                         <p className="font-semibold text-emerald-400">‘ইন্সটল (Install)’ কনফার্ম করুন</p>
                         <p className="text-[#b0b3b8] text-[11px] mt-0.5">
-                          পপআপে <strong>Install</strong> চাপলেই আপনার ফোনের অ্যাপ গ্যালারিতে কলবী অ্যাপ যোগ হয়ে যাবে।
+                          পপআপে <strong>Install</strong> চাপলেই আপনার ফোনের অ্যাপ গ্যালারিতে Peaceverse অ্যাপ যোগ হয়ে যাবে।
                         </p>
                       </div>
                     </div>
@@ -233,7 +233,7 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
                       <div>
                         <p className="font-semibold text-emerald-400">উপরে ‘Add’ চাপুন</p>
                         <p className="text-[#b0b3b8] text-[11px] mt-0.5">
-                          উপরের ডান কোণে থাকা <strong>Add</strong> বাটনে ক্লিক করলেই আপনার আইফোনে কলবী অ্যাপ ইন্সটল হয়ে যাবে!
+                          উপরের ডান কোণে থাকা <strong>Add</strong> বাটনে ক্লিক করলেই আপনার আইফোনে Peaceverse অ্যাপ ইন্সটল হয়ে যাবে!
                         </p>
                       </div>
                     </div>

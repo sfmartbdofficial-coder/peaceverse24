@@ -105,6 +105,22 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "postId", "userId", "userName", "reason"]
+    },
+    "Follow": {
+      "title": "Follow",
+      "description": "Follow relationship between users and creators",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "followerId": { "type": "string" },
+        "followerName": { "type": "string" },
+        "followerAvatar": { "type": "string" },
+        "targetId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "targetAvatar": { "type": "string" },
+        "createdAt": { "type": "string" }
+      },
+      "required": ["id", "followerId", "targetId"]
     }
   },
   "firestore": {
@@ -127,6 +143,10 @@
     "/appeals/{appealId}": {
       "schema": "Appeal",
       "description": "Content moderation appeals"
+    },
+    "/follows/{followId}": {
+      "schema": "Follow",
+      "description": "User follow relationships and subscriber graph"
     }
   }
 }

@@ -100,7 +100,7 @@ export interface TranslationDictionary {
 
 export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   bn: {
-    appName: 'কলবী',
+    appName: 'পিসভার্স (Peaceverse)',
     tagline: '১০০% হালাল সোশ্যাল নেটওয়ার্ক',
     navHome: 'হোম',
     navWatch: 'ওয়াচ',
@@ -113,7 +113,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     story: 'স্টোরি',
     reel: 'রিলস',
     live: 'লাইভ',
-    searchPlaceholder: 'Qalby-তে খুঁজুন (পোস্ট, আয়াত, উপদেশ)...',
+    searchPlaceholder: 'Peaceverse-এ খুঁজুন (পোস্ট, আয়াত, উপদেশ)...',
     like: 'লাইক',
     comment: 'মন্তব্য',
     share: 'শেয়ার',
@@ -148,7 +148,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'বন্ধ করুন',
   },
   en: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: '100% Halal Islamic Social Network',
     navHome: 'Home',
     navWatch: 'Watch',
@@ -161,7 +161,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     story: 'Story',
     reel: 'Reel',
     live: 'Live',
-    searchPlaceholder: 'Search Qalby (posts, verses, reminders)...',
+    searchPlaceholder: 'Search Peaceverse (posts, verses, reminders)...',
     like: 'Like',
     comment: 'Comment',
     share: 'Share',
@@ -196,7 +196,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Close',
   },
   ar: {
-    appName: 'قلبي',
+    appName: 'بيس فيرس (Peaceverse)',
     tagline: 'شبكة اجتماعية إسلامية حلال ١٠٠٪',
     navHome: 'الرئيسية',
     navWatch: 'فيديو',
@@ -209,7 +209,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     story: 'قصة',
     reel: 'ريلز',
     live: 'بث مباشر',
-    searchPlaceholder: 'ابحث في قلبي (منشورات، آيات، أذكار)...',
+    searchPlaceholder: 'ابحث في بيس فيرس (منشورات، آيات، أذكار)...',
     like: 'إعجاب',
     comment: 'تعليق',
     share: 'مشاركة',
@@ -244,7 +244,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'إغلاق',
   },
   ur: {
-    appName: 'قلبی',
+    appName: 'پیس ورس (Peaceverse)',
     tagline: '۱۰۰٪ حلال اسلامی سوشل نیٹ ورک',
     navHome: 'ہوم',
     navWatch: 'ویڈیوز',
@@ -257,7 +257,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     story: 'اسٹوری',
     reel: 'ریلز',
     live: 'لائیو',
-    searchPlaceholder: 'قلبی میں تلاش کریں...',
+    searchPlaceholder: 'پیس ورس میں تلاش کریں...',
     like: 'پسند',
     comment: 'تبصرہ',
     share: 'شیئر',
@@ -292,7 +292,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'بند کریں',
   },
   hi: {
-    appName: 'क़ल्बी',
+    appName: 'पीसवर्स (Peaceverse)',
     tagline: '100% हलाल इस्लामिक सोशल नेटवर्क',
     navHome: 'होम',
     navWatch: 'वीडियो',
@@ -305,7 +305,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     story: 'स्टोरी',
     reel: 'रील्स',
     live: 'लाइव',
-    searchPlaceholder: 'क़ल्बी में खोजें...',
+    searchPlaceholder: 'पीसवर्स में खोजें...',
     like: 'लाइक',
     comment: 'टिप्पणी',
     share: 'शेयर',
@@ -340,7 +340,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'बंद करें',
   },
   id: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Jaringan Sosial Islam 100% Halal',
     navHome: 'Beranda',
     navWatch: 'Tonton',
@@ -388,7 +388,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Tutup',
   },
   ms: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Rangkaian Sosial Islam 100% Halal',
     navHome: 'Utama',
     navWatch: 'Tonton',
@@ -436,7 +436,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Tutup',
   },
   tr: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: '%100 Helal İslami Sosyal Ağ',
     navHome: 'Ana Sayfa',
     navWatch: 'İzle',
@@ -484,7 +484,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Kapat',
   },
   fr: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Réseau Social Islamique 100% Halal',
     navHome: 'Accueil',
     navWatch: 'Vidéos',
@@ -532,7 +532,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Fermer',
   },
   es: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Red Social Islámica 100% Halal',
     navHome: 'Inicio',
     navWatch: 'Videos',
@@ -580,7 +580,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Cerrar',
   },
   pt: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Rede Social Islâmica 100% Halal',
     navHome: 'Início',
     navWatch: 'Vídeos',
@@ -628,7 +628,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Fechar',
   },
   de: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: '100% Halal Islamisches Soziales Netzwerk',
     navHome: 'Startseite',
     navWatch: 'Videos',
@@ -772,7 +772,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'بستن',
   },
   sw: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Mtandao wa Kijamii wa Kiislamu 100% Halal',
     navHome: 'Mwanzo',
     navWatch: 'Video',
@@ -820,7 +820,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Funga',
   },
   zh: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: '100% 清真伊斯兰社交网络',
     navHome: '首页',
     navWatch: '视频',
@@ -868,7 +868,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: '关闭',
   },
   ja: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: '100% ハラール・イスラム ソーシャルネットワーク',
     navHome: 'ホーム',
     navWatch: '動画',
@@ -916,7 +916,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: '閉じる',
   },
   it: {
-    appName: 'Qalby',
+    appName: 'Peaceverse',
     tagline: 'Rete Sociale Islamica 100% Halal',
     navHome: 'Home',
     navWatch: 'Video',
