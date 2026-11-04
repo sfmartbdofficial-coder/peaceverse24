@@ -45,8 +45,12 @@ import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
 import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
-import { ArrowLeft, Globe, Users, Lock } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2 } from 'lucide-react';
 import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
+import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
+import { PeaceDoveEmblem } from './components/landing/PeaceDoveEmblem';
+import { fetchSupabasePosts, fetchSupabaseStories, insertSupabasePost } from './lib/supabase';
 import {
   auth,
   logoutUser,
@@ -59,6 +63,7 @@ import {
   setRealtimeTypingStatus,
   moderateRealtimePost,
   deleteRealtimePost,
+  createRealtimePost,
   markAllRealtimeNotificationsRead,
 } from './lib/firebase';
 
@@ -114,9 +119,34 @@ export default function App() {
   const [showAdminPortal, setShowAdminPortal] = useState(() => checkIsAdmin());
   const [feedPrivacyFilter, setFeedPrivacyFilter] = useState<'all' | 'public' | 'friends' | 'private'>('all');
 
-  // Sync Firebase Auth State
+  // Path-based routing for Landing (/), Login (/login), Signup (/signup), and Home (/home)
+  const [currentPath, setCurrentPath] = useState<string>(() => {
+    return window.location.pathname || '/';
+  });
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+
+  const navigateToPath = (path: string) => {
+    if (window.location.pathname !== path) {
+      window.history.pushState({}, '', path);
+    }
+    setCurrentPath(path);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  useEffect(() => {
+    const handlePopState = () => {
+      setCurrentPath(window.location.pathname || '/');
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => window.removeEventListener('popstate', handlePopState);
+  }, []);
+
+  // Sync Firebase Auth State & Enforce Landing / Home redirection rules
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (usr) => {
+      setFirebaseUser(usr);
+      setIsAuthChecking(false);
       if (usr) {
         setUserProfile((prev) => ({
           ...prev,
@@ -125,6 +155,17 @@ export default function App() {
           email: usr.email || prev.email,
           avatar: usr.photoURL || prev.avatar,
         }));
+        // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home"
+        const path = window.location.pathname;
+        if (path === '/' || path === '/login' || path === '/signup' || path === '') {
+          navigateToPath('/home');
+        }
+      } else {
+        // Rule: If user is NOT logged in, show this landing page at "/"
+        const path = window.location.pathname;
+        if (path === '/home') {
+          navigateToPath('/');
+        }
       }
     });
     return () => unsub();
@@ -201,29 +242,85 @@ export default function App() {
   });
   const [activeChatFriend, setActiveChatFriend] = useState<ChatFriend | null>(null);
 
-  // Stories
-  const [stories, setStories] = useState<StoryItem[]>(INITIAL_STORIES);
+  // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
+  const [stories, setStories] = useState<StoryItem[]>([]);
 
-  // Posts Feed with Real-time synchronization
+  // Posts Feed (100% empty by default per Part 1 cleanup - genuine posts load from Supabase / Firestore)
   const [posts, setPosts] = useState<PostItem[]>(() => {
     try {
-      const stored = localStorage.getItem('qalby_fb_posts');
-      return stored ? JSON.parse(stored) : INITIAL_POSTS;
+      const stored = localStorage.getItem('peaceverse_posts');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (
+          Array.isArray(parsed) &&
+          !parsed.some(
+            (p) =>
+              p.id?.includes('post-sohel') ||
+              p.id?.includes('post-hadith') ||
+              p.id?.includes('post-mishary') ||
+              p.id?.includes('post-live-makkah')
+          )
+        ) {
+          return parsed;
+        }
+      }
+      return [];
     } catch {
-      return INITIAL_POSTS;
+      return [];
     }
   });
 
-  // Notifications with Real-time synchronization
-  const [notifications, setNotifications] = useState<NotificationItem[]>(INITIAL_NOTIFICATIONS);
+  // Infinite Scroll state: load 10 videos/posts at a time, scroll down to load next 10
+  const [visibleCount, setVisibleCount] = useState<number>(10);
+  const bottomSentinelRef = React.useRef<HTMLDivElement | null>(null);
+  const supabasePageRef = React.useRef<number>(0);
+  const hasMoreSupabaseRef = React.useRef<boolean>(true);
+  const isFetchingMoreRef = React.useRef<boolean>(false);
 
-  // Initialize Firebase Real-time listeners on mount
+  // Notifications with Real-time synchronization
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+
+  // Initialize Supabase & Firebase listeners
   useEffect(() => {
     testFirebaseConnection();
-    seedInitialPostsIfEmpty(INITIAL_POSTS);
 
+    // 1. Fetch genuine posts from Supabase "posts" table (ORDER BY created_at DESC)
+    fetchSupabasePosts(0, 20).then((spPosts) => {
+      if (spPosts.length > 0) {
+        setPosts((prev) => {
+          const ids = new Set(prev.map((p) => p.id));
+          const additions = spPosts.filter((p) => !ids.has(p.id));
+          return [...prev, ...additions];
+        });
+      }
+    });
+
+    // 2. Fetch genuine stories from Supabase "stories" table
+    fetchSupabaseStories().then((spStories) => {
+      if (spStories.length > 0) {
+        setStories(spStories);
+      }
+    });
+
+    // 3. Sync real-time Firestore posts (filter out any legacy dummy posts)
     const unsubPosts = subscribeToRealtimePosts((livePosts) => {
-      setPosts(livePosts);
+      const cleanPosts = livePosts.filter(
+        (p) =>
+          !p.id?.includes('post-sohel') &&
+          !p.id?.includes('post-hadith') &&
+          !p.id?.includes('post-mishary') &&
+          !p.id?.includes('post-live-makkah')
+      );
+      setPosts((prev) => {
+        const map = new Map<string, PostItem>();
+        prev.forEach((p) => map.set(p.id, p));
+        cleanPosts.forEach((p) => map.set(p.id, p));
+        return Array.from(map.values()).sort((a: any, b: any) => {
+          const tA = new Date(a.createdAt || a.createdAtMillis || 0).getTime();
+          const tB = new Date(b.createdAt || b.createdAtMillis || 0).getTime();
+          return tB - tA;
+        });
+      });
     });
 
     const unsubNotifs = subscribeToRealtimeNotifications((liveNotifs) => {
@@ -236,9 +333,50 @@ export default function App() {
     };
   }, []);
 
+  // Infinite Scroll IntersectionObserver: loads next 10 videos as user scrolls down
+  useEffect(() => {
+    const sentinel = bottomSentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const first = entries[0];
+        if (first.isIntersecting) {
+          // Reveal next 10 videos/posts from feed
+          setVisibleCount((prev) => prev + 10);
+
+          // Fetch next batch from Supabase if available
+          if (hasMoreSupabaseRef.current && !isFetchingMoreRef.current) {
+            isFetchingMoreRef.current = true;
+            supabasePageRef.current += 1;
+            fetchSupabasePosts(supabasePageRef.current, 10)
+              .then((morePosts) => {
+                if (morePosts.length === 0) {
+                  hasMoreSupabaseRef.current = false;
+                } else {
+                  setPosts((prev) => {
+                    const ids = new Set(prev.map((p) => p.id));
+                    const newPosts = morePosts.filter((p) => !ids.has(p.id));
+                    return [...prev, ...newPosts];
+                  });
+                }
+              })
+              .finally(() => {
+                isFetchingMoreRef.current = false;
+              });
+          }
+        }
+      },
+      { rootMargin: '350px' }
+    );
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [posts.length]);
+
   useEffect(() => {
     try {
-      localStorage.setItem('qalby_fb_posts', JSON.stringify(posts));
+      localStorage.setItem('peaceverse_posts', JSON.stringify(posts));
     } catch {}
   }, [posts]);
 
@@ -357,6 +495,8 @@ export default function App() {
   // Handle new post created
   const handlePostCreated = (newPost: PostItem) => {
     setPosts((prev) => [newPost, ...prev]);
+    insertSupabasePost(newPost);
+    createRealtimePost(newPost);
     setShowCreatePost(false);
     navigateToTab('home');
   };
@@ -371,6 +511,8 @@ export default function App() {
   // Handle new reel created
   const handleReelCreated = (newReel: PostItem) => {
     setPosts((prev) => [newReel, ...prev]);
+    insertSupabasePost(newReel);
+    createRealtimePost(newReel);
     setShowCreateReel(false);
     navigateToTab('reels');
   };
@@ -477,20 +619,99 @@ export default function App() {
     });
   }, [posts, searchQuery, feedPrivacyFilter, userProfile.name]);
 
+  // Infinite scroll visible posts slice (loads 10 at a time, scroll down loads next 10)
+  const visiblePosts = useMemo(() => {
+    return filteredPosts.slice(0, visibleCount);
+  }, [filteredPosts, visibleCount]);
+
   const userPosts = useMemo(() => {
-    return posts.filter((p) => p.author.name === userProfile.name || p.id.includes('post-sohel'));
+    return posts.filter((p) => p.author.name === userProfile.name);
   }, [posts, userProfile.name]);
 
   const pendingFriendRequestsCount = useMemo(() => {
-    return notifications.filter((n) => n.type === 'friend_request').length || 6;
+    return notifications.filter((n) => n.type === 'friend_request').length;
   }, [notifications]);
 
   const unreadNotificationsCount = useMemo(() => {
-    const unread = notifications.filter((n) => n.isUnread).length;
-    return unread > 0 ? unread : 39;
+    return notifications.filter((n) => n.isUnread).length;
   }, [notifications]);
 
-  // If Admin Portal is active (via #admin, #asol-admin-secret, or Menu click)
+  // 1. Loading screen during initial Firebase auth handshake
+  if (isAuthChecking) {
+    return (
+      <div className="min-h-screen bg-[#030712] flex flex-col items-center justify-center p-4 text-white">
+        <PeaceDoveEmblem size={130} className="mb-4" />
+        <div className="flex items-center gap-2.5 text-sky-400 font-bold text-sm tracking-wide">
+          <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
+          <span>Connecting to PeaceVerse...</span>
+        </div>
+      </div>
+    );
+  }
+
+  // 2. Dedicated Auth Pages: /login and /signup
+  if (currentPath === '/login') {
+    return (
+      <PeaceVerseAuthPage
+        initialMode="login"
+        onNavigateHome={() => navigateToPath('/home')}
+        onNavigateTo={navigateToPath}
+      />
+    );
+  }
+
+  if (currentPath === '/signup') {
+    return (
+      <PeaceVerseAuthPage
+        initialMode="signup"
+        onNavigateHome={() => navigateToPath('/home')}
+        onNavigateTo={navigateToPath}
+      />
+    );
+  }
+
+  // 3. Landing Page Flow for non-logged-in visitors at "/"
+  if (!firebaseUser && (currentPath === '/' || currentPath === '')) {
+    return (
+      <>
+        <PeaceVerseLanding
+          onNavigateTo={navigateToPath}
+          onOpenDownloadModal={() => setShowInstallModal(true)}
+          onOpenLegalTab={(tab) => {
+            setLegalModalTab(tab as LegalTabType);
+            window.location.hash = `#${tab}`;
+          }}
+        />
+
+        {/* PWA In-App Install Guide Modal */}
+        {showInstallModal && (
+          <PWAInstallModal
+            onClose={() => {
+              setShowInstallModal(false);
+              if (window.location.hash === '#install') {
+                history.pushState('', document.title, window.location.pathname + window.location.search);
+              }
+            }}
+          />
+        )}
+
+        {/* Legal Policies Modal */}
+        {legalModalTab && (
+          <LegalModal
+            initialTab={legalModalTab}
+            onClose={() => {
+              setLegalModalTab(null);
+              if (window.location.hash) {
+                history.pushState('', document.title, window.location.pathname + window.location.search);
+              }
+            }}
+          />
+        )}
+      </>
+    );
+  }
+
+  // 4. Admin Portal (via #admin, #asol-admin-secret, or Menu click)
   if (showAdminPortal) {
     return (
       <AdminPortal
@@ -594,60 +815,49 @@ export default function App() {
               </button>
             </div>
 
-            {/* Posts Feed matching Screenshot 1 + Sponsored Ad */}
+            {/* Posts Feed matching Screenshot 1 */}
             <div className="space-y-2.5">
-              {filteredPosts.map((post, idx) => (
-                <React.Fragment key={post.id}>
-                  <FbPostCard
-                    post={post}
-                    onToggleReaction={handleToggleReaction}
-                    onToggleSave={handleToggleSave}
-                    onAddComment={handleAddComment}
-                    onEditPost={handleEditPost}
-                    onDeletePost={handleDeletePost}
-                    onOpenProfile={() => navigateToTab('profile')}
-                    onTypingChange={handleTypingChange}
-                    currentUserId={userProfile.id || 'user-me'}
-                    currentUserName={userProfile.name}
-                  />
+              {filteredPosts.length === 0 ? (
+                <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-8 text-center space-y-3 shadow-sm my-2">
+                  <div className="w-14 h-14 rounded-full bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto shadow-sm">
+                    <Sparkles className="w-7 h-7" />
+                  </div>
+                  <h3 className="text-base font-bold text-white">
+                    No posts yet - Your genuine posts will appear here
+                  </h3>
+                  <p className="text-xs text-[#b0b3b8] max-w-sm mx-auto">
+                    Share your genuine videos, thoughts, and moments using the box above.
+                  </p>
+                </div>
+              ) : (
+                <>
+                  {visiblePosts.map((post) => (
+                    <FbPostCard
+                      key={post.id}
+                      post={post}
+                      onToggleReaction={handleToggleReaction}
+                      onToggleSave={handleToggleSave}
+                      onAddComment={handleAddComment}
+                      onEditPost={handleEditPost}
+                      onDeletePost={handleDeletePost}
+                      onOpenProfile={() => navigateToTab('profile')}
+                      onTypingChange={handleTypingChange}
+                      currentUserId={userProfile.id || 'user-me'}
+                      currentUserName={userProfile.name}
+                    />
+                  ))}
 
-                  {/* Sponsored Halal Ad placed right after 1st post matching Facebook */}
-                  {idx === 0 && activeAds.find((a) => a.isActive && a.placement === 'home_feed') && (
-                    <div className="bg-[#242526] rounded-2xl border border-[#393a3b] overflow-hidden shadow-sm p-3.5 space-y-2.5 animate-in fade-in">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] uppercase font-bold tracking-wider text-[#b0b3b8] bg-[#18191a] px-2 py-0.5 rounded border border-[#393a3b]">
-                            Sponsored • ১০০% হালাল
-                          </span>
-                          <span className="text-xs font-bold text-white">
-                            {activeAds.find((a) => a.isActive && a.placement === 'home_feed')?.sponsorName}
-                          </span>
-                        </div>
-                        <span className="text-[10px] text-emerald-400 font-bold">ভেরিফাইড স্পন্সর</span>
+                  {/* Infinite Scroll Sentinel: loads next 10 videos as user scrolls */}
+                  <div ref={bottomSentinelRef} className="py-4 flex items-center justify-center">
+                    {visibleCount < filteredPosts.length && (
+                      <div className="flex items-center gap-2 text-xs text-[#b0b3b8]">
+                        <Loader2 className="w-4 h-4 animate-spin text-[#1877F2]" />
+                        <span>Loading more videos & posts...</span>
                       </div>
-                      <p className="text-xs font-bold text-white">
-                        {activeAds.find((a) => a.isActive && a.placement === 'home_feed')?.adTitle}
-                      </p>
-                      <p className="text-xs text-[#b0b3b8] leading-relaxed">
-                        {activeAds.find((a) => a.isActive && a.placement === 'home_feed')?.adDescription}
-                      </p>
-                      <div className="aspect-video w-full rounded-xl overflow-hidden bg-neutral-900">
-                        <img
-                          src={activeAds.find((a) => a.isActive && a.placement === 'home_feed')?.imageUrl}
-                          alt="Sponsored"
-                          className="w-full h-full object-cover"
-                        />
-                      </div>
-                      <button
-                        onClick={() => window.open(activeAds.find((a) => a.isActive && a.placement === 'home_feed')?.targetUrl, '_blank')}
-                        className="w-full py-2 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow-sm flex items-center justify-center gap-1.5"
-                      >
-                        <span>এখনই সংগ্রহ করুন (Learn More)</span>
-                      </button>
-                    </div>
-                  )}
-                </React.Fragment>
-              ))}
+                    )}
+                  </div>
+                </>
+              )}
             </div>
           </div>
         )}
@@ -731,6 +941,7 @@ export default function App() {
             onLogout={() => {
               logoutUser();
               setUserProfile(USER_PROFILE);
+              navigateToPath('/');
             }}
             onBack={goBack}
           />

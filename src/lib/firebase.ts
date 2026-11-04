@@ -189,32 +189,10 @@ export function subscribeToRealtimePosts(
   }
 }
 
-// Seed initial posts to Firestore if collection is empty
-export async function seedInitialPostsIfEmpty(initialPosts: PostItem[]) {
-  try {
-    const postsRef = collection(db, 'posts');
-    const snapshot = await getDocs(postsRef);
-    if (snapshot.empty && initialPosts.length > 0) {
-      for (let i = 0; i < Math.min(initialPosts.length, 6); i++) {
-        const post = initialPosts[i];
-        const postDocRef = doc(db, 'posts', post.id);
-        await setDoc(
-          postDocRef,
-          {
-            ...post,
-            privacy: post.privacy || 'public',
-            status: post.status || 'approved',
-            createdAtMillis: Date.now() - i * 1000 * 60 * 30, // staggered time
-            createdAt: new Date().toISOString(),
-          },
-          { merge: true }
-        );
-      }
-      console.log('Peace World: Initial posts seeded to Firestore.');
-    }
-  } catch (err) {
-    console.warn('Seed posts warning:', err);
-  }
+// Seed initial posts to Firestore disabled per cleanup instructions
+export async function seedInitialPostsIfEmpty(_initialPosts: PostItem[]) {
+  // Feed is 100% empty by default - only genuine posts will appear
+  return;
 }
 
 // Create a new post in Firestore with Real-time push

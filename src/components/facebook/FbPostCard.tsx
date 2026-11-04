@@ -23,6 +23,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
+import { FbVideoPlayer } from './FbVideoPlayer';
 
 interface FbPostCardProps {
   post: PostItem;
@@ -495,7 +496,8 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
       )}
 
-      {post.mediaType === 'video' && post.youtubeId && (
+      {/* Video: YouTube Embed */}
+      {post.youtubeId && (
         <div className="relative aspect-video w-full bg-black border-y border-[#393a3b]">
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${post.youtubeId}?rel=0&modestbranding=1`}
@@ -506,6 +508,17 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           />
         </div>
       )}
+
+      {/* Video: Direct Uploaded Video Player with Viewport Autoplay/Pause (Facebook style) */}
+      {!post.youtubeId &&
+        (post.mediaType === 'video' ||
+          Boolean(post.mediaUrl && post.mediaUrl.match(/\.(mp4|webm|mov|ogg|m4v)($|\?)/i))) &&
+        post.mediaUrl && (
+          <FbVideoPlayer
+            src={post.mediaUrl}
+            title={post.contentBangla}
+          />
+        )}
 
       {/* 5. Reactions Summary Bar */}
       <div className="flex items-center justify-between px-3 sm:px-4 py-1 text-xs text-[#b0b3b8] border-b border-[#393a3b]/60">
