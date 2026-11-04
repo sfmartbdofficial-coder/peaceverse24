@@ -11,7 +11,13 @@ import {
   ShieldCheck,
   Sparkles,
 } from 'lucide-react';
-import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword } from '../../lib/firebase';
+import {
+  loginWithGoogle,
+  loginWithEmail,
+  registerWithEmail,
+  resetPassword,
+  activeFirebaseProjectId,
+} from '../../lib/firebase';
 import { PeaceDoveEmblem } from './PeaceDoveEmblem';
 
 interface PeaceVerseAuthPageProps {
@@ -45,7 +51,11 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
         }, 800);
       }
     } catch (err: any) {
-      setErrorMsg(err?.message || 'Google Sign-In could not be completed. Please try again.');
+      let msg = err?.message || 'Google Sign-In could not be completed. Please try again.';
+      if (msg.includes('auth/operation-not-allowed')) {
+        msg = `Google Sign-In এই প্রজেক্টে (${activeFirebaseProjectId || 'Unknown'}) চালু নেই। Firebase Console > Authentication > Sign-in method-এ গিয়ে Google এনাবল করুন।`;
+      }
+      setErrorMsg(msg);
     } finally {
       setLoading(false);
     }
@@ -90,12 +100,17 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
       }
     } catch (err: any) {
       let msg = err?.message || 'An error occurred during authentication.';
-      if (msg.includes('auth/invalid-email')) msg = 'Invalid email address.';
-      if (msg.includes('auth/user-not-found') || msg.includes('auth/invalid-credential'))
+      if (msg.includes('auth/operation-not-allowed')) {
+        msg = `Firebase Email/Password সাইন-আপ এই প্রজেক্টে (${activeFirebaseProjectId || 'Unknown'}) চালু নেই। Firebase Console > Authentication > Sign-in method-এ গিয়ে Email/Password এনাবল করুন।`;
+      } else if (msg.includes('auth/invalid-email')) {
+        msg = 'Invalid email address.';
+      } else if (msg.includes('auth/user-not-found') || msg.includes('auth/invalid-credential')) {
         msg = 'Incorrect email or password.';
-      if (msg.includes('auth/wrong-password')) msg = 'Incorrect password.';
-      if (msg.includes('auth/email-already-in-use'))
+      } else if (msg.includes('auth/wrong-password')) {
+        msg = 'Incorrect password.';
+      } else if (msg.includes('auth/email-already-in-use')) {
         msg = 'An account with this email already exists. Try signing in.';
+      }
       setErrorMsg(msg);
     } finally {
       setLoading(false);

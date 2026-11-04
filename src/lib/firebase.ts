@@ -48,11 +48,19 @@ const resolvedFirebaseConfig = {
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
 
-// Initialize Firestore with configured databaseId
-export const db = getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId || '(default)');
+// Initialize Firestore (uses default database if none specified)
+export const db =
+  resolvedFirebaseConfig.firestoreDatabaseId &&
+  resolvedFirebaseConfig.firestoreDatabaseId !== '(default)'
+    ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
+    : getFirestore(app);
 
 // Initialize Auth
 export const auth = getAuth(app);
+
+// Export active project information for debugging & configuration transparency
+export const activeFirebaseConfig = resolvedFirebaseConfig;
+export const activeFirebaseProjectId = resolvedFirebaseConfig.projectId;
 
 // Helper for sound notification (Halal Web Audio Chime)
 export function playNotificationSound() {
