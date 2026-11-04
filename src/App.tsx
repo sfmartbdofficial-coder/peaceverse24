@@ -46,7 +46,7 @@ import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
 import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2 } from 'lucide-react';
-import { onAuthStateChanged, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
 import { PeaceDoveEmblem } from './components/landing/PeaceDoveEmblem';
@@ -148,12 +148,27 @@ export default function App() {
       setFirebaseUser(usr);
       setIsAuthChecking(false);
       if (usr) {
+        const savedName = localStorage.getItem('peaceverse_registered_name');
+        const emailFallback = usr.email ? usr.email.split('@')[0] : 'Member';
+        const resolvedName =
+          usr.displayName && usr.displayName !== 'Sharif Hasan'
+            ? usr.displayName
+            : savedName || (usr.email ? emailFallback : 'Member');
+
+        if (!usr.displayName && resolvedName) {
+          updateProfile(usr, { displayName: resolvedName }).catch(() => {});
+        }
+
+        const resolvedAvatar =
+          usr.photoURL ||
+          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(resolvedName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
         setUserProfile((prev) => ({
           ...prev,
           id: usr.uid,
-          name: usr.displayName || prev.name,
+          name: resolvedName,
           email: usr.email || prev.email,
-          avatar: usr.photoURL || prev.avatar,
+          avatar: resolvedAvatar,
         }));
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home"
         const path = window.location.pathname;

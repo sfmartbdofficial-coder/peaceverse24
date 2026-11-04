@@ -87,12 +87,16 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           setLoading(false);
           return;
         }
-        const user = await registerWithEmail(email.trim(), password, displayName.trim());
+        const cleanName = displayName.trim();
+        try {
+          localStorage.setItem('peaceverse_registered_name', cleanName);
+        } catch {}
+        const user = await registerWithEmail(email.trim(), password, cleanName);
         if (user) {
           setSuccessMsg('Account created successfully! Verification email sent.');
           setTimeout(() => {
             onNavigateHome();
-          }, 1000);
+          }, 800);
         }
       } else if (mode === 'forgot') {
         await resetPassword(email.trim());

@@ -9,20 +9,20 @@ import {
 } from '../types';
 
 export const USER_PROFILE: UserProfile = {
-  name: 'Sharif Hasan',
-  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
+  name: 'Abdulla',
+  avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=Abdulla&backgroundColor=1877f2,0ea5e9,3b82f6',
   coverPhoto: 'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=1200&q=80',
-  friendsCount: 330,
+  friendsCount: 0,
   location: 'Dhaka, Bangladesh',
-  birthDate: 'August 17, 1991',
+  birthDate: 'August 17, 1995',
   thoughtBubble: 'Drop a thought...',
-  bio: 'আলহামদুলিল্লাহ আলা কুল্লি হাল। হালাল রিজিক ও উত্তম আখলাক।',
-  work: 'Content Creator & Designer at Peaceverse24',
-  education: 'Studied Islamic Studies at Dhaka University',
-  hometown: 'Sylhet, Bangladesh',
-  relationship: 'Married',
+  bio: 'Peaceverse24 এর সাথে শান্তির পথে।',
+  work: 'Member at Peaceverse24',
+  education: 'Peaceverse Global Community',
+  hometown: 'Dhaka, Bangladesh',
+  relationship: 'Single',
   website: 'https://peaceverse24.com',
-  hobbies: ['কুরআন তিলাওয়াত', 'হাদিস অধ্যয়ন', 'ইসলামিক ক্যালিগ্রাফি', 'মসজিদ ভ্রমণ'],
+  hobbies: ['কুরআন তিলাওয়াত', 'ভিডিও দেখা', 'ইসলামিক ক্যালিগ্রাফি'],
 };
 
 // 100% EMPTY by default per Part 1 instructions - Genuine posts & stories will load from Supabase / Firestore

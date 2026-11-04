@@ -22,6 +22,7 @@ import {
   GoogleAuthProvider,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
+  updateProfile,
   signOut,
   sendPasswordResetEmail,
   sendEmailVerification,
@@ -723,6 +724,36 @@ export async function registerWithEmail(
 ): Promise<FirebaseUser | null> {
   const res = await createUserWithEmailAndPassword(auth, email, pass);
   if (res.user) {
+    const cleanName = displayName.trim() || email.split('@')[0];
+    try {
+      await updateProfile(res.user, {
+        displayName: cleanName,
+      });
+    } catch (e) {
+      console.warn('updateProfile notice:', e);
+    }
+
+    try {
+      localStorage.setItem('peaceverse_registered_name', cleanName);
+    } catch {}
+
+    try {
+      const userRef = doc(db, 'users', res.user.uid);
+      await setDoc(
+        userRef,
+        {
+          uid: res.user.uid,
+          displayName: cleanName,
+          email: res.user.email,
+          createdAt: new Date().toISOString(),
+          createdAtMillis: Date.now(),
+        },
+        { merge: true }
+      );
+    } catch (err) {
+      console.warn('Saving user doc notice:', err);
+    }
+
     await sendEmailVerification(res.user).catch(() => {});
   }
   return res.user;
