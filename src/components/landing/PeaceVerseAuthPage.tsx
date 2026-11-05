@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import {
   Mail,
   Lock,
@@ -20,6 +20,81 @@ import {
 } from '../../lib/firebase';
 import { PeaceDoveEmblem } from './PeaceDoveEmblem';
 
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+  'mailinator.com',
+  'tempmail.com',
+  '10minutemail.com',
+  'yopmail.com',
+  'fake.com',
+  'fakeemail.com',
+  'dispostable.com',
+  'trashmail.com',
+  'guerrillamail.com',
+  'generator.email',
+  'sharklasers.com',
+  'getairmail.com',
+  'throwawaymail.com',
+]);
+
+const COMMON_TYPOS: Record<string, string> = {
+  'gmial.com': 'gmail.com',
+  'gamil.com': 'gmail.com',
+  'gmaill.com': 'gmail.com',
+  'gmai.com': 'gmail.com',
+  'yaho.com': 'yahoo.com',
+  'yahooo.com': 'yahoo.com',
+  'hotmial.com': 'hotmail.com',
+  'hotmaill.com': 'hotmail.com',
+  'outlok.com': 'outlook.com',
+};
+
+function validateEmail(rawEmail: string): { isValid: boolean; message: string | null } {
+  const val = rawEmail.trim();
+  if (!val) return { isValid: true, message: null };
+
+  if (!val.includes('@')) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয় (@ চিহ্ন নেই)' };
+  }
+
+  const parts = val.split('@');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয়' };
+  }
+
+  const [username, domain] = parts;
+  const domainLower = domain.toLowerCase();
+
+  if (username.length < 2) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয় (ইউজারনেম খুব ছোট)' };
+  }
+
+  if (!domain.includes('.')) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয় (ডোমেইন অসম্পূর্ণ)' };
+  }
+
+  const domainParts = domain.split('.');
+  const tld = domainParts[domainParts.length - 1];
+  if (!tld || tld.length < 2) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয় (ভুল ডোমেইন এক্সটেনশন)' };
+  }
+
+  if (DISPOSABLE_EMAIL_DOMAINS.has(domainLower)) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয় (অস্থায়ী বা ভুয়া ইমেইল গ্রহণযোগ্য নয়)' };
+  }
+
+  if (COMMON_TYPOS[domainLower]) {
+    return { isValid: false, message: `আপনার ইমেইলটি সঠিক নয় (আপনি কি @${COMMON_TYPOS[domainLower]} বোঝাতে চেয়েছেন?)` };
+  }
+
+  // Standard email format
+  const emailRegex = /^[a-zA-Z0-9.!#$%&'*+/=?^_`{|}~-]+@[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(?:\.[a-zA-Z0-9](?:[a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)+$/;
+  if (!emailRegex.test(val)) {
+    return { isValid: false, message: 'আপনার ইমেইলটি সঠিক নয়' };
+  }
+
+  return { isValid: true, message: null };
+}
+
 interface PeaceVerseAuthPageProps {
   initialMode?: 'login' | 'signup' | 'forgot';
   onNavigateHome: () => void;
@@ -33,11 +108,15 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode);
   const [email, setEmail] = useState('');
+  const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+
+  const emailValidation = useMemo(() => validateEmail(email), [email]);
+  const showEmailError = emailTouched && email.trim().length > 0 && !emailValidation.isValid;
 
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
@@ -65,6 +144,14 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+
+    // Instant AI / pattern email validation check
+    setEmailTouched(true);
+    if (!emailValidation.isValid) {
+      setErrorMsg(emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়');
+      return;
+    }
+
     setLoading(true);
 
     try {
@@ -290,11 +377,33 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                   type="email"
                   required
                   value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  onChange={(e) => {
+                    setEmail(e.target.value);
+                    if (!emailTouched) setEmailTouched(true);
+                  }}
+                  onBlur={() => setEmailTouched(true)}
                   placeholder="name@example.com"
-                  className="w-full bg-slate-950/70 border border-slate-700/60 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                  className={`w-full bg-slate-950/70 border rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                    showEmailError
+                      ? 'border-rose-500/80 focus:border-rose-500 bg-rose-950/25 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
+                      : 'border-slate-700/60 focus:border-blue-500'
+                  }`}
                 />
               </div>
+
+              {/* Real-time Email Validation: Shows immediately under the email input */}
+              {showEmailError && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                  <span className="font-semibold">{emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়'}</span>
+                </div>
+              )}
+              {emailTouched && email.trim().length > 0 && emailValidation.isValid && (
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-400 animate-in fade-in">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                  <span>ইমেইলটি সঠিক ও সক্রিয় ✓</span>
+                </div>
+              )}
             </div>
 
             {mode !== 'forgot' && (

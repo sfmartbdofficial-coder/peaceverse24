@@ -20,7 +20,8 @@ import {
   Globe,
   SlidersHorizontal,
   DollarSign,
-  TrendingUp
+  TrendingUp,
+  Flag,
 } from 'lucide-react';
 import { UserProfile, PostItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
@@ -31,6 +32,7 @@ interface FbProfileViewProps {
   userProfile: UserProfile;
   userPosts: PostItem[];
   onOpenMenu: () => void;
+  onOpenPages?: () => void;
   onBack: () => void;
   onAddStory: () => void;
   onToggleReaction: (postId: string, reaction: any) => void;
@@ -45,6 +47,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   userProfile,
   userPosts,
   onOpenMenu,
+  onOpenPages,
   onBack,
   onAddStory,
   onToggleReaction,
@@ -215,11 +218,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           </div>
 
           <div className="flex items-center justify-center gap-2 text-xs text-[#b0b3b8] font-medium">
-            <span>{userProfile.friendsCount} friends</span>
+            <span className="text-white font-semibold">{userProfile.friendsCount || 0} friends</span>
             <span>•</span>
-            <span className="text-emerald-400 font-semibold">{(userProfile.followersCount || 1420).toLocaleString()} followers</span>
-            <span>•</span>
-            <span>{(userProfile.followingCount || 85).toLocaleString()} following</span>
+            <span className="text-slate-400">ব্যক্তিগত প্রোফাইল (Personal ID)</span>
           </div>
 
           {/* Bio text */}
@@ -234,28 +235,6 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             <MapPin className="w-3.5 h-3.5 text-[#b0b3b8]" />
             <span>{userProfile.location}</span>
           </p>
-
-          {/* Friends with things in common avatars */}
-          <div className="flex items-center justify-center gap-2 pt-1 text-xs text-[#b0b3b8]">
-            <div className="flex -space-x-1.5 overflow-hidden">
-              <img
-                src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80"
-                alt="f1"
-                className="inline-block h-6 w-6 rounded-full ring-2 ring-[#242526]"
-              />
-              <img
-                src="https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80"
-                alt="f2"
-                className="inline-block h-6 w-6 rounded-full ring-2 ring-[#242526]"
-              />
-              <img
-                src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80"
-                alt="f3"
-                className="inline-block h-6 w-6 rounded-full ring-2 ring-[#242526]"
-              />
-            </div>
-            <span>Friends with things in common</span>
-          </div>
         </div>
 
         {/* Two Action Buttons: Add to story (blue) & Edit profile (grey) */}
@@ -274,6 +253,28 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           >
             <Edit2 className="w-3.5 h-3.5" />
             <span>Edit profile</span>
+          </button>
+        </div>
+
+        {/* Pages & Followers Shortcut: Personal ID creates Pages which have followers */}
+        <div className="mt-3">
+          <button
+            onClick={() => (onOpenPages ? onOpenPages() : onOpenMenu())}
+            className="w-full py-2.5 px-3.5 rounded-xl bg-[#3a3b3c]/80 hover:bg-[#4e4f50] border border-[#4e4f50]/60 text-white font-bold text-xs flex items-center justify-between shadow-sm transition-all cursor-pointer"
+          >
+            <div className="flex items-center gap-2.5">
+              <span className="w-8 h-8 rounded-lg bg-orange-500/20 text-orange-400 flex items-center justify-center shrink-0">
+                <Flag className="w-4 h-4" />
+              </span>
+              <div className="text-left">
+                <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                  <span>পেইজ তৈরি ও ফলোয়ার (Pages & Followers)</span>
+                  <span className="text-[10px] px-1.5 py-0.5 rounded bg-orange-500/20 text-orange-300 font-semibold">পেইজ অপশন</span>
+                </p>
+                <p className="text-[11px] text-[#b0b3b8]">নতুন পেইজ তৈরি করুন, পেইজের ফলোয়ার, লাইক ও ভিডিও মনিটাইজেশন</p>
+              </div>
+            </div>
+            <span className="text-xs text-[#1877F2] font-bold">পেইজে যান →</span>
           </button>
         </div>
 

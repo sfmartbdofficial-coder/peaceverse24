@@ -46,7 +46,7 @@ import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
 import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2 } from 'lucide-react';
-import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
 import { PeaceDoveEmblem } from './components/landing/PeaceDoveEmblem';
@@ -169,6 +169,9 @@ export default function App() {
           name: resolvedName,
           email: usr.email || prev.email,
           avatar: resolvedAvatar,
+          friendsCount: prev.friendsCount === 330 ? 0 : (prev.friendsCount || 0),
+          bio: prev.bio && prev.bio.includes('আলহামদুলিল্লাহ আলা কুল্লি হাল') ? '' : (prev.bio || ''),
+          location: prev.location && prev.location === 'Dhaka, Bangladesh' ? '' : (prev.location || ''),
         }));
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home"
         const path = window.location.pathname;
@@ -221,6 +224,34 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  // Email verification state and handlers
+  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+
+  const handleResendEmailVerification = async () => {
+    if (!firebaseUser) return;
+    try {
+      await sendEmailVerification(firebaseUser);
+      setVerificationNotice('ভেরিফিকেশন লিঙ্ক পুনরায় আপনার ইমেইলে পাঠানো হয়েছে। ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।');
+      setTimeout(() => setVerificationNotice(null), 6000);
+    } catch (err: any) {
+      setVerificationNotice(err?.message || 'লিঙ্ক পাঠাতে সমস্যা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।');
+      setTimeout(() => setVerificationNotice(null), 5000);
+    }
+  };
+
+  const handleCheckEmailVerified = async () => {
+    if (!auth.currentUser) return;
+    await auth.currentUser.reload();
+    setFirebaseUser({ ...auth.currentUser });
+    if (auth.currentUser.emailVerified) {
+      setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
+      setTimeout(() => setVerificationNotice(null), 5000);
+    } else {
+      setVerificationNotice('আপনার ইমেইল এখনও ভেরিফাই হয়নি। দয়া করে আপনার ইমেইল ইনবক্সে পাঠানো লিঙ্কে ক্লিক করুন।');
+      setTimeout(() => setVerificationNotice(null), 5000);
+    }
+  };
+
   const [activeAds] = useState<AdSlot[]>(() => {
     try {
       const stored = localStorage.getItem('qalby_admin_ads');
@@ -234,7 +265,17 @@ export default function App() {
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
     try {
       const stored = localStorage.getItem('qalby_user_profile');
-      return stored ? JSON.parse(stored) : USER_PROFILE;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return {
+          ...USER_PROFILE,
+          ...parsed,
+          friendsCount: parsed.friendsCount === 330 ? 0 : (parsed.friendsCount || 0),
+          bio: parsed.bio && parsed.bio.includes('আলহামদুলিল্লাহ আলা কুল্লি হাল') ? '' : (parsed.bio || ''),
+          location: parsed.location && parsed.location === 'Dhaka, Bangladesh' ? '' : (parsed.location || ''),
+        };
+      }
+      return USER_PROFILE;
     } catch {
       return USER_PROFILE;
     }
@@ -924,6 +965,7 @@ export default function App() {
             userProfile={userProfile}
             userPosts={userPosts}
             onOpenMenu={() => navigateToTab('menu')}
+            onOpenPages={() => navigateToTab('pages')}
             onBack={goBack}
             onAddStory={() => setShowCreateStory(true)}
             onToggleReaction={handleToggleReaction}

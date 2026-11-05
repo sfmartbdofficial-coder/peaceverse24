@@ -22,49 +22,17 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'requests' | 'friends' | 'creators'>('requests');
   const [searchQuery, setSearchQuery] = useState('');
 
-  // 1. Friend Requests
-  const [requests, setRequests] = useState([
-    {
-      id: 'req-1',
-      name: 'Sujon Ahme',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '1d',
-      mutualFriend: 'আমার বাংলাদেশ is a mutual friend.',
-      status: 'pending',
-    },
-    {
-      id: 'req-2',
-      name: 'Karan Viswakarma',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '1d',
-      mutualFriend: 'Karan Singh is a mutual friend.',
-      status: 'pending',
-    },
-    {
-      id: 'req-3',
-      name: 'Md Sojibur Rahman',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '17h',
-      mutualFriend: 'Sk Anowar is a mutual friend.',
-      status: 'pending',
-    },
-    {
-      id: 'req-4',
-      name: 'Hassan Abdullah',
-      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '2d',
-      mutualFriend: '৫ জন মিউচুয়াল ফ্রেন্ড',
-      status: 'pending',
-    },
-    {
-      id: 'req-5',
-      name: 'Robel M',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '3d',
-      mutualFriend: '১২ জন মিউচুয়াল ফ্রেন্ড',
-      status: 'pending',
-    },
-  ]);
+  // 1. Friend Requests (0 by default for genuine new accounts)
+  const [requests, setRequests] = useState<
+    Array<{
+      id: string;
+      name: string;
+      avatar: string;
+      timeAgo: string;
+      mutualFriend: string;
+      status: string;
+    }>
+  >([]);
 
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>({});
   const [deleted, setDeleted] = useState<Record<string, boolean>>({});
@@ -118,37 +86,16 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
     },
   ]);
 
-  // 3. Existing Friends List
-  const [friendsList, setFriendsList] = useState([
-    {
-      id: 'fr-1',
-      name: 'আরিফুল ইসলাম',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
-      mutualCount: 14,
-      isOnline: true,
-    },
-    {
-      id: 'fr-2',
-      name: 'তানভীর হাসান',
-      avatar: 'https://images.unsplash.com/photo-1570295999919-56ceb5ecca61?auto=format&fit=crop&w=160&q=80',
-      mutualCount: 8,
-      isOnline: true,
-    },
-    {
-      id: 'fr-3',
-      name: 'মাহমুদ ইকবাল',
-      avatar: 'https://images.unsplash.com/photo-1492562080023-ab3db95bfbce?auto=format&fit=crop&w=160&q=80',
-      mutualCount: 22,
-      isOnline: false,
-    },
-    {
-      id: 'fr-4',
-      name: 'জাহিদুল ইসলাম',
-      avatar: 'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=160&q=80',
-      mutualCount: 5,
-      isOnline: false,
-    },
-  ]);
+  // 3. Existing Friends List (0 friends by default for genuine new accounts)
+  const [friendsList, setFriendsList] = useState<
+    Array<{
+      id: string;
+      name: string;
+      avatar: string;
+      mutualCount: number;
+      isOnline: boolean;
+    }>
+  >([]);
 
   // Sync real-time follow status from Firebase
   useEffect(() => {
@@ -280,9 +227,20 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             Friend Requests ({requests.filter((r) => !deleted[r.id] && !confirmed[r.id]).length})
           </h2>
 
-          {requests
-            .filter((req) => req.name.toLowerCase().includes(searchQuery.toLowerCase()))
-            .map((req) => {
+          {requests.filter((r) => !deleted[r.id] && !confirmed[r.id]).length === 0 ? (
+            <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-8 text-center space-y-3 shadow-sm my-2">
+              <div className="w-12 h-12 rounded-full bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-white">কোনো ফ্রেন্ড রিকোয়েস্ট নেই (0 Requests)</h3>
+              <p className="text-xs text-[#b0b3b8] max-w-sm mx-auto">
+                অন্যান্য সদস্যরা আপনাকে ফ্রেন্ড রিকোয়েস্ট পাঠালে তা এখানে সরাসরি চলে আসবে।
+              </p>
+            </div>
+          ) : (
+            requests
+              .filter((req) => req.name.toLowerCase().includes(searchQuery.toLowerCase()))
+              .map((req) => {
               if (deleted[req.id]) return null;
               const isConf = confirmed[req.id];
 
@@ -329,7 +287,8 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                   </div>
                 </div>
               );
-            })}
+            })
+          )}
         </div>
       )}
 
@@ -408,43 +367,57 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
             <h2 className="text-base font-bold text-white">আপনার বন্ধু তালিকা ({friendsList.length})</h2>
-            <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-              {friendsList.filter((f) => f.isOnline).length} জন অনলাইন
-            </span>
+            {friendsList.length > 0 && (
+              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
+                {friendsList.filter((f) => f.isOnline).length} জন অনলাইন
+              </span>
+            )}
           </div>
 
-          <div className="space-y-2.5">
-            {friendsList
-              .filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
-              .map((friend) => (
-                <div
-                  key={friend.id}
-                  className="p-3 rounded-2xl bg-[#242526] border border-[#393a3b] flex items-center justify-between shadow-sm"
-                >
-                  <div className="flex items-center gap-3">
-                    <div className="relative">
-                      <img
-                        src={friend.avatar}
-                        alt={friend.name}
-                        className="w-12 h-12 rounded-full object-cover border border-[#393a3b]"
-                      />
-                      {friend.isOnline && (
-                        <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#242526]" />
-                      )}
+          {friendsList.length === 0 ? (
+            <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-8 text-center space-y-3 shadow-sm my-2">
+              <div className="w-12 h-12 rounded-full bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto">
+                <Users className="w-6 h-6" />
+              </div>
+              <h3 className="text-sm font-bold text-white">এখনও কোনো বন্ধু যুক্ত নেই (0 Friends)</h3>
+              <p className="text-xs text-[#b0b3b8] max-w-sm mx-auto">
+                আপনার ফ্রেন্ডলিস্ট এখন সম্পূর্ণ খালি। নতুন আইডি খুললে কোনো ফেক ফ্রেন্ড যুক্ত হবে না—আসল মানুষ ফ্রেন্ড রিকোয়েস্ট পাঠিয়ে অ্যাকসেপ্ট করলেই ফ্রেন্ডলিস্টে দেখা যাবে।
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2.5">
+              {friendsList
+                .filter((f) => f.name.toLowerCase().includes(searchQuery.toLowerCase()))
+                .map((friend) => (
+                  <div
+                    key={friend.id}
+                    className="p-3 rounded-2xl bg-[#242526] border border-[#393a3b] flex items-center justify-between shadow-sm"
+                  >
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <img
+                          src={friend.avatar}
+                          alt={friend.name}
+                          className="w-12 h-12 rounded-full object-cover border border-[#393a3b]"
+                        />
+                        {friend.isOnline && (
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#242526]" />
+                        )}
+                      </div>
+                      <div>
+                        <p className="font-bold text-sm text-white">{friend.name}</p>
+                        <p className="text-xs text-[#b0b3b8]">{friend.mutualCount} জন মিউচুয়াল ফ্রেন্ড</p>
+                      </div>
                     </div>
-                    <div>
-                      <p className="font-bold text-sm text-white">{friend.name}</p>
-                      <p className="text-xs text-[#b0b3b8]">{friend.mutualCount} জন মিউচুয়াল ফ্রেন্ড</p>
-                    </div>
+
+                    <button className="px-3 py-1.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-[#e4e6eb] transition-colors cursor-pointer">
+                      Message
+                    </button>
                   </div>
-
-                  <button className="px-3 py-1.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-[#e4e6eb] transition-colors cursor-pointer">
-                    Message
-                  </button>
-                </div>
-              ))}
-          </div>
+                ))}
+            </div>
+          )}
         </div>
       )}
 
