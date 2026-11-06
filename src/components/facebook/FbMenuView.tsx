@@ -18,41 +18,31 @@ import {
   ArrowLeft,
   FileText,
   Lock,
-  Info,
-  Trash2,
   Mail,
-  Award,
   BookOpen,
-  Download,
-  DollarSign,
   Globe,
   Smile,
   Gift,
-  Calendar,
-  Rss,
-  Compass,
-  Gamepad2,
-  Shield,
-  Hand,
-  Pin,
-  PinOff,
-  Video,
-  MessageCircle,
-  Instagram,
-  Send,
-  Smartphone,
-  Tag,
-  CreditCard,
-  Link,
-  Moon,
-  TrendingUp,
+  Film,
+  Newspaper,
+  Play,
+  UserCog,
   Radio,
+  CreditCard,
+  Link2,
+  Moon,
+  Smartphone,
+  Tv,
+  Home,
+  Zap,
+  Rocket,
+  Award,
 } from 'lucide-react';
 import { UserProfile, FacebookMainTab } from '../../types';
 import { LegalTabType } from '../legal/LegalModal';
 import { useLanguage } from '../../context/LanguageContext';
 
-// Import newly created interactive sub-modals
+// Import interactive sub-modals
 import { FbAvatarsModal } from './FbAvatarsModal';
 import { FbBirthdaysModal } from './FbBirthdaysModal';
 import { FbEventsModal } from './FbEventsModal';
@@ -77,6 +67,7 @@ interface FbMenuViewProps {
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onBack: () => void;
+  onOpenMessenger?: () => void;
 }
 
 export const FbMenuView: React.FC<FbMenuViewProps> = ({
@@ -91,15 +82,15 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onOpenAuth,
   onLogout,
   onBack,
+  onOpenMessenger,
 }) => {
   const { t, currentLangInfo, setShowLanguageModal } = useLanguage();
 
-  // Accordion toggles matching Screenshots 3 & 4
+  // Accordion toggles: Settings and privacy & Upgrades OPEN BY DEFAULT per Screenshot 2 & 3
   const [showSettingsAccordion, setShowSettingsAccordion] = useState(true);
   const [showUpgradesAccordion, setShowUpgradesAccordion] = useState(true);
-  const [showAlsoFromPeaceAccordion, setShowAlsoFromPeaceAccordion] = useState(true);
   const [showHelp, setShowHelp] = useState(false);
-  const [seeMore, setSeeMore] = useState(true); // default true so user can see all A-Z menu items
+  const [seeMore, setSeeMore] = useState(false); // See more / See less toggle
 
   // Sub-modals state
   const [showAvatarsModal, setShowAvatarsModal] = useState(false);
@@ -114,179 +105,153 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [settingsModalType, setSettingsModalType] = useState<SettingsModalType>(null);
   const [alsoAppType, setAlsoAppType] = useState<AlsoAppType>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [darkModeInline, setDarkModeInline] = useState(false);
 
-  // Shortcuts matching Screenshot 1
-  const [shortcuts, setShortcuts] = useState([
+  // 4 Shortcuts with 100% working high-res images (Fixing broken SF MART image)
+  const defaultShortcuts = [
     {
       id: 'sc-1',
       name: "Sharif's Lif...",
       fullName: "Sharif's Life Story",
-      image: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
-      type: 'page' as const,
-      isPinned: true,
-      hasReelBadge: false,
+      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
     },
     {
       id: 'sc-2',
-      name: 'Angel Mahi',
-      fullName: 'Angel Mahi',
-      image: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-      type: 'page' as const,
-      isPinned: false,
-      hasReelBadge: true,
+      name: "Angel Mahi",
+      fullName: "Angel Mahi",
+      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
     },
     {
       id: 'sc-3',
-      name: 'SF MART...',
-      fullName: 'SF MART BD',
-      image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=200&q=80',
-      type: 'page' as const,
-      isPinned: true,
-      hasReelBadge: false,
+      name: "SF MART...",
+      fullName: "SF MART BD",
+      image: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=200&q=80",
     },
     {
       id: 'sc-4',
-      name: 'Peace Deen...',
-      fullName: 'Peace Deen Group',
-      image: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-      type: 'group' as const,
-      isPinned: false,
-      hasReelBadge: false,
+      name: "Angel Mahi",
+      fullName: "Angel Mahi",
+      image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
     },
-  ]);
+  ];
 
-  const togglePinShortcut = (id: string, e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShortcuts((prev) =>
-      prev.map((sc) => (sc.id === id ? { ...sc, isPinned: !sc.isPinned } : sc))
-    );
-  };
-
-  const handleShortcutClick = (sc: (typeof shortcuts)[0]) => {
-    if (sc.type === 'page') {
-      onNavigateTab('pages');
+  const handleMessengerClick = () => {
+    if (onOpenMessenger) {
+      onOpenMessenger();
     } else {
-      onNavigateTab('groups');
+      onNavigateTab('friends');
     }
   };
 
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#18191a] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4 font-sans select-none">
+    <div className="max-w-[500px] mx-auto min-h-screen bg-[#F0F2F5] text-neutral-900 pb-24 p-3 sm:p-4 space-y-3 font-sans select-none">
       
-      {/* 1. Header with Back button and Settings search */}
-      <div className="flex items-center justify-between pb-1 border-b border-[#393a3b]/60">
-        <div className="flex items-center gap-2.5">
+      {/* 1. TOP HEADER: Back arrow, Menu title, Settings gear, Search, Messenger mail/lightning icon */}
+      <div className="flex items-center justify-between pb-2">
+        <div className="flex items-center gap-2">
           <button
             onClick={onBack}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-white transition-colors"
-            title="পেছনে যান (Back)"
+            className="p-1.5 -ml-1 rounded-full hover:bg-neutral-200 text-neutral-800 transition-colors cursor-pointer"
+            title="Back"
           >
             <ArrowLeft className="w-6 h-6 stroke-[2.5]" />
           </button>
-          <h1 className="font-bold text-2xl text-white">Menu</h1>
+          <h1 className="font-bold text-2xl text-neutral-900">Menu</h1>
         </div>
+
+        {/* Right side icons: Settings, Search, Messenger */}
         <div className="flex items-center gap-2">
           <button
             onClick={() => setSettingsModalType('settings')}
-            className="w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] flex items-center justify-center transition-colors"
-            title="সেটিংস"
+            className="w-9 h-9 rounded-full bg-neutral-200/80 hover:bg-neutral-300 text-neutral-800 flex items-center justify-center transition-colors cursor-pointer"
+            title="Settings"
           >
             <Settings className="w-5 h-5" />
           </button>
+
           <button
             onClick={() => onNavigateTab('home')}
-            className="px-3 py-1.5 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-semibold text-xs flex items-center gap-1.5 transition-colors"
+            className="w-9 h-9 rounded-full bg-neutral-200/80 hover:bg-neutral-300 text-neutral-800 flex items-center justify-center transition-colors cursor-pointer"
+            title="Search"
           >
-            <ArrowLeft className="w-3.5 h-3.5" />
-            <span>হোমে ফিরুন</span>
+            <Search className="w-5 h-5" />
+          </button>
+
+          {/* Messenger Icon: Blue dot with lightning bolt / chat like Facebook */}
+          <button
+            onClick={handleMessengerClick}
+            className="relative w-9 h-9 rounded-full bg-[#0866FF] hover:bg-[#1877F2] text-white flex items-center justify-center transition-transform active:scale-95 shadow-xs cursor-pointer"
+            title="Messenger Chat"
+          >
+            <Zap className="w-5 h-5 fill-white stroke-white" />
+            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#E41E3F] ring-2 ring-white" />
           </button>
         </div>
       </div>
 
-      {/* 2. Top Profile Card with Switch Profile & 9+ Badge (Exact Screenshot 1) */}
+      {/* 1. PROFILE CARD:
+          Left: SI Siddik profile card with blue SI circle
+          Right: Switch account icon and dropdown with 9+ red badge */}
       <div
         onClick={onOpenProfile}
-        className="p-3.5 rounded-2xl bg-[#242526] border border-[#393a3b] hover:bg-[#2e2f30] flex items-center justify-between cursor-pointer shadow-sm transition-all"
+        className="bg-white rounded-[12px] p-3 shadow-xs border border-neutral-200/80 flex items-center justify-between cursor-pointer hover:bg-neutral-50 transition-colors"
       >
         <div className="flex items-center gap-3">
-          <div className="relative">
-            <img
-              src={userProfile.avatar}
-              alt={userProfile.name}
-              className="w-12 h-12 rounded-full object-cover border border-[#393a3b]"
-            />
-            {/* Green active status dot */}
-            <span className="absolute bottom-0 right-0 w-3.5 h-3.5 bg-emerald-500 rounded-full ring-2 ring-[#242526]" />
+          {/* Blue SI Circle Avatar matching Screenshot 3 */}
+          <div className="w-10 h-10 rounded-full bg-[#0866FF] text-white font-bold text-base flex items-center justify-center shadow-xs shrink-0">
+            SI
           </div>
           <div>
-            <h2 className="font-bold text-base text-white">{userProfile.name}</h2>
-            <p className="text-xs text-[#b0b3b8]">প্রোফাইল দেখুন</p>
+            <h2 className="font-bold text-[16px] text-neutral-900 leading-tight">
+              {userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Siddik'}
+            </h2>
           </div>
         </div>
 
-        {/* Switch Account button with circular badge and 9+ notification */}
-        <div className="flex items-center gap-2">
-          <div
-            onClick={(e) => {
-              e.stopPropagation();
+        {/* Right side: switch account icon (circular arrow) and dropdown with 9+ red badge */}
+        <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
+          <button
+            onClick={() => {
               if (onOpenAuth) onOpenAuth();
             }}
-            className="w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] flex items-center justify-center text-[#e4e6eb] transition-colors cursor-pointer"
-            title="লগইন / একাউন্ট পরিবর্তন (Firebase Auth)"
+            className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
+            title="Switch account"
           >
             <RefreshCw className="w-4 h-4" />
-          </div>
-          <div className="relative w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] flex items-center justify-center text-[#e4e6eb] transition-colors">
+          </button>
+          <button
+            onClick={onOpenProfile}
+            className="relative w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
+            title="Accounts"
+          >
             <ChevronDown className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-[18px] bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center ring-2 ring-[#242526]">
+            <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-[18px] bg-[#E41E3F] text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
               9+
             </span>
-          </div>
+          </button>
         </div>
       </div>
 
-      {/* 3. Section: Your shortcuts (Horizontal Scrollable with Pin/Unpin, Exact Screenshot 1) */}
-      <div className="space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="font-bold text-sm text-[#b0b3b8]">Your shortcuts</h3>
-          <span className="text-[11px] text-[#8a8d91]">পিন করতে আইকনে চাপুন</span>
-        </div>
+      {/* 2. YOUR SHORTCUTS SECTION:
+          - Title "Your shortcuts" 14px grey
+          - 4 items in horizontal scroll: Sharif's Lif..., Angel Mahi, SF MART..., Angel Mahi.
+          Each: image 60x60 rounded 12px, name 12px below. No broken image. */}
+      <div className="space-y-2 pt-1">
+        <h3 className="text-[14px] text-neutral-500 font-semibold px-1">Your shortcuts</h3>
         
-        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1">
-          {shortcuts.map((sc) => (
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1 px-1">
+          {defaultShortcuts.map((sc) => (
             <div
               key={sc.id}
-              onClick={() => handleShortcutClick(sc)}
-              className="w-20 sm:w-24 flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer group"
+              onClick={() => onNavigateTab('pages')}
+              className="flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer group"
             >
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-2xl overflow-hidden bg-neutral-800 border border-[#393a3b] shadow-sm group-hover:scale-105 transition-transform">
-                <img
-                  src={sc.image}
-                  alt={sc.fullName}
-                  className="w-full h-full object-cover"
-                />
-
-                {/* Reel icon badge overlay as in Screenshot 1 */}
-                {sc.hasReelBadge && (
-                  <span className="absolute bottom-1 right-1 w-5 h-5 rounded-full bg-red-600/90 text-white flex items-center justify-center shadow">
-                    <Video className="w-3 h-3" />
-                  </span>
-                )}
-
-                {/* Pin toggle badge */}
-                <button
-                  onClick={(e) => togglePinShortcut(sc.id, e)}
-                  className={`absolute top-1 right-1 p-1 rounded-full transition-colors ${
-                    sc.isPinned
-                      ? 'bg-[#1877F2] text-white shadow'
-                      : 'bg-black/50 text-[#b0b3b8] hover:text-white'
-                  }`}
-                  title={sc.isPinned ? 'আনপিন করুন' : 'পিন করুন'}
-                >
-                  {sc.isPinned ? <Pin className="w-2.5 h-2.5" /> : <PinOff className="w-2.5 h-2.5" />}
-                </button>
-              </div>
-              <p className="text-[11px] text-[#e4e6eb] font-medium text-center truncate w-full">
+              <img
+                src={sc.image}
+                alt={sc.fullName}
+                className="w-[60px] h-[60px] rounded-[12px] object-cover shadow-xs border border-neutral-200/80 group-hover:opacity-90 transition-opacity bg-neutral-100"
+              />
+              <p className="text-[12px] text-neutral-800 text-center truncate w-[64px] font-medium leading-tight">
                 {sc.name}
               </p>
             </div>
@@ -294,693 +259,391 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         </div>
       </div>
 
-      {/* ======================================================== */}
-      {/* 4. MAIN MENU ITEMS (A to Z From Screenshots 1 & 2) */}
-      {/* ======================================================== */}
-      <div className="space-y-1 pt-1">
+      {/* 2. MAIN MENU - COPY FACEBOOK EXACTLY (in this order):
+          Section 1: Pages, Meta AI, Saved, Memories, Marketplace, Groups, Reels, Feeds, Friends, Video */}
+      <div className="bg-white rounded-[12px] p-2 shadow-xs border border-neutral-200/80 space-y-0.5">
         
-        {/* 1. Pages */}
+        {/* 1. Pages (flag icon) */}
         <button
           onClick={() => onNavigateTab('pages')}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-[#fa3e3e] shrink-0">
-            <Flag className="w-6 h-6 fill-current" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Pages</p>
-            <p className="text-[11px] text-[#b0b3b8]">SF MART BD ও আপনার পরিচালিত পেজসমূহ</p>
-          </div>
+          <Flag className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Pages</span>
         </button>
 
-        {/* 2. Saved */}
+        {/* 2. Meta AI (star/sparkle icon) */}
+        <button
+          onClick={() => setShowPeaceAiModal(true)}
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
+        >
+          <Sparkles className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Meta AI</span>
+        </button>
+
+        {/* 3. Saved (bookmark icon) */}
         <button
           onClick={() => onNavigateTab('saved')}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-[#a033ff] shrink-0">
-            <Bookmark className="w-6 h-6 fill-current" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Saved</p>
-            <p className="text-[11px] text-[#b0b3b8]">সংরক্ষিত পোস্ট, ভিডিও ও দ্বীনি তিলাওয়াত</p>
-          </div>
+          <Bookmark className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Saved</span>
         </button>
 
-        {/* 3. Memories */}
+        {/* 4. Memories (clock icon) */}
         <button
           onClick={() => onNavigateTab('memories')}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-[#1877F2] shrink-0">
-            <Clock className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Memories</p>
-            <p className="text-[11px] text-[#b0b3b8]">অতীতের স্মৃতি ও পূর্ববর্তী পোস্ট</p>
-          </div>
+          <Clock className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Memories</span>
         </button>
 
-        {/* 4. Marketplace */}
+        {/* 5. Marketplace (shop icon) */}
         <button
           onClick={() => onNavigateTab('marketplace')}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-[#00a400] shrink-0">
-            <Store className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Marketplace</p>
-            <p className="text-[11px] text-[#b0b3b8]">হালাল কেনাকাটা ও সখীপুর লোকাল শপ</p>
-          </div>
+          <Store className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Marketplace</span>
         </button>
 
-        {/* 5. Groups */}
+        {/* 6. Groups (people icon) */}
         <button
           onClick={() => onNavigateTab('groups')}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-[#00c7be] shrink-0">
-            <Users className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Groups</p>
-            <p className="text-[11px] text-[#b0b3b8]">কুরআন ও হাদিস পরিবার গ্রুপস</p>
-          </div>
+          <Users className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Groups</span>
         </button>
 
-        {/* 6. Avatars (Screenshot 1) */}
+        {/* 7. Reels (film icon) */}
         <button
-          onClick={() => setShowAvatarsModal(true)}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          onClick={() => onNavigateTab('reels')}
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-pink-500 shrink-0">
-            <Smile className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Avatars</p>
-            <p className="text-[11px] text-[#b0b3b8]">হালাল কার্টুন অ্যাভাটার ও ইসলামিক স্টিকার প্যাক</p>
-          </div>
+          <Film className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Reels</span>
         </button>
 
-        {/* 7. Birthdays (Screenshot 1) */}
-        <button
-          onClick={() => setShowBirthdaysModal(true)}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
-        >
-          <div className="text-rose-400 shrink-0">
-            <Gift className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Birthdays</p>
-            <p className="text-[11px] text-[#b0b3b8]">আজকের জন্মদিন ও বরকতময় দোয়াপূর্ণ শুভেচ্ছা</p>
-          </div>
-        </button>
-
-        {/* 8. Events (Screenshot 1) */}
-        <button
-          onClick={() => setShowEventsModal(true)}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
-        >
-          <div className="text-sky-400 shrink-0">
-            <Calendar className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Events</p>
-            <p className="text-[11px] text-[#b0b3b8]">ইসলামিক মাহফিল, সম্মেলন ও চ্যারিটি ইভেন্ট</p>
-          </div>
-        </button>
-
-        {/* 9. Feeds (Screenshot 1) */}
+        {/* 8. Feeds (newspaper icon) */}
         <button
           onClick={() => setShowFeedsModal(true)}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="text-cyan-400 shrink-0">
-            <Rss className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Feeds</p>
-            <p className="text-[11px] text-[#b0b3b8]">এলগরিদমিক ও সময়ানুক্রমিক ক্রমানুসারে সাজানো পোস্ট</p>
-          </div>
+          <Newspaper className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Feeds</span>
         </button>
 
-        {/* 10. Finds (Screenshot 1) */}
-        <button
-          onClick={() => setShowFindsModal(true)}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
-        >
-          <div className="text-purple-400 shrink-0">
-            <Compass className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">Finds</p>
-            <p className="text-[11px] text-[#b0b3b8]">ট্রেন্ডিং ইসলামিক বিষয় ও নতুন ক্রিয়েটর আবিষ্কার</p>
-          </div>
-        </button>
-
-        {/* 11. Friends (18 online) (Exact Screenshot 1) */}
+        {/* 9. Friends (people icon) */}
         <button
           onClick={() => onNavigateTab('friends')}
-          className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
-          <div className="relative text-blue-400 shrink-0">
-            <Users className="w-6 h-6" />
-            <span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-emerald-500 rounded-full ring-2 ring-[#242526] animate-pulse" />
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <p className="font-bold text-sm text-white">Friends (18 online)</p>
-              <span className="text-[10px] bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 px-2 py-0.2 rounded-full font-bold">
-                ১৮ জন লাইভ
-              </span>
-            </div>
-            <p className="text-[11px] text-[#b0b3b8]">অনলাইন বন্ধুদের তালিকা, রিকোয়েস্ট ও পরামর্শ</p>
-          </div>
+          <Users className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Friends</span>
         </button>
 
-        {/* Collapsible Extended Items (Screenshot 2 items) */}
+        {/* 10. Video (play icon) */}
+        <button
+          onClick={() => onNavigateTab('reels')}
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
+        >
+          <Play className="w-6 h-6 text-black shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">Video</span>
+        </button>
+
+        {/* Section 2: See More / See Less (Avatars, Birthdays) */}
         {seeMore && (
-          <div className="space-y-1 animate-in fade-in">
-            {/* 12. Games */}
+          <div className="space-y-0.5 pt-0.5 animate-in fade-in">
+            {/* Avatars (smile icon) */}
             <button
-              onClick={() => setShowGamesModal(true)}
-              className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+              onClick={() => setShowAvatarsModal(true)}
+              className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
             >
-              <div className="text-amber-400 shrink-0">
-                <Gamepad2 className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-bold text-sm text-white">Games</p>
-                <p className="text-[11px] text-[#b0b3b8]">ইসলামিক কুইজ, ব্রেইন ট্রেইনার ও শিক্ষণীয় গেম</p>
-              </div>
+              <Smile className="w-6 h-6 text-black shrink-0" />
+              <span className="text-[15px] font-semibold text-neutral-900">Avatars</span>
             </button>
 
-            {/* 13. Messenger Kids */}
+            {/* Birthdays (gift icon) */}
             <button
-              onClick={() => setShowKidsModal(true)}
-              className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
+              onClick={() => setShowBirthdaysModal(true)}
+              className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
             >
-              <div className="text-emerald-400 shrink-0">
-                <Shield className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-1.5">
-                  <p className="font-bold text-sm text-white">Messenger Kids</p>
-                  <span className="text-[9px] bg-emerald-500/20 text-emerald-300 px-1.5 py-0.2 rounded font-bold">
-                    নিরাপদ
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#b0b3b8]">পিতা-মাতার নিয়ন্ত্রণে শিশুদের জন্য নিরাপদ ইসলামিক চ্যাট</p>
-              </div>
-            </button>
-
-            {/* 14. Meta AI -> Peace AI */}
-            <button
-              onClick={() => setShowPeaceAiModal(true)}
-              className="w-full p-3 rounded-2xl bg-gradient-to-r from-blue-900/30 via-[#242526] to-[#242526] hover:bg-[#3a3b3c] border border-[#1877F2]/40 flex items-center gap-3.5 transition-colors text-left"
-            >
-              <div className="text-[#1877F2] shrink-0">
-                <Sparkles className="w-6 h-6" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-bold text-sm text-white">Peaceverse24 AI (Qalby - The Heart)</p>
-                  <span className="text-[10px] bg-gradient-to-r from-[#1877F2] to-emerald-500 text-white px-1.5 py-0.2 rounded font-bold">
-                    Official AI
-                  </span>
-                </div>
-                <p className="text-[11px] text-[#b0b3b8]">পোস্ট রাইটার, হালাল রিরাইটার ও হার্ট হিলার (Peaceverse24.com)</p>
-              </div>
-            </button>
-
-            {/* 15. Pokes */}
-            <button
-              onClick={() => setShowPokesModal(true)}
-              className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
-            >
-              <div className="text-orange-400 shrink-0">
-                <Hand className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-bold text-sm text-white">Pokes</p>
-                <p className="text-[11px] text-[#b0b3b8]">বন্ধুদের পোক করুন ও পোক ব্যাক (Poke back) পাঠান</p>
-              </div>
-            </button>
-
-            {/* 16. Reels */}
-            <button
-              onClick={() => onNavigateTab('reels')}
-              className="w-full p-3 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] flex items-center gap-3.5 transition-colors text-left"
-            >
-              <div className="text-rose-500 shrink-0">
-                <Layers className="w-6 h-6" />
-              </div>
-              <div>
-                <p className="font-bold text-sm text-white">Reels</p>
-                <p className="text-[11px] text-[#b0b3b8]">ইসলামিক শর্ট ভিডিও ও কুরআন তিলাওয়াত রিলস</p>
-              </div>
+              <Gift className="w-6 h-6 text-black shrink-0" />
+              <span className="text-[15px] font-semibold text-neutral-900">Birthdays</span>
             </button>
           </div>
         )}
 
-        {/* See more / See less Toggle */}
+        {/* "See more" / "See less" Button */}
         <button
           onClick={() => setSeeMore(!seeMore)}
-          className="w-full py-2.5 mt-1 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs transition-colors text-center flex items-center justify-center gap-1.5"
+          className="w-full h-[36px] bg-[#F0F2F5] hover:bg-neutral-200 text-neutral-900 font-semibold text-[14px] rounded-[8px] flex items-center justify-center gap-1.5 transition-colors mt-2 cursor-pointer"
         >
           <span>{seeMore ? 'See less' : 'See more'}</span>
-          {seeMore ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
-      </div>
-
-      {/* ======================================================== */}
-      {/* 5. SETTINGS AND PRIVACY ACCORDION (Screenshot 3) */}
-      {/* ======================================================== */}
-      <div className="border-t border-[#393a3b] pt-3 space-y-1">
-        <button
-          onClick={() => setShowSettingsAccordion(!showSettingsAccordion)}
-          className="w-full py-2 flex items-center justify-between text-[#e4e6eb] font-bold text-base hover:text-white"
-        >
-          <div className="flex items-center gap-3">
-            <Settings className="w-5 h-5 text-[#b0b3b8]" />
-            <span className="text-white">Settings and privacy</span>
-          </div>
-          {showSettingsAccordion ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
+          {seeMore ? <ChevronUp className="w-4 h-4 text-neutral-700" /> : <ChevronDown className="w-4 h-4 text-neutral-700" />}
         </button>
 
-        {showSettingsAccordion && (
-          <div className="space-y-1 pt-1 animate-in fade-in">
-            {/* 1. Settings */}
-            <button
-              onClick={() => setSettingsModalType('settings')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Settings className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Settings</span>
-            </button>
-
-            {/* 2. Privacy Center */}
-            <button
-              onClick={() => setSettingsModalType('privacy_center')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Lock className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Privacy Center</span>
-            </button>
-
-            {/* 3. Time management */}
-            <button
-              onClick={() => setSettingsModalType('time_management')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Clock className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Time management</span>
-            </button>
-
-            {/* 4. Device requests */}
-            <button
-              onClick={() => setSettingsModalType('device_requests')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Smartphone className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Device requests</span>
-            </button>
-
-            {/* 5. Your Ad Activity */}
-            <button
-              onClick={() => setSettingsModalType('ad_activity')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Tag className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Your Ad Activity</span>
-            </button>
-
-            {/* 6. Orders and payments */}
-            <button
-              onClick={() => setSettingsModalType('orders_payments')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <CreditCard className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Orders and payments</span>
-            </button>
-
-            {/* 7. Link history */}
-            <button
-              onClick={() => setSettingsModalType('link_history')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Link className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Link history</span>
-            </button>
-
-            {/* 8. Dark mode */}
-            <button
-              onClick={() => setSettingsModalType('dark_mode')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Moon className="w-5 h-5 text-[#b0b3b8]" />
-              <span>Dark mode</span>
-            </button>
-
-            {/* 9. Language */}
-            <button
-              onClick={() => setShowLanguageModal(true)}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center justify-between transition-colors text-left text-white font-medium text-sm"
-            >
-              <div className="flex items-center gap-3.5">
-                <Globe className="w-5 h-5 text-[#b0b3b8]" />
-                <span>Language</span>
-              </div>
-              <span className="text-xs text-[#b0b3b8]">{currentLangInfo.nativeName}</span>
-            </button>
-
-            {/* 10. App icon */}
-            <button
-              onClick={() => setSettingsModalType('app_icon')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <Sparkles className="w-5 h-5 text-[#b0b3b8]" />
-              <span>App icon</span>
-            </button>
-          </div>
-        )}
       </div>
 
-      {/* ======================================================== */}
-      {/* 6. UPGRADES SECTION (Screenshot 3) */}
-      {/* ======================================================== */}
-      <div className="border-t border-[#393a3b] pt-3 space-y-3">
-        <button
-          onClick={() => setShowUpgradesAccordion(!showUpgradesAccordion)}
-          className="w-full py-2 flex items-center justify-between text-[#e4e6eb] font-bold text-base hover:text-white"
-        >
-          <div className="flex items-center gap-3">
-            <Layers className="w-5 h-5 text-[#b0b3b8]" />
-            <span className="text-white">Upgrades</span>
-          </div>
-          {showUpgradesAccordion ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-        </button>
-
-        {showUpgradesAccordion && (
-          <div className="grid grid-cols-2 gap-3 pt-1 animate-in fade-in">
-            {/* Card 1: Public presence (Screenshot 3) */}
-            <div
-              onClick={() => setSettingsModalType('public_presence')}
-              className="rounded-2xl bg-[#242526] border border-[#393a3b] overflow-hidden hover:border-[#1877F2] transition-all cursor-pointer group shadow-sm flex flex-col"
-            >
-              <div className="relative h-28 bg-gradient-to-tr from-purple-700 via-indigo-600 to-pink-500 overflow-hidden">
-                {/* 3D spheres decorative mockup matching screenshot 3 */}
-                <div className="absolute -bottom-4 -right-4 w-24 h-24 rounded-full bg-purple-400/40 blur-sm" />
-                <div className="absolute top-2 left-6 w-14 h-14 rounded-full bg-pink-400/50 shadow-inner" />
-                <div className="absolute bottom-2 left-10 w-8 h-8 rounded-full bg-fuchsia-300/60" />
-                
-                {/* Rocket badge at bottom-left */}
-                <div className="absolute bottom-2.5 left-2.5 w-8 h-8 rounded-full bg-white text-[#1877F2] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                  <TrendingUp className="w-4 h-4 stroke-[2.5]" />
-                </div>
-              </div>
-              <div className="p-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <h4 className="font-bold text-xs sm:text-sm text-white">Public presence</h4>
-                  <p className="text-[11px] text-[#b0b3b8] leading-tight mt-1">
-                    Get tools to help you grow on Peaceverse.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Card 2: Facebook Plus -> Peaceverse Plus (Screenshot 3) */}
-            <div
-              onClick={() => setSettingsModalType('peace_plus')}
-              className="rounded-2xl bg-[#242526] border border-[#393a3b] overflow-hidden hover:border-[#1877F2] transition-all cursor-pointer group shadow-sm flex flex-col"
-            >
-              <div className="relative h-28 bg-gradient-to-tr from-sky-400 via-blue-600 to-indigo-700 overflow-hidden">
-                {/* Visual decorative stories preview matching screenshot 3 */}
-                <div className="absolute inset-0 flex items-center justify-center">
-                  <div className="relative w-16 h-16 rounded-full border-2 border-white/80 p-0.5">
-                    <img
-                      src="https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80"
-                      alt="Stories"
-                      className="w-full h-full rounded-full object-cover"
-                    />
-                    <span className="absolute -bottom-1 -right-1 px-1.5 py-0.2 bg-blue-500 text-white text-[9px] font-bold rounded-full">
-                      48h
-                    </span>
-                  </div>
-                </div>
-
-                {/* Diamond/Star badge at bottom-left */}
-                <div className="absolute bottom-2.5 left-2.5 w-8 h-8 rounded-full bg-white text-[#1877F2] flex items-center justify-center shadow-lg group-hover:scale-110 transition-transform">
-                  <Award className="w-4 h-4 stroke-[2.5]" />
-                </div>
-              </div>
-              <div className="p-3 flex-1 flex flex-col justify-between">
-                <div>
-                  <h4 className="font-bold text-xs sm:text-sm text-white">Peaceverse Plus</h4>
-                  <p className="text-[11px] text-[#b0b3b8] leading-tight mt-1">
-                    Unlock exclusive features and more.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* ======================================================== */}
-      {/* 7. ALSO FROM PEACEVERSE (Also from Meta - Screenshot 4) */}
-      {/* ======================================================== */}
-      <div className="border-t border-[#393a3b] pt-3 space-y-1">
-        <button
-          onClick={() => setShowAlsoFromPeaceAccordion(!showAlsoFromPeaceAccordion)}
-          className="w-full py-2 flex items-center justify-between text-[#e4e6eb] font-bold text-base hover:text-white"
-        >
-          <div className="flex items-center gap-3">
-            <div className="grid grid-cols-2 gap-0.5 w-5 h-5 text-[#b0b3b8]">
-              <span className="w-2 h-2 rounded-sm bg-[#b0b3b8]" />
-              <span className="w-2 h-2 rounded-sm bg-[#b0b3b8]" />
-              <span className="w-2 h-2 rounded-sm bg-[#b0b3b8]" />
-              <span className="w-2 h-2 rounded-sm bg-[#b0b3b8]" />
-            </div>
-            <span className="text-white">Also from Peaceverse</span>
-          </div>
-          {showAlsoFromPeaceAccordion ? <ChevronUp className="w-5 h-5" /> : <ChevronDown className="w-5 h-5" />}
-        </button>
-
-        {showAlsoFromPeaceAccordion && (
-          <div className="space-y-1 pt-1 animate-in fade-in">
-            {/* 1. Edits */}
-            <button
-              onClick={() => setAlsoAppType('edits')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-pink-500 to-rose-500 flex items-center justify-center text-white">
-                <Video className="w-3.5 h-3.5" />
-              </div>
-              <span>Edits</span>
-            </button>
-
-            {/* 2. Threads */}
-            <button
-              onClick={() => setAlsoAppType('threads')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <div className="w-6 h-6 rounded-lg bg-neutral-900 border border-neutral-700 flex items-center justify-center text-white">
-                <MessageCircle className="w-3.5 h-3.5" />
-              </div>
-              <span>Threads</span>
-            </button>
-
-            {/* 3. Instagram */}
-            <button
-              onClick={() => setAlsoAppType('instagram')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <div className="w-6 h-6 rounded-lg bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white">
-                <Instagram className="w-3.5 h-3.5" />
-              </div>
-              <span>Instagram</span>
-            </button>
-
-            {/* 4. Messenger */}
-            <button
-              onClick={() => setAlsoAppType('messenger')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <div className="w-6 h-6 rounded-lg bg-[#1877F2] flex items-center justify-center text-white">
-                <MessageCircle className="w-3.5 h-3.5" />
-              </div>
-              <span>Messenger</span>
-            </button>
-
-            {/* 5. WhatsApp */}
-            <button
-              onClick={() => setAlsoAppType('whatsapp')}
-              className="w-full p-3 rounded-xl hover:bg-[#242526] flex items-center gap-3.5 transition-colors text-left text-white font-medium text-sm"
-            >
-              <div className="w-6 h-6 rounded-lg bg-emerald-600 flex items-center justify-center text-white">
-                <Send className="w-3.5 h-3.5" />
-              </div>
-              <span>WhatsApp</span>
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ======================================================== */}
-      {/* 8. CREATOR MONETIZATION & ADMIN PORTAL BUTTONS */}
-      {/* ======================================================== */}
-      <div className="space-y-2 pt-2 border-t border-[#393a3b]">
-        {/* Creator Monetization Studio Entry */}
-        {onOpenMonetization && (
+      {/* 3. SECTIONS: Help and support, Settings and privacy, Upgrades */}
+      <div className="space-y-3 pt-2">
+        
+        {/* Section 3: Help and support (dropdown) */}
+        <div className="bg-white rounded-[12px] shadow-xs border border-neutral-200/80 overflow-hidden">
           <button
-            onClick={onOpenMonetization}
-            className="w-full p-3.5 rounded-2xl bg-gradient-to-r from-emerald-950/40 via-[#242526] to-[#242526] hover:bg-[#3a3b3c] border border-emerald-500/40 flex items-center justify-between transition-colors text-left group"
+            onClick={() => setShowHelp(!showHelp)}
+            className="w-full p-3.5 flex items-center justify-between text-neutral-900 font-semibold text-[15px] hover:bg-neutral-50 transition-colors cursor-pointer"
           >
-            <div className="flex items-center gap-3.5">
-              <div className="text-emerald-400 p-1.5 rounded-xl bg-emerald-500/20 font-black text-lg w-10 h-10 flex items-center justify-center flex-shrink-0">
-                ৳
-              </div>
-              <div>
-                <p className="font-bold text-sm text-white group-hover:text-emerald-400 transition-colors flex items-center gap-2">
-                  <span>ক্রিয়েটর মনিটাইজেশন ও আর্নিং স্টুডিও</span>
-                  <span className="text-[10px] font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 px-2 py-0.5 rounded-full">
-                    সক্রিয়
-                  </span>
-                </p>
-                <p className="text-[11px] text-[#b0b3b8]">ইন-স্ট্রিম ভিডিও বিজ্ঞাপন ও রেভিনিউ শেয়ার ৫৫/৪৫</p>
-              </div>
+            <div className="flex items-center gap-3">
+              <HelpCircle className="w-5 h-5 text-neutral-700" />
+              <span>Help and support</span>
             </div>
-            <span className="text-xs text-emerald-400 font-bold">ড্যাশবোর্ড →</span>
+            {showHelp ? <ChevronUp className="w-5 h-5 text-neutral-500" /> : <ChevronDown className="w-5 h-5 text-neutral-500" />}
           </button>
-        )}
 
-        {/* Halal Guarantee Policy */}
-        <button
-          onClick={onOpenHalalPolicy}
-          className="w-full p-3.5 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-emerald-500/40 flex items-center gap-3.5 transition-colors text-left"
-        >
-          <div className="text-emerald-400">
-            <ShieldCheck className="w-6 h-6" />
-          </div>
-          <div>
-            <p className="font-bold text-sm text-white">১০০% হালাল নীতি ও গ্যারান্টি</p>
-            <p className="text-[11px] text-emerald-400">বাদ্যযন্ত্র ও অশ্লীলতামুক্ত প্ল্যাটফর্ম</p>
-          </div>
-        </button>
-      </div>
-
-      {/* ======================================================== */}
-      {/* 9. GOOGLE PLAY STORE & INTERNATIONAL LEGAL POLICIES */}
-      {/* ======================================================== */}
-      <div className="border-t border-[#393a3b] pt-3 space-y-2">
-        <div className="flex items-center justify-between px-1">
-          <div className="flex items-center gap-2">
-            <Award className="w-4 h-4 text-emerald-400" />
-            <h3 className="font-bold text-xs uppercase tracking-wider text-emerald-400">
-              আন্তর্জাতিক ও গুগল প্লে স্টোর পলিসি
-            </h3>
-          </div>
-          <span className="text-[10px] bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">
-            v2.4.0 Compliant
-          </span>
+          {showHelp && (
+            <div className="px-3 pb-3 space-y-1 text-sm border-t border-neutral-100 pt-2 animate-in fade-in">
+              <button
+                onClick={() => onOpenLegalTab?.('guidelines')}
+                className="w-full p-2.5 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <BookOpen className="w-4 h-4 text-neutral-600" />
+                <span>Help Center</span>
+              </button>
+              <button
+                onClick={() => onOpenLegalTab?.('contact')}
+                className="w-full p-2.5 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Mail className="w-4 h-4 text-neutral-600" />
+                <span>Support Inbox</span>
+              </button>
+              <button
+                onClick={() => onOpenLegalTab?.('terms')}
+                className="w-full p-2.5 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <FileText className="w-4 h-4 text-neutral-600" />
+                <span>Terms and Policies</span>
+              </button>
+              <button
+                onClick={onOpenHalalPolicy}
+                className="w-full p-2.5 rounded-lg hover:bg-neutral-50 flex items-center gap-3 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <ShieldCheck className="w-4 h-4 text-emerald-600" />
+                <span>Halal Safety & Community Standards</span>
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="grid grid-cols-2 gap-2">
+        {/* Section 4: Settings and privacy (OPEN BY DEFAULT - Exact 12 items from Screenshot 2) */}
+        <div className="bg-white rounded-[12px] shadow-xs border border-neutral-200/80 overflow-hidden">
           <button
-            onClick={() => onOpenLegalTab?.('about')}
-            className="p-3 rounded-xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] text-left transition-colors flex items-center gap-2"
+            onClick={() => setShowSettingsAccordion(!showSettingsAccordion)}
+            className="w-full p-3.5 flex items-center justify-between text-neutral-900 font-semibold text-[15px] hover:bg-neutral-50 transition-colors cursor-pointer"
           >
-            <Info className="w-4 h-4 text-[#1877F2] shrink-0" />
-            <div>
-              <p className="font-bold text-xs text-white">আমাদের সম্পর্কে</p>
-              <p className="text-[10px] text-[#b0b3b8]">About Us</p>
+            <div className="flex items-center gap-3">
+              <Settings className="w-5 h-5 text-neutral-700" />
+              <span>Settings and privacy</span>
             </div>
+            {showSettingsAccordion ? <ChevronUp className="w-5 h-5 text-neutral-500" /> : <ChevronDown className="w-5 h-5 text-neutral-500" />}
           </button>
 
-          <button
-            onClick={() => onOpenLegalTab?.('privacy')}
-            className="p-3 rounded-xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] text-left transition-colors flex items-center gap-2"
-          >
-            <Lock className="w-4 h-4 text-emerald-400 shrink-0" />
-            <div>
-              <p className="font-bold text-xs text-white">গোপনীয়তা নীতি</p>
-              <p className="text-[10px] text-[#b0b3b8]">Privacy Policy</p>
+          {showSettingsAccordion && (
+            <div className="px-2 pb-3 space-y-0.5 text-sm border-t border-neutral-100 pt-1.5 animate-in fade-in">
+              {/* 1. Settings (gear with person) */}
+              <button
+                onClick={() => setSettingsModalType('settings')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <UserCog className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Settings</span>
+              </button>
+
+              {/* 2. Privacy Center (lock) */}
+              <button
+                onClick={() => setSettingsModalType('privacy_center')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Lock className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Privacy Center</span>
+              </button>
+
+              {/* 3. Time management (clock) */}
+              <button
+                onClick={() => setSettingsModalType('time_management')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Clock className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Time management</span>
+              </button>
+
+              {/* 4. Device requests (house with check) */}
+              <button
+                onClick={() => setSettingsModalType('device_requests')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Home className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Device requests</span>
+              </button>
+
+              {/* 5. Your Ad Activity (ad/screen icon) */}
+              <button
+                onClick={() => setSettingsModalType('ad_activity')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Tv className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Your Ad Activity</span>
+              </button>
+
+              {/* 6. Mobile Center · banglalink (antenna/signal icon) */}
+              <button
+                onClick={() => setSettingsModalType('mobile_center')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Radio className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Mobile Center · banglalink</span>
+              </button>
+
+              {/* 7. Orders and payments (credit card) */}
+              <button
+                onClick={() => setSettingsModalType('orders_payments')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <CreditCard className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Orders and payments</span>
+              </button>
+
+              {/* 8. Link history (link) */}
+              <button
+                onClick={() => setSettingsModalType('link_history')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Link2 className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Link history</span>
+              </button>
+
+              {/* 9. Dark mode (moon with toggle) */}
+              <div
+                onClick={() => {
+                  setDarkModeInline(!darkModeInline);
+                  setSettingsModalType('dark_mode');
+                }}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between font-medium text-neutral-800 cursor-pointer"
+              >
+                <div className="flex items-center gap-3.5">
+                  <Moon className="w-5 h-5 text-neutral-800 shrink-0" />
+                  <span className="text-[14.5px]">Dark mode</span>
+                </div>
+                <div className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors ${darkModeInline ? 'bg-[#0866FF] justify-end' : 'bg-neutral-300 justify-start'}`}>
+                  <div className="bg-white w-4 h-4 rounded-full shadow-md" />
+                </div>
+              </div>
+
+              {/* 10. Language (globe - show বাংলা on right) */}
+              <button
+                onClick={() => setShowLanguageModal(true)}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between font-medium text-neutral-800 cursor-pointer"
+              >
+                <div className="flex items-center gap-3.5">
+                  <Globe className="w-5 h-5 text-neutral-800 shrink-0" />
+                  <span className="text-[14.5px]">Language</span>
+                </div>
+                <span className="text-[13px] text-neutral-500 font-medium">বাংলা</span>
+              </button>
+
+              {/* 11. App icon (f icon) */}
+              <button
+                onClick={() => setSettingsModalType('app_icon')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <div className="w-5 h-5 rounded-full bg-[#0866FF] text-white font-bold text-xs flex items-center justify-center shrink-0">
+                  f
+                </div>
+                <span className="text-[14.5px]">App icon</span>
+              </button>
+
+              {/* 12. Cellular Data Usage (phone/smartphone icon) */}
+              <button
+                onClick={() => setSettingsModalType('cellular_data')}
+                className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
+              >
+                <Smartphone className="w-5 h-5 text-neutral-800 shrink-0" />
+                <span className="text-[14.5px]">Cellular Data Usage</span>
+              </button>
             </div>
+          )}
+        </div>
+
+        {/* Section 5: Upgrades (OPEN BY DEFAULT - Two colorful cards matching Screenshot 2) */}
+        <div className="bg-white rounded-[12px] shadow-xs border border-neutral-200/80 overflow-hidden">
+          <button
+            onClick={() => setShowUpgradesAccordion(!showUpgradesAccordion)}
+            className="w-full p-3.5 flex items-center justify-between text-neutral-900 font-semibold text-[15px] hover:bg-neutral-50 transition-colors cursor-pointer"
+          >
+            <div className="flex items-center gap-3">
+              <Layers className="w-5 h-5 text-neutral-700" />
+              <span>Upgrades</span>
+            </div>
+            {showUpgradesAccordion ? <ChevronUp className="w-5 h-5 text-neutral-500" /> : <ChevronDown className="w-5 h-5 text-neutral-500" />}
           </button>
 
-          <button
-            onClick={() => onOpenLegalTab?.('terms')}
-            className="p-3 rounded-xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] text-left transition-colors flex items-center gap-2"
-          >
-            <FileText className="w-4 h-4 text-purple-400 shrink-0" />
-            <div>
-              <p className="font-bold text-xs text-white">ব্যবহারের শর্তাবলী</p>
-              <p className="text-[10px] text-[#b0b3b8]">Terms of Service</p>
-            </div>
-          </button>
+          {showUpgradesAccordion && (
+            <div className="p-3 border-t border-neutral-100 grid grid-cols-2 gap-3 animate-in fade-in">
+              {/* Public presence card with rocket badge */}
+              <div
+                onClick={() => setSettingsModalType('public_presence')}
+                className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-gradient-to-tr from-purple-900 via-indigo-700 to-pink-500 shadow-sm cursor-pointer group hover:opacity-95 transition-all p-3 flex flex-col justify-between"
+              >
+                {/* Abstract colorful shapes */}
+                <div className="absolute -top-4 -right-4 w-20 h-20 bg-pink-400/40 rounded-full blur-md" />
+                <div className="absolute bottom-2 right-2 w-16 h-16 bg-purple-500/40 rounded-full blur-sm" />
 
-          <button
-            onClick={() => onOpenLegalTab?.('guidelines')}
-            className="p-3 rounded-xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] text-left transition-colors flex items-center gap-2"
-          >
-            <BookOpen className="w-4 h-4 text-amber-400 shrink-0" />
-            <div>
-              <p className="font-bold text-xs text-white">হালাল গাইডলাইন</p>
-              <p className="text-[10px] text-[#b0b3b8]">Community Code</p>
-            </div>
-          </button>
+                <div className="relative z-10">
+                  <span className="text-[11px] font-bold text-white/90 uppercase tracking-wider">Public presence</span>
+                </div>
 
-          <button
-            onClick={() => onOpenLegalTab?.('delete-account')}
-            className="p-3 rounded-xl bg-[#242526] hover:bg-rose-950/30 border border-[#393a3b] text-left transition-colors flex items-center gap-2"
-          >
-            <Trash2 className="w-4 h-4 text-rose-400 shrink-0" />
-            <div>
-              <p className="font-bold text-xs text-rose-300">অ্যাকাউন্ট ডিলিট</p>
-              <p className="text-[10px] text-[#8a8d91]">Data Erasure</p>
-            </div>
-          </button>
+                {/* Rocket badge at bottom-left matching Screenshot 2 */}
+                <div className="relative z-10 w-8 h-8 rounded-full bg-white text-blue-600 flex items-center justify-center shadow-md">
+                  <Rocket className="w-4 h-4 fill-blue-600" />
+                </div>
+              </div>
 
-          <button
-            onClick={() => onOpenLegalTab?.('contact')}
-            className="p-3 rounded-xl bg-[#242526] hover:bg-[#3a3b3c] border border-[#393a3b] text-left transition-colors flex items-center gap-2"
-          >
-            <Mail className="w-4 h-4 text-blue-400 shrink-0" />
-            <div>
-              <p className="font-bold text-xs text-white">যোগাযোগ ও সাপোর্ট</p>
-              <p className="text-[10px] text-[#b0b3b8]">Contact Us</p>
+              {/* Creator Studio card with star badge */}
+              <div
+                onClick={() => onOpenMonetization ? onOpenMonetization() : setSettingsModalType('peace_plus')}
+                className="relative rounded-2xl overflow-hidden aspect-[4/3] bg-gradient-to-tr from-sky-400 via-blue-500 to-indigo-600 shadow-sm cursor-pointer group hover:opacity-95 transition-all p-3 flex flex-col justify-between"
+              >
+                {/* Decorative badge and photo */}
+                <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/30 backdrop-blur-xs px-2 py-0.5 rounded-full text-[10px] text-white font-medium">
+                  <Clock className="w-3 h-3" />
+                  <span>48h</span>
+                </div>
+
+                <div className="relative z-10">
+                  <span className="text-[11px] font-bold text-white/90 uppercase tracking-wider">Creator Studio</span>
+                </div>
+
+                {/* Star badge at bottom-left matching Screenshot 2 */}
+                <div className="relative z-10 w-8 h-8 rounded-full bg-white text-indigo-600 flex items-center justify-center shadow-md">
+                  <Award className="w-4 h-4 fill-indigo-600" />
+                </div>
+              </div>
             </div>
+          )}
+        </div>
+
+        {/* Log out Button: clean light grey matching Facebook */}
+        <div className="pt-2">
+          <button
+            onClick={() => setShowLogoutConfirm(true)}
+            className="w-full h-[40px] bg-[#E4E6EB] hover:bg-neutral-300 text-neutral-900 font-semibold text-[15px] rounded-[8px] flex items-center justify-center transition-colors cursor-pointer"
+          >
+            Log out
           </button>
         </div>
-      </div>
 
-      {/* ======================================================== */}
-      {/* 10. EXACT LOG OUT BUTTON & FIREBASE AUTH (Screenshot 4) */}
-      {/* ======================================================== */}
-      <div className="pt-2 space-y-2">
-        {onOpenAuth && (
-          <button
-            onClick={onOpenAuth}
-            className="w-full py-2.5 px-4 rounded-xl bg-gradient-to-r from-[#1877F2]/25 via-emerald-600/20 to-[#242526] hover:from-[#1877F2]/35 border border-[#1877F2]/40 text-white font-bold text-xs transition-colors flex items-center justify-between shadow-sm cursor-pointer"
-          >
-            <div className="flex items-center gap-2">
-              <ShieldCheck className="w-4 h-4 text-emerald-400" />
-              <span>{userProfile.email ? `লগইন আছেন: ${userProfile.email}` : 'Firebase লগইন ও সাইন-আপ (Google / Email)'}</span>
-            </div>
-            <span className="text-[10px] bg-[#1877F2] text-white px-2 py-0.5 rounded-full font-bold">
-              {userProfile.email ? 'অ্যাকাউন্ট সুইচ' : 'লগইন'}
-            </span>
-          </button>
-        )}
-
-        <button
-          onClick={() => setShowLogoutConfirm(true)}
-          className="w-full py-3 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-sm transition-colors text-center cursor-pointer"
-        >
-          Log out
-        </button>
       </div>
 
       {/* Log out confirmation dialog */}

@@ -267,7 +267,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const reactionInfo = getReactionDisplay();
 
   return (
-    <article className="bg-[#242526] border-b sm:border border-[#393a3b] sm:rounded-2xl shadow-sm overflow-hidden space-y-2.5 transition-all">
+    <article className="bg-[#1C1C1D] border border-[#222222] rounded-[10px] shadow-sm overflow-hidden space-y-2.5 transition-all">
       {copiedToast && (
         <div className="mx-3 mt-2 py-1.5 px-3 bg-emerald-950/90 border border-emerald-500/50 rounded-xl text-center text-xs font-bold text-emerald-300 flex items-center justify-center gap-1.5 animate-in fade-in">
           <Check className="w-4 h-4" />

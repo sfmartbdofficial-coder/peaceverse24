@@ -22,6 +22,8 @@ import {
   TrendingUp,
   Award,
   Zap,
+  Radio,
+  Wifi,
 } from 'lucide-react';
 
 export type SettingsModalType =
@@ -30,10 +32,12 @@ export type SettingsModalType =
   | 'time_management'
   | 'device_requests'
   | 'ad_activity'
+  | 'mobile_center'
   | 'orders_payments'
   | 'link_history'
   | 'dark_mode'
   | 'app_icon'
+  | 'cellular_data'
   | 'public_presence'
   | 'peace_plus'
   | null;
@@ -75,8 +79,8 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
     { id: 'l2', title: 'সখীপুর মার্কেটপ্লেস অর্গানিক মধু পেজ', url: 'https://mart.peace-world.org/honey', time: '৩ দিন আগে' },
   ]);
 
-  // Dark Mode State
-  const [isDark, setIsDark] = useState(true);
+  // Dark Mode State (Light mode default, dark mode supported)
+  const [isDark, setIsDark] = useState(false);
 
   // App Icon State
   const [selectedIcon, setSelectedIcon] = useState('classic');
@@ -647,6 +651,82 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 >
                   {isPlusSubscribed ? 'সাবস্ক্রাইবড ✓' : 'এখনই সাবস্ক্রাইব করুন'}
                 </button>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ======================================================== */}
+        {/* 12. MOBILE CENTER · BANGLALINK */}
+        {/* ======================================================== */}
+        {modalType === 'mobile_center' && (
+          <>
+            <div className="flex items-center justify-between p-4 border-b border-[#393a3b] bg-gradient-to-r from-orange-600/30 to-[#242526]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-orange-500 text-white flex items-center justify-center shadow">
+                  <Radio className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-base text-white">Mobile Center · banglalink</h2>
+                  <p className="text-[11px] text-[#b0b3b8]">ফ্রি ইন্টারনেট ব্যালেন্স ও অফার ম্যানেজমেন্ট</p>
+                </div>
+              </div>
+              <button onClick={onClose} className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-4">
+              <div className="p-4 rounded-2xl bg-[#18191a] border border-orange-500/30 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-xs text-[#b0b3b8]">সিম কার্ড স্ট্যাটাস</span>
+                  <span className="px-2 py-0.5 rounded-full bg-orange-500/20 text-orange-400 text-xs font-bold">Banglalink 4G</span>
+                </div>
+                <div className="pt-2 border-t border-[#393a3b]">
+                  <p className="text-xs text-[#b0b3b8]">অব্যবহৃত ফেসবুক ডেটা প্যাক</p>
+                  <p className="text-xl font-black text-white">১.৫ জিবি (মেয়াদ ৭ দিন)</p>
+                </div>
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#18191a] border border-[#393a3b] space-y-2 text-xs text-[#e4e6eb]">
+                <p className="font-semibold text-white">ফ্রি মোড (Free Mode)</p>
+                <p className="text-neutral-400">ব্যালেন্স ছাড়াই টেক্সট পোস্ট এবং মেসেঞ্জারে টেক্সট চ্যাট করুন সম্পূর্ণ বিনামূল্যে।</p>
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ======================================================== */}
+        {/* 13. CELLULAR DATA USAGE */}
+        {/* ======================================================== */}
+        {modalType === 'cellular_data' && (
+          <>
+            <div className="flex items-center justify-between p-4 border-b border-[#393a3b]">
+              <div className="flex items-center gap-2.5">
+                <div className="w-9 h-9 rounded-full bg-blue-600/30 text-blue-400 flex items-center justify-center">
+                  <Smartphone className="w-5 h-5" />
+                </div>
+                <div>
+                  <h2 className="font-bold text-base text-white">Cellular Data Usage</h2>
+                  <p className="text-[11px] text-[#b0b3b8]">ডেটা সেভার ও ভিডিও কোয়ালিটি সেটিংস</p>
+                </div>
+              </div>
+              <button onClick={onClose} className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8]">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto p-4 space-y-3">
+              <div className="p-3.5 rounded-xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-sm text-white">ডেটা সেভার মোড (Data Saver)</p>
+                  <p className="text-xs text-[#b0b3b8]">ভিডিও কোয়ালিটি কমিয়ে ৪০% পর্যন্ত ডেটা সাশ্রয় করে</p>
+                </div>
+                <input type="checkbox" defaultChecked className="w-5 h-5 accent-[#0866FF]" />
+              </div>
+              <div className="p-3.5 rounded-xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between">
+                <div>
+                  <p className="font-bold text-sm text-white">অটোপ্লে ভিডিও</p>
+                  <p className="text-xs text-[#b0b3b8]">শুধুমাত্র Wi-Fi এ ভিডিও অটো-প্লে হবে</p>
+                </div>
+                <input type="checkbox" defaultChecked className="w-5 h-5 accent-[#0866FF]" />
               </div>
             </div>
           </>

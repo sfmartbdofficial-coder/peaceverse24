@@ -13,16 +13,16 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
 
   return (
     <>
-      {/* Stories Carousel */}
-      <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">
+      {/* Stories Carousel matching user requested .story-row & .story-card */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar p-2.5">
         
-        {/* 1. Create Story Card (matching Screenshot 1) */}
+        {/* 1. Create Story Card */}
         <div
           onClick={onOpenCreateStory}
-          className="w-28 sm:w-32 h-44 sm:h-52 rounded-2xl bg-gradient-to-b from-[#1877F2] to-blue-700 hover:brightness-110 flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-3 group shadow-md transition-all relative border border-blue-400/30"
+          className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-gradient-to-b from-[#1a1a1a] to-[#000000] border border-[#222222] hover:border-[#0064FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-2.5 group shadow-md transition-all relative"
         >
-          <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">
-            <Plus className="w-5 h-5 stroke-[3]" />
+          <div className="w-8 h-8 rounded-full bg-[#0064FF] flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+            <Plus className="w-4 h-4 stroke-[3]" />
           </div>
           <div>
             <p className="text-xs font-bold text-white leading-tight">
@@ -31,16 +31,16 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
           </div>
         </div>
 
-        {/* 2. Create Reel Card (matching Screenshot 1) */}
+        {/* 2. Create Reel Card */}
         <div
           onClick={() => {
             if (onOpenCreateReel) onOpenCreateReel();
             else onOpenCreateStory();
           }}
-          className="w-28 sm:w-32 h-44 sm:h-52 rounded-2xl bg-gradient-to-b from-[#ea580c] to-[#c2410c] hover:brightness-110 flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-3 group shadow-md transition-all relative border border-orange-400/30"
+          className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-gradient-to-b from-[#1a1a1a] to-[#000000] border border-[#222222] hover:border-[#0064FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-2.5 group shadow-md transition-all relative"
         >
-          <div className="w-9 h-9 rounded-full bg-white/20 backdrop-blur-sm flex items-center justify-center text-white">
-            <Film className="w-5 h-5 stroke-[2]" />
+          <div className="w-8 h-8 rounded-full bg-[#0064FF] flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+            <Plus className="w-4 h-4 stroke-[3]" />
           </div>
           <div>
             <p className="text-xs font-bold text-white leading-tight">
@@ -56,7 +56,7 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
             <div
               key={story.id}
               onClick={() => setSelectedStory(story)}
-              className="w-28 sm:w-32 h-44 sm:h-52 rounded-2xl bg-[#242526] border border-[#393a3b] hover:border-emerald-500/50 flex-shrink-0 cursor-pointer overflow-hidden relative group shadow-md transition-all"
+              className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-[#1C1C1D] border border-[#222222] hover:border-[#0064FF]/60 flex-shrink-0 cursor-pointer overflow-hidden relative group shadow-md transition-all"
             >
               {/* Background preview image or gradient */}
               <div className="absolute inset-0">

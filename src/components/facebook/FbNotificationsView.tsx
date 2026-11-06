@@ -31,7 +31,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
   };
 
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#18191a] text-[#e4e6eb] pb-24">
+    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F5F7FB] text-[#e4e6eb] pb-24">
       {/* Top Header matching Screenshot 2 */}
       <div className="sticky top-0 z-30 bg-[#242526] border-b border-[#393a3b] px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-2">

@@ -11,7 +11,7 @@ export const FbMemoriesView: React.FC<FbMemoriesViewProps> = ({ onBack, posts })
   const memoryPosts = posts.slice(0, 3);
 
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#18191a] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4">
+    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F5F7FB] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4">
       {/* Top Header with Back button */}
       <div className="flex items-center justify-between pb-2 border-b border-[#393a3b]">
         <div className="flex items-center gap-3">

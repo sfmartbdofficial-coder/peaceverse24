@@ -61,13 +61,13 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
   const [avatar, setAvatar] = useState(userProfile.avatar);
   const [coverPhoto, setCoverPhoto] = useState(userProfile.coverPhoto);
   const [bio, setBio] = useState(userProfile.bio || '');
-  const [thoughtBubble, setThoughtBubble] = useState(userProfile.thoughtBubble || 'Drop a thought...');
-  const [location, setLocation] = useState(userProfile.location || 'Dhaka, Bangladesh');
-  const [hometown, setHometown] = useState(userProfile.hometown || 'Sylhet, Bangladesh');
-  const [work, setWork] = useState(userProfile.work || 'Islamic Content Creator & Designer at Qalby');
-  const [education, setEducation] = useState(userProfile.education || 'Studied Islamic Studies at Dhaka University');
-  const [relationship, setRelationship] = useState(userProfile.relationship || 'Married');
-  const [website, setWebsite] = useState(userProfile.website || 'https://qalby.islamic.app');
+  const [thoughtBubble, setThoughtBubble] = useState(userProfile.thoughtBubble || 'Share a song...');
+  const [location, setLocation] = useState(userProfile.location || '');
+  const [hometown, setHometown] = useState(userProfile.hometown || '');
+  const [work, setWork] = useState(userProfile.work || '');
+  const [education, setEducation] = useState(userProfile.education || '');
+  const [relationship, setRelationship] = useState(userProfile.relationship || '');
+  const [website, setWebsite] = useState(userProfile.website || '');
   const [hobbies, setHobbies] = useState<string[]>(userProfile.hobbies || [
     'কুরআন তিলাওয়াত',
     'হাদিস অধ্যয়ন',

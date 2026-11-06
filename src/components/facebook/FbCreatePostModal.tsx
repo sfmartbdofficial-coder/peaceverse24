@@ -22,7 +22,7 @@ import {
   Loader2,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
-import { runHalalContentFilter } from '../../lib/halalFilter';
+import { checkPost, runHalalContentFilter } from '../../lib/halalFilter';
 import { createRealtimePost } from '../../lib/firebase';
 
 interface FbCreatePostModalProps {
@@ -141,16 +141,18 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     setIsVerifyingHalal(true);
     setModerationError(null);
 
-    // Run Halal AI Content Filter
-    const mediaType = selectedPhoto ? (isVideo ? 'video' : 'image') : arabicText.trim() ? 'verseCard' : 'none';
-    const filterResult = await runHalalContentFilter(content + ' ' + arabicText, mediaType, selectedPhoto || undefined);
+    // Run content moderation per user specification:
+    // Step 1: যদি ALLOW_ALWAYS এর কোনো শব্দ থাকে, সাথে সাথে ALLOW
+    // Step 2: শুধু BLOCK_WORDS 100% মিললে ব্লক
+    // Step 3: বাকি সব ALLOW
+    const filterResult = checkPost(content + ' ' + (arabicText || ''));
 
     setIsVerifyingHalal(false);
 
     if (!filterResult.isApproved) {
       setModerationError({
-        status: filterResult.status,
-        reason: filterResult.reason || 'পোস্টটি Peace World হালাল নীতিমালার সাথে সামঞ্জস্যপূর্ণ নয়।',
+        status: 'blocked',
+        reason: 'দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে',
       });
       return;
     }
@@ -368,17 +370,13 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           </div>
         )}
 
-        {/* Moderation Error Banner */}
+        {/* Moderation Block Banner (Only shows when BLOCK_WORDS matched) */}
         {moderationError && (
-          <div className="p-3.5 bg-rose-950/60 border border-rose-500 rounded-xl space-y-1.5 text-xs text-rose-200 animate-in fade-in">
-            <div className="flex items-center gap-2 font-bold text-rose-400 text-sm">
-              <ShieldAlert className="w-4 h-4" />
-              <span>পোস্টটি {moderationError.status === 'blocked' ? 'ব্লক' : 'বাতিল'} করা হয়েছে</span>
-            </div>
-            <p className="font-semibold text-rose-100">{moderationError.reason}</p>
-            <p className="text-[11px] text-rose-300/80">
-              Peace World ১০০% হালাল প্ল্যাটফর্ম। অশোভন শব্দ, নগ্নতা বা বাদ্যযন্ত্রের প্রচার নিষিদ্ধ।
-            </p>
+          <div className="p-3.5 bg-[#242526] border border-amber-500/60 rounded-xl flex items-center gap-2.5 text-xs text-amber-200 animate-in fade-in">
+            <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
+            <span className="font-semibold text-[13px] text-amber-200">
+              দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে
+            </span>
           </div>
         )}
 

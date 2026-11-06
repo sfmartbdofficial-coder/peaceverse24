@@ -45,9 +45,9 @@ const DEFAULT_PAGES: PageItem[] = [
     avatar: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=300&q=80',
     cover: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1000&q=80',
     views: '2 new views this week',
-    role: 'Admin',
-    isOwner: true,
-    isLiked: true,
+    role: 'Visitor',
+    isOwner: false,
+    isLiked: false,
     description: 'SF MART BD - প্রিমিয়াম ইসলামিক জায়নামাজ, সুগন্ধি আতর, খাঁটি মধু ও ১০০% হালাল খাদ্যসামগ্রী।',
     bio: 'সততা ও সুন্নাহ ভিত্তিক বিশ্বস্ত হালাল ই-কমার্স শপ।',
     phone: '+880 1711-234567',
@@ -66,9 +66,9 @@ const DEFAULT_PAGES: PageItem[] = [
     avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
     cover: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80',
     views: '9 new views this week',
-    role: 'Admin',
-    isOwner: true,
-    isLiked: true,
+    role: 'Visitor',
+    isOwner: false,
+    isLiked: false,
     description: 'দৈনন্দিন জীবনের শিক্ষণীয় অভিজ্ঞতা, তিলাওয়াত ও উম্মাহর জন্য দিকনির্দেশনা।',
     bio: 'দ্বীনের পথে অবিচল থাকার আত্মিক অভিযাত্রা।',
     phone: '+880 1822-987654',
@@ -86,9 +86,9 @@ const DEFAULT_PAGES: PageItem[] = [
     avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
     cover: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1000&q=80',
     views: 'Active today',
-    role: 'Admin',
-    isOwner: true,
-    isLiked: true,
+    role: 'Visitor',
+    isOwner: false,
+    isLiked: false,
     description: 'উম্মাহর জন্য শিক্ষণীয় ইসলামিক শর্ট ভিডিও ও সুন্নাহ উপদেশ।',
     bio: 'জ্ঞান ও হিকমাহ প্রচারের ক্ষুদ্র প্রয়াস।',
     location: 'Sylhet, Bangladesh',
@@ -163,7 +163,17 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
   const [pages, setPages] = useState<PageItem[]>(() => {
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
-      return stored ? JSON.parse(stored) : DEFAULT_PAGES;
+      if (stored) {
+        const parsed: PageItem[] = JSON.parse(stored);
+        // Ensure default public pages are never marked as owned by new user
+        return parsed.map((p) => {
+          if (['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'].includes(p.id)) {
+            return { ...p, isOwner: false, role: 'Visitor' };
+          }
+          return p;
+        });
+      }
+      return DEFAULT_PAGES;
     } catch {
       return DEFAULT_PAGES;
     }
@@ -361,7 +371,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
     const activePosts = pagePostsList[selectedPage.id] || [];
 
     return (
-      <div className="max-w-[700px] mx-auto min-h-screen bg-[#18191a] text-[#e4e6eb] pb-24">
+      <div className="max-w-[700px] mx-auto min-h-screen bg-[#F5F7FB] text-[#e4e6eb] pb-24">
         {/* Sticky Top Bar for Page */}
         <div className="sticky top-0 z-30 bg-[#242526]/95 backdrop-blur-md px-3 py-2.5 flex items-center justify-between border-b border-[#393a3b]">
           <div className="flex items-center gap-2">
@@ -843,7 +853,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
   // MAIN PAGES HUB (Matching Facebook Native App)
   // -------------------------------------------------------------
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#18191a] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4">
+    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F5F7FB] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4">
       {/* Top Header with Back button & "+ Create" */}
       <div className="flex items-center justify-between pb-2 border-b border-[#393a3b]">
         <div className="flex items-center gap-3">

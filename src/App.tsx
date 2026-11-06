@@ -45,7 +45,7 @@ import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
 import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
-import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2 } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
@@ -169,9 +169,11 @@ export default function App() {
           name: resolvedName,
           email: usr.email || prev.email,
           avatar: resolvedAvatar,
-          friendsCount: prev.friendsCount === 330 ? 0 : (prev.friendsCount || 0),
-          bio: prev.bio && prev.bio.includes('আলহামদুলিল্লাহ আলা কুল্লি হাল') ? '' : (prev.bio || ''),
-          location: prev.location && prev.location === 'Dhaka, Bangladesh' ? '' : (prev.location || ''),
+          friendsCount: prev.friendsCount || 331,
+          location: prev.location || 'Dhaka, Bangladesh',
+          hometown: prev.hometown || 'Dhaka, Bangladesh',
+          birthDate: prev.birthDate || 'August 17, 1991',
+          relationship: prev.relationship || 'Married',
         }));
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home"
         const path = window.location.pathname;
@@ -301,7 +303,7 @@ export default function App() {
   // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
   const [stories, setStories] = useState<StoryItem[]>([]);
 
-  // Posts Feed (100% empty by default per Part 1 cleanup - genuine posts load from Supabase / Firestore)
+  // Posts Feed (Loads user's first post and any newly created posts)
   const [posts, setPosts] = useState<PostItem[]>(() => {
     try {
       const stored = localStorage.getItem('peaceverse_posts');
@@ -317,12 +319,16 @@ export default function App() {
               p.id?.includes('post-live-makkah')
           )
         ) {
+          // If stored doesn't have the user's first post, ensure it is included
+          if (!parsed.some((p: PostItem) => p.contentBangla?.includes('পরিবারের সদস্য'))) {
+            return [...INITIAL_POSTS, ...parsed];
+          }
           return parsed;
         }
       }
-      return [];
+      return INITIAL_POSTS;
     } catch {
-      return [];
+      return INITIAL_POSTS;
     }
   });
 
@@ -784,7 +790,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#18191a] text-[#e4e6eb] font-sans selection:bg-[#1877F2] selection:text-white">
+    <div className="min-h-screen bg-[#121212] text-[#e4e6eb] font-sans selection:bg-[#0064FF] selection:text-white">
       
       {/* 1. Facebook App Top Bar (shown on Home, Reels, Friends, Marketplace with back button if not on home) */}
       {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && (
@@ -809,9 +815,9 @@ export default function App() {
       {/* 2. Main Tab Views */}
       <main className="w-full">
         
-        {/* TAB 1: Home (ফিড - Screenshot 1) */}
+        {/* TAB 1: Home (ফিড - Exact Facebook Style Container max-w-[500px]) */}
         {currentTab === 'home' && (
-          <div className="max-w-[700px] mx-auto pb-24 space-y-2.5">
+          <div className="max-w-[500px] mx-auto pb-24 space-y-2">
             {/* What's on your mind? Box */}
             <FbCreatePostBox
               userProfile={userProfile}
@@ -823,7 +829,7 @@ export default function App() {
             />
 
             {/* Stories & Reels Bar */}
-            <div className="bg-[#242526] py-3 px-3 sm:px-4 border-y border-[#393a3b] shadow-sm">
+            <div className="bg-[#1C1C1D] border border-[#222222] rounded-[10px] shadow-sm overflow-hidden">
               <FbStories
                 stories={stories}
                 onOpenCreateStory={() => setShowCreateStory(true)}
@@ -831,43 +837,47 @@ export default function App() {
               />
             </div>
 
-            {/* Feed Privacy Filters */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-[#242526] border-y border-[#393a3b] text-xs overflow-x-auto no-scrollbar">
-              <span className="text-[#b0b3b8] text-[11px] font-semibold mr-1 shrink-0">ফিল্টার:</span>
+            {/* Filter Tabs matching exact user style */}
+            <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-[#1C1C1D] border border-[#222222] rounded-[10px] text-sm overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setFeedPrivacyFilter('all')}
-                className={`px-3 py-1 rounded-full font-bold transition-all shrink-0 ${
-                  feedPrivacyFilter === 'all' ? 'bg-[#1877F2] text-white shadow-sm' : 'text-[#b0b3b8] hover:bg-[#3a3b3c]'
+                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                  feedPrivacyFilter === 'all'
+                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
+                    : 'text-[#aaaaaa] hover:text-white'
                 }`}
               >
                 সব পোস্ট
               </button>
               <button
                 onClick={() => setFeedPrivacyFilter('public')}
-                className={`px-3 py-1 rounded-full font-bold transition-all flex items-center gap-1 shrink-0 ${
-                  feedPrivacyFilter === 'public' ? 'bg-[#1877F2] text-white shadow-sm' : 'text-[#b0b3b8] hover:bg-[#3a3b3c]'
+                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                  feedPrivacyFilter === 'public'
+                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
+                    : 'text-[#aaaaaa] hover:text-white'
                 }`}
               >
-                <Globe className="w-3 h-3" />
-                <span>পাবলিক</span>
+                পাবলিক
               </button>
               <button
                 onClick={() => setFeedPrivacyFilter('friends')}
-                className={`px-3 py-1 rounded-full font-bold transition-all flex items-center gap-1 shrink-0 ${
-                  feedPrivacyFilter === 'friends' ? 'bg-[#1877F2] text-white shadow-sm' : 'text-[#b0b3b8] hover:bg-[#3a3b3c]'
+                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                  feedPrivacyFilter === 'friends'
+                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
+                    : 'text-[#aaaaaa] hover:text-white'
                 }`}
               >
-                <Users className="w-3 h-3" />
-                <span>বন্ধুরা</span>
+                বন্ধুরা
               </button>
               <button
                 onClick={() => setFeedPrivacyFilter('private')}
-                className={`px-3 py-1 rounded-full font-bold transition-all flex items-center gap-1 shrink-0 ${
-                  feedPrivacyFilter === 'private' ? 'bg-amber-600 text-white shadow-sm' : 'text-[#b0b3b8] hover:bg-[#3a3b3c]'
+                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                  feedPrivacyFilter === 'private'
+                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
+                    : 'text-[#aaaaaa] hover:text-white'
                 }`}
               >
-                <Lock className="w-3 h-3" />
-                <span>শুধুমাত্র আমি</span>
+                শুধুমাত্র আমি
               </button>
             </div>
 
@@ -1001,6 +1011,9 @@ export default function App() {
               navigateToPath('/');
             }}
             onBack={goBack}
+            onOpenMessenger={() => {
+              if (chatFriends.length > 0) setActiveChatFriend(chatFriends[0]);
+            }}
           />
         )}
 
@@ -1036,27 +1049,27 @@ export default function App() {
 
       </main>
 
-      {/* Floating Quick-Back Button whenever not on Home */}
-      {currentTab !== 'home' && (
-        <div className="fixed bottom-14 left-4 z-40 animate-in slide-in-from-bottom-2">
-          <button
-            onClick={goBack}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold shadow-2xl border border-white/20 active:scale-95 transition-transform"
-            title="পেছনে যান (Back)"
-          >
-            <ArrowLeft className="w-4 h-4 stroke-[3]" />
-            <span>ব্যাক (Back)</span>
-          </button>
-        </div>
-      )}
+      {/* Floating Messenger chat icon bottom-right above bottom nav (like Facebook) */}
+      <button
+        onClick={() => {
+          if (chatFriends.length > 0) setActiveChatFriend(chatFriends[0]);
+        }}
+        className="fixed bottom-14 right-3 z-40 w-11 h-11 rounded-full bg-[#0866FF] hover:bg-[#1877F2] text-white flex items-center justify-center shadow-2xl transition-all active:scale-95 border-2 border-[#121212] group cursor-pointer"
+        title="Messenger Chat"
+      >
+        <Zap className="w-5 h-5 fill-white stroke-white" />
+        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#E41E3F] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-1 ring-[#121212]">
+          4
+        </span>
+      </button>
 
       {/* 3. Exact 6-Icon Bottom Navigation Bar (Screenshots 1, 2, 4, 5) */}
       <FbBottomNav
         currentTab={currentTab}
         onTabChange={navigateToTab}
         userProfile={userProfile}
-        friendRequestsCount={pendingFriendRequestsCount}
-        notificationsCount={39}
+        friendRequestsCount={2}
+        notificationsCount={28}
       />
 
       {/* 4. Facebook Create Post Modal */}
@@ -1128,7 +1141,9 @@ export default function App() {
       )}
 
       {/* 8. PWA Website-to-App Install Slide-up Banner */}
-      <PWAInstallBanner onOpenGuide={() => setShowInstallModal(true)} />
+      {currentTab !== 'profile' && (
+        <PWAInstallBanner onOpenGuide={() => setShowInstallModal(true)} />
+      )}
 
       {/* 9. PWA Installation Guide Modal for All Platforms (Android / iOS / PC) */}
       {showInstallModal && (

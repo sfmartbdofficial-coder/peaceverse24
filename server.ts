@@ -51,26 +51,63 @@ app.post('/api/ai/admin-assist', async (req, res) => {
   }
 });
 
-// API Endpoint for AI Post Moderation
+// API Endpoint for Post Moderation per user specification
+const BLOCK_WORDS = [
+  // ১. নেশা - এগুলা থাকলেই ব্লক
+  "মদ খাও", "বিয়ার খাও", "গাঁজা খাও", "ইয়াবা", "হেরোইন", "ফেন্সিডিল", "মদ বিক্রি", "গাঁজা বিক্রি", "নেশা করো",
+
+  // ২. নগ্নতা ও পর্ন - এগুলা থাকলেই ব্লক
+  "নগ্ন ছবি", "উলঙ্গ", "পর্ন", "xxx", "sex video", "অশ্লীল ভিডিও", "যৌন ভিডিও",
+
+  // ৩. সহিংসতা
+  "খুন করব", "মেরে ফেলব", "আত্মহত্যা করো", "বোমা বানাও", "জঙ্গি হও",
+
+  // ৪. ধর্ম নিয়ে গালি
+  "ইসলাম খারাপ", "নবীকে গালি", "কুরআনকে গালি", "আল্লাহকে গালি"
+];
+
+const ALLOW_ALWAYS = [
+  // এগুলা থাকলে কখনোই ব্লক করবে না, যত যাই হোক
+  "গান", "বাদ্যযন্ত্র", "বাউল", "লালন", "গজল", "তেলাওয়াত", "ওয়াজ", "হারমোনিয়াম", "ঢোল", "গিটার",
+  "পরিবার", "ভালোবাসা", "দোয়া", "দোয়া", "শিক্ষণীয় গল্প", "ইসলামিক", "Alhamdulillah", "PeaceVerse24", "FirstPost", "বন্ধু", "গল্প", "ছবি"
+];
+
 app.post('/api/ai/moderate-post', async (req, res) => {
   try {
     const { postContent } = req.body;
-    const response = await ai.models.generateContent({
-      model: 'gemini-3.8-flash',
-      contents: `Evaluate the following social media post for Halal Islamic compliance, decency, respectful tone, and absence of prohibited elements (vulgarity, music/instruments, slander). Return a JSON object with: { "isHalal": boolean, "score": number (0-100), "feedback": string (in Bengali) }.\n\nPost: "${postContent}"`,
-      config: {
-        responseMimeType: 'application/json',
-      },
-    });
+    const normalized = (postContent || '').toLowerCase();
 
-    const parsed = JSON.parse(response.text || '{}');
-    return res.json(parsed);
-  } catch (error: any) {
-    console.error('Moderation error:', error);
-    return res.status(500).json({
+    // Step 1: যদি ALLOW_ALWAYS এর কোনো শব্দ থাকে, সাথে সাথে ALLOW
+    const hasAllowAlways = ALLOW_ALWAYS.some((word) => normalized.includes(word.toLowerCase()));
+    if (hasAllowAlways) {
+      return res.json({
+        isHalal: true,
+        score: 100,
+        feedback: 'পোস্টটি অনুমোদিত।',
+      });
+    }
+
+    // Step 2: শুধু BLOCK_WORDS 100% মিললে ব্লক
+    const matchedBlocked = BLOCK_WORDS.find((phrase) => normalized.includes(phrase.toLowerCase()));
+    if (matchedBlocked) {
+      return res.json({
+        isHalal: false,
+        score: 0,
+        feedback: 'দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে',
+      });
+    }
+
+    // Step 3: বাকি সব ALLOW
+    return res.json({
       isHalal: true,
-      score: 95,
-      feedback: 'পোস্টটি ইসলামিক শালীনতা বজায় রেখেছে।',
+      score: 100,
+      feedback: 'পোস্টটি অনুমোদিত।',
+    });
+  } catch (error: any) {
+    return res.json({
+      isHalal: true,
+      score: 100,
+      feedback: 'পোস্টটি অনুমোদিত।',
     });
   }
 });

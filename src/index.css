@@ -2,9 +2,71 @@
 
 @layer base {
   body {
-    @apply bg-[#18191a] text-[#e4e6eb] antialiased selection:bg-emerald-600 selection:text-white;
+    @apply bg-[#121212] text-[#e4e6eb] antialiased selection:bg-[#0064FF] selection:text-white;
     font-family: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
   }
+}
+
+/* Facebook Style Helper Classes */
+.fb-container {
+  max-width: 500px;
+  margin: auto;
+  background: #121212;
+  gap: 8px;
+}
+
+.story-row {
+  display: flex;
+  gap: 8px;
+  padding: 10px;
+  overflow-x: auto;
+}
+
+.story-card {
+  min-width: 112px;
+  height: 190px;
+  border-radius: 10px;
+  background: #1C1C1D;
+  border: 1px solid #222222;
+  position: relative;
+}
+
+.create-btn {
+  width: 32px;
+  height: 32px;
+  background: #0064FF;
+  border-radius: 50%;
+}
+
+.post-box {
+  background: #1C1C1D;
+  padding: 12px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid #222222;
+}
+
+.post-input {
+  background: #3A3B3C;
+  border-radius: 20px;
+  padding: 10px 15px;
+  color: #aaaaaa;
+  width: 100%;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 15px;
+  padding: 10px 15px;
+  border-bottom: 1px solid #222222;
+}
+
+.filter-active {
+  color: #0064FF;
+  border-bottom: 3px solid #0064FF;
+  padding-bottom: 5px;
 }
 
 .font-arabic {

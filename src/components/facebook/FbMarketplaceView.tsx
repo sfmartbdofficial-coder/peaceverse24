@@ -119,7 +119,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({ onBack }) 
   });
 
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#18191a] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4">
+    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F5F7FB] text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-4">
       {/* Header */}
       <div className="flex items-center justify-between pb-2 border-b border-[#393a3b]/60">
         <div className="flex items-center gap-2.5">
