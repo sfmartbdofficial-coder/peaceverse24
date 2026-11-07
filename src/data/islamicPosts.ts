@@ -66,4 +66,51 @@ export const INITIAL_MARKETPLACE: MarketplaceItem[] = [];
 
 export const INITIAL_GROUPS: IslamicGroup[] = [];
 
-export const INITIAL_CHAT_FRIENDS: ChatFriend[] = [];
+export const INITIAL_CHAT_FRIENDS: ChatFriend[] = [
+  {
+    id: 'chat-1',
+    name: 'Sujon Ahmed',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80',
+    online: true,
+    lastSeen: 'Active now',
+    unreadCount: 1,
+    messages: [
+      { id: 'm-1', sender: 'them', text: 'আসসালামু আলাইকুম ভাই, কেমন আছেন?', time: '১০:৩০ AM' },
+      { id: 'm-2', sender: 'me', text: 'ওয়া আলাইকুমুস সালাম ভাই। আলহামদুলিল্লাহ ভালো আছি।', time: '১০:৩২ AM' },
+      { id: 'm-3', sender: 'them', text: 'Peaceverse-এ আপনার পোস্টটা দারুণ লাগলো মাশাআল্লাহ!', time: '১০:৩৫ AM' },
+    ],
+  },
+  {
+    id: 'chat-2',
+    name: 'Angel Mahi',
+    avatar: 'https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80',
+    online: true,
+    lastSeen: 'Active now',
+    unreadCount: 1,
+    messages: [
+      { id: 'm-4', sender: 'them', text: 'ভাইয়া, আপনার পেজটা খুব সুন্দর হয়েছে।', time: 'গতকাল' },
+    ],
+  },
+  {
+    id: 'chat-3',
+    name: 'Hassan Abdullah',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
+    online: false,
+    lastSeen: '15m ago',
+    unreadCount: 0,
+    messages: [
+      { id: 'm-5', sender: 'them', text: 'জাযাকাল্লাহ খাইরান ভাই!', time: '২ দিন আগে' },
+    ],
+  },
+  {
+    id: 'chat-4',
+    name: 'Robel Mahmud',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=200&q=80',
+    online: true,
+    lastSeen: 'Active now',
+    unreadCount: 0,
+    messages: [
+      { id: 'm-6', sender: 'them', text: 'দোয়া রইলো আপনার জন্য ❤️', time: '৩ দিন আগে' },
+    ],
+  },
+];

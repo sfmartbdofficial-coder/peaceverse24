@@ -519,8 +519,8 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <div className={`w-10 h-10 rounded-2xl ${icon.bg} flex items-center justify-center text-white font-black text-sm shadow`}>
-                      PV
+                    <div className={`w-10 h-10 rounded-2xl ${icon.bg} flex items-center justify-center text-white font-black text-base shadow`}>
+                      P
                     </div>
                     <div>
                       <p className="font-bold text-xs text-white">{icon.label}</p>

@@ -293,12 +293,48 @@ export default function App() {
   const [chatFriends, setChatFriends] = useState<ChatFriend[]>(() => {
     try {
       const stored = localStorage.getItem('qalby_chat_friends');
-      return stored ? JSON.parse(stored) : INITIAL_CHAT_FRIENDS;
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          return parsed;
+        }
+      }
+      return INITIAL_CHAT_FRIENDS;
     } catch {
       return INITIAL_CHAT_FRIENDS;
     }
   });
+  const [showMessengerModal, setShowMessengerModal] = useState<boolean>(false);
   const [activeChatFriend, setActiveChatFriend] = useState<ChatFriend | null>(null);
+
+  // Dynamic unread messages count
+  const unreadMessagesCount = useMemo(() => {
+    return chatFriends.reduce((sum, f) => sum + (f.unreadCount || 0), 0);
+  }, [chatFriends]);
+
+  // Theme State: Default is LIGHT/WHITE theme for international users
+  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('peaceverse_dark_mode') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  useEffect(() => {
+    if (isDarkMode) {
+      document.documentElement.classList.add('dark');
+    } else {
+      document.documentElement.classList.remove('dark');
+    }
+  }, [isDarkMode]);
+
+  const handleToggleDarkMode = (val: boolean) => {
+    setIsDarkMode(val);
+    try {
+      localStorage.setItem('peaceverse_dark_mode', String(val));
+    } catch {}
+  };
 
   // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
   const [stories, setStories] = useState<StoryItem[]>([]);
@@ -640,11 +676,39 @@ export default function App() {
       })
     );
 
-    if (activeChatFriend && activeChatFriend.id === friendId) {
-      setActiveChatFriend((prev) =>
-        prev ? { ...prev, messages: [...prev.messages, newMsg] } : null
+    setActiveChatFriend((prev) =>
+      prev && prev.id === friendId ? { ...prev, messages: [...prev.messages, newMsg] } : prev
+    );
+
+    // Interactive friend reply simulation
+    setTimeout(() => {
+      const replies = [
+        'ওয়ালাইকুম আসসালাম! কেমন আছেন ভাই?',
+        'আলহামদুলিল্লাহ ভাই, মেসেজ পেলাম। Peaceverse-এ আপনার পোস্টটা দারুণ হয়েছে!',
+        'জাযাকাল্লাহ খাইরান ভাই! ইনশাআল্লাহ সবসময় দোয়া রইলো।',
+        'মাশাআল্লাহ ভাই! ধন্যবাদ যোগাযোগের জন্য।',
+      ];
+      const randomReply = replies[Math.floor(Math.random() * replies.length)];
+      const replyMsg = {
+        id: `reply-${Date.now()}`,
+        sender: 'them' as const,
+        text: randomReply,
+        time: 'Just now',
+      };
+
+      setChatFriends((prev) =>
+        prev.map((f) => {
+          if (f.id === friendId) {
+            return { ...f, messages: [...f.messages, replyMsg] };
+          }
+          return f;
+        })
       );
-    }
+
+      setActiveChatFriend((prev) =>
+        prev && prev.id === friendId ? { ...prev, messages: [...prev.messages, replyMsg] } : prev
+      );
+    }, 1000);
   };
 
   // Privacy and search filtered posts for Feed
@@ -790,7 +854,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen bg-[#121212] text-[#e4e6eb] font-sans selection:bg-[#0064FF] selection:text-white">
+    <div className={`min-h-screen font-sans ${isDarkMode ? 'dark bg-[#121212] text-[#e4e6eb]' : 'bg-[#F0F2F5] text-[#050505]'} selection:bg-[#0866FF] selection:text-white`}>
       
       {/* 1. Facebook App Top Bar (shown on Home, Reels, Friends, Marketplace with back button if not on home) */}
       {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && (
@@ -803,12 +867,13 @@ export default function App() {
           onOpenCreateReel={() => setShowCreateReel(true)}
           onOpenLive={() => setShowLive(true)}
           onOpenMessenger={() => {
-            if (chatFriends.length > 0) setActiveChatFriend(chatFriends[0]);
+            setShowMessengerModal(true);
+            setActiveChatFriend(null);
           }}
           onOpenMenu={() => navigateToTab('menu')}
           onBack={goBack}
           showBackButton={currentTab !== 'home'}
-          unreadMessagesCount={4}
+          unreadMessagesCount={unreadMessagesCount}
         />
       )}
 
@@ -829,7 +894,7 @@ export default function App() {
             />
 
             {/* Stories & Reels Bar */}
-            <div className="bg-[#1C1C1D] border border-[#222222] rounded-[10px] shadow-sm overflow-hidden">
+            <div className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
               <FbStories
                 stories={stories}
                 onOpenCreateStory={() => setShowCreateStory(true)}
@@ -837,14 +902,14 @@ export default function App() {
               />
             </div>
 
-            {/* Filter Tabs matching exact user style */}
-            <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-[#1C1C1D] border border-[#222222] rounded-[10px] text-sm overflow-x-auto no-scrollbar">
+            {/* Filter Tabs matching exact Facebook style */}
+            <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setFeedPrivacyFilter('all')}
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'all'
-                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
-                    : 'text-[#aaaaaa] hover:text-white'
+                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
                 }`}
               >
                 সব পোস্ট
@@ -853,8 +918,8 @@ export default function App() {
                 onClick={() => setFeedPrivacyFilter('public')}
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'public'
-                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
-                    : 'text-[#aaaaaa] hover:text-white'
+                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
                 }`}
               >
                 পাবলিক
@@ -863,8 +928,8 @@ export default function App() {
                 onClick={() => setFeedPrivacyFilter('friends')}
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'friends'
-                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
-                    : 'text-[#aaaaaa] hover:text-white'
+                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
                 }`}
               >
                 বন্ধুরা
@@ -873,8 +938,8 @@ export default function App() {
                 onClick={() => setFeedPrivacyFilter('private')}
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'private'
-                    ? 'text-[#0064FF] border-b-[3px] border-[#0064FF] font-bold'
-                    : 'text-[#aaaaaa] hover:text-white'
+                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
                 }`}
               >
                 শুধুমাত্র আমি
@@ -884,14 +949,14 @@ export default function App() {
             {/* Posts Feed matching Screenshot 1 */}
             <div className="space-y-2.5">
               {filteredPosts.length === 0 ? (
-                <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-8 text-center space-y-3 shadow-sm my-2">
-                  <div className="w-14 h-14 rounded-full bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto shadow-sm">
+                <div className="bg-white dark:bg-[#242526] rounded-[8px] border border-[#E4E6EB] dark:border-[#393a3b] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
+                  <div className="w-14 h-14 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto shadow-sm">
                     <Sparkles className="w-7 h-7" />
                   </div>
-                  <h3 className="text-base font-bold text-white">
+                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">
                     No posts yet - Your genuine posts will appear here
                   </h3>
-                  <p className="text-xs text-[#b0b3b8] max-w-sm mx-auto">
+                  <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] max-w-sm mx-auto">
                     Share your genuine videos, thoughts, and moments using the box above.
                   </p>
                 </div>
@@ -1012,8 +1077,12 @@ export default function App() {
             }}
             onBack={goBack}
             onOpenMessenger={() => {
-              if (chatFriends.length > 0) setActiveChatFriend(chatFriends[0]);
+              setShowMessengerModal(true);
+              setActiveChatFriend(null);
             }}
+            unreadMessagesCount={unreadMessagesCount}
+            isDarkMode={isDarkMode}
+            onToggleDarkMode={handleToggleDarkMode}
           />
         )}
 
@@ -1048,20 +1117,6 @@ export default function App() {
         )}
 
       </main>
-
-      {/* Floating Messenger chat icon bottom-right above bottom nav (like Facebook) */}
-      <button
-        onClick={() => {
-          if (chatFriends.length > 0) setActiveChatFriend(chatFriends[0]);
-        }}
-        className="fixed bottom-14 right-3 z-40 w-11 h-11 rounded-full bg-[#0866FF] hover:bg-[#1877F2] text-white flex items-center justify-center shadow-2xl transition-all active:scale-95 border-2 border-[#121212] group cursor-pointer"
-        title="Messenger Chat"
-      >
-        <Zap className="w-5 h-5 fill-white stroke-white" />
-        <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#E41E3F] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-1 ring-[#121212]">
-          4
-        </span>
-      </button>
 
       {/* 3. Exact 6-Icon Bottom Navigation Bar (Screenshots 1, 2, 4, 5) */}
       <FbBottomNav
@@ -1113,11 +1168,23 @@ export default function App() {
         />
       )}
 
-      {/* 5. Messenger Chat Modal */}
-      {activeChatFriend && (
+      {/* 5. Messenger Inbox & Chat Modal */}
+      {showMessengerModal && (
         <FbMessengerModal
-          friend={activeChatFriend}
-          onClose={() => setActiveChatFriend(null)}
+          chatFriends={chatFriends}
+          activeFriend={activeChatFriend}
+          onSelectFriend={(friend) => {
+            setActiveChatFriend(friend);
+            if (friend && friend.unreadCount) {
+              setChatFriends((prev) =>
+                prev.map((f) => (f.id === friend.id ? { ...f, unreadCount: 0 } : f))
+              );
+            }
+          }}
+          onClose={() => {
+            setShowMessengerModal(false);
+            setActiveChatFriend(null);
+          }}
           onSendMessage={handleSendMessage}
         />
       )}

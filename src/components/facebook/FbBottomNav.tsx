@@ -18,7 +18,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
   notificationsCount,
 }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-[#121212] border-t border-[#222222] px-1 py-1 shadow-2xl">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#121212] border-t border-[#E4E6EB] dark:border-[#222222] px-1 py-1 shadow-md">
       <div className="max-w-[500px] mx-auto flex items-center justify-between">
         
         {/* 1. Home (🏠) */}
@@ -27,8 +27,8 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             onTabChange('home');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
-            currentTab === 'home' ? 'text-[#0866FF]' : 'text-[#b0b3b8]'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
+            currentTab === 'home' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
           }`}
           title="Home"
         >
@@ -41,8 +41,8 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             onTabChange('reels');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
-            currentTab === 'reels' ? 'text-[#0866FF]' : 'text-[#b0b3b8]'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
+            currentTab === 'reels' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
           }`}
           title="Video"
         >
@@ -55,14 +55,14 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             onTabChange('friends');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all relative ${
-            currentTab === 'friends' ? 'text-[#0866FF]' : 'text-[#b0b3b8]'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all relative cursor-pointer ${
+            currentTab === 'friends' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
           }`}
           title="Friends"
         >
           <div className="relative">
             <Users className="w-6 h-6 stroke-[2]" />
-            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-[#121212]">
+            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white dark:ring-[#121212]">
               {friendRequestsCount || 2}
             </span>
           </div>
@@ -74,8 +74,8 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             onTabChange('marketplace');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
-            currentTab === 'marketplace' ? 'text-[#0866FF]' : 'text-[#b0b3b8]'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
+            currentTab === 'marketplace' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
           }`}
           title="Market"
         >
@@ -88,14 +88,14 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             onTabChange('notifications');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all relative ${
-            currentTab === 'notifications' ? 'text-[#0866FF]' : 'text-[#b0b3b8]'
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all relative cursor-pointer ${
+            currentTab === 'notifications' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
           }`}
           title="Notifications"
         >
           <div className="relative">
             <Bell className="w-6 h-6 stroke-[2]" />
-            <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-[#121212]">
+            <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white dark:ring-[#121212]">
               {notificationsCount || 28}
             </span>
           </div>

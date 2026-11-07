@@ -60,21 +60,21 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   const pendingRequests = requests.filter((r) => !deleted[r.id] && !confirmed[r.id]);
 
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F5F7FB] text-[#e4e6eb] p-3 sm:p-4 space-y-4 pb-24">
+    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F0F2F5] dark:bg-[#121212] text-[#050505] dark:text-[#e4e6eb] p-3 sm:p-4 space-y-4 pb-24 font-sans">
       {/* Top Header */}
-      <div className="flex items-center justify-between pb-2 border-b border-[#393a3b]">
+      <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB] dark:border-[#393a3b]">
         <div className="flex items-center gap-2">
           {onBack && (
             <button
               onClick={onBack}
-              className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-white transition-colors"
+              className="p-1.5 rounded-full hover:bg-[#E4E6EB] dark:hover:bg-[#3a3b3c] text-[#050505] dark:text-white transition-colors cursor-pointer"
               title="Back"
             >
               <ArrowLeft className="w-5 h-5" />
             </button>
           )}
-          <h1 className="text-xl sm:text-2xl font-bold text-white flex items-center gap-2">
-            <Users className="w-6 h-6 text-[#1877F2]" />
+          <h1 className="text-xl sm:text-2xl font-bold text-[#050505] dark:text-white flex items-center gap-2">
+            <Users className="w-6 h-6 text-[#0866FF]" />
             <span>Friends (বন্ধু)</span>
           </h1>
         </div>
@@ -86,9 +86,9 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="Search friends..."
-            className="w-full bg-[#3a3b3c] text-xs text-white rounded-full pl-7 pr-3 py-1.5 border border-transparent focus:outline-none focus:border-[#1877F2]"
+            className="w-full bg-[#E4E6EB] dark:bg-[#3a3b3c] text-xs text-[#050505] dark:text-white rounded-full pl-7 pr-3 py-1.5 placeholder-[#65676B] dark:placeholder-[#8a8d91] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
           />
-          <Search className="w-3.5 h-3.5 text-[#8a8d91] absolute left-2.5 top-1/2 -translate-y-1/2" />
+          <Search className="w-3.5 h-3.5 text-[#65676B] dark:text-[#8a8d91] absolute left-2.5 top-1/2 -translate-y-1/2" />
         </div>
       </div>
 
@@ -96,10 +96,10 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
       <div className="flex items-center gap-2">
         <button
           onClick={() => setActiveTab('requests')}
-          className={`px-4 py-2 rounded-full font-bold text-xs shadow transition-all cursor-pointer whitespace-nowrap ${
+          className={`px-4 py-2 rounded-full font-bold text-xs shadow-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'requests'
-              ? 'bg-[#1877F2] text-white'
-              : 'bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb]'
+              ? 'bg-[#0866FF] text-white'
+              : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] dark:text-[#e4e6eb]'
           }`}
         >
           Friend requests ({pendingRequests.length})
@@ -109,8 +109,8 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
           onClick={() => setActiveTab('friends')}
           className={`px-4 py-2 rounded-full font-bold text-xs transition-all cursor-pointer whitespace-nowrap ${
             activeTab === 'friends'
-              ? 'bg-[#1877F2] text-white'
-              : 'bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb]'
+              ? 'bg-[#0866FF] text-white'
+              : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] dark:text-[#e4e6eb]'
           }`}
         >
           Your friends ({friendsList.length})
@@ -123,19 +123,19 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
       {activeTab === 'requests' && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white">
+            <h2 className="text-base font-bold text-[#050505] dark:text-white">
               Friend Requests ({pendingRequests.length})
             </h2>
-            <span className="text-xs text-[#b0b3b8]">মেইন অ্যাকাউন্টে শুধু ফ্রেন্ডস</span>
+            <span className="text-xs text-[#65676B] dark:text-[#b0b3b8]">মেইন অ্যাকাউন্টে শুধু ফ্রেন্ডস</span>
           </div>
 
           {pendingRequests.length === 0 ? (
-            <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-8 text-center space-y-3 shadow-sm my-2">
-              <div className="w-12 h-12 rounded-full bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto">
+            <div className="bg-white dark:bg-[#242526] rounded-[8px] border border-[#E4E6EB] dark:border-[#393a3b] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
+              <div className="w-12 h-12 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto">
                 <Users className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-bold text-white">কোনো ফ্রেন্ড রিকোয়েস্ট নেই (0 Requests)</h3>
-              <p className="text-xs text-[#b0b3b8] max-w-sm mx-auto">
+              <h3 className="text-sm font-bold text-[#050505] dark:text-white">কোনো ফ্রেন্ড রিকোয়েস্ট নেই (0 Requests)</h3>
+              <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] max-w-sm mx-auto">
                 আপনার অ্যাকাউন্ট নতুন খোলা হয়েছে। অন্য সদস্যরা ফ্রেন্ড রিকোয়েস্ট পাঠালে তা এখানে সরাসরি দেখতে পাবেন।
               </p>
             </div>
@@ -148,37 +148,37 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                 return (
                   <div
                     key={req.id}
-                    className="p-3 rounded-2xl bg-[#242526] border border-[#393a3b] flex items-center gap-3 shadow-sm"
+                    className="p-3 rounded-[8px] bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] flex items-center gap-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)]"
                   >
                     <img
                       src={req.avatar}
                       alt={req.name}
-                      className="w-16 h-16 rounded-full object-cover border border-[#393a3b] flex-shrink-0"
+                      className="w-16 h-16 rounded-full object-cover border border-[#E4E6EB] dark:border-[#393a3b] flex-shrink-0"
                     />
 
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <p className="font-bold text-sm text-white truncate">{req.name}</p>
-                        <span className="text-xs text-[#b0b3b8]">{req.timeAgo}</span>
+                        <p className="font-bold text-sm text-[#050505] dark:text-white truncate">{req.name}</p>
+                        <span className="text-xs text-[#65676B] dark:text-[#b0b3b8]">{req.timeAgo}</span>
                       </div>
-                      <p className="text-xs text-[#b0b3b8] truncate">{req.mutualFriend}</p>
+                      <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] truncate">{req.mutualFriend}</p>
 
                       <div className="mt-2 flex items-center gap-2">
                         {isConf ? (
-                          <span className="text-xs font-bold text-emerald-400 flex items-center gap-1">
+                          <span className="text-xs font-bold text-emerald-500 flex items-center gap-1">
                             <Check className="w-4 h-4" /> Request confirmed
                           </span>
                         ) : (
                           <>
                             <button
                               onClick={() => handleConfirm(req.id)}
-                              className="flex-1 py-1.5 rounded-lg bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold transition-colors cursor-pointer"
+                              className="flex-1 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#0055d4] text-white text-xs font-bold transition-colors cursor-pointer"
                             >
                               Confirm
                             </button>
                             <button
                               onClick={() => handleDelete(req.id)}
-                              className="flex-1 py-1.5 rounded-lg bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] text-xs font-bold transition-colors cursor-pointer"
+                              className="flex-1 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] dark:text-[#e4e6eb] text-xs font-bold transition-colors cursor-pointer"
                             >
                               Delete
                             </button>
@@ -199,9 +199,9 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
       {activeTab === 'friends' && (
         <div className="space-y-3 pt-2">
           <div className="flex items-center justify-between">
-            <h2 className="text-base font-bold text-white">আপনার বন্ধু তালিকা ({friendsList.length})</h2>
+            <h2 className="text-base font-bold text-[#050505] dark:text-white">আপনার বন্ধু তালিকা ({friendsList.length})</h2>
             {friendsList.length > 0 && (
-              <span className="text-xs text-emerald-400 font-semibold flex items-center gap-1">
+              <span className="text-xs text-emerald-500 font-semibold flex items-center gap-1">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
                 {friendsList.filter((f) => f.isOnline).length} জন অনলাইন
               </span>
@@ -209,12 +209,12 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
           </div>
 
           {friendsList.length === 0 ? (
-            <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-8 text-center space-y-3 shadow-sm my-2">
-              <div className="w-12 h-12 rounded-full bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-center text-[#1877F2] mx-auto">
+            <div className="bg-white dark:bg-[#242526] rounded-[8px] border border-[#E4E6EB] dark:border-[#393a3b] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
+              <div className="w-12 h-12 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto">
                 <Users className="w-6 h-6" />
               </div>
-              <h3 className="text-sm font-bold text-white">এখনও কোনো বন্ধু যুক্ত নেই (0 Friends)</h3>
-              <p className="text-xs text-[#b0b3b8] max-w-sm mx-auto">
+              <h3 className="text-sm font-bold text-[#050505] dark:text-white">এখনও কোনো বন্ধু যুক্ত নেই (0 Friends)</h3>
+              <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] max-w-sm mx-auto">
                 আপনার ফ্রেন্ডলিস্ট এখন সম্পূর্ণ জেনুইন ও স্বচ্ছ। নতুন অ্যাকাউন্ট খোলার কারণে এখানে কোনো ফেক ফ্রেন্ড বা ফলোয়ার নেই—আসল ফ্রেন্ড রিকোয়েস্ট অ্যাকসেপ্ট করলে তারা এখানে যুক্ত হবে।
               </p>
             </div>
@@ -225,26 +225,26 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                 .map((friend) => (
                   <div
                     key={friend.id}
-                    className="p-3 rounded-2xl bg-[#242526] border border-[#393a3b] flex items-center justify-between shadow-sm"
+                    className="p-3 rounded-[8px] bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] flex items-center justify-between shadow-[0_1px_2px_rgba(0,0,0,0.1)]"
                   >
                     <div className="flex items-center gap-3">
                       <div className="relative">
                         <img
                           src={friend.avatar}
                           alt={friend.name}
-                          className="w-12 h-12 rounded-full object-cover border border-[#393a3b]"
+                          className="w-12 h-12 rounded-full object-cover border border-[#E4E6EB] dark:border-[#393a3b]"
                         />
                         {friend.isOnline && (
-                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-[#242526]" />
+                          <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-emerald-500 border-2 border-white dark:border-[#242526]" />
                         )}
                       </div>
                       <div>
-                        <p className="font-bold text-sm text-white">{friend.name}</p>
-                        <p className="text-xs text-[#b0b3b8]">{friend.mutualCount} জন মিউচুয়াল ফ্রেন্ড</p>
+                        <p className="font-bold text-sm text-[#050505] dark:text-white">{friend.name}</p>
+                        <p className="text-xs text-[#65676B] dark:text-[#b0b3b8]">{friend.mutualCount} জন মিউচুয়াল ফ্রেন্ড</p>
                       </div>
                     </div>
 
-                    <button className="px-3 py-1.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-[#e4e6eb] transition-colors cursor-pointer">
+                    <button className="px-3.5 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-[#050505] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] dark:text-[#e4e6eb] transition-colors cursor-pointer">
                       Message
                     </button>
                   </div>

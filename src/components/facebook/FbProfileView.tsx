@@ -95,25 +95,25 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   };
 
   return (
-    <div className="max-w-[500px] mx-auto min-h-screen bg-[#121212] text-[#e4e6eb] pb-24 font-sans selection:bg-[#0866FF]/30">
+    <div className="max-w-[500px] mx-auto min-h-screen bg-white dark:bg-[#121212] text-[#050505] dark:text-[#e4e6eb] pb-24 font-sans selection:bg-[#0866FF]/30">
       
       {/* 1. Top Header Bar (Matching Facebook Katana) */}
-      <div className="sticky top-0 z-30 bg-[#121212] border-b border-[#222222] px-3 py-2 flex items-center justify-between">
+      <div className="sticky top-0 z-30 bg-white dark:bg-[#121212] border-b border-[#E4E6EB] dark:border-[#222222] px-3 py-2 flex items-center justify-between">
         <div className="flex items-center gap-1">
           <button
             onClick={onOpenMenu}
-            className="p-1.5 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+            className="p-1.5 rounded-full text-[#050505] dark:text-white hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] transition-colors"
             title="Menu"
           >
             <Menu className="w-6 h-6 stroke-[2.2]" />
           </button>
         </div>
 
-        <div className="flex items-center gap-1.5 text-white">
+        <div className="flex items-center gap-1.5 text-[#050505] dark:text-white">
           {/* Edit / Pencil icon */}
           <button
             onClick={() => setShowEditModal(true)}
-            className="p-2 rounded-full hover:bg-[#3a3b3c] text-white transition-colors"
+            className="p-2 rounded-full hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] text-[#050505] dark:text-white transition-colors"
             title="Edit profile"
           >
             <Edit2 className="w-5 h-5" />
@@ -122,7 +122,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           {/* Search icon */}
           <button
             onClick={onOpenMenu}
-            className="p-2 rounded-full hover:bg-[#3a3b3c] text-white transition-colors cursor-pointer"
+            className="p-2 rounded-full hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] text-[#050505] dark:text-white transition-colors cursor-pointer"
             title="Search & Menu"
           >
             <Search className="w-5 h-5" />
@@ -131,7 +131,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           {/* Three dots menu */}
           <button
             onClick={() => setShowSettingsSheet(true)}
-            className="p-2 rounded-full hover:bg-[#3a3b3c] text-white transition-colors"
+            className="p-2 rounded-full hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] text-[#050505] dark:text-white transition-colors"
             title="Profile settings"
           >
             <MoreHorizontal className="w-5 h-5" />
@@ -157,7 +157,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       </div>
 
       {/* 3. Profile Picture & Thought Bubble Section */}
-      <div className="bg-[#121212] px-4 pb-4">
+      <div className="bg-white dark:bg-[#121212] px-4 pb-4">
         
         {/* Container overlapping cover photo by -40px, center aligned */}
         <div className="relative flex flex-col items-center -mt-[40px]">
@@ -206,10 +206,10 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             {/* Small camera icon bottom-right of profile pic: grey circle with black camera */}
             <button
               onClick={() => setShowEditModal(true)}
-              className="absolute bottom-1 right-2 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-neutral-300 flex items-center justify-center text-black border-2 border-[#121212] shadow-md transition-colors"
+              className="absolute bottom-1 right-2 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:hover:bg-[#4E4F50] flex items-center justify-center text-black dark:text-white border-2 border-white dark:border-[#121212] shadow-md transition-colors"
               title="Change profile picture"
             >
-              <Camera className="w-5 h-5 text-black" />
+              <Camera className="w-5 h-5 text-black dark:text-white" />
             </button>
           </div>
         </div>
@@ -220,7 +220,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             - Right side dropdown arrow button grey circle with red notification dot top-right. */}
         <div className="mt-3 text-center space-y-1">
           <div className="relative flex items-center justify-center px-2">
-            <h1 className="text-[24px] font-bold text-white tracking-tight leading-tight">
+            <h1 className="text-[24px] font-bold text-[#050505] dark:text-white tracking-tight leading-tight">
               {activeProfileId === 'sf-mart'
                 ? 'SF MART BD'
                 : activeProfileId === 'sharif-story'
@@ -234,26 +234,26 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               className="absolute right-0 top-1/2 -translate-y-1/2 cursor-pointer p-0 rounded-full hover:opacity-95 active:scale-95 transition-all group"
               title="Switch profile or page"
             >
-              <div className="w-9 h-9 rounded-full bg-[#3A3B3C] group-hover:bg-[#4E4F50] flex items-center justify-center text-[#E4E6EB] shadow-sm transition-colors border border-white/5">
+              <div className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:group-hover:bg-[#4E4F50] flex items-center justify-center text-[#050505] dark:text-[#E4E6EB] shadow-xs transition-colors border border-neutral-200/50 dark:border-white/5">
                 <ChevronDown className="w-5 h-5 stroke-[2.2]" />
               </div>
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E41E3F] ring-2 ring-[#121212]" />
+              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E41E3F] ring-2 ring-white dark:ring-[#121212]" />
             </button>
           </div>
 
           {/* Below "331 friends" 14px grey */}
-          <p className="text-[14px] text-[#B0B3B8] font-normal">
+          <p className="text-[14px] text-[#65676B] dark:text-[#B0B3B8] font-normal">
             {userProfile.friendsCount || 331} friends
           </p>
 
           {/* Below that: show 3 friend avatars overlapping, then text "Friends with things in common" grey 13px */}
           <div className="flex items-center justify-center gap-2 pt-1">
             <div className="flex -space-x-2 overflow-hidden">
-              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-[#121212] object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80" alt="Friend 1" />
-              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-[#121212] object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80" alt="Friend 2" />
-              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-[#121212] object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80" alt="Friend 3" />
+              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-[#121212] object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80" alt="Friend 1" />
+              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-[#121212] object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80" alt="Friend 2" />
+              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-white dark:ring-[#121212] object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80" alt="Friend 3" />
             </div>
-            <span className="text-[13px] text-[#B0B3B8]">Friends with things in common</span>
+            <span className="text-[13px] text-[#65676B] dark:text-[#B0B3B8]">Friends with things in common</span>
           </div>
         </div>
 
@@ -272,7 +272,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
 
           <button
             onClick={() => setShowEditModal(true)}
-            className="w-[38%] h-[36px] rounded-[8px] bg-[#3A3B3C] hover:bg-[#4E4F50] text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 transition-colors"
+            className="w-[38%] h-[36px] rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:hover:bg-[#4E4F50] text-[#050505] dark:text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 transition-colors"
           >
             <Edit2 className="w-4 h-4" />
             <span>Edit profile</span>
@@ -281,7 +281,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
 
         {/* 5. TABS:
             Tabs: All, Photos, Reels.
-            All is selected with light blue background #E7F3FF, blue text. Others grey #3A3B3C background.
+            All is selected with light blue background #E7F3FF, blue text. Others grey #E4E6EB background.
             Height 32px, border-radius 20px */}
         <div className="flex items-center gap-2 mt-4">
           {(['all', 'photos', 'reels'] as const).map((tab) => {
@@ -293,7 +293,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
                 className={`h-[32px] rounded-[20px] px-4 text-[13px] font-semibold flex items-center justify-center transition-colors ${
                   isSelected
                     ? 'bg-[#E7F3FF] text-[#0866FF] font-bold'
-                    : 'bg-[#3A3B3C] text-white hover:bg-[#4E4F50]'
+                    : 'bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] text-[#050505] dark:text-white dark:hover:bg-[#4E4F50]'
                 }`}
               >
                 {tab === 'all' ? 'All' : tab === 'photos' ? 'Photos' : 'Reels'}
@@ -306,9 +306,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             - Title "At a glance" bold 16px left, "See all" blue right
             - List items with icons: location icon, home icon, birthday cake, heart. Text 15px. Icons 20px grey
             - Lives in Dhaka, From Dhaka, Born August 17, 1991, Married */}
-        <div className="mt-5 pt-4 border-t border-[#222222] space-y-3">
+        <div className="mt-5 pt-4 border-t border-[#E4E6EB] dark:border-[#222222] space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-[16px] text-white">At a glance</h3>
+            <h3 className="font-bold text-[16px] text-[#050505] dark:text-white">At a glance</h3>
             <button
               onClick={() => setShowEditModal(true)}
               className="text-[#0866FF] hover:underline font-semibold text-[14px] transition-colors"
@@ -319,34 +319,34 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
 
           <div className="space-y-3 pt-1">
             {/* 1. Location: Lives in Dhaka, Bangladesh */}
-            <div className="flex items-center gap-3 text-[15px] text-[#E4E6EB]">
-              <MapPin className="w-5 h-5 text-[#B0B3B8] shrink-0" />
+            <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
+              <MapPin className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                Lives in <span className="font-semibold text-white">{userProfile.location || 'Dhaka, Bangladesh'}</span>
+                Lives in <span className="font-semibold text-[#050505] dark:text-white">{userProfile.location || 'Dhaka, Bangladesh'}</span>
               </span>
             </div>
 
             {/* 2. Home: From Dhaka, Bangladesh */}
-            <div className="flex items-center gap-3 text-[15px] text-[#E4E6EB]">
-              <Home className="w-5 h-5 text-[#B0B3B8] shrink-0" />
+            <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
+              <Home className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                From <span className="font-semibold text-white">{userProfile.hometown || 'Dhaka, Bangladesh'}</span>
+                From <span className="font-semibold text-[#050505] dark:text-white">{userProfile.hometown || 'Dhaka, Bangladesh'}</span>
               </span>
             </div>
 
             {/* 3. Birthday cake: Born August 17, 1991 */}
-            <div className="flex items-center gap-3 text-[15px] text-[#E4E6EB]">
-              <Cake className="w-5 h-5 text-[#B0B3B8] shrink-0" />
+            <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
+              <Cake className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                Born <span className="font-semibold text-white">{userProfile.birthDate || 'August 17, 1991'}</span>
+                Born <span className="font-semibold text-[#050505] dark:text-white">{userProfile.birthDate || 'August 17, 1991'}</span>
               </span>
             </div>
 
             {/* 4. Heart: Married */}
-            <div className="flex items-center gap-3 text-[15px] text-[#E4E6EB]">
-              <Heart className="w-5 h-5 text-[#B0B3B8] shrink-0" />
+            <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
+              <Heart className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                <span className="font-semibold text-white">{userProfile.relationship || 'Married'}</span>
+                <span className="font-semibold text-[#050505] dark:text-white">{userProfile.relationship || 'Married'}</span>
               </span>
             </div>
           </div>
@@ -355,23 +355,23 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       </div>
 
       {/* 7. User's Posts Feed */}
-      <div className="p-3 sm:p-4 space-y-3 border-t border-[#222222] bg-[#121212]">
+      <div className="p-3 sm:p-4 space-y-3 border-t border-[#E4E6EB] dark:border-[#222222] bg-[#F0F2F5] dark:bg-[#121212]">
         <div className="flex items-center justify-between px-1">
-          <h3 className="font-bold text-[16px] text-white">Posts</h3>
+          <h3 className="font-bold text-[16px] text-[#050505] dark:text-white">Posts</h3>
           <button
             onClick={() => setShowEditModal(true)}
-            className="text-xs text-[#B0B3B8] hover:text-white"
+            className="text-xs text-[#65676B] dark:text-[#B0B3B8] hover:text-[#050505] dark:hover:text-white font-medium"
           >
             Manage posts
           </button>
         </div>
         {userPosts.length === 0 ? (
-          <div className="p-8 text-center bg-[#1C1C1D] rounded-[10px] border border-[#222222] space-y-2">
-            <p className="text-sm font-semibold text-white">এখনও কোনো পোস্ট নেই</p>
-            <p className="text-xs text-[#B0B3B8]">নতুন কিছু শেয়ার করুন</p>
+          <div className="p-8 text-center bg-white dark:bg-[#1C1C1D] rounded-[8px] border border-[#E4E6EB] dark:border-[#222222] space-y-2 shadow-xs">
+            <p className="text-sm font-semibold text-[#050505] dark:text-white">এখনও কোনো পোস্ট নেই</p>
+            <p className="text-xs text-[#65676B] dark:text-[#B0B3B8]">নতুন কিছু শেয়ার করুন</p>
             <button
               onClick={onAddStory}
-              className="px-4 py-1.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold"
+              className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold"
             >
               পোস্ট তৈরি করুন
             </button>

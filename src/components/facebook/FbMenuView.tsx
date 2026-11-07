@@ -68,6 +68,9 @@ interface FbMenuViewProps {
   onLogout?: () => void;
   onBack: () => void;
   onOpenMessenger?: () => void;
+  unreadMessagesCount?: number;
+  isDarkMode?: boolean;
+  onToggleDarkMode?: (isDark: boolean) => void;
 }
 
 export const FbMenuView: React.FC<FbMenuViewProps> = ({
@@ -83,6 +86,9 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onLogout,
   onBack,
   onOpenMessenger,
+  unreadMessagesCount = 0,
+  isDarkMode = false,
+  onToggleDarkMode,
 }) => {
   const { t, currentLangInfo, setShowLanguageModal } = useLanguage();
 
@@ -105,35 +111,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [settingsModalType, setSettingsModalType] = useState<SettingsModalType>(null);
   const [alsoAppType, setAlsoAppType] = useState<AlsoAppType>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
-  const [darkModeInline, setDarkModeInline] = useState(false);
-
-  // 4 Shortcuts with 100% working high-res images (Fixing broken SF MART image)
-  const defaultShortcuts = [
-    {
-      id: 'sc-1',
-      name: "Sharif's Lif...",
-      fullName: "Sharif's Life Story",
-      image: "https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80",
-    },
-    {
-      id: 'sc-2',
-      name: "Angel Mahi",
-      fullName: "Angel Mahi",
-      image: "https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=200&q=80",
-    },
-    {
-      id: 'sc-3',
-      name: "SF MART...",
-      fullName: "SF MART BD",
-      image: "https://images.unsplash.com/photo-1472851294608-062f824d29cc?auto=format&fit=crop&w=200&q=80",
-    },
-    {
-      id: 'sc-4',
-      name: "Angel Mahi",
-      fullName: "Angel Mahi",
-      image: "https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80",
-    },
-  ];
+  const [darkModeInline, setDarkModeInline] = useState(isDarkMode);
 
   const handleMessengerClick = () => {
     if (onOpenMessenger) {
@@ -184,7 +162,11 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             title="Messenger Chat"
           >
             <Zap className="w-5 h-5 fill-white stroke-white" />
-            <span className="absolute -top-1 -right-1 w-3.5 h-3.5 rounded-full bg-[#E41E3F] ring-2 ring-white" />
+            {unreadMessagesCount > 0 && (
+              <span className="absolute -top-1 -right-1 min-w-[16px] h-4 bg-[#E41E3F] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white">
+                {unreadMessagesCount}
+              </span>
+            )}
           </button>
         </div>
       </div>
@@ -232,35 +214,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         </div>
       </div>
 
-      {/* 2. YOUR SHORTCUTS SECTION:
-          - Title "Your shortcuts" 14px grey
-          - 4 items in horizontal scroll: Sharif's Lif..., Angel Mahi, SF MART..., Angel Mahi.
-          Each: image 60x60 rounded 12px, name 12px below. No broken image. */}
-      <div className="space-y-2 pt-1">
-        <h3 className="text-[14px] text-neutral-500 font-semibold px-1">Your shortcuts</h3>
-        
-        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar py-1 px-1">
-          {defaultShortcuts.map((sc) => (
-            <div
-              key={sc.id}
-              onClick={() => onNavigateTab('pages')}
-              className="flex flex-col items-center gap-1.5 flex-shrink-0 cursor-pointer group"
-            >
-              <img
-                src={sc.image}
-                alt={sc.fullName}
-                className="w-[60px] h-[60px] rounded-[12px] object-cover shadow-xs border border-neutral-200/80 group-hover:opacity-90 transition-opacity bg-neutral-100"
-              />
-              <p className="text-[12px] text-neutral-800 text-center truncate w-[64px] font-medium leading-tight">
-                {sc.name}
-              </p>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* 2. MAIN MENU - COPY FACEBOOK EXACTLY (in this order):
-          Section 1: Pages, Meta AI, Saved, Memories, Marketplace, Groups, Reels, Feeds, Friends, Video */}
+      {/* MAIN MENU (Genuine Facebook features in order: Pages, Saved, Memories, Marketplace, Groups, Reels, Feeds, Friends, Video) */}
       <div className="bg-white rounded-[12px] p-2 shadow-xs border border-neutral-200/80 space-y-0.5">
         
         {/* 1. Pages (flag icon) */}
@@ -272,16 +226,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           <span className="text-[15px] font-semibold text-neutral-900">Pages</span>
         </button>
 
-        {/* 2. Meta AI (star/sparkle icon) */}
-        <button
-          onClick={() => setShowPeaceAiModal(true)}
-          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
-        >
-          <Sparkles className="w-6 h-6 text-black shrink-0" />
-          <span className="text-[15px] font-semibold text-neutral-900">Meta AI</span>
-        </button>
-
-        {/* 3. Saved (bookmark icon) */}
+        {/* 2. Saved (bookmark icon) */}
         <button
           onClick={() => onNavigateTab('saved')}
           className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
@@ -527,7 +472,9 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
               {/* 9. Dark mode (moon with toggle) */}
               <div
                 onClick={() => {
-                  setDarkModeInline(!darkModeInline);
+                  const nextVal = !darkModeInline;
+                  setDarkModeInline(nextVal);
+                  if (onToggleDarkMode) onToggleDarkMode(nextVal);
                   setSettingsModalType('dark_mode');
                 }}
                 className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between font-medium text-neutral-800 cursor-pointer"
@@ -553,13 +500,13 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 <span className="text-[13px] text-neutral-500 font-medium">বাংলা</span>
               </button>
 
-              {/* 11. App icon (f icon) */}
+              {/* 11. App icon (Peaceverse 'p' icon) */}
               <button
                 onClick={() => setSettingsModalType('app_icon')}
                 className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center gap-3.5 text-left font-medium text-neutral-800 cursor-pointer"
               >
-                <div className="w-5 h-5 rounded-full bg-[#0866FF] text-white font-bold text-xs flex items-center justify-center shrink-0">
-                  f
+                <div className="w-5 h-5 rounded-full bg-[#0866FF] text-white font-black text-xs flex items-center justify-center shrink-0 font-sans lowercase">
+                  p
                 </div>
                 <span className="text-[14.5px]">App icon</span>
               </button>
@@ -727,6 +674,10 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       <FbSettingsPrivacyModals
         modalType={settingsModalType}
         onClose={() => setSettingsModalType(null)}
+        onToggleDarkMode={(dark) => {
+          setDarkModeInline(dark);
+          if (onToggleDarkMode) onToggleDarkMode(dark);
+        }}
       />
 
       <FbAlsoFromPeaceModal

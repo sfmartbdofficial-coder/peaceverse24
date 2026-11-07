@@ -14,18 +14,28 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
   return (
     <>
       {/* Stories Carousel matching user requested .story-row & .story-card */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar p-2.5">
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar p-2.5 bg-white dark:bg-[#1C1C1D]">
         
-        {/* 1. Create Story Card */}
+        {/* 1. Create Story Card (Facebook White Card with Blue Plus button) */}
         <div
           onClick={onOpenCreateStory}
-          className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-gradient-to-b from-[#1a1a1a] to-[#000000] border border-[#222222] hover:border-[#0064FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-2.5 group shadow-md transition-all relative"
+          className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] hover:border-[#0866FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col group shadow-xs transition-all relative"
         >
-          <div className="w-8 h-8 rounded-full bg-[#0064FF] flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-            <Plus className="w-4 h-4 stroke-[3]" />
+          {/* Top cover image */}
+          <div className="h-[130px] w-full bg-gradient-to-b from-blue-500/20 to-neutral-200 dark:to-neutral-800 overflow-hidden relative">
+            <img
+              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80"
+              alt="Create Story"
+              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+            />
           </div>
-          <div>
-            <p className="text-xs font-bold text-white leading-tight">
+          {/* Overlapping Blue Plus Button */}
+          <div className="absolute top-[114px] left-1/2 -translate-x-1/2 z-10 w-8 h-8 rounded-full bg-[#0866FF] flex items-center justify-center text-white shadow-md ring-4 ring-white dark:ring-[#242526]">
+            <Plus className="w-5 h-5 stroke-[3]" />
+          </div>
+          {/* Bottom text */}
+          <div className="flex-1 flex items-end justify-center pb-2.5 px-1 bg-white dark:bg-[#242526]">
+            <p className="text-[12px] font-bold text-[#050505] dark:text-white leading-tight text-center">
               Create story
             </p>
           </div>
@@ -37,10 +47,10 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
             if (onOpenCreateReel) onOpenCreateReel();
             else onOpenCreateStory();
           }}
-          className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-gradient-to-b from-[#1a1a1a] to-[#000000] border border-[#222222] hover:border-[#0064FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-2.5 group shadow-md transition-all relative"
+          className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-gradient-to-b from-indigo-900 to-purple-950 border border-[#E4E6EB] dark:border-[#393a3b] hover:border-[#0866FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col justify-between p-2.5 group shadow-xs transition-all relative"
         >
-          <div className="w-8 h-8 rounded-full bg-[#0064FF] flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
-            <Plus className="w-4 h-4 stroke-[3]" />
+          <div className="w-8 h-8 rounded-full bg-[#0866FF] flex items-center justify-center text-white shadow-md group-hover:scale-105 transition-transform">
+            <Film className="w-4 h-4 stroke-[2.5]" />
           </div>
           <div>
             <p className="text-xs font-bold text-white leading-tight">
@@ -56,7 +66,7 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
             <div
               key={story.id}
               onClick={() => setSelectedStory(story)}
-              className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-[#1C1C1D] border border-[#222222] hover:border-[#0064FF]/60 flex-shrink-0 cursor-pointer overflow-hidden relative group shadow-md transition-all"
+              className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] hover:border-[#0866FF]/60 flex-shrink-0 cursor-pointer overflow-hidden relative group shadow-xs transition-all"
             >
               {/* Background preview image or gradient */}
               <div className="absolute inset-0">

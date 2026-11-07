@@ -30,26 +30,26 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
   });
 
   return (
-    <div className="max-w-2xl mx-auto space-y-4 pb-20">
+    <div className="max-w-2xl mx-auto space-y-4 pb-24 font-sans">
       {/* Facebook Watch Header & Filter Pills */}
-      <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-3 sm:p-4 shadow-sm space-y-3">
+      <div className="bg-white dark:bg-[#242526] rounded-[8px] border border-[#E4E6EB] dark:border-[#393a3b] p-3 sm:p-4 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             {onBack && (
               <button
                 onClick={onBack}
-                className="p-1 rounded-full hover:bg-[#3a3b3c] text-white transition-colors"
+                className="p-1 rounded-full hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] text-[#050505] dark:text-white transition-colors cursor-pointer"
                 title="পেছনে যান (Back)"
               >
                 <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
               </button>
             )}
-            <Tv className="w-5 h-5 text-emerald-400" />
-            <h2 className="text-base font-bold text-white">Qalby Watch (ভিডিও)</h2>
+            <Tv className="w-5 h-5 text-[#0866FF]" />
+            <h2 className="text-base font-bold text-[#050505] dark:text-white">Peaceverse Video (ভিডিও)</h2>
           </div>
-          <span className="text-xs text-rose-400 font-bold flex items-center gap-1">
+          <span className="text-xs text-rose-500 font-bold flex items-center gap-1">
             <Radio className="w-3.5 h-3.5 animate-pulse" />
-            <span>২৪/৭ লাইভ</span>
+            <span>লাইভ</span>
           </span>
         </div>
 
@@ -64,10 +64,10 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
             <button
               key={tab.id}
               onClick={() => setFilter(tab.id as any)}
-              className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors ${
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-colors cursor-pointer ${
                 filter === tab.id
-                  ? 'bg-emerald-600 text-white shadow'
-                  : 'bg-[#3a3b3c] text-[#b0b3b8] hover:text-white hover:bg-[#4e4f50]'
+                  ? 'bg-[#0866FF] text-white shadow-xs'
+                  : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] dark:bg-[#3a3b3c] dark:text-[#b0b3b8] dark:hover:text-white'
               }`}
             >
               {tab.label}

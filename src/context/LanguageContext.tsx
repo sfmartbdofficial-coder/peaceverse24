@@ -28,7 +28,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [detectedCountry, setDetectedCountry] = useState<string>(initial.countryName);
   const [detectedFlag, setDetectedFlag] = useState<string>(initial.detectedFlag);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
-  const [showAutoDetectNotice, setShowAutoDetectNotice] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   // 1. Asynchronous IP Geolocation fallback for exact global country & language detection
@@ -57,7 +56,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               setCurrentLangState(mapped.lang);
               setDetectedCountry(mapped.countryName);
               setDetectedFlag(mapped.flag);
-              setShowAutoDetectNotice(true);
             } else if (countryName) {
               setDetectedCountry(countryName);
             }
@@ -74,22 +72,7 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     };
   }, []);
 
-  // 2. Notification toast on first session visit
-  useEffect(() => {
-    const dismissed = sessionStorage.getItem('qalby_lang_notice_dismissed');
-    if (!dismissed) {
-      setShowAutoDetectNotice(true);
-      const timer = setTimeout(() => {
-        setShowAutoDetectNotice(false);
-        try {
-          sessionStorage.setItem('qalby_lang_notice_dismissed', 'true');
-        } catch {}
-      }, 7000);
-      return () => clearTimeout(timer);
-    }
-  }, []);
-
-  // 3. Update HTML dir and lang attribute for RTL support (Arabic, Urdu, Persian)
+  // 2. Update HTML dir and lang attribute for RTL support (Arabic, Urdu, Persian)
   useEffect(() => {
     const langInfo = SUPPORTED_LANGUAGES.find((l) => l.code === currentLang);
     if (langInfo) {
@@ -137,40 +120,6 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     >
       {children}
 
-      {/* Auto-detected notification banner on top */}
-      {showAutoDetectNotice && (
-        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-50 w-[94%] max-w-md animate-in slide-in-from-top-3 duration-300 pointer-events-auto">
-          <div className="bg-[#242526]/95 border border-[#1877F2]/60 shadow-2xl rounded-2xl py-2 px-3.5 flex items-center justify-between text-xs text-white backdrop-blur-md">
-            <div className="flex items-center gap-2 min-w-0 flex-1 truncate">
-              <span className="text-xl flex-shrink-0">{detectedFlag || currentLangInfo.flag}</span>
-              <div className="truncate">
-                <p className="text-[10px] text-[#b0b3b8] uppercase tracking-wider font-bold">Auto Language Active</p>
-                <p className="text-xs font-semibold text-white truncate">
-                  {detectedCountry}: <span className="text-[#1877F2]">{currentLangInfo.nativeName}</span>
-                </p>
-              </div>
-            </div>
-            <div className="flex items-center gap-2 flex-shrink-0 ml-2">
-              <button
-                onClick={() => {
-                  setShowAutoDetectNotice(false);
-                  setShowLanguageModal(true);
-                }}
-                className="text-[11px] font-bold text-white bg-[#1877F2] hover:bg-[#166fe5] px-2.5 py-1 rounded-full cursor-pointer transition-colors"
-              >
-                {t.changeLanguage}
-              </button>
-              <button
-                onClick={() => setShowAutoDetectNotice(false)}
-                className="text-[#b0b3b8] hover:text-white p-1 rounded-full"
-                title="Dismiss"
-              >
-                ✕
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* Language Switcher Modal */}
       {showLanguageModal && (

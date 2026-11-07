@@ -59,33 +59,33 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   // If in search mode, render the Facebook search bar
   if (isSearching) {
     return (
-      <header className="sticky top-0 z-40 bg-[#242526] border-b border-[#393a3b] px-3 sm:px-4 py-2 shadow-md">
+      <header className="sticky top-0 z-40 bg-white dark:bg-[#242526] border-b border-[#E4E6EB] dark:border-[#393a3b] px-3 sm:px-4 py-2 shadow-xs">
         <div className="max-w-[700px] mx-auto flex items-center gap-2.5">
           <button
             onClick={() => {
               setIsSearching(false);
               onSearchChange('');
             }}
-            className="p-2 rounded-full text-[#e4e6eb] hover:bg-[#3a3b3c] transition-colors"
+            className="p-2 rounded-full text-black dark:text-[#e4e6eb] hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] transition-colors cursor-pointer"
             title="অনুসন্ধান বন্ধ করুন (Back)"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
           <div className="flex-1 relative flex items-center">
-            <Search className="w-4 h-4 text-[#b0b3b8] absolute left-3 pointer-events-none" />
+            <Search className="w-4 h-4 text-[#65676B] dark:text-[#b0b3b8] absolute left-3 pointer-events-none" />
             <input
               ref={inputRef}
               type="text"
               placeholder="Peaceverse-এ খুঁজুন (পোস্ট, আয়াত, উপদেশ, বন্ধু)..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
-              className="w-full bg-[#3a3b3c] text-white text-xs sm:text-sm pl-9 pr-9 py-2 rounded-full placeholder-[#b0b3b8] focus:outline-none focus:ring-1 focus:ring-[#1877F2]"
+              className="w-full bg-[#F0F2F5] dark:bg-[#3a3b3c] text-black dark:text-white text-xs sm:text-sm pl-9 pr-9 py-2 rounded-full placeholder-[#65676B] dark:placeholder-[#b0b3b8] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
             />
             {searchQuery && (
               <button
                 onClick={() => onSearchChange('')}
-                className="absolute right-2.5 p-1 rounded-full text-[#b0b3b8] hover:text-white"
+                className="absolute right-2.5 p-1 rounded-full text-[#65676B] hover:text-black dark:hover:text-white"
               >
                 <X className="w-3.5 h-3.5" />
               </button>
@@ -97,7 +97,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-[#242526] border-b border-[#393a3b] px-3 sm:px-4 py-2 shadow-md">
+    <header className="sticky top-0 z-40 bg-white dark:bg-[#242526] border-b border-[#E4E6EB] dark:border-[#393a3b] px-3 sm:px-4 py-2 shadow-xs">
       <div className="max-w-[700px] mx-auto flex items-center justify-between">
         
         {/* Left: Optional Back Arrow or Menu + Logo */}
@@ -105,7 +105,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           {showBackButton && onBack && (
             <button
               onClick={onBack}
-              className="p-1.5 rounded-full text-[#e4e6eb] hover:bg-[#3a3b3c] transition-colors"
+              className="p-1.5 rounded-full text-black dark:text-[#e4e6eb] hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] transition-colors cursor-pointer"
               title="পেছনে যান (Back)"
             >
               <ArrowLeft className="w-6 h-6 stroke-[2.5]" />
@@ -114,13 +114,13 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
 
           <button
             onClick={onOpenMenu}
-            className="p-1 rounded-full text-[#e4e6eb] hover:bg-[#3a3b3c] transition-colors"
+            className="p-1 rounded-full text-black dark:text-[#e4e6eb] hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] transition-colors cursor-pointer"
             title="Menu"
           >
             <Menu className="w-6 h-6 stroke-[2.5]" />
           </button>
 
-          <span className="font-black text-2xl tracking-tighter text-[#2e89ff] flex items-center select-none font-sans lowercase">
+          <span className="font-black text-2xl tracking-tighter text-[#0866FF] flex items-center select-none font-sans lowercase">
             peaceverse
           </span>
         </div>
@@ -128,12 +128,12 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
         {/* Right: Plus (+), Search (🔍), Messenger (💬 with red badge '4') */}
         <div className="flex items-center gap-2 relative">
           
-          {/* Create (+) with Facebook Dropdown Menu matching Screenshot 1 */}
+          {/* Create (+) with Facebook Dropdown Menu */}
           <div className="relative">
             <button
               onClick={() => setShowPlusMenu(!showPlusMenu)}
-              className={`w-9 h-9 rounded-full transition-colors flex items-center justify-center shadow-sm ${
-                showPlusMenu ? 'bg-[#1877F2] text-white' : 'bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb]'
+              className={`w-9 h-9 rounded-full transition-colors flex items-center justify-center shadow-xs cursor-pointer ${
+                showPlusMenu ? 'bg-[#0866FF] text-white' : 'bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-[#050505] dark:text-[#e4e6eb]'
               }`}
               title="Create"
             >
@@ -208,7 +208,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           {/* Search (🔍) */}
           <button
             onClick={() => setIsSearching(true)}
-            className="w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] flex items-center justify-center transition-colors shadow-sm"
+            className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-[#050505] dark:text-[#e4e6eb] flex items-center justify-center transition-colors shadow-xs cursor-pointer"
             title="Search"
           >
             <Search className="w-5 h-5" />
@@ -217,12 +217,12 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           {/* Messenger (💬) with red badge */}
           <button
             onClick={onOpenMessenger}
-            className="relative w-9 h-9 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] flex items-center justify-center transition-colors shadow-sm"
+            className="relative w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-[#050505] dark:text-[#e4e6eb] flex items-center justify-center transition-colors shadow-xs cursor-pointer"
             title="Messenger"
           >
             <MessageCircle className="w-5 h-5" />
             {unreadMessagesCount > 0 && (
-              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow-md ring-2 ring-[#242526]">
+              <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow-xs ring-2 ring-white dark:ring-[#242526]">
                 {unreadMessagesCount}
               </span>
             )}
