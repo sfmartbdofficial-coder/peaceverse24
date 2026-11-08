@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Sparkles, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck } from 'lucide-react';
-import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword } from '../../lib/firebase';
+import { X, Mail, Lock, User, Sparkles, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, logoutUser } from '../../lib/firebase';
 
 interface FirebaseAuthModalProps {
   isOpen: boolean;
@@ -16,6 +16,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
   const [tab, setTab] = useState<'login' | 'register' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -50,6 +51,10 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
 
     try {
       if (tab === 'login') {
+        try {
+          await logoutUser();
+        } catch {}
+
         const user = await loginWithEmail(email.trim(), password);
         if (user) {
           setSuccessMsg('সফলভাবে লগইন হয়েছে!');
@@ -83,10 +88,23 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
       }
     } catch (err: any) {
       let msg = err?.message || 'একটি ত্রুটি ঘটেছে।';
-      if (msg.includes('auth/invalid-email')) msg = 'ইমেইল অ্যাড্রেসটি সঠিক নয়।';
-      if (msg.includes('auth/user-not-found')) msg = 'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।';
-      if (msg.includes('auth/wrong-password')) msg = 'পাসওয়ার্ড ভুল হয়েছে।';
-      if (msg.includes('auth/email-already-in-use')) msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে।';
+      const code = err?.code || '';
+      if (
+        code === 'auth/wrong-password' ||
+        code === 'auth/invalid-credential' ||
+        msg.includes('auth/invalid-credential') ||
+        msg.includes('auth/wrong-password')
+      ) {
+        msg = 'ভুল পাসওয়ার্ড অথবা ভুল ইমেইল! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।';
+      } else if (code === 'auth/user-not-found' || msg.includes('auth/user-not-found')) {
+        msg = 'এই ইমেইলে কোনো অ্যাকাউন্ট পাওয়া যায়নি।';
+      } else if (code === 'auth/too-many-requests' || msg.includes('auth/too-many-requests')) {
+        msg = 'অনেকবার ভুল চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
+      } else if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
+        msg = 'ইমেইল অ্যাড্রেসটি সঠিক নয়।';
+      } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
+        msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে।';
+      }
       setErrorMsg(msg);
     } finally {
       setLoading(false);
@@ -254,13 +272,21 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 text-[#8a8d91] absolute left-3" />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="কমপক্ষে ৬ অক্ষর"
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-[#65676b] focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl pl-9 pr-9 py-2 text-xs text-white placeholder-[#65676b] focus:outline-none focus:border-[#1877F2]"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-2.5 p-1 text-[#8a8d91] hover:text-white transition-colors cursor-pointer"
+                    title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             )}

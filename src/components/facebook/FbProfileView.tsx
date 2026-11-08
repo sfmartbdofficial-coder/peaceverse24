@@ -30,6 +30,7 @@ import { UserProfile, PostItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
 import { FbEditProfileModal } from './FbEditProfileModal';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
+import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 
 interface FbProfileViewProps {
   userProfile: UserProfile;
@@ -65,11 +66,57 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   const [showMonetizationModal, setShowMonetizationModal] = useState(false);
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
-  const [activeProfileId, setActiveProfileId] = useState<'main' | 'sf-mart' | 'sharif-story'>('main');
+  const [activeProfileId, setActiveProfileId] = useState<string>('main');
+  const [extraProfiles, setExtraProfiles] = useState<Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    type: 'page' | 'profile';
+    notifications?: number;
+  }>>(() => {
+    try {
+      const stored = localStorage.getItem('peaceverse_extra_profiles');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
+
+  const [otherProfiles, setOtherProfiles] = useState<Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    badgeIcon?: 'instagram' | 'whatsapp';
+    notifications?: number;
+  }>>(() => {
+    try {
+      const stored = localStorage.getItem('peaceverse_other_profiles');
+      return stored ? JSON.parse(stored) : [];
+    } catch {
+      return [];
+    }
+  });
   const [showAccountsCenterModal, setShowAccountsCenterModal] = useState(false);
   const [switchFeedback, setSwitchFeedback] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [editingThought, setEditingThought] = useState(false);
+  const [isProfileLocked, setIsProfileLocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('peaceverse_profile_locked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  React.useEffect(() => {
+    const handleLockChange = () => {
+      try {
+        setIsProfileLocked(localStorage.getItem('peaceverse_profile_locked') === 'true');
+      } catch {}
+    };
+    window.addEventListener('peaceverse_profile_lock_changed', handleLockChange);
+    return () => window.removeEventListener('peaceverse_profile_lock_changed', handleLockChange);
+  }, []);
   const [thought, setThought] = useState(
     userProfile.thoughtBubble && userProfile.thoughtBubble !== 'Share a song...'
       ? userProfile.thoughtBubble
@@ -221,11 +268,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
         <div className="mt-3 text-center space-y-1">
           <div className="relative flex items-center justify-center px-2">
             <h1 className="text-[24px] font-bold text-[#050505] dark:text-white tracking-tight leading-tight">
-              {activeProfileId === 'sf-mart'
-                ? 'SF MART BD'
-                : activeProfileId === 'sharif-story'
-                ? "Sharif's Life Story"
-                : (userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan')}
+              {activeProfileId === 'main'
+                ? (userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Siddik')
+                : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (userProfile.name || 'Siddik'))}
             </h1>
 
             {/* Right side dropdown arrow button: grey circle with red notification dot top-right */}
@@ -237,7 +282,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               <div className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:group-hover:bg-[#4E4F50] flex items-center justify-center text-[#050505] dark:text-[#E4E6EB] shadow-xs transition-colors border border-neutral-200/50 dark:border-white/5">
                 <ChevronDown className="w-5 h-5 stroke-[2.2]" />
               </div>
-              <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E41E3F] ring-2 ring-white dark:ring-[#121212]" />
+              {extraProfiles.some((p) => (p.notifications || 0) > 0) && (
+                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E41E3F] ring-2 ring-white dark:ring-[#121212]" />
+              )}
             </button>
           </div>
 
@@ -278,6 +325,23 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             <span>Edit profile</span>
           </button>
         </div>
+
+        {/* Real Facebook Profile Locked Banner */}
+        {isProfileLocked && (
+          <div className="mt-3.5 p-3 rounded-xl bg-[#E7F3FF] dark:bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center gap-3 text-left shadow-xs">
+            <div className="w-9 h-9 rounded-full bg-[#0866FF] text-white flex items-center justify-center shrink-0 shadow-xs">
+              <ShieldCheck className="w-5 h-5" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-bold text-[13px] text-[#050505] dark:text-white leading-tight">
+                You locked your profile
+              </p>
+              <p className="text-[12px] text-[#65676B] dark:text-[#b0b3b8] leading-tight mt-0.5">
+                Only your friends can see the photos, posts and stories on your profile.
+              </p>
+            </div>
+          </div>
+        )}
 
         {/* 5. TABS:
             Tabs: All, Photos, Reels.
@@ -512,245 +576,22 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
         </div>
       )}
 
-      {/* 8. Facebook Profile & Page Switcher Bottom Sheet (Matching Screenshot 1 Pixel-by-Pixel) */}
+      {/* 8. Facebook Profile & Page Switcher Bottom Sheet */}
       {showProfileSwitcher && (
-        <div
-          className="fixed inset-0 z-50 bg-black/60 backdrop-blur-[2px] flex items-end justify-center p-0 animate-in fade-in"
-          onClick={() => setShowProfileSwitcher(false)}
-        >
-          <div
-            className="w-full max-w-lg bg-white rounded-t-[28px] p-4 text-neutral-900 shadow-2xl animate-in slide-in-from-bottom duration-200 max-h-[92vh] overflow-y-auto no-scrollbar font-sans"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Top Drag Handle */}
-            <div className="w-12 h-1 bg-neutral-300 rounded-full mx-auto mb-3.5" />
-
-            {/* Switch Feedback Toast */}
-            {switchFeedback && (
-              <div className="mb-3 p-2.5 bg-emerald-50 text-emerald-800 text-xs font-semibold rounded-xl text-center border border-emerald-200 animate-in fade-in">
-                {switchFeedback}
-              </div>
-            )}
-
-            {/* Upper Section: Main Profile & Pages Card (Exact Screenshot 1) */}
-            <div className="bg-white rounded-2xl border border-neutral-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden divide-y divide-neutral-100">
-              
-              {/* 1. Main Personal Profile (Sharif Hasan) */}
-              <button
-                onClick={() => {
-                  setActiveProfileId('main');
-                  setSwitchFeedback(`সুইচ করা হয়েছে: ${userProfile.name}`);
-                  setTimeout(() => {
-                    setSwitchFeedback(null);
-                    setShowProfileSwitcher(false);
-                  }, 700);
-                }}
-                className="w-full flex items-center justify-between p-3.5 hover:bg-neutral-50 active:bg-neutral-100 transition-colors text-left"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border border-neutral-200 shadow-sm shrink-0">
-                    <img
-                      src={userProfile.avatar}
-                      alt={userProfile.name}
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-base text-neutral-900 leading-tight">
-                      {userProfile.name}
-                    </p>
-                  </div>
-                </div>
-
-                {activeProfileId === 'main' && (
-                  <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Check className="w-4 h-4 stroke-[3]" />
-                  </div>
-                )}
-              </button>
-
-              {/* 2. Page 1: SF MART BD */}
-              <button
-                onClick={() => {
-                  setActiveProfileId('sf-mart');
-                  setSwitchFeedback('সুইচ করা হয়েছে: SF MART BD');
-                  setTimeout(() => {
-                    setSwitchFeedback(null);
-                    setShowProfileSwitcher(false);
-                  }, 700);
-                }}
-                className="w-full flex items-center justify-between p-3.5 hover:bg-neutral-50 active:bg-neutral-100 transition-colors text-left"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border border-neutral-200 shadow-sm shrink-0 bg-neutral-100 flex items-center justify-center">
-                    <img
-                      src="https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=200&q=80"
-                      alt="SF MART BD"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[15px] text-neutral-900 leading-tight">
-                      SF MART BD
-                    </p>
-                    <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                      <span>10 notifications</span>
-                    </div>
-                    <span className="inline-block mt-1 px-2.5 py-0.5 bg-neutral-100 text-neutral-600 rounded-full text-[11px] font-medium">
-                      Page
-                    </span>
-                  </div>
-                </div>
-
-                {activeProfileId === 'sf-mart' && (
-                  <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Check className="w-4 h-4 stroke-[3]" />
-                  </div>
-                )}
-              </button>
-
-              {/* 3. Page 2: Sharif's Life Story */}
-              <button
-                onClick={() => {
-                  setActiveProfileId('sharif-story');
-                  setSwitchFeedback("সুইচ করা হয়েছে: Sharif's Life Story");
-                  setTimeout(() => {
-                    setSwitchFeedback(null);
-                    setShowProfileSwitcher(false);
-                  }, 700);
-                }}
-                className="w-full flex items-center justify-between p-3.5 hover:bg-neutral-50 active:bg-neutral-100 transition-colors text-left"
-              >
-                <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border border-neutral-200 shadow-sm shrink-0 bg-neutral-100 flex items-center justify-center">
-                    <img
-                      src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=200&q=80"
-                      alt="Sharif's Life Story"
-                      className="w-full h-full object-cover"
-                    />
-                  </div>
-                  <div>
-                    <p className="font-semibold text-[15px] text-neutral-900 leading-tight">
-                      Sharif's Life Story
-                    </p>
-                    <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
-                      <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                      <span>50 notifications</span>
-                    </div>
-                    <span className="inline-block mt-1 px-2.5 py-0.5 bg-neutral-100 text-neutral-600 rounded-full text-[11px] font-medium">
-                      Page
-                    </span>
-                  </div>
-                </div>
-
-                {activeProfileId === 'sharif-story' && (
-                  <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center shrink-0 shadow-sm">
-                    <Check className="w-4 h-4 stroke-[3]" />
-                  </div>
-                )}
-              </button>
-
-              {/* 4. Create Facebook Page */}
-              <button
-                onClick={() => {
-                  setShowProfileSwitcher(false);
-                  if (onOpenPages) onOpenPages();
-                  else onOpenMenu();
-                }}
-                className="w-full flex items-center gap-3.5 p-3.5 hover:bg-neutral-50 active:bg-neutral-100 transition-colors text-left"
-              >
-                <div className="w-12 h-12 rounded-full bg-neutral-100 flex items-center justify-center text-neutral-800 shrink-0">
-                  <Plus className="w-6 h-6 stroke-[2.2]" />
-                </div>
-                <p className="font-medium text-[15px] text-neutral-900">
-                  Create Facebook Page
-                </p>
-              </button>
-
-            </div>
-
-            {/* Lower Section: Other profiles (Exact Screenshot 1) */}
-            <div className="pt-4">
-              <h3 className="text-sm font-semibold text-neutral-600 px-1 pb-2">
-                Other profiles
-              </h3>
-
-              <div className="bg-white rounded-2xl border border-neutral-200 shadow-[0_2px_8px_rgba(0,0,0,0.04)] overflow-hidden divide-y divide-neutral-100">
-                
-                {/* 1. Instagram profile (sfmartbd.official) */}
-                <div className="flex items-center justify-between p-3.5 hover:bg-neutral-50 transition-colors">
-                  <div className="flex items-center gap-3.5">
-                    <div className="relative w-12 h-12 shrink-0">
-                      <img
-                        src="https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=200&q=80"
-                        alt="sfmartbd.official"
-                        className="w-12 h-12 rounded-full object-cover border border-neutral-200"
-                      />
-                      {/* Instagram camera badge overlay */}
-                      <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600 flex items-center justify-center text-white ring-2 ring-white">
-                        <Camera className="w-2.5 h-2.5" />
-                      </div>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[15px] text-neutral-900 leading-tight">
-                        sfmartbd.official
-                      </p>
-                      <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-0.5">
-                        <span className="w-1.5 h-1.5 rounded-full bg-red-500 shrink-0" />
-                        <span>36 notifications</span>
-                      </div>
-                    </div>
-                  </div>
-
-                  <button
-                    onClick={() => setShowSettingsSheet(true)}
-                    className="p-2 rounded-full text-neutral-400 hover:text-neutral-700 hover:bg-neutral-100 transition-colors"
-                  >
-                    <MoreHorizontal className="w-5 h-5" />
-                  </button>
-                </div>
-
-                {/* 2. WhatsApp linked phone (+880 1951-230477) */}
-                <div className="flex items-center justify-between p-3.5 hover:bg-neutral-50 transition-colors">
-                  <div className="flex items-center gap-3.5">
-                    <div className="relative w-12 h-12 shrink-0">
-                      <img
-                        src="https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=200&q=80"
-                        alt="WhatsApp"
-                        className="w-12 h-12 rounded-full object-cover border border-neutral-200"
-                      />
-                      {/* WhatsApp phone badge overlay */}
-                      <div className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-emerald-500 flex items-center justify-center text-white ring-2 ring-white">
-                        <Phone className="w-2.5 h-2.5" />
-                      </div>
-                    </div>
-                    <div>
-                      <p className="font-semibold text-[15px] text-neutral-900 leading-tight">
-                        +880 1951-230477
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-              </div>
-            </div>
-
-            {/* Bottom Button: Go to Accounts Center (Exact Screenshot 1) */}
-            <div className="pt-4 pb-2">
-              <button
-                onClick={() => {
-                  setShowProfileSwitcher(false);
-                  setShowAccountsCenterModal(true);
-                }}
-                className="w-full py-2.5 px-4 rounded-full border border-neutral-300 hover:bg-neutral-50 active:scale-[0.99] text-sm font-semibold text-neutral-800 transition-all text-center shadow-xs"
-              >
-                Go to Accounts Center
-              </button>
-            </div>
-
-          </div>
-        </div>
+        <FbProfileSwitcherModal
+          userProfile={userProfile}
+          activeProfileId={activeProfileId}
+          onSelectProfile={(id) => setActiveProfileId(id)}
+          onClose={() => setShowProfileSwitcher(false)}
+          onCreatePage={() => {
+            if (onOpenPages) onOpenPages();
+            else onOpenMenu();
+          }}
+          onOpenAccountsCenter={() => {
+            setShowProfileSwitcher(false);
+            setShowAccountsCenterModal(true);
+          }}
+        />
       )}
 
       {/* 9. Meta Accounts Center Modal */}
@@ -778,9 +619,11 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-neutral-900">Profiles & Accounts</p>
-                  <p className="text-xs text-neutral-500">Facebook, Instagram, WhatsApp</p>
+                  <p className="text-xs text-neutral-500">Facebook</p>
                 </div>
-                <span className="text-xs text-[#0866FF] font-bold">3 connected</span>
+                <span className="text-xs text-[#0866FF] font-bold">
+                  {1 + extraProfiles.length} connected
+                </span>
               </div>
 
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 flex items-center justify-between">

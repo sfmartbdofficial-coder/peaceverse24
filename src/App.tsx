@@ -175,13 +175,13 @@ export default function App() {
           birthDate: prev.birthDate || 'August 17, 1991',
           relationship: prev.relationship || 'Married',
         }));
-        // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home"
+        // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/"
         const path = window.location.pathname;
-        if (path === '/' || path === '/login' || path === '/signup' || path === '') {
+        if (path === '/' || path === '') {
           navigateToPath('/home');
         }
       } else {
-        // Rule: If user is NOT logged in, show this landing page at "/"
+        // Rule: If user is NOT logged in, redirect any /home visit back to "/"
         const path = window.location.pathname;
         if (path === '/home') {
           navigateToPath('/');
@@ -762,6 +762,23 @@ export default function App() {
     return notifications.filter((n) => n.isUnread).length;
   }, [notifications]);
 
+  // Clean logout handler
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch (err) {
+      console.error('Logout error:', err);
+    }
+    setFirebaseUser(null);
+    setCurrentTab('home');
+    try {
+      localStorage.removeItem('qalby_user_profile');
+      localStorage.removeItem('peaceverse_registered_name');
+    } catch {}
+    setUserProfile(USER_PROFILE);
+    navigateToPath('/');
+  };
+
   // 1. Loading screen during initial Firebase auth handshake
   if (isAuthChecking) {
     return (
@@ -780,8 +797,10 @@ export default function App() {
     return (
       <PeaceVerseAuthPage
         initialMode="login"
+        currentUser={firebaseUser}
         onNavigateHome={() => navigateToPath('/home')}
         onNavigateTo={navigateToPath}
+        onLogout={handleLogout}
       />
     );
   }
@@ -790,14 +809,16 @@ export default function App() {
     return (
       <PeaceVerseAuthPage
         initialMode="signup"
+        currentUser={firebaseUser}
         onNavigateHome={() => navigateToPath('/home')}
         onNavigateTo={navigateToPath}
+        onLogout={handleLogout}
       />
     );
   }
 
-  // 3. Landing Page Flow for non-logged-in visitors at "/"
-  if (!firebaseUser && (currentPath === '/' || currentPath === '')) {
+  // 3. Protected Route Gate: If visitor is NOT logged in with Firebase, show Landing Page
+  if (!firebaseUser) {
     return (
       <>
         <PeaceVerseLanding
@@ -1070,11 +1091,7 @@ export default function App() {
             }}
             onOpenInstallModal={() => setShowInstallModal(true)}
             onOpenAuth={() => setShowAuthModal(true)}
-            onLogout={() => {
-              logoutUser();
-              setUserProfile(USER_PROFILE);
-              navigateToPath('/');
-            }}
+            onLogout={handleLogout}
             onBack={goBack}
             onOpenMessenger={() => {
               setShowMessengerModal(true);

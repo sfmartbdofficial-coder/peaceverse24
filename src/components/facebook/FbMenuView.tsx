@@ -54,6 +54,7 @@ import { FbPeaceAiModal } from './FbPeaceAiModal';
 import { FbPokesModal } from './FbPokesModal';
 import { FbSettingsPrivacyModals, SettingsModalType } from './FbSettingsPrivacyModals';
 import { FbAlsoFromPeaceModal, AlsoAppType } from './FbAlsoFromPeaceModal';
+import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 
 interface FbMenuViewProps {
   userProfile: UserProfile;
@@ -111,6 +112,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [settingsModalType, setSettingsModalType] = useState<SettingsModalType>(null);
   const [alsoAppType, setAlsoAppType] = useState<AlsoAppType>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [darkModeInline, setDarkModeInline] = useState(isDarkMode);
 
   const handleMessengerClick = () => {
@@ -190,26 +192,21 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           </div>
         </div>
 
-        {/* Right side: switch account icon (circular arrow) and dropdown with 9+ red badge */}
+        {/* Right side: switch account icon (circular arrow) and dropdown arrow (opens Profile Switcher) */}
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => {
-              if (onOpenAuth) onOpenAuth();
-            }}
+            onClick={() => setShowProfileSwitcher(true)}
             className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
             title="Switch account"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
           <button
-            onClick={onOpenProfile}
-            className="relative w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
+            onClick={() => setShowProfileSwitcher(true)}
+            className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
             title="Accounts"
           >
             <ChevronDown className="w-4 h-4" />
-            <span className="absolute -top-1 -right-1 px-1 min-w-[18px] h-[18px] bg-[#E41E3F] text-white text-[10px] font-bold rounded-full flex items-center justify-center ring-2 ring-white">
-              9+
-            </span>
           </button>
         </div>
       </div>
@@ -609,10 +606,11 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 বাতিল
               </button>
               <button
-                onClick={() => {
+                onClick={async () => {
                   setShowLogoutConfirm(false);
-                  if (onLogout) onLogout();
-                  onNavigateTab('home');
+                  if (onLogout) {
+                    await onLogout();
+                  }
                 }}
                 className="flex-1 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow transition-colors cursor-pointer"
               >
@@ -684,6 +682,14 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         appType={alsoAppType}
         onClose={() => setAlsoAppType(null)}
       />
+
+      {showProfileSwitcher && (
+        <FbProfileSwitcherModal
+          userProfile={userProfile}
+          onClose={() => setShowProfileSwitcher(false)}
+          onCreatePage={() => onNavigateTab('pages')}
+        />
+      )}
 
     </div>
   );

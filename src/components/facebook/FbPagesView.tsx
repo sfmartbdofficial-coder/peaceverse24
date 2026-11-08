@@ -25,7 +25,13 @@ import {
   Users,
   DollarSign,
   TrendingUp,
-  ArrowUpRight
+  ArrowUpRight,
+  ShoppingBag,
+  BookOpen,
+  UserCheck,
+  HeartHandshake,
+  Utensils,
+  Radio,
 } from 'lucide-react';
 import { PageItem, PostItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -156,6 +162,91 @@ const CATEGORIES_LIST = [
   'Mosque & Community (মসজিদ ও সমাজ)',
   'Food & Restaurant (হালাল খাদ্য)',
   'Media & News (সংবাদ ও সংস্কৃতি)',
+];
+
+interface PageCategoryConfig {
+  value: string;
+  nameBangla: string;
+  nameEnglish: string;
+  icon: React.ComponentType<{ className?: string }>;
+  iconBg: string;
+  cardBg: string;
+  borderClass: string;
+}
+
+const PAGE_CATEGORIES_CONFIG: PageCategoryConfig[] = [
+  {
+    value: 'Shopping & Retail (হালাল শপ / ব্যবসা)',
+    nameBangla: 'হালাল শপ / ব্যবসা প্রতিষ্ঠান',
+    nameEnglish: 'Shopping & Retail (হালাল পণ্য)',
+    icon: ShoppingBag,
+    iconBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
+    cardBg: 'bg-gradient-to-r from-[#1e293b] to-[#1e2330] hover:from-[#253347] hover:to-[#242b3b]',
+    borderClass: 'border-amber-500/30 hover:border-amber-400/50',
+  },
+  {
+    value: 'Education (দ্বীনি ও কুরআন শিক্ষা)',
+    nameBangla: 'দ্বীনি ও কুরআন শিক্ষা প্রতিষ্ঠান',
+    nameEnglish: 'Education & Quran Academy',
+    icon: BookOpen,
+    iconBg: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
+    cardBg: 'bg-gradient-to-r from-[#132e2b]/80 to-[#1e293b] hover:from-[#173a36] hover:to-[#253347]',
+    borderClass: 'border-emerald-500/30 hover:border-emerald-400/50',
+  },
+  {
+    value: 'Public Figure (ইসলামিক বক্তা / আলোচক)',
+    nameBangla: 'ইসলামিক আলোচক ও ব্যক্তিত্ব',
+    nameEnglish: 'Public Figure & Speaker',
+    icon: UserCheck,
+    iconBg: 'bg-sky-500/20 text-sky-400 border border-sky-500/30',
+    cardBg: 'bg-gradient-to-r from-[#172554]/70 to-[#1e293b] hover:from-[#1e3a8a]/60 hover:to-[#253347]',
+    borderClass: 'border-sky-500/30 hover:border-sky-400/50',
+  },
+  {
+    value: 'Creator (কন্টেন্ট ক্রিয়েটর)',
+    nameBangla: 'ডিজিটাল কনটেন্ট ক্রিয়েটর',
+    nameEnglish: 'Video & Content Creator',
+    icon: Sparkles,
+    iconBg: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
+    cardBg: 'bg-gradient-to-r from-[#3b0764]/50 to-[#1e293b] hover:from-[#581c87]/50 hover:to-[#253347]',
+    borderClass: 'border-purple-500/30 hover:border-purple-400/50',
+  },
+  {
+    value: 'Nonprofit & Charity (চ্যারিটি ও সেবা)',
+    nameBangla: 'চ্যারিটি ও সমাজসেবা সংগঠন',
+    nameEnglish: 'Nonprofit & Charity Org',
+    icon: HeartHandshake,
+    iconBg: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
+    cardBg: 'bg-gradient-to-r from-[#4c0519]/50 to-[#1e293b] hover:from-[#881337]/50 hover:to-[#253347]',
+    borderClass: 'border-rose-500/30 hover:border-rose-400/50',
+  },
+  {
+    value: 'Mosque & Community (মসজিদ ও সমাজ)',
+    nameBangla: 'মসজিদ ও ইসলামিক সমাজ',
+    nameEnglish: 'Mosque & Islamic Center',
+    icon: Building,
+    iconBg: 'bg-teal-500/20 text-teal-400 border border-teal-500/30',
+    cardBg: 'bg-gradient-to-r from-[#042f2e]/60 to-[#1e293b] hover:from-[#115e59]/50 hover:to-[#253347]',
+    borderClass: 'border-teal-500/30 hover:border-teal-400/50',
+  },
+  {
+    value: 'Food & Restaurant (হালাল খাদ্য)',
+    nameBangla: 'হালাল রেস্টুরেন্ট ও ফুড শপ',
+    nameEnglish: 'Food & Halal Restaurant',
+    icon: Utensils,
+    iconBg: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
+    cardBg: 'bg-gradient-to-r from-[#431407]/50 to-[#1e293b] hover:from-[#7c2d12]/50 hover:to-[#253347]',
+    borderClass: 'border-orange-500/30 hover:border-orange-400/50',
+  },
+  {
+    value: 'Media & News (সংবাদ ও সংস্কৃতি)',
+    nameBangla: 'মিডিয়া ও সংবাদ প্রকাশনা',
+    nameEnglish: 'Media & News Publishing',
+    icon: Radio,
+    iconBg: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
+    cardBg: 'bg-gradient-to-r from-[#1e1b4b]/60 to-[#1e293b] hover:from-[#312e81]/60 hover:to-[#253347]',
+    borderClass: 'border-blue-500/30 hover:border-blue-400/50',
+  },
 ];
 
 export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile }) => {
@@ -1196,32 +1287,71 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                       placeholder="যেমন: আল-হিকমাহ একাডেমি, সুন্নতি পোশাক..."
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
-                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
+                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-3 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
                     />
-                    <p className="text-[10px] text-[#b0b3b8] mt-1">
+                    <p className="text-[11px] text-[#94a3b8] mt-1">
                       আপনার প্রতিষ্ঠান বা উদ্যোগের নাম ব্যবহার করুন।
                     </p>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1">
-                      ক্যাটাগরি নির্বাচন করুন <span className="text-rose-500">*</span>
-                    </label>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5 max-h-44 overflow-y-auto pr-1">
-                      {CATEGORIES_LIST.map((cat) => (
-                        <button
-                          key={cat}
-                          type="button"
-                          onClick={() => setNewCategory(cat)}
-                          className={`text-left px-3 py-2 rounded-xl text-xs font-medium border transition-colors ${
-                            newCategory === cat
-                              ? 'bg-[#1877F2] border-[#1877F2] text-white font-bold'
-                              : 'bg-[#18191a] border-[#393a3b] text-[#b0b3b8] hover:text-white'
-                          }`}
-                        >
-                          {cat}
-                        </button>
-                      ))}
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="block text-xs font-bold text-white">
+                        ক্যাটাগরি নির্বাচন করুন <span className="text-rose-500">*</span>
+                      </label>
+                      <span className="text-[11px] text-sky-400 font-semibold">
+                        যেকোনো একটি বেছে নিন
+                      </span>
+                    </div>
+                    <div className="space-y-2.5 sm:space-y-0 sm:grid sm:grid-cols-2 sm:gap-2.5 max-h-[330px] overflow-y-auto pr-1 pb-1">
+                      {PAGE_CATEGORIES_CONFIG.map((item) => {
+                        const Icon = item.icon;
+                        const isSelected = newCategory === item.value;
+                        return (
+                          <button
+                            key={item.value}
+                            type="button"
+                            onClick={() => setNewCategory(item.value)}
+                            className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border text-left transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
+                              isSelected
+                                ? 'bg-gradient-to-r from-[#1877F2] via-blue-600 to-sky-600 border-white/50 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/50'
+                                : `${item.cardBg} ${item.borderClass} text-white`
+                            }`}
+                          >
+                            <div className="flex items-center gap-3.5 min-w-0">
+                              <div
+                                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                                  isSelected ? 'bg-white/20 text-white ring-1 ring-white/30' : item.iconBg
+                                }`}
+                              >
+                                <Icon className="w-5 h-5 stroke-[2.2]" />
+                              </div>
+                              <div className="min-w-0">
+                                <p className="font-bold text-sm leading-snug truncate">
+                                  {item.nameBangla}
+                                </p>
+                                <p
+                                  className={`text-xs mt-0.5 truncate font-medium ${
+                                    isSelected ? 'text-blue-100' : 'text-slate-300'
+                                  }`}
+                                >
+                                  {item.nameEnglish}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div
+                              className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-all ${
+                                isSelected
+                                  ? 'bg-white text-blue-600 border-white shadow-xs'
+                                  : 'border-slate-500 bg-slate-800/80 text-transparent'
+                              }`}
+                            >
+                              <Check className="w-3.5 h-3.5 stroke-[3]" />
+                            </div>
+                          </button>
+                        );
+                      })}
                     </div>
                   </div>
 
@@ -1234,7 +1364,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                       placeholder="আপনার পেজ বা উদ্যোগের মূল উদ্দেশ্য ও কার্যক্রম লিখুন..."
                       value={newBio}
                       onChange={(e) => setNewBio(e.target.value)}
-                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl p-3 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] resize-none"
+                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl p-3 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors resize-none"
                     />
                   </div>
                 </div>
@@ -1257,7 +1387,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                       placeholder="+880 17XXXXXXXX"
                       value={newPhone}
                       onChange={(e) => setNewPhone(e.target.value)}
-                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
+                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
                     />
                   </div>
 
@@ -1271,7 +1401,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                       placeholder="https://example.com"
                       value={newWebsite}
                       onChange={(e) => setNewWebsite(e.target.value)}
-                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
+                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
                     />
                   </div>
 
@@ -1285,7 +1415,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                       placeholder="Dhaka, Bangladesh"
                       value={newLocation}
                       onChange={(e) => setNewLocation(e.target.value)}
-                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
+                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
                     />
                   </div>
                 </div>
@@ -1385,15 +1515,15 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                   <button
                     type="button"
                     onClick={() => setCreateStep((prev) => (prev - 1) as any)}
-                    className="px-4 py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-white transition-colors"
+                    className="px-5 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs sm:text-sm font-bold text-white transition-colors cursor-pointer"
                   >
-                    আগের ধাপ
+                    ← আগের ধাপ
                   </button>
                 ) : (
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-4 py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-white transition-colors"
+                    className="px-5 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs sm:text-sm font-bold text-white transition-colors cursor-pointer"
                   >
                     বাতিল
                   </button>
@@ -1409,14 +1539,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                       }
                       setCreateStep((prev) => (prev + 1) as any);
                     }}
-                    className="px-5 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-xs font-bold text-white transition-colors shadow-md"
+                    className="px-6 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.99] text-xs sm:text-sm font-bold text-white transition-all shadow-md shadow-blue-500/30 cursor-pointer"
                   >
                     পরবর্তী ধাপ →
                   </button>
                 ) : (
                   <button
                     type="submit"
-                    className="px-6 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-xs font-bold text-white transition-colors shadow-lg flex items-center gap-1.5"
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-xs sm:text-sm font-bold text-white transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                   >
                     <Check className="w-4 h-4 stroke-[3]" />
                     <span>পেজ তৈরি সম্পন্ন করুন</span>

@@ -59,7 +59,29 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
 }) => {
   // Privacy Center State
   const [defaultAudience, setDefaultAudience] = useState<'public' | 'friends' | 'private'>('public');
-  const [isProfileLocked, setIsProfileLocked] = useState(false);
+  const [isProfileLocked, setIsProfileLocked] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('peaceverse_profile_locked') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [lockToast, setLockToast] = useState<string | null>(null);
+
+  const handleToggleProfileLock = () => {
+    const nextState = !isProfileLocked;
+    setIsProfileLocked(nextState);
+    try {
+      localStorage.setItem('peaceverse_profile_locked', String(nextState));
+      window.dispatchEvent(new Event('peaceverse_profile_lock_changed'));
+    } catch {}
+    setLockToast(
+      nextState
+        ? '🔒 আপনার প্রোফাইল সফলভাবে লক করা হয়েছে!'
+        : '🔓 আপনার প্রোফাইল আনলক করা হয়েছে।'
+    );
+    setTimeout(() => setLockToast(null), 3000);
+  };
   const [friendRequestAudience, setFriendRequestAudience] = useState<'everyone' | 'friends_of_friends'>('everyone');
 
   // Time Management State
@@ -191,20 +213,73 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
               </div>
 
               {/* Profile Lock */}
-              <div className="p-3.5 rounded-2xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between">
-                <div>
-                  <h4 className="font-bold text-sm text-white">প্রোফাইল লক (Profile Lock)</h4>
-                  <p className="text-xs text-[#b0b3b8]">অপরিচিত কেউ আপনার পূর্ণ ছবি ও পোস্ট দেখতে পারবে না</p>
+              <div
+                onClick={handleToggleProfileLock}
+                className={`p-3.5 rounded-2xl border transition-all cursor-pointer flex items-center justify-between shadow-xs select-none active:scale-[0.99] ${
+                  isProfileLocked
+                    ? 'bg-[#1877F2]/10 border-[#1877F2] hover:bg-[#1877F2]/15'
+                    : 'bg-[#18191a] border-[#393a3b] hover:bg-[#242526]'
+                }`}
+                role="button"
+                tabIndex={0}
+                title="প্রোফাইল লক / আনলক করতে ক্লিক করুন"
+              >
+                <div className="flex items-center gap-3">
+                  <div
+                    className={`w-10 h-10 rounded-full flex items-center justify-center transition-colors shrink-0 ${
+                      isProfileLocked
+                        ? 'bg-[#1877F2] text-white'
+                        : 'bg-[#3a3b3c] text-[#b0b3b8]'
+                    }`}
+                  >
+                    <Lock className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h4 className="font-bold text-sm text-white">প্রোফাইল লক (Profile Lock)</h4>
+                      <span
+                        className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                          isProfileLocked
+                            ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                            : 'bg-[#3a3b3c] text-[#8a8d91]'
+                        }`}
+                      >
+                        {isProfileLocked ? 'লকড আছে' : 'আনলকড'}
+                      </span>
+                    </div>
+                    <p className="text-xs text-[#b0b3b8] mt-0.5">
+                      {isProfileLocked
+                        ? 'লক সক্রিয়: অপরিচিত কেউ আপনার ছবি বা পোস্ট দেখতে পারবে না'
+                        : 'অপরিচিত কেউ আপনার পূর্ণ ছবি ও পোস্ট দেখতে পারবে না (ক্লিক করে চালু করুন)'}
+                    </p>
+                  </div>
                 </div>
-                <button
-                  onClick={() => setIsProfileLocked(!isProfileLocked)}
-                  className={`px-3 py-1.5 rounded-full text-xs font-bold transition-colors ${
-                    isProfileLocked ? 'bg-emerald-600 text-white' : 'bg-[#3a3b3c] text-[#b0b3b8]'
+
+                {/* Animated Switch Button */}
+                <div
+                  className={`w-12 h-7 rounded-full p-0.5 transition-colors duration-200 ease-in-out shrink-0 flex items-center ${
+                    isProfileLocked ? 'bg-[#1877F2]' : 'bg-[#3a3b3c]'
                   }`}
                 >
-                  {isProfileLocked ? 'লকড আছে' : 'আনলকড'}
-                </button>
+                  <div
+                    className={`w-6 h-6 rounded-full bg-white shadow-md transform transition-transform duration-200 ease-in-out flex items-center justify-center ${
+                      isProfileLocked ? 'translate-x-5' : 'translate-x-0'
+                    }`}
+                  >
+                    {isProfileLocked ? (
+                      <Check className="w-3.5 h-3.5 text-[#1877F2] stroke-[3]" />
+                    ) : null}
+                  </div>
+                </div>
               </div>
+
+              {/* Toast Feedback */}
+              {lockToast && (
+                <div className="p-3 bg-emerald-600 text-white rounded-xl text-xs font-semibold flex items-center gap-2 shadow-lg animate-in fade-in slide-in-from-top-2">
+                  <Check className="w-4 h-4 shrink-0" />
+                  <span>{lockToast}</span>
+                </div>
+              )}
             </div>
           </>
         )}

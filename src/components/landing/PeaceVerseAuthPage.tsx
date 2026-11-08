@@ -10,12 +10,16 @@ import {
   ArrowLeft,
   ShieldCheck,
   Sparkles,
+  Eye,
+  EyeOff,
+  LogOut,
 } from 'lucide-react';
 import {
   loginWithGoogle,
   loginWithEmail,
   registerWithEmail,
   resetPassword,
+  logoutUser,
   activeFirebaseProjectId,
 } from '../../lib/firebase';
 import { PeaceDoveEmblem } from './PeaceDoveEmblem';
@@ -97,19 +101,24 @@ function validateEmail(rawEmail: string): { isValid: boolean; message: string | 
 
 interface PeaceVerseAuthPageProps {
   initialMode?: 'login' | 'signup' | 'forgot';
+  currentUser?: any;
   onNavigateHome: () => void;
   onNavigateTo: (path: string) => void;
+  onLogout?: () => void;
 }
 
 export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
   initialMode = 'login',
+  currentUser,
   onNavigateHome,
   onNavigateTo,
+  onLogout,
 }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>(initialMode);
   const [email, setEmail] = useState('');
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [displayName, setDisplayName] = useState('');
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
@@ -156,21 +165,26 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
     try {
       if (mode === 'login') {
+        // Clear any prior stale session to guarantee password verification
+        try {
+          await logoutUser();
+        } catch {}
+
         const user = await loginWithEmail(email.trim(), password);
         if (user) {
-          setSuccessMsg('Successfully signed in! Redirecting to home...');
+          setSuccessMsg('সফলভাবে লগইন হয়েছে! হোম পেজে প্রবেশ করা হচ্ছে...');
           setTimeout(() => {
             onNavigateHome();
           }, 600);
         }
       } else if (mode === 'signup') {
         if (!displayName.trim()) {
-          setErrorMsg('Please enter your full name.');
+          setErrorMsg('অনুগ্রহ করে আপনার পুরো নাম লিখুন।');
           setLoading(false);
           return;
         }
         if (password.length < 6) {
-          setErrorMsg('Password must be at least 6 characters.');
+          setErrorMsg('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
           setLoading(false);
           return;
         }
@@ -180,27 +194,35 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
         } catch {}
         const user = await registerWithEmail(email.trim(), password, cleanName);
         if (user) {
-          setSuccessMsg('Account created successfully! Verification email sent.');
+          setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! হোমে নিয়ে যাওয়া হচ্ছে...');
           setTimeout(() => {
             onNavigateHome();
           }, 800);
         }
       } else if (mode === 'forgot') {
         await resetPassword(email.trim());
-        setSuccessMsg('Password reset link sent to your email! Please check your inbox.');
+        setSuccessMsg('পাসওয়ার্ড রিসেট লিংক আপনার ইমেইলে পাঠানো হয়েছে! অনুগ্রহ করে ইনবক্স চেক করুন।');
       }
     } catch (err: any) {
-      let msg = err?.message || 'An error occurred during authentication.';
-      if (msg.includes('auth/operation-not-allowed')) {
-        msg = `Firebase Email/Password সাইন-আপ এই প্রজেক্টে (${activeFirebaseProjectId || 'Unknown'}) চালু নেই। Firebase Console > Authentication > Sign-in method-এ গিয়ে Email/Password এনাবল করুন।`;
-      } else if (msg.includes('auth/invalid-email')) {
-        msg = 'Invalid email address.';
-      } else if (msg.includes('auth/user-not-found') || msg.includes('auth/invalid-credential')) {
-        msg = 'Incorrect email or password.';
-      } else if (msg.includes('auth/wrong-password')) {
-        msg = 'Incorrect password.';
-      } else if (msg.includes('auth/email-already-in-use')) {
-        msg = 'An account with this email already exists. Try signing in.';
+      let msg = err?.message || 'লগইন করার সময় একটি সমস্যা হয়েছে।';
+      const code = err?.code || '';
+      if (
+        code === 'auth/wrong-password' ||
+        code === 'auth/invalid-credential' ||
+        msg.includes('auth/invalid-credential') ||
+        msg.includes('auth/wrong-password')
+      ) {
+        msg = 'ভুল পাসওয়ার্ড অথবা ভুল ইমেইল! অনুগ্রহ করে আপনার সঠিক পাসওয়ার্ডটি দিন।';
+      } else if (code === 'auth/user-not-found' || msg.includes('auth/user-not-found')) {
+        msg = 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সাইন-আপ করুন।';
+      } else if (code === 'auth/too-many-requests' || msg.includes('auth/too-many-requests')) {
+        msg = 'অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। সাময়িকভাবে অ্যাকাউন্ট লক করা হয়েছে, কিছুক্ষণ পর আবার চেষ্টা করুন।';
+      } else if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
+        msg = 'আপনার ইমেইল অ্যাড্রেসটি সঠিক নয়।';
+      } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
+        msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে। অনুগ্রহ করে লগইন করুন।';
+      } else if (msg.includes('auth/operation-not-allowed')) {
+        msg = `Firebase Email/Password সাইন-ইন চালু নেই। Firebase Console-এ গিয়ে Email/Password এনাবল করুন।`;
       }
       setErrorMsg(msg);
     } finally {
@@ -297,11 +319,45 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             </button>
           </div>
 
+          {/* Active Logged-In User Banner (if opened while already signed in) */}
+          {currentUser && (
+            <div className="mb-5 p-3 rounded-2xl bg-sky-500/15 border border-sky-400/30 text-xs flex items-center justify-between gap-3 animate-in fade-in">
+              <div className="min-w-0">
+                <span className="text-[10px] uppercase font-bold text-sky-400 tracking-wider block">বর্তমানে সাইন-ইন আছেন:</span>
+                <p className="font-bold text-white truncate text-xs">{currentUser.displayName || currentUser.email}</p>
+              </div>
+              <div className="flex items-center gap-1.5 shrink-0">
+                <button
+                  type="button"
+                  onClick={onNavigateHome}
+                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow transition-colors cursor-pointer"
+                >
+                  হোমে যান
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    if (onLogout) {
+                      await onLogout();
+                    } else {
+                      await logoutUser();
+                    }
+                  }}
+                  className="px-2.5 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                  title="অন্য আইডি দিয়ে লগইন করতে লগআউট করুন"
+                >
+                  <LogOut className="w-3 h-3" />
+                  <span>লগআউট</span>
+                </button>
+              </div>
+            </div>
+          )}
+
           {/* Feedback Alerts */}
           {errorMsg && (
             <div className="mb-4 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/35 text-rose-300 text-xs flex items-center gap-2.5 animate-in fade-in">
               <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
-              <span>{errorMsg}</span>
+              <span className="font-medium">{errorMsg}</span>
             </div>
           )}
 
@@ -423,13 +479,21 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                 <div className="relative flex items-center">
                   <Lock className="w-4 h-4 text-slate-400 absolute left-3.5" />
                   <input
-                    type="password"
+                    type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
-                    placeholder="At least 6 characters"
-                    className="w-full bg-slate-950/70 border border-slate-700/60 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+                    className="w-full bg-slate-950/70 border border-slate-700/60 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
                   />
+                  <button
+                    type="button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    className="absolute right-3 p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                  >
+                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
                 </div>
               </div>
             )}
