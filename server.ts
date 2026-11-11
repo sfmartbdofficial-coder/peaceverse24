@@ -51,6 +51,58 @@ app.post('/api/ai/admin-assist', async (req, res) => {
   }
 });
 
+// API Endpoint for Peace AI (User Assistant to solve any query)
+app.post('/api/ai/peace-ai', async (req, res) => {
+  try {
+    const { prompt, conversationHistory, lang } = req.body;
+    if (!prompt) {
+      return res.status(400).json({ error: 'Prompt is required' });
+    }
+
+    const isBanglaExplicit =
+      lang === 'bn' ||
+      /[\u0980-\u09FF]/.test(prompt) ||
+      /\b(via|bhai|kibave|kivabe|korbo|ami|amake|bolo|bolen|apni|tumi|valo|kemon|achen|achis|keno|ki|kore|ki kore|upload|post|chobi|video|dekhan|shunun|shunbo|din)\b/i.test(prompt);
+
+    const systemInstruction =
+      'You are "Peace AI" (পিস এআই), an intelligent, compassionate, respectful, and highly knowledgeable AI Assistant for the PeaceVerse social platform. ' +
+      'Your purpose is to help users solve any question, query, or problem ("আপনার যেকোনো জিজ্ঞাসা বা সমস্যার সমাধান"). ' +
+      (isBanglaExplicit
+        ? 'CRITICAL LANGUAGE RULE: The user selected BENGALI (বাংলা) language or wrote in Bengali/Banglish. You MUST respond 100% in natural, polite, respectful, and clear Bengali (বাংলা বর্ণমালা). NEVER reply in English when the user language is Bengali. '
+        : 'CRITICAL LANGUAGE RULE: The user selected English. Reply 100% in clear, helpful English. ') +
+      'Platform features you can explain step-by-step: ' +
+      '- Video & Photo upload: Users go to Home feed top, tap "আপনার মনে কী আছে?..." or "ছবি/ভিডিও", choose video from gallery, write a caption, and tap "পোস্ট করুন". Once posted, tapping the video opens full-screen TikTok/Reels mode. ' +
+      '- Reels mode: Tapping on any video in feed or video tab expands it to full screen TikTok/Reels player with swipe, love reaction, comments drawer, and follow button. ' +
+      '- Other features: Islamic duas, halal policy, page creation, friend requests, notifications. ' +
+      'Maintain an uplifting, polite, peaceful, and brotherly tone (ভাই/বোন সম্বোধন). Format your answers clearly with bullet points, numbered steps, and emojis.';
+
+    let contents: any[] = [];
+    if (Array.isArray(conversationHistory) && conversationHistory.length > 0) {
+      contents = conversationHistory.slice(-6).map((msg: any) => ({
+        role: msg.sender === 'user' ? 'user' : 'model',
+        parts: [{ text: msg.text || '' }],
+      }));
+    }
+    contents.push({
+      role: 'user',
+      parts: [{ text: prompt }],
+    });
+
+    const response = await ai.models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: contents,
+      config: {
+        systemInstruction,
+      },
+    });
+
+    return res.json({ text: response.text || '' });
+  } catch (error: any) {
+    console.error('Peace AI Error:', error);
+    return res.status(500).json({ error: error.message || 'AI service unavailable' });
+  }
+});
+
 // API Endpoint for Post Moderation per user specification
 const BLOCK_WORDS = [
   // ১. নেশা - এগুলা থাকলেই ব্লক

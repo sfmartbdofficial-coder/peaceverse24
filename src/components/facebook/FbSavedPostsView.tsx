@@ -9,6 +9,7 @@ interface FbSavedPostsViewProps {
   onToggleSave: (postId: string) => void;
   onAddComment: (postId: string, text: string) => void;
   onBackToFeed: () => void;
+  onOpenReel?: (post: PostItem) => void;
 }
 
 export const FbSavedPostsView: React.FC<FbSavedPostsViewProps> = ({
@@ -17,6 +18,7 @@ export const FbSavedPostsView: React.FC<FbSavedPostsViewProps> = ({
   onToggleSave,
   onAddComment,
   onBackToFeed,
+  onOpenReel,
 }) => {
   const savedPosts = posts.filter((p) => p.isSaved);
 
@@ -69,6 +71,7 @@ export const FbSavedPostsView: React.FC<FbSavedPostsViewProps> = ({
               onToggleReaction={onToggleReaction}
               onToggleSave={onToggleSave}
               onAddComment={onAddComment}
+              onOpenReel={onOpenReel}
             />
           ))}
         </div>

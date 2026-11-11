@@ -21,6 +21,8 @@ import {
   Users,
   ShieldAlert,
   Loader2,
+  Gift,
+  Coins,
 } from 'lucide-react';
 import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
 import { FbVideoPlayer } from './FbVideoPlayer';
@@ -34,6 +36,8 @@ interface FbPostCardProps {
   onDeletePost?: (postId: string) => void;
   onOpenProfile?: (authorName?: string) => void;
   onTypingChange?: (postId: string, isTyping: boolean) => void;
+  onOpenReel?: (post: PostItem) => void;
+  onOpenGiftModal?: (post: PostItem) => void;
   currentUserId?: string;
   currentUserName?: string;
 }
@@ -47,6 +51,8 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   onDeletePost,
   onOpenProfile,
   onTypingChange,
+  onOpenReel,
+  onOpenGiftModal,
   currentUserId = 'user-me',
   currentUserName = 'User',
 }) => {
@@ -517,6 +523,11 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           <FbVideoPlayer
             src={post.mediaUrl}
             title={post.contentBangla}
+            onOpenFullscreen={() => {
+              if (onOpenReel) {
+                onOpenReel(post);
+              }
+            }}
           />
         )}
 
@@ -650,6 +661,18 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         >
           <Share2 className="w-5 h-5 text-[#65676B] dark:text-[#b0b3b8]" />
           <span className="text-[15px]">Share</span>
+        </button>
+
+        {/* Column 4: Golden Hadia Gift */}
+        <button
+          onClick={() => onOpenGiftModal?.(post)}
+          className="flex-1 py-1.5 rounded-md hover:bg-amber-500/10 dark:hover:bg-amber-500/15 flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold transition-colors cursor-pointer"
+          title="গোল্ডেন হাদিয়া পাঠান (Gift Gold Coins)"
+        >
+          <Gift className="w-4 h-4 text-amber-500" />
+          <span className="text-[14px]">
+            {post.goldenGiftsCount ? `🪙 ${post.goldenGiftsCount}` : 'হাদিয়া'}
+          </span>
         </button>
       </div>
 

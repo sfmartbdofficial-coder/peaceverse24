@@ -25,6 +25,8 @@ import {
   X,
   Music,
   Phone,
+  Coins,
+  ArrowDownLeft,
 } from 'lucide-react';
 import { UserProfile, PostItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
@@ -45,6 +47,8 @@ interface FbProfileViewProps {
   onUpdateProfile: (updated: UserProfile) => void;
   onEditPost?: (postId: string, newContent: string, newArabic?: string, newTranslation?: string) => void;
   onDeletePost?: (postId: string) => void;
+  onOpenReel?: (post: PostItem) => void;
+  onOpenGoldenWallet?: () => void;
 }
 
 export const FbProfileView: React.FC<FbProfileViewProps> = ({
@@ -60,6 +64,8 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   onUpdateProfile,
   onEditPost,
   onDeletePost,
+  onOpenReel,
+  onOpenGoldenWallet,
 }) => {
   const [profileTab, setProfileTab] = useState<'all' | 'photos' | 'reels'>('all');
   const [showEditModal, setShowEditModal] = useState(false);
@@ -326,6 +332,39 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           </button>
         </div>
 
+        {/* Golden Wallet Banner in Profile */}
+        <div
+          onClick={onOpenGoldenWallet}
+          className="mt-3 p-3 rounded-2xl bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-emerald-500/10 border border-amber-500/30 flex items-center justify-between cursor-pointer hover:border-amber-500/60 transition-all shadow-2xs group"
+        >
+          <div className="flex items-center gap-2.5">
+            <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 text-neutral-950 flex items-center justify-center font-black shadow-sm shadow-amber-500/30">
+              <Coins className="w-4 h-4 stroke-[2.4]" />
+            </div>
+            <div className="text-left">
+              <div className="flex items-center gap-1.5">
+                <span className="text-xs font-bold text-neutral-900 dark:text-white group-hover:text-amber-500 transition-colors">
+                  গোল্ডেন ওয়ালেট
+                </span>
+                <span className="text-[9px] bg-amber-500/20 text-amber-600 dark:text-amber-300 px-1.5 py-0.2 rounded-full font-bold">
+                  বিকাশ / নগদ
+                </span>
+              </div>
+              <p className="text-[10px] text-neutral-500 dark:text-neutral-400">
+                ব্যালেন্স: <span className="font-bold text-amber-600 dark:text-amber-400">🪙 {userProfile.goldenCoins ?? 120}</span> • অর্জিত: <span className="font-bold text-emerald-600 dark:text-emerald-400">৳ {userProfile.earnedCoins ?? 65}</span>
+              </p>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            className="px-3 py-1 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-[11px] font-bold shadow-xs flex items-center gap-1 transition-colors"
+          >
+            <span>ক্যাশ আউট</span>
+            <ArrowDownLeft className="w-3 h-3" />
+          </button>
+        </div>
+
         {/* Real Facebook Profile Locked Banner */}
         {isProfileLocked && (
           <div className="mt-3.5 p-3 rounded-xl bg-[#E7F3FF] dark:bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center gap-3 text-left shadow-xs">
@@ -450,6 +489,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               onAddComment={onAddComment}
               onEditPost={onEditPost}
               onDeletePost={onDeletePost}
+              onOpenReel={onOpenReel}
             />
           ))
         )}

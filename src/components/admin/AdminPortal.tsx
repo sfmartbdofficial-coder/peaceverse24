@@ -33,7 +33,7 @@ import {
 } from 'lucide-react';
 import { AdSlot, MonetizedCreator, PayoutRequest } from '../../types/admin';
 import { INITIAL_ADS, INITIAL_CREATORS, INITIAL_PAYOUTS } from '../../data/adminData';
-import { PostItem } from '../../types';
+import { PostItem, GoldenCashoutRequest } from '../../types';
 
 interface AdminPortalProps {
   onBackToApp: () => void;
@@ -41,6 +41,9 @@ interface AdminPortalProps {
   onAddPostToFeed: (post: PostItem) => void;
   onDeletePostFromFeed: (postId: string) => void;
   onModeratePost?: (postId: string, status: 'approved' | 'blocked' | 'rejected', reason: string) => void;
+  goldenCashoutRequests?: GoldenCashoutRequest[];
+  onApproveGoldenCashout?: (id: string) => void;
+  onRejectGoldenCashout?: (id: string) => void;
 }
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({
@@ -49,6 +52,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   onAddPostToFeed,
   onDeletePostFromFeed,
   onModeratePost,
+  goldenCashoutRequests = [],
+  onApproveGoldenCashout,
+  onRejectGoldenCashout,
 }) => {
   // Authentication State
   const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
@@ -945,6 +951,92 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   </div>
                 ))}
               </div>
+            </div>
+
+            {/* Golden Coin Cashout Requests Section */}
+            <div className="bg-[#242526] p-4 sm:p-5 rounded-2xl border border-amber-500/40 space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-extrabold text-sm text-white flex items-center gap-2">
+                    <span className="text-amber-400">🪙</span>
+                    <span>গোল্ডেন কয়েন ক্যাশআউট আবেদন (ইউজার টু বিকাশ / নগদ)</span>
+                  </h3>
+                  <p className="text-[11px] text-amber-200/80 mt-0.5">
+                    ইউজাররা ভালো ভিডিওর জন্য পাওয়া গোল্ডেন কয়েন বিক্রি করে বিকাশে টাকা চেয়েছেন
+                  </p>
+                </div>
+                <span className="px-2.5 py-1 rounded-full bg-amber-500/20 text-amber-300 font-bold text-xs">
+                  {goldenCashoutRequests.filter((r) => r.status === 'pending').length}টি অপেক্ষমাণ
+                </span>
+              </div>
+
+              {goldenCashoutRequests.length === 0 ? (
+                <div className="text-center py-6 text-xs text-neutral-400 bg-[#18191a] rounded-xl border border-white/5">
+                  কোনো গোল্ডেন কয়েন ক্যাশআউট আবেদন জমা পড়েনি।
+                </div>
+              ) : (
+                <div className="space-y-2.5">
+                  {goldenCashoutRequests.map((req) => (
+                    <div
+                      key={req.id}
+                      className="p-3.5 bg-[#18191a] rounded-xl border border-[#393a3b] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-amber-500/20 border border-amber-500/30 flex items-center justify-center text-amber-400 font-black text-base shrink-0">
+                          🪙
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <p className="font-bold text-white text-sm">{req.userName}</p>
+                            <span className="text-[10px] bg-amber-500/15 text-amber-300 px-2 py-0.5 rounded-full font-bold">
+                              {req.coinsAmount} কয়েন
+                            </span>
+                          </div>
+                          <p className="text-[11px] text-[#b0b3b8] mt-0.5">
+                            মাধ্যম: <span className="capitalize font-bold text-emerald-400">{req.paymentMethod}</span> ({req.accountNumber})
+                          </p>
+                          <p className="text-[10px] text-[#8a8d91]">
+                            তারিখ: {new Date(req.requestedAt).toLocaleString('bn-BD')}
+                          </p>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#393a3b]">
+                        <span className="font-mono font-black text-amber-300 text-base">
+                          ৳ {req.moneyAmount} টাকা
+                        </span>
+
+                        {req.status === 'pending' ? (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => onApproveGoldenCashout?.(req.id)}
+                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-md transition-colors cursor-pointer"
+                            >
+                              টাকা পাঠানো হয়েছে ✓
+                            </button>
+                            <button
+                              onClick={() => onRejectGoldenCashout?.(req.id)}
+                              className="px-2.5 py-1.5 rounded-xl bg-neutral-800 hover:bg-neutral-700 text-neutral-300 font-bold text-xs transition-colors cursor-pointer"
+                            >
+                              বাতিল
+                            </button>
+                          </div>
+                        ) : (
+                          <span
+                            className={`px-3 py-1 rounded-full font-bold text-xs ${
+                              req.status === 'approved'
+                                ? 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30'
+                                : 'bg-rose-500/20 text-rose-400 border border-rose-500/30'
+                            }`}
+                          >
+                            {req.status === 'approved' ? 'পরিশোধিত ✓' : 'বাতিলকৃত'}
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
 
             {/* Payout & Cashout Requests Ledger */}

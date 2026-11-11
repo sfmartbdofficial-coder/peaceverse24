@@ -1,15 +1,17 @@
 import React, { useRef } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
-import { UserProfile } from '../../types';
+import { UserProfile, PageItem } from '../../types';
 
 interface FbCreatePostBoxProps {
   userProfile: UserProfile;
+  activeSwitchedPage?: PageItem | null;
   onOpenCreateModal: (initialPhoto?: string) => void;
   onOpenProfile?: () => void;
 }
 
 export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
   userProfile,
+  activeSwitchedPage = null,
   onOpenCreateModal,
   onOpenProfile,
 }) => {
@@ -39,16 +41,20 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
         onChange={handlePhotoSelect}
       />
 
-      {/* User Profile Avatar with ring */}
+      {/* User Profile or Active Page Avatar with ring matching Screenshot 3 */}
       <button
         type="button"
         onClick={onOpenProfile}
-        className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] dark:border-[#222222] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer"
-        title="আপনার প্রোফাইল দেখুন (View Profile)"
+        className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] dark:border-[#222222] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer relative"
+        title={activeSwitchedPage ? `${activeSwitchedPage.name} পেজ প্রোফাইল` : "আপনার প্রোফাইল দেখুন (View Profile)"}
       >
         <img
-          src={userProfile.avatar}
-          alt={userProfile.name}
+          src={activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar}
+          alt={activeSwitchedPage ? activeSwitchedPage.name : userProfile.name}
+          onError={(e) => {
+            (e.currentTarget as HTMLImageElement).src =
+              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+          }}
           className="w-full h-full object-cover rounded-full"
           style={{ width: '40px', height: '40px', borderRadius: '50%' }}
         />

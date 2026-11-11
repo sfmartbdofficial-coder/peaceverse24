@@ -1,13 +1,19 @@
 import React, { useState, useRef, useEffect } from 'react';
-import { Volume2, VolumeX, Play, Pause, Maximize2 } from 'lucide-react';
+import { Volume2, VolumeX, Play, Pause, Maximize2, Film } from 'lucide-react';
 
 interface FbVideoPlayerProps {
   src: string;
   poster?: string;
   title?: string;
+  onOpenFullscreen?: () => void;
 }
 
-export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({ src, poster, title }) => {
+export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
+  src,
+  poster,
+  title,
+  onOpenFullscreen,
+}) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
 
@@ -94,9 +100,13 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({ src, poster, title
     setIsMuted(newMuted);
   };
 
-  // Fullscreen
+  // Fullscreen / TikTok Reels expand
   const handleFullscreen = (e: React.MouseEvent) => {
     e.stopPropagation();
+    if (onOpenFullscreen) {
+      onOpenFullscreen();
+      return;
+    }
     const video = videoRef.current;
     if (!video) return;
     if (video.requestFullscreen) {
@@ -106,10 +116,18 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({ src, poster, title
     }
   };
 
+  const handleContainerClick = (e: React.MouseEvent) => {
+    if (onOpenFullscreen) {
+      onOpenFullscreen();
+    } else {
+      handleTogglePlay(e);
+    }
+  };
+
   return (
     <div
       ref={containerRef}
-      onClick={handleTogglePlay}
+      onClick={handleContainerClick}
       className="relative w-full bg-black border-y border-[#393a3b] overflow-hidden group cursor-pointer select-none max-h-[640px] flex items-center justify-center"
       style={{ minHeight: '260px' }}
     >
@@ -127,6 +145,23 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({ src, poster, title
         className="w-full h-auto max-h-[640px] object-contain mx-auto"
         title={title || 'Peaceverse Video'}
       />
+
+      {/* Top-Right Floating TikTok / Reels Pill Button */}
+      {onOpenFullscreen && (
+        <button
+          type="button"
+          onClick={(e) => {
+            e.stopPropagation();
+            onOpenFullscreen();
+          }}
+          className="absolute top-3 right-3 z-20 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-black/75 hover:bg-black/95 text-white backdrop-blur-md border border-white/20 text-xs font-bold shadow-xl active:scale-95 transition-all cursor-pointer group/btn"
+          title="TikTok/Reels মোডে ফুল স্ক্রিন দেখুন"
+        >
+          <Film className="w-3.5 h-3.5 text-sky-400 group-hover/btn:scale-110 transition-transform animate-pulse" />
+          <span>রিলস / TikTok ভিউ</span>
+          <Maximize2 className="w-3 h-3 text-neutral-300" />
+        </button>
+      )}
 
       {/* Center Play/Pause Indicator Animation on click */}
       {showControlsHint && (

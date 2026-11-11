@@ -9,6 +9,8 @@ interface FbWatchViewProps {
   onToggleSave: (postId: string) => void;
   onAddComment: (postId: string, text: string) => void;
   onBack?: () => void;
+  onOpenReel?: (post: PostItem) => void;
+  onOpenGiftModal?: (post: PostItem) => void;
 }
 
 export const FbWatchView: React.FC<FbWatchViewProps> = ({
@@ -17,6 +19,8 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
   onToggleSave,
   onAddComment,
   onBack,
+  onOpenReel,
+  onOpenGiftModal,
 }) => {
   const [filter, setFilter] = useState<'all' | 'live' | 'quran' | 'lecture'>('all');
 
@@ -85,6 +89,8 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
             onToggleReaction={onToggleReaction}
             onToggleSave={onToggleSave}
             onAddComment={onAddComment}
+            onOpenReel={onOpenReel}
+            onOpenGiftModal={onOpenGiftModal}
           />
         ))}
       </div>

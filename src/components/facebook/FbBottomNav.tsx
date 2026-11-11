@@ -1,11 +1,12 @@
 import React from 'react';
 import { Home, Clapperboard, Users, Store, Bell } from 'lucide-react';
-import { FacebookMainTab, UserProfile } from '../../types';
+import { FacebookMainTab, UserProfile, PageItem } from '../../types';
 
 interface FbBottomNavProps {
   currentTab: FacebookMainTab;
   onTabChange: (tab: FacebookMainTab) => void;
   userProfile: UserProfile;
+  activeSwitchedPage?: PageItem | null;
   friendRequestsCount: number;
   notificationsCount: number;
 }
@@ -14,6 +15,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
   currentTab,
   onTabChange,
   userProfile,
+  activeSwitchedPage = null,
   friendRequestsCount,
   notificationsCount,
 }) => {
@@ -101,26 +103,45 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
           </div>
         </button>
 
-        {/* 6. Profile / Menu (SI Blue Circle matching Screenshots 1, 2, 3) */}
+        {/* 6. Profile / Menu (Shows Page Avatar when switched to page matching Screenshot 3, else SI Blue circle) */}
         <button
           onClick={() => {
             onTabChange('menu');
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
-          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all ${
+          className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
             currentTab === 'profile' || currentTab === 'menu' ? 'scale-105' : 'opacity-85'
           }`}
           title="Profile / Menu"
         >
-          <div
-            className={`w-7 h-7 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-[11px] font-black border-2 shadow-xs ${
-              currentTab === 'profile' || currentTab === 'menu'
-                ? 'border-white ring-2 ring-[#0866FF]'
-                : 'border-transparent'
-            }`}
-          >
-            SI
-          </div>
+          {activeSwitchedPage ? (
+            <div className="relative">
+              <img
+                src={activeSwitchedPage.avatar}
+                alt={activeSwitchedPage.name}
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src =
+                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+                }}
+                className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
+                  currentTab === 'profile' || currentTab === 'menu'
+                    ? 'border-white ring-2 ring-[#0866FF]'
+                    : 'border-transparent'
+                }`}
+              />
+              <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-1 ring-white" />
+            </div>
+          ) : (
+            <div
+              className={`w-7 h-7 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-[11px] font-black border-2 shadow-xs ${
+                currentTab === 'profile' || currentTab === 'menu'
+                  ? 'border-white ring-2 ring-[#0866FF]'
+                  : 'border-transparent'
+              }`}
+            >
+              SI
+            </div>
+          )}
         </button>
 
       </div>

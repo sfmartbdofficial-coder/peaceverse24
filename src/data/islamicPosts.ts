@@ -23,6 +23,8 @@ export const USER_PROFILE: UserProfile = {
   relationship: 'Married',
   website: '',
   hobbies: [],
+  goldenCoins: 120,
+  earnedCoins: 65,
 };
 
 // 100% EMPTY by default per Part 1 instructions - Genuine posts & stories will load from Supabase / Firestore

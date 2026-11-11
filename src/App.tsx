@@ -13,7 +13,9 @@ import {
   NotificationItem,
   FacebookMainTab,
   ReactionType,
-  UserProfile
+  UserProfile,
+  GoldenCashoutRequest,
+  PageItem,
 } from './types';
 import { FbHeader } from './components/facebook/FbHeader';
 import { FbCreatePostBox } from './components/facebook/FbCreatePostBox';
@@ -22,6 +24,7 @@ import { FbPostCard } from './components/facebook/FbPostCard';
 import { FbCreatePostModal } from './components/facebook/FbCreatePostModal';
 import { FbCreateStoryModal } from './components/facebook/FbCreateStoryModal';
 import { FbCreateReelModal } from './components/facebook/FbCreateReelModal';
+import { FbTikTokReelsModal } from './components/facebook/FbTikTokReelsModal';
 import { FbLiveModal } from './components/facebook/FbLiveModal';
 import { FbNotificationsView } from './components/facebook/FbNotificationsView';
 import { FbProfileView } from './components/facebook/FbProfileView';
@@ -42,10 +45,12 @@ import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { CreatorMonetizationModal } from './components/monetization/CreatorMonetizationModal';
 import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
+import { FbGoldenGiftModal } from './components/golden/FbGoldenGiftModal';
+import { GoldenWalletModal } from './components/wallet/GoldenWalletModal';
 import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
-import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, RefreshCw } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
@@ -79,7 +84,32 @@ export default function App() {
   const [showCreateReel, setShowCreateReel] = useState(false);
   const [showLive, setShowLive] = useState(false);
   const [showHalalPolicy, setShowHalalPolicy] = useState(false);
-  
+  const [activeReelPostId, setActiveReelPostId] = useState<string | null>(null);
+
+  // Active Switched Page State (Matching Facebook Screenshot 3)
+  const [activeSwitchedPage, setActiveSwitchedPage] = useState<PageItem | null>(() => {
+    try {
+      const saved = localStorage.getItem('qalby_switched_page');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return null;
+  });
+
+  const handleSwitchToPage = (page: PageItem) => {
+    setActiveSwitchedPage(page);
+    try {
+      localStorage.setItem('qalby_switched_page', JSON.stringify(page));
+    } catch {}
+    setCurrentTab('home');
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleSwitchToPersonal = () => {
+    setActiveSwitchedPage(null);
+    try {
+      localStorage.removeItem('qalby_switched_page');
+    } catch {}
+  };
   // Google Play Store & Legal Policy Modal state (supports direct hash: #about, #privacy, #terms, #guidelines, #delete-account, #contact)
   const [legalModalTab, setLegalModalTab] = useState<LegalTabType | null>(() => {
     const hash = window.location.hash.replace('#', '');
@@ -103,6 +133,37 @@ export default function App() {
   const [showAuthModal, setShowAuthModal] = useState(() => {
     return window.location.hash === '#login' || window.location.hash === '#auth';
   });
+
+  // Golden Gift & Wallet state
+  const [selectedGiftPost, setSelectedGiftPost] = useState<PostItem | null>(null);
+  const [showGoldenWallet, setShowGoldenWallet] = useState(false);
+  const [cashoutRequests, setCashoutRequests] = useState<GoldenCashoutRequest[]>(() => {
+    try {
+      const saved = localStorage.getItem('qalby_golden_cashouts');
+      if (saved) return JSON.parse(saved);
+    } catch {}
+    return [
+      {
+        id: 'cashout-sample-1',
+        userId: 'user-me',
+        userName: 'Siddik',
+        userAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
+        coinsAmount: 50,
+        moneyAmount: 50,
+        paymentMethod: 'bkash',
+        accountNumber: '01712345678',
+        status: 'pending',
+        requestedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
+      },
+    ];
+  });
+
+  const persistCashouts = (reqs: GoldenCashoutRequest[]) => {
+    setCashoutRequests(reqs);
+    try {
+      localStorage.setItem('qalby_golden_cashouts', JSON.stringify(reqs));
+    } catch {}
+  };
 
   // Admin Portal state with direct #admin or #asol-admin-secret or /asol-admin-secret URL support
   const checkIsAdmin = () => {
@@ -288,6 +349,18 @@ export default function App() {
       localStorage.setItem('qalby_user_profile', JSON.stringify(userProfile));
     } catch {}
   }, [userProfile]);
+
+  // Effective profile when switched into a Page (Matching Screenshot 3)
+  const effectiveProfile: UserProfile = useMemo(() => {
+    if (activeSwitchedPage) {
+      return {
+        ...userProfile,
+        name: activeSwitchedPage.name,
+        avatar: activeSwitchedPage.avatar,
+      };
+    }
+    return userProfile;
+  }, [userProfile, activeSwitchedPage]);
 
   // Messenger State
   const [chatFriends, setChatFriends] = useState<ChatFriend[]>(() => {
@@ -561,6 +634,108 @@ export default function App() {
 
     const post = posts.find((p) => p.id === postId);
     addRealtimeComment(postId, newComment, post?.author.name);
+  };
+
+  // Handle sending golden gift coins
+  const handleSendGoldenGift = (postId: string, amount: number, message?: string) => {
+    const currentCoins = userProfile.goldenCoins ?? 120;
+    if (currentCoins < amount) {
+      return false;
+    }
+
+    // 1. Deduct coins from sender
+    setUserProfile((prev) => ({
+      ...prev,
+      goldenCoins: Math.max(0, (prev.goldenCoins ?? 120) - amount),
+    }));
+
+    // 2. Update post golden gifts count
+    setPosts((prev) =>
+      prev.map((p) => {
+        if (p.id === postId) {
+          return {
+            ...p,
+            goldenGiftsCount: (p.goldenGiftsCount || 0) + amount,
+            goldenGiftsAmount: (p.goldenGiftsAmount || 0) + amount,
+          };
+        }
+        return p;
+      })
+    );
+
+    // 3. If gifting own post, add to earnedCoins; or credit creator
+    const targetPost = posts.find((p) => p.id === postId);
+    if (targetPost && (targetPost.author.name === userProfile.name || targetPost.authorId === userProfile.id)) {
+      setUserProfile((prev) => ({
+        ...prev,
+        earnedCoins: (prev.earnedCoins ?? 65) + amount,
+      }));
+    }
+
+    // 4. Create in-app celebration notification
+    const giftNotif: NotificationItem = {
+      id: `notif-gift-${Date.now()}`,
+      type: 'general',
+      avatar: userProfile.avatar,
+      title: `${userProfile.name} ${amount}টি গোল্ডেন কয়েন হাদিয়া দিয়েছেন! 🪙✨`,
+      subtitle: message || 'মাশাআল্লাহ! চমৎকার ভিডিওটির জন্য হাদিয়া পাঠিয়েছেন।',
+      timeAgo: 'এখনই',
+      isUnread: true,
+      badgeType: 'heart',
+      postId,
+    };
+    setNotifications((prev) => [giftNotif, ...prev]);
+
+    return true;
+  };
+
+  // Handle adding golden coins (recharge)
+  const handleAddGoldenCoins = (amount: number) => {
+    setUserProfile((prev) => ({
+      ...prev,
+      goldenCoins: (prev.goldenCoins ?? 0) + amount,
+    }));
+  };
+
+  // Handle requesting cashout to bKash / Nagad
+  const handleRequestCashout = (reqData: Omit<GoldenCashoutRequest, 'id' | 'status'>) => {
+    const newReq: GoldenCashoutRequest = {
+      ...reqData,
+      id: `cashout-${Date.now()}`,
+      status: 'pending',
+    };
+
+    // Deduct coins from user's earnedCoins
+    setUserProfile((prev) => ({
+      ...prev,
+      earnedCoins: Math.max(0, (prev.earnedCoins ?? 0) - reqData.coinsAmount),
+    }));
+
+    const updated = [newReq, ...cashoutRequests];
+    persistCashouts(updated);
+    return true;
+  };
+
+  // Admin handles cashout approval & rejection
+  const handleApproveGoldenCashout = (id: string) => {
+    const updated = cashoutRequests.map((r) =>
+      r.id === id ? { ...r, status: 'approved' as const, processedAt: new Date().toISOString() } : r
+    );
+    persistCashouts(updated);
+  };
+
+  const handleRejectGoldenCashout = (id: string) => {
+    const target = cashoutRequests.find((r) => r.id === id);
+    if (target && target.status === 'pending') {
+      setUserProfile((prev) => ({
+        ...prev,
+        earnedCoins: (prev.earnedCoins ?? 0) + target.coinsAmount,
+      }));
+    }
+    const updated = cashoutRequests.map((r) =>
+      r.id === id ? { ...r, status: 'rejected' as const, processedAt: new Date().toISOString() } : r
+    );
+    persistCashouts(updated);
   };
 
   // Handle real-time typing status
@@ -870,6 +1045,9 @@ export default function App() {
         onAddPostToFeed={handlePostCreated}
         onDeletePostFromFeed={handleDeletePost}
         onModeratePost={handleModeratePost}
+        goldenCashoutRequests={cashoutRequests}
+        onApproveGoldenCashout={handleApproveGoldenCashout}
+        onRejectGoldenCashout={handleRejectGoldenCashout}
       />
     );
   }
@@ -904,14 +1082,54 @@ export default function App() {
         {/* TAB 1: Home (ফিড - Exact Facebook Style Container max-w-[500px]) */}
         {currentTab === 'home' && (
           <div className="max-w-[500px] mx-auto pb-24 space-y-2">
-            {/* What's on your mind? Box */}
+            {/* Sticky Switched Page Mode Top Banner (Matching Facebook Screenshot 3) */}
+            {activeSwitchedPage && (
+              <div className="bg-gradient-to-r from-[#0866FF] via-blue-600 to-sky-600 text-white rounded-[12px] p-2.5 sm:p-3 shadow-md flex items-center justify-between gap-2.5 text-xs font-semibold animate-in slide-in-from-top duration-200">
+                <div className="flex items-center gap-2.5 min-w-0">
+                  <img
+                    src={activeSwitchedPage.avatar}
+                    alt={activeSwitchedPage.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+                    }}
+                    className="w-8 h-8 rounded-full object-cover border-2 border-white/80 shrink-0"
+                  />
+                  <div className="min-w-0">
+                    <p className="font-bold text-sm text-white truncate">
+                      {activeSwitchedPage.name}
+                    </p>
+                    <p className="text-[11px] text-blue-100 font-medium">
+                      পেইজ মোডে আছেন (Page Profile Active)
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  onClick={handleSwitchToPersonal}
+                  className="px-3 py-1.5 rounded-xl bg-white text-[#0866FF] hover:bg-blue-50 font-black text-xs shrink-0 shadow-sm transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+                >
+                  <RefreshCw className="w-3.5 h-3.5 stroke-[2.5]" />
+                  <span>আইডিতে ফিরুন</span>
+                </button>
+              </div>
+            )}
+
+            {/* What's on your mind? Box (using effectiveProfile & activeSwitchedPage) */}
             <FbCreatePostBox
-              userProfile={userProfile}
+              userProfile={effectiveProfile}
+              activeSwitchedPage={activeSwitchedPage}
               onOpenCreateModal={(photo?: string) => {
                 setInitialPostPhoto(photo || null);
                 setShowCreatePost(true);
               }}
-              onOpenProfile={() => navigateToTab('profile')}
+              onOpenProfile={() => {
+                if (activeSwitchedPage) {
+                  navigateToTab('pages');
+                } else {
+                  navigateToTab('profile');
+                }
+              }}
             />
 
             {/* Stories & Reels Bar */}
@@ -996,6 +1214,8 @@ export default function App() {
                       onTypingChange={handleTypingChange}
                       currentUserId={userProfile.id || 'user-me'}
                       currentUserName={userProfile.name}
+                      onOpenReel={(p) => setActiveReelPostId(p.id)}
+                      onOpenGiftModal={(p) => setSelectedGiftPost(p)}
                     />
                   ))}
 
@@ -1023,6 +1243,8 @@ export default function App() {
               onToggleSave={handleToggleSave}
               onAddComment={handleAddComment}
               onBack={goBack}
+              onOpenReel={(p) => setActiveReelPostId(p.id)}
+              onOpenGiftModal={(p) => setSelectedGiftPost(p)}
             />
           </div>
         )}
@@ -1070,6 +1292,8 @@ export default function App() {
             onUpdateProfile={(updated) => setUserProfile(updated)}
             onEditPost={handleEditPost}
             onDeletePost={handleDeletePost}
+            onOpenReel={(p) => setActiveReelPostId(p.id)}
+            onOpenGoldenWallet={() => setShowGoldenWallet(true)}
           />
         )}
 
@@ -1077,6 +1301,9 @@ export default function App() {
         {currentTab === 'menu' && (
           <FbMenuView
             userProfile={userProfile}
+            activeSwitchedPage={activeSwitchedPage}
+            onSwitchToPage={handleSwitchToPage}
+            onSwitchToPersonal={handleSwitchToPersonal}
             onNavigateTab={navigateToTab}
             onOpenProfile={() => navigateToTab('profile')}
             onOpenHalalPolicy={() => setShowHalalPolicy(true)}
@@ -1085,6 +1312,7 @@ export default function App() {
               window.location.hash = '#admin';
             }}
             onOpenMonetization={() => setShowMonetizationModal(true)}
+            onOpenGoldenWallet={() => setShowGoldenWallet(true)}
             onOpenLegalTab={(tab) => {
               setLegalModalTab(tab);
               window.location.hash = `#${tab}`;
@@ -1112,6 +1340,7 @@ export default function App() {
               onToggleSave={handleToggleSave}
               onAddComment={handleAddComment}
               onBackToFeed={goBack}
+              onOpenReel={(p) => setActiveReelPostId(p.id)}
             />
           </div>
         )}
@@ -1125,7 +1354,11 @@ export default function App() {
 
         {/* TAB 10: Pages */}
         {currentTab === 'pages' && (
-          <FbPagesView onBack={goBack} userProfile={userProfile} />
+          <FbPagesView
+            onBack={goBack}
+            userProfile={userProfile}
+            onSwitchToPage={handleSwitchToPage}
+          />
         )}
 
         {/* TAB 11: Memories */}
@@ -1140,6 +1373,7 @@ export default function App() {
         currentTab={currentTab}
         onTabChange={navigateToTab}
         userProfile={userProfile}
+        activeSwitchedPage={activeSwitchedPage}
         friendRequestsCount={2}
         notificationsCount={28}
       />
@@ -1147,7 +1381,7 @@ export default function App() {
       {/* 4. Facebook Create Post Modal */}
       {showCreatePost && (
         <FbCreatePostModal
-          userProfile={userProfile}
+          userProfile={effectiveProfile}
           initialPhoto={initialPostPhoto}
           onClose={() => {
             setShowCreatePost(false);
@@ -1274,6 +1508,44 @@ export default function App() {
         }}
       />
 
+      {/* 12. Full-Screen Immersive TikTok / Facebook Reels Video Player */}
+      <FbTikTokReelsModal
+        isOpen={Boolean(activeReelPostId)}
+        onClose={() => setActiveReelPostId(null)}
+        initialPostId={activeReelPostId || undefined}
+        posts={posts}
+        onToggleReaction={handleToggleReaction}
+        onToggleSave={handleToggleSave}
+        onAddComment={handleAddComment}
+        currentUserName={userProfile.name}
+        currentUserAvatar={userProfile.avatar}
+        onOpenGiftModal={(post) => setSelectedGiftPost(post)}
+      />
+
+      {/* 13. Golden Hadia Gift Modal (Gifting Golden Coins to Creators) */}
+      {selectedGiftPost && (
+        <FbGoldenGiftModal
+          isOpen={Boolean(selectedGiftPost)}
+          onClose={() => setSelectedGiftPost(null)}
+          post={selectedGiftPost}
+          userGoldenCoins={userProfile.goldenCoins ?? 120}
+          onSendGift={handleSendGoldenGift}
+          onOpenWallet={() => setShowGoldenWallet(true)}
+        />
+      )}
+
+      {/* 14. Golden Wallet & Cashout to bKash / Nagad Modal */}
+      <GoldenWalletModal
+        isOpen={showGoldenWallet}
+        onClose={() => setShowGoldenWallet(false)}
+        userGoldenCoins={userProfile.goldenCoins ?? 120}
+        userEarnedCoins={userProfile.earnedCoins ?? 65}
+        userName={userProfile.name}
+        userAvatar={userProfile.avatar}
+        onAddCoins={handleAddGoldenCoins}
+        onRequestCashout={handleRequestCashout}
+        cashoutRequests={cashoutRequests}
+      />
     </div>
   );
 }

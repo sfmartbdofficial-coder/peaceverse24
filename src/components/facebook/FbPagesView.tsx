@@ -32,6 +32,9 @@ import {
   HeartHandshake,
   Utensils,
   Radio,
+  Edit3,
+  RefreshCw,
+  Save,
 } from 'lucide-react';
 import { PageItem, PostItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -39,6 +42,7 @@ import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationMod
 interface FbPagesViewProps {
   onBack: () => void;
   userProfile?: UserProfile;
+  onSwitchToPage?: (page: PageItem) => void;
 }
 
 const DEFAULT_PAGES: PageItem[] = [
@@ -249,19 +253,36 @@ const PAGE_CATEGORIES_CONFIG: PageCategoryConfig[] = [
   },
 ];
 
-export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile }) => {
-  // Persistence with localStorage
+// Helper to convert File to permanent Base64 data URL so localStorage never breaks on reload
+const fileToBase64 = (file: File): Promise<string> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result as string);
+    reader.onerror = (error) => reject(error);
+    reader.readAsDataURL(file);
+  });
+};
+
+export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, onSwitchToPage }) => {
+  // Persistence with localStorage & sanitizing old temporary blob URLs to prevent broken images
   const [pages, setPages] = useState<PageItem[]>(() => {
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       if (stored) {
         const parsed: PageItem[] = JSON.parse(stored);
-        // Ensure default public pages are never marked as owned by new user
         return parsed.map((p) => {
-          if (['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'].includes(p.id)) {
-            return { ...p, isOwner: false, role: 'Visitor' };
+          let avatar = p.avatar;
+          let cover = p.cover;
+          if (!avatar || avatar.startsWith('blob:')) {
+            avatar = PRESET_AVATARS[0];
           }
-          return p;
+          if (!cover || cover.startsWith('blob:')) {
+            cover = PRESET_COVERS[0];
+          }
+          if (['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'].includes(p.id)) {
+            return { ...p, avatar, cover, isOwner: false, role: 'Visitor' };
+          }
+          return { ...p, avatar, cover };
         });
       }
       return DEFAULT_PAGES;
@@ -295,6 +316,15 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
   const [newLocation, setNewLocation] = useState('Dhaka, Bangladesh');
   const [newAvatar, setNewAvatar] = useState(PRESET_AVATARS[0]);
   const [newCover, setNewCover] = useState(PRESET_COVERS[0]);
+
+  // Edit Page Modal State
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editCategory, setEditCategory] = useState('');
+  const [editBio, setEditBio] = useState('');
+  const [editPhone, setEditPhone] = useState('');
+  const [editWebsite, setEditWebsite] = useState('');
+  const [editLocation, setEditLocation] = useState('');
 
   // Page Profile Tabs & In-Page Post Creation
   const [pageSubTab, setPageSubTab] = useState<'posts' | 'about' | 'monetization' | 'photos' | 'reviews'>('posts');
@@ -358,7 +388,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
     showToast('লাইক / ফলো স্ট্যাটাস আপডেট হয়েছে!');
   };
 
-  // Create Page Handler
+  // Create Page Handler (Triggered only on explicit step 3 submit)
   const handleCreatePageSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!newName.trim()) {
@@ -399,7 +429,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
 
     // Open the newly created page immediately!
     setSelectedPage(createdPage);
-    showToast(`🎉 "${createdPage.name}" পেজটি সফলভাবে তৈরি হয়েছে!`);
+    showToast(`🎉 "${createdPage.name}" পেজটি সফলভাবে সংরক্ষিত ও চালু হয়েছে!`);
   };
 
   // Add post directly to the active page
@@ -423,21 +453,94 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
     showToast('পেজে পোস্ট প্রকাশিত হয়েছে!');
   };
 
-  // Custom photo upload handlers
-  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Custom photo upload handlers with permanent Base64 conversion
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setNewAvatar(url);
+      try {
+        const base64 = await fileToBase64(file);
+        setNewAvatar(base64);
+        showToast('প্রোফাইল ছবি সফলভাবে যুক্ত হয়েছে!');
+      } catch {
+        showToast('ছবি রূপান্তর করতে সমস্যা হয়েছে');
+      }
     }
   };
 
-  const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const url = URL.createObjectURL(file);
-      setNewCover(url);
+      try {
+        const base64 = await fileToBase64(file);
+        setNewCover(base64);
+        showToast('কভার ছবি সফলভাবে যুক্ত হয়েছে!');
+      } catch {
+        showToast('কভার রূপান্তর করতে সমস্যা হয়েছে');
+      }
     }
+  };
+
+  // Live in-page camera updater for Avatar
+  const handleUpdatePageAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPage) return;
+    try {
+      const base64 = await fileToBase64(file);
+      const updated = { ...selectedPage, avatar: base64 };
+      setSelectedPage(updated);
+      setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
+      showToast('পেজের লোগো / প্রোফাইল ছবি আপডেট করা হয়েছে!');
+    } catch {
+      showToast('ছবি আপলোড করতে সমস্যা হয়েছে');
+    }
+  };
+
+  // Live in-page camera updater for Cover
+  const handleUpdatePageCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedPage) return;
+    try {
+      const base64 = await fileToBase64(file);
+      const updated = { ...selectedPage, cover: base64 };
+      setSelectedPage(updated);
+      setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
+      showToast('পেজের কভার ফটো আপডেট করা হয়েছে!');
+    } catch {
+      showToast('কভার ফটো আপলোড করতে সমস্যা হয়েছে');
+    }
+  };
+
+  // Open Edit Page Modal
+  const handleOpenEditModal = (page: PageItem) => {
+    setEditName(page.name);
+    setEditCategory(page.category);
+    setEditBio(page.bio || '');
+    setEditPhone(page.phone || '');
+    setEditWebsite(page.website || '');
+    setEditLocation(page.location || '');
+    setShowEditModal(true);
+  };
+
+  // Save Edit Page Modal changes
+  const handleSaveEditPage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPage || !editName.trim()) return;
+
+    const updated: PageItem = {
+      ...selectedPage,
+      name: editName.trim(),
+      category: editCategory.trim() || selectedPage.category,
+      bio: editBio.trim(),
+      description: editBio.trim() || selectedPage.description,
+      phone: editPhone.trim() || undefined,
+      website: editWebsite.trim() || undefined,
+      location: editLocation.trim() || selectedPage.location,
+    };
+
+    setSelectedPage(updated);
+    setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
+    setShowEditModal(false);
+    showToast('💾 পেজের তথ্য সফলভাবে সেভ করা হয়েছে!');
   };
 
   // Filtered pages
@@ -499,52 +602,101 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
           </div>
         </div>
 
-        {/* Cover Photo */}
-        <div className="relative w-full h-44 sm:h-56 bg-neutral-800">
+        {/* Cover Photo with Owner Camera Updater */}
+        <div className="relative w-full h-44 sm:h-56 bg-neutral-900 group">
           <img
-            src={selectedPage.cover}
+            src={selectedPage.cover || PRESET_COVERS[0]}
             alt={selectedPage.name}
+            onError={(e) => {
+              (e.currentTarget as HTMLImageElement).src = PRESET_COVERS[0];
+            }}
             className="w-full h-full object-cover"
           />
           <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-black/20" />
+
+          {/* Camera upload button on Cover Photo for Owner */}
+          {selectedPage.isOwner && (
+            <label className="absolute bottom-3 right-3 bg-black/60 hover:bg-black/80 text-white px-3 py-1.5 rounded-xl text-xs font-bold flex items-center gap-1.5 cursor-pointer backdrop-blur-xs transition-colors shadow-md border border-white/20 active:scale-95">
+              <Camera className="w-3.5 h-3.5" />
+              <span>কভার পরিবর্তন</span>
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleUpdatePageCover}
+              />
+            </label>
+          )}
         </div>
 
-        {/* Profile Card Header */}
-        <div className="px-4 -mt-12 relative z-10 space-y-3">
+        {/* Profile Card Header (Matching Facebook Screenshot 2) */}
+        <div className="px-4 -mt-14 relative z-10 space-y-3">
           <div className="flex items-end justify-between">
-            <div className="relative">
+            {/* Circular Avatar with Camera button for Owner */}
+            <div className="relative group">
               <img
-                src={selectedPage.avatar}
+                src={selectedPage.avatar || PRESET_AVATARS[0]}
                 alt={selectedPage.name}
-                className="w-24 h-24 rounded-2xl object-cover border-4 border-[#18191a] shadow-2xl bg-neutral-900"
+                onError={(e) => {
+                  (e.currentTarget as HTMLImageElement).src = PRESET_AVATARS[0];
+                }}
+                className="w-24 h-24 rounded-full object-cover border-4 border-[#242526] shadow-2xl bg-neutral-900 ring-2 ring-amber-500/50"
               />
               {selectedPage.isOwner && (
-                <span className="absolute bottom-1 right-1 bg-emerald-600 text-[10px] font-bold text-white px-2 py-0.5 rounded-full border border-black shadow">
-                  Admin
-                </span>
+                <label className="absolute bottom-0 right-0 bg-[#0866FF] hover:bg-[#1877F2] text-white p-2 rounded-full cursor-pointer shadow-lg border-2 border-[#242526] transition-all active:scale-95" title="লোগো / ছবি পরিবর্তন">
+                  <Camera className="w-4 h-4" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleUpdatePageAvatar}
+                  />
+                </label>
               )}
             </div>
 
-            {/* Main Action Button */}
+            {/* Quick Actions (Switch, Like, Message, Edit) */}
             <div className="flex items-center gap-2 pb-1">
-              <button
-                onClick={() => handleToggleLike(selectedPage.id)}
-                className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md ${
-                  selectedPage.isLiked
-                    ? 'bg-[#3a3b3c] hover:bg-[#4e4f50] text-white'
-                    : 'bg-[#1877F2] hover:bg-[#166fe5] text-white'
-                }`}
-              >
-                <ThumbsUp className={`w-4 h-4 ${selectedPage.isLiked ? 'fill-current text-[#1877F2]' : ''}`} />
-                <span>{selectedPage.isLiked ? 'লাইক করা আছে ✓' : 'লাইক দিন'}</span>
-              </button>
+              {onSwitchToPage && (
+                <button
+                  onClick={() => onSwitchToPage(selectedPage)}
+                  className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] active:scale-95 text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-blue-500/25 transition-all cursor-pointer"
+                  title="এই পেজ হিসেবে ফেসবুক ব্রাউজ করুন"
+                >
+                  <RefreshCw className="w-3.5 h-3.5" />
+                  <span>পেজে সুইচ করুন</span>
+                </button>
+              )}
+
+              {selectedPage.isOwner ? (
+                <button
+                  onClick={() => handleOpenEditModal(selectedPage)}
+                  className="px-3.5 py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white font-bold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Edit3 className="w-3.5 h-3.5" />
+                  <span>পেজ এডিট</span>
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleToggleLike(selectedPage.id)}
+                  className={`px-4 py-2 rounded-xl text-xs font-bold transition-all flex items-center gap-1.5 shadow-md cursor-pointer ${
+                    selectedPage.isLiked
+                      ? 'bg-[#3a3b3c] hover:bg-[#4e4f50] text-white'
+                      : 'bg-[#1877F2] hover:bg-[#166fe5] text-white'
+                  }`}
+                >
+                  <ThumbsUp className={`w-4 h-4 ${selectedPage.isLiked ? 'fill-current text-[#1877F2]' : ''}`} />
+                  <span>{selectedPage.isLiked ? 'ফলো করা আছে ✓' : 'Follow'}</span>
+                </button>
+              )}
 
               <button
-                onClick={() => showToast('মেসেজ উইন্ডো খোলা হচ্ছে...')}
-                className="p-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white"
-                title="মেসেজ পাঠান"
+                onClick={() => showToast('হোয়াটসঅ্যাপে পেজের সাথে যুক্ত হচ্ছেন...')}
+                className="px-3 py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white font-semibold text-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+                title="WhatsApp"
               >
-                <MessageCircle className="w-5 h-5" />
+                <MessageCircle className="w-3.5 h-3.5 text-emerald-400" />
+                <span className="hidden sm:inline">WhatsApp</span>
               </button>
             </div>
           </div>
@@ -935,6 +1087,110 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
               onClose={() => setShowMonetizationModal(false)}
             />
           )}
+
+          {/* Edit Page Modal for Owner with Prominent "💾 পরিবর্তন সেভ করুন" Button */}
+          {showEditModal && (
+            <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+              <div className="bg-[#242526] w-full max-w-lg rounded-2xl border border-[#393a3b] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
+                <div className="px-4 py-3 border-b border-[#393a3b] flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Edit3 className="w-5 h-5 text-[#0866FF]" />
+                    <h3 className="font-bold text-base text-white">পেজের তথ্য এডিট করুন (Edit Page)</h3>
+                  </div>
+                  <button
+                    onClick={() => setShowEditModal(false)}
+                    className="p-1 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveEditPage} className="p-4 space-y-3.5 overflow-y-auto flex-1 text-left">
+                  <div>
+                    <label className="block text-xs font-bold text-white mb-1">পেজের নাম (Page Name)</label>
+                    <input
+                      type="text"
+                      required
+                      value={editName}
+                      onChange={(e) => setEditName(e.target.value)}
+                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#0866FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-white mb-1">ক্যাটাগরি (Category)</label>
+                    <input
+                      type="text"
+                      value={editCategory}
+                      onChange={(e) => setEditCategory(e.target.value)}
+                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white focus:outline-none focus:border-[#0866FF]"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-white mb-1">বায়ো / পরিচিতি (Bio)</label>
+                    <textarea
+                      rows={3}
+                      value={editBio}
+                      onChange={(e) => setEditBio(e.target.value)}
+                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl p-3 text-xs sm:text-sm text-white focus:outline-none focus:border-[#0866FF] resize-none"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-white mb-1">মোবাইল / হোয়াটসঅ্যাপ</label>
+                      <input
+                        type="text"
+                        value={editPhone}
+                        onChange={(e) => setEditPhone(e.target.value)}
+                        placeholder="+880..."
+                        className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#0866FF]"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-white mb-1">অবস্থান / শহর</label>
+                      <input
+                        type="text"
+                        value={editLocation}
+                        onChange={(e) => setEditLocation(e.target.value)}
+                        placeholder="Dhaka, Bangladesh"
+                        className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#0866FF]"
+                      />
+                    </div>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-white mb-1">ওয়েবসাইট লিংক</label>
+                    <input
+                      type="text"
+                      value={editWebsite}
+                      onChange={(e) => setEditWebsite(e.target.value)}
+                      placeholder="https://..."
+                      className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#0866FF]"
+                    />
+                  </div>
+
+                  <div className="pt-3 border-t border-[#393a3b] flex items-center justify-end gap-2.5">
+                    <button
+                      type="button"
+                      onClick={() => setShowEditModal(false)}
+                      className="px-4 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-white cursor-pointer"
+                    >
+                      বাতিল
+                    </button>
+                    <button
+                      type="submit"
+                      className="px-6 py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] active:scale-95 text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 shadow-md shadow-blue-500/20 cursor-pointer"
+                    >
+                      <Save className="w-4 h-4" />
+                      <span>💾 পরিবর্তন সেভ করুন (Save Changes)</span>
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -1098,8 +1354,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
               >
                 <div className="flex items-center gap-2.5 min-w-0">
                   <img
-                    src={page.avatar}
+                    src={page.avatar || PRESET_AVATARS[0]}
                     alt={page.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src = PRESET_AVATARS[0];
+                    }}
                     className="w-10 h-10 rounded-xl object-cover shrink-0 border border-[#393a3b]"
                   />
                   <div className="min-w-0">
@@ -1116,9 +1375,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                 <button
                   onClick={(e) => {
                     e.stopPropagation();
-                    setSelectedPage(page);
+                    if (onSwitchToPage) {
+                      onSwitchToPage(page);
+                    } else {
+                      setSelectedPage(page);
+                    }
                   }}
-                  className="px-2.5 py-1 rounded-lg bg-[#3a3b3c] hover:bg-[#1877F2] text-[11px] font-bold text-white transition-colors shrink-0 ml-2"
+                  className="px-2.5 py-1 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] active:scale-95 text-[11px] font-bold text-white transition-all shrink-0 ml-2 shadow-xs cursor-pointer"
                 >
                   সুইচ করুন
                 </button>
@@ -1157,8 +1420,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                 className="h-28 w-full overflow-hidden relative cursor-pointer group"
               >
                 <img
-                  src={page.cover}
+                  src={page.cover || PRESET_COVERS[0]}
                   alt={page.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src = PRESET_COVERS[0];
+                  }}
                   className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                 />
                 <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/25 to-transparent" />
@@ -1182,8 +1448,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                     className="flex items-center gap-3 cursor-pointer group"
                   >
                     <img
-                      src={page.avatar}
+                      src={page.avatar || PRESET_AVATARS[0]}
                       alt={page.name}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = PRESET_AVATARS[0];
+                      }}
                       className="w-14 h-14 rounded-2xl object-cover border-2 border-[#242526] -mt-9 shadow-lg z-10 bg-neutral-900 group-hover:border-[#1877F2] transition-colors"
                     />
                     <div>
@@ -1269,7 +1538,25 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
             </div>
 
             {/* Modal Form Body */}
-            <form onSubmit={handleCreatePageSubmit} className="p-4 overflow-y-auto space-y-4 flex-1">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (createStep === 3) {
+                  handleCreatePageSubmit(e);
+                }
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && createStep < 3) {
+                  e.preventDefault();
+                  if (!newName.trim()) {
+                    showToast('দয়া করে পেজের নাম লিখুন');
+                    return;
+                  }
+                  setCreateStep((prev) => (prev + 1) as any);
+                }
+              }}
+              className="p-4 overflow-y-auto space-y-4 flex-1"
+            >
               {/* STEP 1: Basic Info */}
               {createStep === 1 && (
                 <div className="space-y-3.5">
@@ -1548,8 +1835,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile })
                     type="submit"
                     className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 active:scale-[0.99] text-xs sm:text-sm font-bold text-white transition-all shadow-lg shadow-emerald-600/30 flex items-center gap-2 cursor-pointer"
                   >
-                    <Check className="w-4 h-4 stroke-[3]" />
-                    <span>পেজ তৈরি সম্পন্ন করুন</span>
+                    <Save className="w-4 h-4 stroke-[2.5]" />
+                    <span>💾 পেজটি সেভ করুন ও চালু করুন (Save Page)</span>
                   </button>
                 )}
               </div>

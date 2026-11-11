@@ -8,6 +8,7 @@ import {
   Users,
   ChevronDown,
   ChevronUp,
+  ChevronRight,
   HelpCircle,
   Settings,
   ShieldCheck,
@@ -23,6 +24,7 @@ import {
   Globe,
   Smile,
   Gift,
+  Coins,
   Film,
   Newspaper,
   Play,
@@ -55,20 +57,26 @@ import { FbPokesModal } from './FbPokesModal';
 import { FbSettingsPrivacyModals, SettingsModalType } from './FbSettingsPrivacyModals';
 import { FbAlsoFromPeaceModal, AlsoAppType } from './FbAlsoFromPeaceModal';
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
+import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
+import { PageItem } from '../../types';
 
 interface FbMenuViewProps {
   userProfile: UserProfile;
+  activeSwitchedPage?: PageItem | null;
   onNavigateTab: (tab: FacebookMainTab) => void;
   onOpenProfile: () => void;
   onOpenHalalPolicy: () => void;
   onOpenAdminPortal?: () => void;
   onOpenMonetization?: () => void;
+  onOpenGoldenWallet?: () => void;
   onOpenLegalTab?: (tab: LegalTabType) => void;
   onOpenInstallModal?: () => void;
   onOpenAuth?: () => void;
   onLogout?: () => void;
   onBack: () => void;
   onOpenMessenger?: () => void;
+  onSwitchToPage?: (page: PageItem) => void;
+  onSwitchToPersonal?: () => void;
   unreadMessagesCount?: number;
   isDarkMode?: boolean;
   onToggleDarkMode?: (isDark: boolean) => void;
@@ -76,22 +84,26 @@ interface FbMenuViewProps {
 
 export const FbMenuView: React.FC<FbMenuViewProps> = ({
   userProfile,
+  activeSwitchedPage = null,
   onNavigateTab,
   onOpenProfile,
   onOpenHalalPolicy,
   onOpenAdminPortal,
   onOpenMonetization,
+  onOpenGoldenWallet,
   onOpenLegalTab,
   onOpenInstallModal,
   onOpenAuth,
   onLogout,
   onBack,
   onOpenMessenger,
+  onSwitchToPage,
+  onSwitchToPersonal,
   unreadMessagesCount = 0,
   isDarkMode = false,
   onToggleDarkMode,
 }) => {
-  const { t, currentLangInfo, setShowLanguageModal } = useLanguage();
+  const { t, currentLang, currentLangInfo, setShowLanguageModal } = useLanguage();
 
   // Accordion toggles: Settings and privacy & Upgrades OPEN BY DEFAULT per Screenshot 2 & 3
   const [showSettingsAccordion, setShowSettingsAccordion] = useState(true);
@@ -113,7 +125,61 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [alsoAppType, setAlsoAppType] = useState<AlsoAppType>(null);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
+  const [selectedSwitchPage, setSelectedSwitchPage] = useState<PageItem | null>(null);
   const [darkModeInline, setDarkModeInline] = useState(isDarkMode);
+
+  // Load all pages for Your shortcuts row matching Screenshot 1
+  const [menuPages, setMenuPages] = useState<PageItem[]>(() => {
+    try {
+      const stored = localStorage.getItem('qalby_fb_pages');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      }
+    } catch {}
+    return [
+      {
+        id: 'page-sharif-story',
+        name: "Sharif's Life Story",
+        category: 'Public Figure • জীবনের গল্প',
+        likes: '৪.২K লাইক',
+        followersCount: 5300,
+        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
+        cover: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80',
+        role: 'Admin',
+        isOwner: true,
+        isLiked: true,
+        description: 'দৈনন্দিন জীবনের শিক্ষণীয় অভিজ্ঞতা, তিলাওয়াত ও উম্মাহর জন্য দিকনির্দেশনা।',
+        bio: 'সত্য ঘটনা থেকে শিক্ষা। জীবনের গল্প, সংগ্রাম আর ঘুরে দাঁড়ানোর কথা। - Sharif',
+      },
+      {
+        id: 'page-sf-mart',
+        name: 'SF MART BD',
+        category: 'Shopping & Retail',
+        likes: '১.৮K লাইক',
+        followersCount: 2100,
+        avatar: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=300&q=80',
+        cover: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1000&q=80',
+        role: 'Admin',
+        isOwner: true,
+        isLiked: true,
+        description: 'হালাল ই-কমার্স শপ।',
+      },
+      {
+        id: 'page-angel-mahi',
+        name: 'Angel Mahi',
+        category: 'Creator • ইসলামিক কনটেন্ট',
+        likes: '৯৮০ লাইক',
+        followersCount: 1100,
+        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
+        cover: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1000&q=80',
+        role: 'Admin',
+        isOwner: true,
+        isLiked: true,
+        description: 'উম্মাহর জন্য শিক্ষণীয় ভিডিও।',
+      },
+    ];
+  });
 
   const handleMessengerClick = () => {
     if (onOpenMessenger) {
@@ -173,41 +239,128 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         </div>
       </div>
 
-      {/* 1. PROFILE CARD:
-          Left: SI Siddik profile card with blue SI circle
+      {/* 1. PROFILE CARD (Matching Facebook Screenshot 1):
+          Left: User Profile or active Page card
           Right: Switch account icon and dropdown with 9+ red badge */}
       <div
         onClick={onOpenProfile}
         className="bg-white rounded-[12px] p-3 shadow-xs border border-neutral-200/80 flex items-center justify-between cursor-pointer hover:bg-neutral-50 transition-colors"
       >
-        <div className="flex items-center gap-3">
-          {/* Blue SI Circle Avatar matching Screenshot 3 */}
-          <div className="w-10 h-10 rounded-full bg-[#0866FF] text-white font-bold text-base flex items-center justify-center shadow-xs shrink-0">
-            SI
-          </div>
-          <div>
-            <h2 className="font-bold text-[16px] text-neutral-900 leading-tight">
-              {userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Siddik'}
+        <div className="flex items-center gap-3 min-w-0">
+          {activeSwitchedPage ? (
+            <img
+              src={activeSwitchedPage.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'}
+              alt={activeSwitchedPage.name}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src =
+                  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+              }}
+              className="w-10 h-10 rounded-full object-cover border-2 border-[#0866FF] shadow-xs shrink-0"
+            />
+          ) : (
+            <div className="w-10 h-10 rounded-full bg-[#0866FF] text-white font-bold text-base flex items-center justify-center shadow-xs shrink-0">
+              SI
+            </div>
+          )}
+          <div className="min-w-0">
+            <h2 className="font-bold text-[16px] text-neutral-900 leading-tight truncate">
+              {activeSwitchedPage
+                ? activeSwitchedPage.name
+                : userProfile.name && userProfile.name !== 'New Member'
+                ? userProfile.name
+                : 'Sharif Hasan'}
             </h2>
+            {activeSwitchedPage && (
+              <p className="text-[11px] text-[#0866FF] font-semibold mt-0.5">
+                পেজ মোডে আছেন • প্রোফাইলে ফিরুন
+              </p>
+            )}
           </div>
         </div>
 
-        {/* Right side: switch account icon (circular arrow) and dropdown arrow (opens Profile Switcher) */}
+        {/* Right side: switch account icon (circular arrow) and dropdown arrow with 9+ red badge matching Screenshot 1 */}
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => setShowProfileSwitcher(true)}
+            onClick={() => {
+              if (activeSwitchedPage && onSwitchToPersonal) {
+                onSwitchToPersonal();
+              } else {
+                setShowProfileSwitcher(true);
+              }
+            }}
             className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
             title="Switch account"
           >
             <RefreshCw className="w-4 h-4" />
           </button>
+          
           <button
             onClick={() => setShowProfileSwitcher(true)}
-            className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
+            className="relative w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
             title="Accounts"
           >
             <ChevronDown className="w-4 h-4" />
+            {/* Red 9+ Badge from Screenshot 1 */}
+            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#E41E3F] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white shadow-xs">
+              9+
+            </span>
           </button>
+        </div>
+      </div>
+
+      {/* 1.5. YOUR SHORTCUTS (আপনার শর্টকাট - Exact Matching Facebook Screenshot 1) */}
+      <div className="pt-0.5 pb-1">
+        <h3 className="text-[15px] font-bold text-neutral-900 mb-2 px-1">Your shortcuts</h3>
+        <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1 px-1">
+          {/* If currently switched to a page, show personal profile shortcut to switch back */}
+          {activeSwitchedPage && (
+            <div
+              onClick={() => {
+                if (onSwitchToPersonal) onSwitchToPersonal();
+              }}
+              className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
+              style={{ width: '74px' }}
+            >
+              <div className="relative w-[68px] h-[68px] rounded-[20px] bg-[#0866FF] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform">
+                SI
+                <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-xs">
+                  <RefreshCw className="w-3 h-3 text-white" />
+                </div>
+              </div>
+              <p className="text-[12px] font-medium text-neutral-800 text-center truncate w-full group-hover:text-[#0866FF]">
+                {userProfile.name?.split(' ')[0] || 'Sharif'}
+              </p>
+            </div>
+          )}
+
+          {/* Page Shortcuts from Screenshot 1: Sharif's Life Story, SF MART BD, Angel Mahi */}
+          {menuPages.map((page) => (
+            <div
+              key={page.id}
+              onClick={() => setSelectedSwitchPage(page)}
+              className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
+              style={{ width: '74px' }}
+            >
+              <div className="relative w-[68px] h-[68px] rounded-[20px] overflow-hidden bg-neutral-900 shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform">
+                <img
+                  src={page.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'}
+                  alt={page.name}
+                  onError={(e) => {
+                    (e.currentTarget as HTMLImageElement).src =
+                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+                  }}
+                  className="w-full h-full object-cover"
+                />
+                {/* Mini badge icon on bottom right */}
+                <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-white dark:bg-neutral-800 border border-neutral-300 flex items-center justify-center shadow-xs">
+                  <Film className="w-3 h-3 text-red-500" />
+                </div>
+              </div>
+              <p className="text-[12px] font-medium text-neutral-800 text-center truncate w-full group-hover:text-[#0866FF]">
+                {page.name.length > 12 ? `${page.name.slice(0, 10)}...` : page.name}
+              </p>
+            </div>
+          ))}
         </div>
       </div>
 
@@ -221,6 +374,60 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         >
           <Flag className="w-6 h-6 text-black shrink-0" />
           <span className="text-[15px] font-semibold text-neutral-900">Pages</span>
+        </button>
+
+        {/* 1.5. Peace AI (Placed right under Pages as underlined by user) */}
+        <button
+          onClick={() => setShowPeaceAiModal(true)}
+          className="w-full py-2 px-3 hover:bg-blue-50/70 active:bg-blue-100/70 rounded-xl transition-all text-left cursor-pointer flex items-center justify-between border border-blue-100/90 bg-gradient-to-r from-blue-50/60 via-sky-50/40 to-white my-1 group"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-8 h-8 rounded-xl bg-gradient-to-tr from-[#0866FF] via-[#1877F2] to-sky-400 flex items-center justify-center text-white shadow-xs shrink-0">
+              <Sparkles className="w-4 h-4 fill-white/20 stroke-[2.2]" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[15px] font-bold text-neutral-900 group-hover:text-[#0866FF] transition-colors leading-tight">
+                  Peace AI
+                </span>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-[#0866FF] text-white tracking-wider uppercase shadow-2xs">
+                  AI
+                </span>
+              </div>
+              <p className="text-[11px] text-neutral-500 font-medium truncate mt-0.5">
+                {currentLang === 'bn'
+                  ? 'আপনার যেকোনো প্রশ্ন বা জিজ্ঞাসার সমাধান এখান থেকে নিন'
+                  : 'Solve any of your queries and questions here'}
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-[#0866FF] shrink-0 ml-1.5" />
+        </button>
+
+        {/* 1.5. Golden Wallet & Cash Out Menu Item */}
+        <button
+          onClick={onOpenGoldenWallet}
+          className="w-full flex items-center justify-between p-3 bg-gradient-to-r from-amber-500/15 via-yellow-500/10 to-transparent hover:from-amber-500/25 active:from-amber-500/30 rounded-xl transition-all border border-amber-500/30 text-left cursor-pointer group shadow-2xs"
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 rounded-xl bg-gradient-to-tr from-amber-500 to-yellow-300 flex items-center justify-center text-neutral-950 font-black shadow-md shadow-amber-500/20 shrink-0">
+              <Coins className="w-5 h-5 stroke-[2.5]" />
+            </div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-1.5">
+                <span className="text-[15px] font-bold text-neutral-900 dark:text-white group-hover:text-amber-500 transition-colors leading-tight">
+                  গোল্ডেন ওয়ালেট ও ক্যাশ আউট
+                </span>
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-500 to-yellow-400 text-neutral-950 tracking-wider uppercase shadow-2xs">
+                  bKash / নগদ
+                </span>
+              </div>
+              <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold truncate mt-0.5">
+                কয়েন উপহার দিন • অর্জিত কয়েন বিকাশ ও নগদে ক্যাশ আউট করুন
+              </p>
+            </div>
+          </div>
+          <ChevronRight className="w-4 h-4 text-neutral-400 group-hover:text-amber-500 shrink-0 ml-1.5" />
         </button>
 
         {/* 2. Saved (bookmark icon) */}
@@ -690,6 +897,24 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           onCreatePage={() => onNavigateTab('pages')}
         />
       )}
+
+      {/* Switch to Page Bottom Sheet (Matching Facebook Screenshot 2) */}
+      <FbSwitchToPageSheet
+        isOpen={Boolean(selectedSwitchPage)}
+        onClose={() => setSelectedSwitchPage(null)}
+        page={selectedSwitchPage}
+        onConfirmSwitch={(page) => {
+          if (onSwitchToPage) {
+            onSwitchToPage(page);
+          }
+          setSelectedSwitchPage(null);
+          onNavigateTab('home');
+        }}
+        onViewPageWithoutSwitch={(page) => {
+          setSelectedSwitchPage(null);
+          onNavigateTab('pages');
+        }}
+      />
 
     </div>
   );

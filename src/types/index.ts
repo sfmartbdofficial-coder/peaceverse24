@@ -64,6 +64,8 @@ export interface PostItem {
   feeling?: string;
   taggedFriends?: string[];
   typingUsers?: { id: string; name: string }[];
+  goldenGiftsCount?: number;
+  goldenGiftsAmount?: number;
 }
 
 export interface StoryItem {
@@ -185,6 +187,36 @@ export interface UserProfile {
   relationship?: string;
   website?: string;
   hobbies?: string[];
+  goldenCoins?: number;
+  earnedCoins?: number;
+}
+
+export interface GoldenGiftTransaction {
+  id: string;
+  postId: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar?: string;
+  receiverId?: string;
+  receiverName?: string;
+  amount: number;
+  message?: string;
+  createdAt: string;
+}
+
+export interface GoldenCashoutRequest {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  userPhone?: string;
+  coinsAmount: number;
+  moneyAmount: number; // In BDT
+  paymentMethod: 'bkash' | 'nagad' | 'rocket' | 'bank';
+  accountNumber: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+  processedAt?: string;
 }
 
 // Backward compatibility types
