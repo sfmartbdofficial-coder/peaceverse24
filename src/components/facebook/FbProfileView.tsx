@@ -81,11 +81,25 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
     notifications?: number;
   }>>(() => {
     try {
-      const stored = localStorage.getItem('peaceverse_extra_profiles');
-      return stored ? JSON.parse(stored) : [];
-    } catch {
-      return [];
-    }
+      const stored = localStorage.getItem('qalby_fb_pages');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
+          const userPages = parsed.filter((p: any) => p.isOwner && !demoIds.includes(p.id));
+          if (userPages.length > 0) {
+            return userPages.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              avatar: p.avatar,
+              type: 'page' as const,
+              notifications: 2,
+            }));
+          }
+        }
+      }
+    } catch {}
+    return [];
   });
 
   const [otherProfiles, setOtherProfiles] = useState<Array<{
@@ -652,14 +666,14 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             </div>
 
             <p className="text-xs text-neutral-600 leading-relaxed">
-              Manage your connected experiences and account settings across Meta technologies like Facebook, Instagram, and WhatsApp.
+              Manage your connected experiences and account settings across peaceverse24.
             </p>
 
             <div className="space-y-2 text-sm font-medium">
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-neutral-900">Profiles & Accounts</p>
-                  <p className="text-xs text-neutral-500">Facebook</p>
+                  <p className="text-xs text-neutral-500">peaceverse24</p>
                 </div>
                 <span className="text-xs text-[#0866FF] font-bold">
                   {1 + extraProfiles.length} connected

@@ -49,15 +49,60 @@ const resolvedFirebaseConfig = {
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
 
-// Initialize Firestore (uses default database if none specified)
-export const db =
-  resolvedFirebaseConfig.firestoreDatabaseId &&
-  resolvedFirebaseConfig.firestoreDatabaseId !== '(default)'
-    ? getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId)
-    : getFirestore(app);
+// Initialize Firestore with specific database ID from config as mandated by skill
+export const db = getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId);
 
 // Initialize Auth
 export const auth = getAuth(app);
+
+// Firestore Error Handling (Section 3 of Firebase Integration Skill)
+export enum OperationType {
+  CREATE = 'create',
+  UPDATE = 'update',
+  DELETE = 'delete',
+  LIST = 'list',
+  GET = 'get',
+  WRITE = 'write',
+}
+
+export interface FirestoreErrorInfo {
+  error: string;
+  operationType: OperationType;
+  path: string | null;
+  authInfo: {
+    userId?: string | null;
+    email?: string | null;
+    emailVerified?: boolean | null;
+    isAnonymous?: boolean | null;
+    tenantId?: string | null;
+    providerInfo?: {
+      providerId?: string | null;
+      email?: string | null;
+    }[];
+  };
+}
+
+export function handleFirestoreError(error: unknown, operationType: OperationType, path: string | null) {
+  const errInfo: FirestoreErrorInfo = {
+    error: error instanceof Error ? error.message : String(error),
+    authInfo: {
+      userId: auth.currentUser?.uid,
+      email: auth.currentUser?.email,
+      emailVerified: auth.currentUser?.emailVerified,
+      isAnonymous: auth.currentUser?.isAnonymous,
+      tenantId: auth.currentUser?.tenantId,
+      providerInfo:
+        auth.currentUser?.providerData?.map((provider) => ({
+          providerId: provider.providerId,
+          email: provider.email,
+        })) || [],
+    },
+    operationType,
+    path,
+  };
+  console.warn('Firestore Operation Notice: ', JSON.stringify(errInfo));
+  return errInfo;
+}
 
 // Export active project information for debugging & configuration transparency
 export const activeFirebaseConfig = resolvedFirebaseConfig;
@@ -122,8 +167,12 @@ export async function testFirebaseConnection(): Promise<boolean> {
     console.log('Peace World: Connected to Firestore successfully.');
     return true;
   } catch (err: any) {
-    if (err?.message?.includes('the client is offline')) {
-      console.warn('Peace World: Firestore offline mode active.');
+    if (
+      err?.message?.includes('the client is offline') ||
+      err?.code === 'unavailable' ||
+      err?.message?.includes('unavailable')
+    ) {
+      console.warn('Peace World: Firestore offline mode active. App working seamlessly.');
     }
     return false;
   }

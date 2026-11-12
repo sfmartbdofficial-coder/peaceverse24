@@ -121,7 +121,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           </button>
 
           <span className="font-black text-2xl tracking-tighter text-[#0866FF] flex items-center select-none font-sans lowercase">
-            peaceverse
+            peaceverse24
           </span>
         </div>
 

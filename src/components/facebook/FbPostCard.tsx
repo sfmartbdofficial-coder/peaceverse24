@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
 import { FbVideoPlayer } from './FbVideoPlayer';
+import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
 
 interface FbPostCardProps {
   post: PostItem;
@@ -66,6 +67,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
   const [hidden, setHidden] = useState(false);
+  const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
 
   // Appeal modal state for blocked posts
   const [showAppealModal, setShowAppealModal] = useState(false);
@@ -491,14 +493,19 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
       )}
 
-      {/* 4. Media Section (Image or Video) */}
+      {/* 4. Media Section (Image or Video) - Click opens Facebook Fullscreen Lightbox */}
       {post.mediaType === 'image' && post.mediaUrl && (
-        <div className="w-full bg-black max-h-[500px] overflow-hidden">
+        <div
+          onClick={() => setShowPhotoLightbox(true)}
+          className="w-full bg-black max-h-[500px] overflow-hidden cursor-pointer group relative select-none"
+          title="ছবিটি পুরো স্ক্রিনে বড় করে দেখুন (View Fullscreen)"
+        >
           <img
             src={post.mediaUrl}
             alt="media"
-            className="w-full h-auto object-cover max-h-[500px]"
+            className="w-full h-auto object-cover max-h-[500px] group-hover:opacity-95 transition-all group-active:scale-[0.99]"
           />
+          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
         </div>
       )}
 
@@ -818,6 +825,21 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             </div>
           </div>
         </div>
+      )}
+
+      {/* 8. Facebook Fullscreen Photo Viewer Lightbox */}
+      {showPhotoLightbox && (
+        <FbPhotoLightboxModal
+          isOpen={showPhotoLightbox}
+          onClose={() => setShowPhotoLightbox(false)}
+          post={post}
+          photoUrl={post.mediaUrl}
+          onToggleReaction={onToggleReaction}
+          onAddComment={onAddComment}
+          onToggleSave={onToggleSave}
+          onOpenGiftModal={onOpenGiftModal}
+          currentUserName={currentUserName}
+        />
       )}
 
     </article>

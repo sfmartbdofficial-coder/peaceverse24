@@ -1,12 +1,12 @@
 {
-  "projectId": "peaceverse24-d8905",
-  "appId": "1:40674424887:web:d8f0e1dc142fbdf435e7b2",
-  "apiKey": "AIzaSyBPs9uZg28Hv7Aa9SNvsBAe0m_yoqdT_CY",
-  "authDomain": "peaceverse24-d8905.firebaseapp.com",
-  "firestoreDatabaseId": "(default)",
-  "storageBucket": "peaceverse24-d8905.firebasestorage.app",
-  "messagingSenderId": "40674424887",
-  "measurementId": "G-QZW01R2S92",
-  "oAuthClientId": "",
+  "projectId": "gen-lang-client-0936405543",
+  "appId": "1:499589609756:web:6b0e982f903121c07562d9",
+  "apiKey": "AIzaSyDqvbDypsSdmuIiu70qxPHo3103cNwLk54",
+  "authDomain": "gen-lang-client-0936405543.firebaseapp.com",
+  "firestoreDatabaseId": "ai-studio-peaceverse-d7a086ee-044c-4934-8539-89a03de39673",
+  "storageBucket": "gen-lang-client-0936405543.firebasestorage.app",
+  "messagingSenderId": "499589609756",
+  "measurementId": "",
+  "oAuthClientId": "499589609756-0242pd9mpoubdq2si3acojr8p5ak156l.apps.googleusercontent.com",
   "recaptchaSiteKey": ""
 }

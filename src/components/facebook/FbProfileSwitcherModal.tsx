@@ -46,14 +46,30 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
   const [switchFeedback, setSwitchFeedback] = useState<string | null>(null);
   const [showAccountsCenter, setShowAccountsCenter] = useState<boolean>(false);
 
-  // Dynamic extra profiles (e.g. pages or IDs created by user)
+  // Dynamic extra profiles (e.g. pages created by user, excluding demo mock IDs)
   const [extraProfiles] = useState<ExtraProfileItem[]>(() => {
     try {
-      const stored = localStorage.getItem('peaceverse_extra_profiles');
-      return stored ? JSON.parse(stored) : [];
+      const stored = localStorage.getItem('qalby_fb_pages');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed)) {
+          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
+          const userPages = parsed.filter((p: any) => p.isOwner && !demoIds.includes(p.id));
+          if (userPages.length > 0) {
+            return userPages.map((p: any) => ({
+              id: p.id,
+              name: p.name,
+              avatar: p.avatar,
+              type: 'page' as const,
+              notifications: 2,
+            }));
+          }
+        }
+      }
     } catch {
       return [];
     }
+    return [];
   });
 
   // Dynamic other profiles (e.g. connected Instagram or WhatsApp)
@@ -171,7 +187,7 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
               </button>
             ))}
 
-            {/* Create Facebook Page Button */}
+            {/* Create peaceverse24 Page Button */}
             <button
               onClick={() => {
                 onClose();
@@ -183,7 +199,7 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
                 <Plus className="w-6 h-6 stroke-[2.2]" />
               </div>
               <p className="font-medium text-[15px] text-neutral-900">
-                Create Facebook Page
+                Create peaceverse24 Page
               </p>
             </button>
 
@@ -278,14 +294,14 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
             </div>
 
             <p className="text-xs text-neutral-600 leading-relaxed">
-              Manage your connected experiences and account settings across Meta technologies like Facebook, Instagram, and WhatsApp.
+              Manage your connected experiences and account settings across peaceverse24.
             </p>
 
             <div className="space-y-2 text-sm font-medium">
               <div className="p-3 rounded-xl bg-neutral-50 border border-neutral-200 flex items-center justify-between">
                 <div>
                   <p className="font-semibold text-neutral-900">Profiles & Accounts</p>
-                  <p className="text-xs text-neutral-500">Facebook</p>
+                  <p className="text-xs text-neutral-500">peaceverse24</p>
                 </div>
                 <span className="text-xs text-[#0866FF] font-bold">
                   {1 + extraProfiles.length} connected

@@ -6,6 +6,7 @@ import {
   Clock,
   Store,
   Users,
+  Plus,
   ChevronDown,
   ChevronUp,
   ChevronRight,
@@ -58,6 +59,7 @@ import { FbSettingsPrivacyModals, SettingsModalType } from './FbSettingsPrivacyM
 import { FbAlsoFromPeaceModal, AlsoAppType } from './FbAlsoFromPeaceModal';
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
+import { FbCreatePageLandingView } from './FbCreatePageLandingView';
 import { PageItem } from '../../types';
 
 interface FbMenuViewProps {
@@ -127,58 +129,21 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [selectedSwitchPage, setSelectedSwitchPage] = useState<PageItem | null>(null);
   const [darkModeInline, setDarkModeInline] = useState(isDarkMode);
+  const [showCreatePageLanding, setShowCreatePageLanding] = useState(false);
 
-  // Load all pages for Your shortcuts row matching Screenshot 1
+  // Load ONLY user-created pages for Your shortcuts (excluding demo mock pages)
   const [menuPages, setMenuPages] = useState<PageItem[]>(() => {
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
+          return parsed.filter((p: PageItem) => p.isOwner && !demoIds.includes(p.id));
+        }
       }
     } catch {}
-    return [
-      {
-        id: 'page-sharif-story',
-        name: "Sharif's Life Story",
-        category: 'Public Figure • জীবনের গল্প',
-        likes: '৪.২K লাইক',
-        followersCount: 5300,
-        avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-        cover: 'https://images.unsplash.com/photo-1469854523086-cc02fe5d8800?auto=format&fit=crop&w=1000&q=80',
-        role: 'Admin',
-        isOwner: true,
-        isLiked: true,
-        description: 'দৈনন্দিন জীবনের শিক্ষণীয় অভিজ্ঞতা, তিলাওয়াত ও উম্মাহর জন্য দিকনির্দেশনা।',
-        bio: 'সত্য ঘটনা থেকে শিক্ষা। জীবনের গল্প, সংগ্রাম আর ঘুরে দাঁড়ানোর কথা। - Sharif',
-      },
-      {
-        id: 'page-sf-mart',
-        name: 'SF MART BD',
-        category: 'Shopping & Retail',
-        likes: '১.৮K লাইক',
-        followersCount: 2100,
-        avatar: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=300&q=80',
-        cover: 'https://images.unsplash.com/photo-1441986300917-64674bd600d8?auto=format&fit=crop&w=1000&q=80',
-        role: 'Admin',
-        isOwner: true,
-        isLiked: true,
-        description: 'হালাল ই-কমার্স শপ।',
-      },
-      {
-        id: 'page-angel-mahi',
-        name: 'Angel Mahi',
-        category: 'Creator • ইসলামিক কনটেন্ট',
-        likes: '৯৮০ লাইক',
-        followersCount: 1100,
-        avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
-        cover: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1000&q=80',
-        role: 'Admin',
-        isOwner: true,
-        isLiked: true,
-        description: 'উম্মাহর জন্য শিক্ষণীয় ভিডিও।',
-      },
-    ];
+    return [];
   });
 
   const handleMessengerClick = () => {
@@ -188,6 +153,19 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       onNavigateTab('friends');
     }
   };
+
+  if (showCreatePageLanding) {
+    return (
+      <FbCreatePageLandingView
+        onBack={() => setShowCreatePageLanding(false)}
+        onPageCreated={(newPage) => {
+          setMenuPages((prev) => [newPage, ...prev]);
+          setShowCreatePageLanding(false);
+          setSelectedSwitchPage(newPage);
+        }}
+      />
+    );
+  }
 
   return (
     <div className="max-w-[500px] mx-auto min-h-screen bg-[#F0F2F5] text-neutral-900 pb-24 p-3 sm:p-4 space-y-3 font-sans select-none">
@@ -308,7 +286,27 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         </div>
       </div>
 
-      {/* 1.5. YOUR SHORTCUTS (আপনার শর্টকাট - Exact Matching Facebook Screenshot 1) */}
+      {/* 1.2. (+) CREATE PEACEVERSE24 PAGE BUTTON */}
+      <div
+        onClick={() => setShowCreatePageLanding(true)}
+        className="flex items-center gap-3 p-3 sm:p-3.5 bg-white rounded-2xl hover:bg-neutral-50 cursor-pointer transition-all border border-neutral-200/80 shadow-xs active:scale-[0.99] group"
+        title="নতুন peaceverse24 পেজ খুলুন"
+      >
+        <div className="w-10 h-10 rounded-full bg-neutral-100 group-hover:bg-[#0866FF]/15 text-neutral-800 group-hover:text-[#0866FF] flex items-center justify-center shrink-0 transition-colors">
+          <Plus className="w-5 h-5 stroke-[2.5]" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-bold text-[15px] text-neutral-900 leading-tight">
+            Create peaceverse24 Page
+          </p>
+          <p className="text-[11px] text-neutral-500 truncate">
+            ব্যবসা, ব্র্যান্ড বা ব্যক্তিত্বের জন্য নতুন পেজ তৈরি করুন
+          </p>
+        </div>
+        <ChevronRight className="w-5 h-5 text-neutral-400 group-hover:translate-x-0.5 transition-transform shrink-0" />
+      </div>
+
+      {/* 1.5. YOUR SHORTCUTS (আপনার শর্টকাট - Authentic Facebook Shortcuts) */}
       <div className="pt-0.5 pb-1">
         <h3 className="text-[15px] font-bold text-neutral-900 mb-2 px-1">Your shortcuts</h3>
         <div className="flex items-center gap-3 overflow-x-auto no-scrollbar pb-1 px-1">
@@ -320,47 +318,71 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
               }}
               className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
               style={{ width: '74px' }}
+              title="ব্যক্তিগত প্রোফাইলে ফিরুন"
             >
-              <div className="relative w-[68px] h-[68px] rounded-[20px] bg-[#0866FF] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform">
-                SI
+              <div className="relative w-[68px] h-[68px] rounded-[20px] bg-[#0866FF] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform overflow-hidden">
+                {userProfile.avatar ? (
+                  <img src={userProfile.avatar} alt="Profile" className="w-full h-full object-cover" />
+                ) : (
+                  <span>SI</span>
+                )}
                 <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-xs">
                   <RefreshCw className="w-3 h-3 text-white" />
                 </div>
               </div>
               <p className="text-[12px] font-medium text-neutral-800 text-center truncate w-full group-hover:text-[#0866FF]">
-                {userProfile.name?.split(' ')[0] || 'Sharif'}
+                {userProfile.name?.split(' ')[0] || 'Siddik'}
               </p>
             </div>
           )}
 
-          {/* Page Shortcuts from Screenshot 1: Sharif's Life Story, SF MART BD, Angel Mahi */}
-          {menuPages.map((page) => (
+          {/* User's Created Pages (e.g. হালাল ফুড কিচেন) */}
+          {menuPages
+            .filter((page) => !activeSwitchedPage || page.id !== activeSwitchedPage.id)
+            .map((page) => (
+              <div
+                key={page.id}
+                onClick={() => setSelectedSwitchPage(page)}
+                className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
+                style={{ width: '74px' }}
+                title={`${page.name} পেজে সুইচ করুন`}
+              >
+                <div className="relative w-[68px] h-[68px] rounded-[20px] overflow-hidden bg-neutral-900 shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform">
+                  <img
+                    src={page.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'}
+                    alt={page.name}
+                    onError={(e) => {
+                      (e.currentTarget as HTMLImageElement).src =
+                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
+                    }}
+                    className="w-full h-full object-cover"
+                  />
+                  <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-white dark:bg-neutral-800 border border-neutral-300 flex items-center justify-center shadow-xs">
+                    <Flag className="w-3 h-3 text-[#1877F2]" />
+                  </div>
+                </div>
+                <p className="text-[12px] font-medium text-neutral-800 text-center truncate w-full group-hover:text-[#0866FF]">
+                  {page.name.length > 12 ? `${page.name.slice(0, 10)}...` : page.name}
+                </p>
+              </div>
+            ))}
+
+          {/* If on personal profile and no pages created yet, provide a quick create button */}
+          {!activeSwitchedPage && menuPages.length === 0 && (
             <div
-              key={page.id}
-              onClick={() => setSelectedSwitchPage(page)}
+              onClick={() => onNavigateTab('pages')}
               className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
               style={{ width: '74px' }}
+              title="নতুন পেজ তৈরি করুন"
             >
-              <div className="relative w-[68px] h-[68px] rounded-[20px] overflow-hidden bg-neutral-900 shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform">
-                <img
-                  src={page.avatar || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80'}
-                  alt={page.name}
-                  onError={(e) => {
-                    (e.currentTarget as HTMLImageElement).src =
-                      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
-                  }}
-                  className="w-full h-full object-cover"
-                />
-                {/* Mini badge icon on bottom right */}
-                <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-white dark:bg-neutral-800 border border-neutral-300 flex items-center justify-center shadow-xs">
-                  <Film className="w-3 h-3 text-red-500" />
-                </div>
+              <div className="w-[68px] h-[68px] rounded-[20px] bg-neutral-100 hover:bg-[#1877F2]/10 border border-neutral-200 flex items-center justify-center text-neutral-600 hover:text-[#1877F2] transition-colors group-hover:scale-105">
+                <Plus className="w-6 h-6" />
               </div>
-              <p className="text-[12px] font-medium text-neutral-800 text-center truncate w-full group-hover:text-[#0866FF]">
-                {page.name.length > 12 ? `${page.name.slice(0, 10)}...` : page.name}
+              <p className="text-[12px] font-medium text-neutral-700 text-center truncate w-full">
+                পেইজ তৈরি
               </p>
             </div>
-          ))}
+          )}
         </div>
       </div>
 
@@ -894,7 +916,10 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         <FbProfileSwitcherModal
           userProfile={userProfile}
           onClose={() => setShowProfileSwitcher(false)}
-          onCreatePage={() => onNavigateTab('pages')}
+          onCreatePage={() => {
+            setShowProfileSwitcher(false);
+            setShowCreatePageLanding(true);
+          }}
         />
       )}
 

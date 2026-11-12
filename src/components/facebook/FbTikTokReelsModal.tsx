@@ -401,7 +401,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
         {/* ========================================================= */}
         {/* RIGHT FLOATING ACTION COLUMN (COMPACT & BALANCED) */}
         {/* ========================================================= */}
-        <div className="absolute right-2 sm:right-3.5 bottom-12 sm:bottom-16 z-30 flex flex-col items-center gap-2 sm:gap-2.5 text-white pointer-events-auto select-none">
+        <div className="absolute right-2 sm:right-3.5 bottom-4 sm:bottom-8 z-30 flex flex-col items-center gap-1.5 sm:gap-2 text-white pointer-events-auto select-none max-h-[72vh] justify-end">
           {/* 1. Like Button (Heart) */}
           <button
             onClick={(e) => {

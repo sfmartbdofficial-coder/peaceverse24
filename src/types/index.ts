@@ -142,9 +142,13 @@ export interface PageItem {
   bio?: string;
   phone?: string;
   website?: string;
+  websites?: string[];
   email?: string;
   location?: string;
   rating?: string;
+  actionButton?: string;
+  actionUrl?: string;
+  hours?: string;
   createdAt?: string;
   posts?: PostItem[];
 }

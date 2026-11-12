@@ -22,6 +22,7 @@ import {
   Building,
   ShieldCheck,
   Star,
+  ChevronDown,
   Users,
   DollarSign,
   TrendingUp,
@@ -38,6 +39,8 @@ import {
 } from 'lucide-react';
 import { PageItem, PostItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
+import { FbCreatePageLandingView } from './FbCreatePageLandingView';
+import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -302,6 +305,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPage, setSelectedPage] = useState<PageItem | null>(null);
 
+  // Dedicated Landing Page Creation State
+  const [showCreatePageLanding, setShowCreatePageLanding] = useState(false);
+  const [sheetPage, setSheetPage] = useState<PageItem | null>(null);
+
   // Create Page Wizard Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
   const [createStep, setCreateStep] = useState<1 | 2 | 3>(1);
@@ -549,14 +556,34 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
       p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
       p.category.toLowerCase().includes(searchQuery.toLowerCase());
 
+    const DEMO_PAGE_IDS = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
     if (!matchSearch) return false;
-    if (activeTab === 'manage') return p.isOwner;
+    if (activeTab === 'manage') return p.isOwner && !DEMO_PAGE_IDS.includes(p.id);
     if (activeTab === 'liked') return p.isLiked;
     if (activeTab === 'discover') return !p.isOwner;
     return true;
   });
 
-  const managedPages = pages.filter((p) => p.isOwner);
+  const DEMO_PAGE_IDS = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
+  const managedPages = pages.filter((p) => p.isOwner && !DEMO_PAGE_IDS.includes(p.id));
+
+  // -------------------------------------------------------------
+  // DEDICATED FULL-SCREEN LANDING VIEW FOR CREATING A FACEBOOK PAGE
+  // -------------------------------------------------------------
+  if (showCreatePageLanding) {
+    return (
+      <FbCreatePageLandingView
+        onBack={() => setShowCreatePageLanding(false)}
+        onPageCreated={(newPage) => {
+          setPages((prev) => [newPage, ...prev]);
+          setShowCreatePageLanding(false);
+          setSelectedPage(newPage);
+          setSheetPage(newPage);
+          showToast(`🎉 "${newPage.name}" পেজটি সফলভাবে তৈরি ও সংরক্ষিত হয়েছে!`);
+        }}
+      />
+    );
+  }
 
   // -------------------------------------------------------------
   // DETAIL VIEW FOR A SELECTED PAGE
@@ -718,6 +745,34 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
             </p>
           )}
 
+          {/* Facebook Screenshot 1 Primary Action Buttons: Following dropdown & Start Order */}
+          <div className="grid grid-cols-2 gap-2 pt-1">
+            <button
+              onClick={() => handleToggleLike(selectedPage.id)}
+              className="py-2.5 px-4 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-1.5 shadow-md active:scale-98 transition-all cursor-pointer"
+            >
+              <span>{selectedPage.isLiked ? 'Following' : 'Follow'}</span>
+              <ChevronDown className="w-4 h-4 stroke-[2.5]" />
+            </button>
+
+            <button
+              onClick={() => {
+                if (selectedPage.websites && selectedPage.websites.length > 0) {
+                  const url = selectedPage.websites[0];
+                  window.open(url.startsWith('http') ? url : `https://${url}`, '_blank');
+                } else if (selectedPage.website) {
+                  window.open(selectedPage.website.startsWith('http') ? selectedPage.website : `https://${selectedPage.website}`, '_blank');
+                } else {
+                  showToast(`${selectedPage.actionButton || 'Start Order'} চালু হচ্ছে...`);
+                }
+              }}
+              className="py-2.5 px-4 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 border border-white/10 active:scale-98 transition-all cursor-pointer"
+            >
+              <span>🛍️</span>
+              <span>{selectedPage.actionButton || 'Start Order'}</span>
+            </button>
+          </div>
+
           {/* Quick Info Grid */}
           <div className="grid grid-cols-2 gap-2 text-[11px] text-[#b0b3b8] bg-[#242526] p-3 rounded-xl border border-[#393a3b]">
             {selectedPage.location && (
@@ -732,16 +787,41 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
                 <span className="truncate">{selectedPage.phone}</span>
               </div>
             )}
-            {selectedPage.website && (
-              <div className="flex items-center gap-1.5">
-                <Globe className="w-3.5 h-3.5 text-blue-400 shrink-0" />
-                <span className="truncate">{selectedPage.website}</span>
-              </div>
-            )}
             {selectedPage.rating && (
               <div className="flex items-center gap-1.5">
                 <Star className="w-3.5 h-3.5 text-amber-400 fill-amber-400 shrink-0" />
                 <span className="truncate">{selectedPage.rating}</span>
+              </div>
+            )}
+            {selectedPage.email && (
+              <div className="flex items-center gap-1.5">
+                <Mail className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span className="truncate">{selectedPage.email}</span>
+              </div>
+            )}
+
+            {/* Multiple Websites & Links (৪-৫টি ওয়েবসাইট তালিকা) */}
+            {((selectedPage.websites && selectedPage.websites.length > 0) || selectedPage.website) && (
+              <div className="col-span-2 space-y-1.5 pt-2 border-t border-[#393a3b]/60">
+                <p className="text-[10px] uppercase font-bold text-neutral-400 flex items-center gap-1">
+                  <Globe className="w-3 h-3 text-[#0866FF]" />
+                  <span>ওয়েবসাইট ও লিংকসমূহ:</span>
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  {(selectedPage.websites || [selectedPage.website!]).map((site, idx) => (
+                    <a
+                      key={idx}
+                      href={site.startsWith('http') ? site : `https://${site}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[#18191a] hover:bg-[#3a3b3c] border border-[#393a3b] text-[#0866FF] hover:text-white transition-colors text-xs font-semibold"
+                    >
+                      <Globe className="w-3.5 h-3.5" />
+                      <span className="truncate max-w-[200px]">{site}</span>
+                      <ArrowUpRight className="w-3 h-3 opacity-60" />
+                    </a>
+                  ))}
+                </div>
               </div>
             )}
           </div>
@@ -1192,6 +1272,20 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
             </div>
           )}
         </div>
+
+        {/* Facebook Native Switch to Page Sheet (Matching Screenshot 1) */}
+        <FbSwitchToPageSheet
+          isOpen={Boolean(sheetPage)}
+          onClose={() => setSheetPage(null)}
+          page={sheetPage}
+          onConfirmSwitch={(page) => {
+            if (onSwitchToPage) onSwitchToPage(page);
+            setSheetPage(null);
+          }}
+          onViewPageWithoutSwitch={() => {
+            setSheetPage(null);
+          }}
+        />
       </div>
     );
   }
@@ -1224,11 +1318,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
 
         {/* Big Prominent "+ Create (নতুন পেজ খুলুন)" Button */}
         <button
-          onClick={() => {
-            setShowCreateModal(true);
-            setCreateStep(1);
-          }}
-          className="px-3.5 py-2 rounded-full bg-[#1877F2] hover:bg-[#166fe5] text-xs font-bold text-white transition-all flex items-center gap-1.5 shadow-lg active:scale-95"
+          onClick={() => setShowCreatePageLanding(true)}
+          className="px-3.5 py-2 rounded-full bg-[#1877F2] hover:bg-[#166fe5] text-xs font-bold text-white transition-all flex items-center gap-1.5 shadow-lg active:scale-95 cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
           <span>পেজ খুলুন (Create)</span>
@@ -1238,11 +1329,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
       {/* Facebook Native Action Pills Row */}
       <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
         <button
-          onClick={() => {
-            setShowCreateModal(true);
-            setCreateStep(1);
-          }}
-          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#1877F2]/20 border border-[#1877F2]/40 text-[#1877F2] hover:bg-[#1877F2] hover:text-white text-xs font-bold whitespace-nowrap transition-colors"
+          onClick={() => setShowCreatePageLanding(true)}
+          className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-[#1877F2]/20 border border-[#1877F2]/40 text-[#1877F2] hover:bg-[#1877F2] hover:text-white text-xs font-bold whitespace-nowrap transition-colors cursor-pointer"
         >
           <Plus className="w-4 h-4 stroke-[3]" />
           <span>+ তৈরি করুন (Create)</span>
@@ -1334,11 +1422,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
               </h2>
             </div>
             <button
-              onClick={() => {
-                setShowCreateModal(true);
-                setCreateStep(1);
-              }}
-              className="text-xs font-bold text-[#1877F2] hover:underline flex items-center gap-1"
+              onClick={() => setShowCreatePageLanding(true)}
+              className="text-xs font-bold text-[#1877F2] hover:underline flex items-center gap-1 cursor-pointer"
             >
               <Plus className="w-3.5 h-3.5" />
               <span>নতুন পেজ</span>
@@ -1399,11 +1484,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
             <p className="text-sm font-semibold text-white">কোনো পেইজ খুঁজে পাওয়া যায়নি</p>
             <p className="text-xs text-[#b0b3b8]">নতুন পেজ তৈরি করুন অথবা ফিল্টার পরিবর্তন করুন।</p>
             <button
-              onClick={() => {
-                setShowCreateModal(true);
-                setCreateStep(1);
-              }}
-              className="px-4 py-2 rounded-xl bg-[#1877F2] text-white font-bold text-xs"
+              onClick={() => setShowCreatePageLanding(true)}
+              className="px-4 py-2 rounded-xl bg-[#1877F2] text-white font-bold text-xs cursor-pointer"
             >
               + নতুন পেজ তৈরি করুন
             </button>
@@ -1852,6 +1934,20 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({ onBack, userProfile, o
           <span>{toastMessage}</span>
         </div>
       )}
+
+      {/* Facebook Native Switch to Page Sheet (Matching Screenshot 1) */}
+      <FbSwitchToPageSheet
+        isOpen={Boolean(sheetPage)}
+        onClose={() => setSheetPage(null)}
+        page={sheetPage}
+        onConfirmSwitch={(page) => {
+          if (onSwitchToPage) onSwitchToPage(page);
+          setSheetPage(null);
+        }}
+        onViewPageWithoutSwitch={() => {
+          setSheetPage(null);
+        }}
+      />
     </div>
   );
 };
