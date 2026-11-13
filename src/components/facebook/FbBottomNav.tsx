@@ -97,9 +97,11 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
         >
           <div className="relative">
             <Bell className="w-6 h-6 stroke-[2]" />
-            <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white dark:ring-[#121212]">
-              {notificationsCount || 28}
-            </span>
+            {notificationsCount > 0 && (
+              <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white dark:ring-[#121212]">
+                {notificationsCount > 99 ? '99+' : notificationsCount}
+              </span>
+            )}
           </div>
         </button>
 
@@ -116,19 +118,27 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
         >
           {activeSwitchedPage ? (
             <div className="relative">
-              <img
-                src={activeSwitchedPage.avatar}
-                alt={activeSwitchedPage.name}
-                onError={(e) => {
-                  (e.currentTarget as HTMLImageElement).src =
-                    'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
-                }}
-                className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
-                  currentTab === 'profile' || currentTab === 'menu'
-                    ? 'border-white ring-2 ring-[#0866FF]'
-                    : 'border-transparent'
-                }`}
-              />
+              {activeSwitchedPage.avatar ? (
+                <img
+                  src={activeSwitchedPage.avatar}
+                  alt={activeSwitchedPage.name}
+                  className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
+                    currentTab === 'profile' || currentTab === 'menu'
+                      ? 'border-white ring-2 ring-[#0866FF]'
+                      : 'border-transparent'
+                  }`}
+                />
+              ) : (
+                <div
+                  className={`w-7 h-7 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center text-[11px] font-black border-2 shadow-xs ${
+                    currentTab === 'profile' || currentTab === 'menu'
+                      ? 'border-white ring-2 ring-[#0866FF]'
+                      : 'border-transparent'
+                  }`}
+                >
+                  {activeSwitchedPage.name.trim().charAt(0).toUpperCase()}
+                </div>
+              )}
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-1 ring-white" />
             </div>
           ) : (

@@ -1,10 +1,12 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
 import {
   getFirestore,
+  initializeFirestore,
   collection,
   doc,
   setDoc,
   getDoc,
+  getDocFromCache,
   getDocs,
   updateDoc,
   deleteDoc,
@@ -49,8 +51,48 @@ const resolvedFirebaseConfig = {
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
 
-// Initialize Firestore with specific database ID from config as mandated by skill
-export const db = getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId);
+// Initialize Firestore with specific database ID and auto-long-polling for reliable iframe/mobile connections
+export const db = (() => {
+  try {
+    return initializeFirestore(
+      app,
+      {
+        experimentalAutoDetectLongPolling: true,
+      },
+      resolvedFirebaseConfig.firestoreDatabaseId
+    );
+  } catch {
+    return getFirestore(app, resolvedFirebaseConfig.firestoreDatabaseId);
+  }
+})();
+
+function isOfflineOrUnavailableError(err: any): boolean {
+  const code = String(err?.code || '').toLowerCase();
+  const msg = String(err?.message || err || '').toLowerCase();
+  return (
+    code === 'unavailable' ||
+    code === 'failed-precondition' ||
+    msg.includes('client is offline') ||
+    msg.includes('offline') ||
+    msg.includes('unavailable') ||
+    msg.includes('network')
+  );
+}
+
+async function getDocSafe(docRef: ReturnType<typeof doc>) {
+  try {
+    return await getDoc(docRef);
+  } catch (err) {
+    if (isOfflineOrUnavailableError(err)) {
+      try {
+        return await getDocFromCache(docRef);
+      } catch {
+        return null;
+      }
+    }
+    throw err;
+  }
+}
 
 // Initialize Auth
 export const auth = getAuth(app);
@@ -280,8 +322,12 @@ export async function createRealtimePost(post: PostItem): Promise<boolean> {
       updatedAt: new Date().toISOString(),
     });
     return true;
-  } catch (err) {
-    console.error('Error creating realtime post:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `posts/${post.id}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice creating realtime post:', err);
+    }
     return false;
   }
 }
@@ -290,17 +336,14 @@ export async function createRealtimePost(post: PostItem): Promise<boolean> {
 export async function addRealtimeComment(
   postId: string,
   comment: PostComment,
-  postAuthorName?: string
+  _postAuthorName?: string
 ): Promise<boolean> {
   try {
     const postRef = doc(db, 'posts', postId);
-    const postSnap = await getDoc(postRef);
+    const postSnap = await getDocSafe(postRef);
+    if (!postSnap || !postSnap.exists()) return false;
 
-    let existingComments: PostComment[] = [];
-    if (postSnap.exists()) {
-      existingComments = postSnap.data().comments || [];
-    }
-
+    const existingComments: PostComment[] = postSnap.data().comments || [];
     const updatedComments = [comment, ...existingComments];
 
     await updateDoc(postRef, {
@@ -329,8 +372,12 @@ export async function addRealtimeComment(
     });
 
     return true;
-  } catch (err) {
-    console.error('Error adding realtime comment:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.UPDATE, `posts/${postId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice adding realtime comment:', err);
+    }
     return false;
   }
 }
@@ -345,9 +392,9 @@ export async function toggleRealtimeReaction(
 ): Promise<boolean> {
   try {
     const postRef = doc(db, 'posts', postId);
-    const postSnap = await getDoc(postRef);
+    const postSnap = await getDocSafe(postRef);
 
-    if (!postSnap.exists()) return false;
+    if (!postSnap || !postSnap.exists()) return false;
     const data = postSnap.data();
 
     const isSame = currentReaction === reaction;
@@ -362,12 +409,29 @@ export async function toggleRealtimeReaction(
       mashaallahCount: 0,
     };
 
+    const keyMap: Record<ReactionType, 'likeCount' | 'loveCount' | 'subhanallahCount' | 'mashaallahCount' | 'careCount' | 'sadCount'> = {
+      like: 'likeCount',
+      love: 'loveCount',
+      subhanallah: 'subhanallahCount',
+      mashaallah: 'mashaallahCount',
+      care: 'careCount',
+      sad: 'sadCount',
+    };
+
     const newTotal = Math.max(0, (currentReactions.total || 0) + diff);
     const updatedReactions = {
       ...currentReactions,
       total: newTotal,
-      likeCount: Math.max(0, (currentReactions.likeCount || 0) + diff),
     };
+
+    if (currentReaction && keyMap[currentReaction]) {
+      const prevKey = keyMap[currentReaction];
+      updatedReactions[prevKey] = Math.max(0, (updatedReactions[prevKey] || 0) - 1);
+    }
+    if (nextReaction && keyMap[nextReaction]) {
+      const nextKey = keyMap[nextReaction];
+      updatedReactions[nextKey] = (updatedReactions[nextKey] || 0) + 1;
+    }
 
     await updateDoc(postRef, {
       reactions: updatedReactions,
@@ -378,11 +442,12 @@ export async function toggleRealtimeReaction(
     if (!isSame) {
       // Send realtime notification
       const reactionBangla: Record<ReactionType, string> = {
-        like: 'লাইক দিয়েছেন',
-        love: 'লাভ দিয়েছেন',
-        subhanallah: 'সুবহানাল্লাহ বলেছেন',
-        mashaallah: 'মাশাআল্লাহ বলেছেন',
-        care: 'কেয়ার রিয়েক্ট দিয়েছেন',
+        like: '🤲 Dua দিয়েছেন',
+        love: '❤️ MashaAllah দিয়েছেন',
+        subhanallah: '🕋 SubhanAllah বলেছেন',
+        mashaallah: '🙏 Alhamdulillah বলেছেন',
+        care: '🤝 InshaAllah দিয়েছেন',
+        sad: '😢 Astagfirullah বলেছেন',
       };
 
       await sendRealtimeNotification({
@@ -399,8 +464,12 @@ export async function toggleRealtimeReaction(
     }
 
     return true;
-  } catch (err) {
-    console.error('Error toggling realtime reaction:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.UPDATE, `posts/${postId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice toggling realtime reaction:', err);
+    }
     return false;
   }
 }
@@ -414,8 +483,8 @@ export async function setRealtimeTypingStatus(
 ) {
   try {
     const postRef = doc(db, 'posts', postId);
-    const postSnap = await getDoc(postRef);
-    if (!postSnap.exists()) return;
+    const postSnap = await getDocSafe(postRef);
+    if (!postSnap || !postSnap.exists()) return;
 
     const data = postSnap.data();
     let typingList: { id: string; name: string }[] = data.typingUsers || [];
@@ -449,8 +518,12 @@ export async function updateRealtimePostPrivacy(
       updatedAt: new Date().toISOString(),
     });
     return true;
-  } catch (err) {
-    console.error('Error updating post privacy:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.UPDATE, `posts/${postId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice updating post privacy:', err);
+    }
     return false;
   }
 }
@@ -491,8 +564,12 @@ export async function moderateRealtimePost(
     });
 
     return true;
-  } catch (err) {
-    console.error('Error moderating post:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.UPDATE, `posts/${postId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice moderating post:', err);
+    }
     return false;
   }
 }
@@ -503,8 +580,12 @@ export async function deleteRealtimePost(postId: string): Promise<boolean> {
     const postRef = doc(db, 'posts', postId);
     await deleteDoc(postRef);
     return true;
-  } catch (err) {
-    console.error('Error deleting post:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.DELETE, `posts/${postId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice deleting post:', err);
+    }
     return false;
   }
 }
@@ -535,8 +616,12 @@ export async function submitRealtimeAppeal(
     });
 
     return true;
-  } catch (err) {
-    console.error('Error submitting appeal:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `appeals/${postId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice submitting appeal:', err);
+    }
     return false;
   }
 }
@@ -562,11 +647,16 @@ export function subscribeToRealtimeNotifications(
           liveNotifs.push({
             id: docSnap.id,
             type: data.type || 'general',
+            from: data.from,
+            to: data.to,
+            read: data.read ?? !data.isUnread,
             avatar: data.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
             title: data.title || '',
             subtitle: data.subtitle,
+            image: data.image,
+            link: data.link,
             timeAgo: data.timeAgo || 'Just now',
-            isUnread: data.isUnread ?? true,
+            isUnread: data.isUnread ?? !(data.read ?? false),
             badgeType: data.badgeType || 'bell',
             postId: data.postId,
           });
@@ -595,19 +685,38 @@ export function subscribeToRealtimeNotifications(
 export async function sendRealtimeNotification(notification: NotificationItem) {
   try {
     const notifRef = doc(db, 'notifications', notification.id);
-    await setDoc(notifRef, {
-      ...notification,
+    const cleanPayload: Record<string, any> = {
+      id: notification.id,
+      type: notification.type,
+      from: notification.from || 'creator',
+      to: notification.to || 'all',
+      read: notification.read ?? false,
+      avatar: notification.avatar,
+      title: notification.title,
+      subtitle: notification.subtitle || '',
+      timeAgo: notification.timeAgo || 'Just now',
+      isUnread: notification.isUnread ?? true,
+      badgeType: notification.badgeType || 'bell',
       createdAtMillis: Date.now(),
       createdAt: new Date().toISOString(),
-    });
+    };
+    if (notification.image) cleanPayload.image = notification.image;
+    if (notification.link) cleanPayload.link = notification.link;
+    if (notification.postId) cleanPayload.postId = notification.postId;
+
+    await setDoc(notifRef, cleanPayload);
 
     // Sound chime & browser push
     playNotificationSound();
     triggerPushNotification(notification.title, {
       body: notification.subtitle,
     });
-  } catch (err) {
-    console.error('Error sending notification:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `notifications/${notification.id}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice sending notification:', err);
+    }
   }
 }
 
@@ -615,8 +724,12 @@ export async function markNotificationAsRead(notificationId: string) {
   try {
     const notifRef = doc(db, 'notifications', notificationId);
     await updateDoc(notifRef, { isUnread: false });
-  } catch (err) {
-    console.error('Error marking notification read:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.UPDATE, `notifications/${notificationId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice marking notification read:', err);
+    }
   }
 }
 
@@ -628,8 +741,10 @@ export async function markAllRealtimeNotificationsRead(notifications: Notificati
         await updateDoc(notifRef, { isUnread: false }).catch(() => {});
       }
     }
-  } catch (err) {
-    console.error('Error marking all notifications read:', err);
+  } catch (err: any) {
+    if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice marking all notifications read:', err);
+    }
   }
 }
 
@@ -648,9 +763,9 @@ export async function toggleFollowUser(
   try {
     const followDocId = `${followerId}_${targetId}`;
     const followRef = doc(db, 'follows', followDocId);
-    const snap = await getDoc(followRef);
+    const snap = await getDocSafe(followRef);
 
-    if (snap.exists()) {
+    if (snap && snap.exists()) {
       await deleteDoc(followRef);
       return false; // Unfollowed
     } else {
@@ -680,8 +795,12 @@ export async function toggleFollowUser(
 
       return true; // Followed
     }
-  } catch (err) {
-    console.error('Error toggling follow:', err);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `follows/${followerId}_${targetId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice toggling follow:', err);
+    }
     return false;
   }
 }
@@ -815,3 +934,123 @@ export async function resetPassword(email: string): Promise<void> {
 export async function logoutUser(): Promise<void> {
   await signOut(auth);
 }
+
+// ==========================================
+// USER PROFILE & SOCIAL CONTACT PERSISTENCE
+// ==========================================
+
+export async function saveUserProfileToFirestore(profile: UserProfile): Promise<boolean> {
+  const targetId = auth.currentUser?.uid || profile.id || 'user-me';
+  try {
+    const userRef = doc(db, 'users', targetId);
+    await setDoc(
+      userRef,
+      {
+        id: targetId,
+        uid: targetId,
+        name: profile.name,
+        displayName: profile.name,
+        email: profile.email || auth.currentUser?.email || '',
+        avatar: profile.avatar || '',
+        coverPhoto: profile.coverPhoto || '',
+        bio: profile.bio || '',
+        location: profile.location || '',
+        hometown: profile.hometown || '',
+        work: profile.work || '',
+        education: profile.education || '',
+        relationship: profile.relationship || '',
+        website: profile.website || '',
+        thoughtBubble: profile.thoughtBubble || '',
+        whatsapp: profile.whatsapp || '',
+        imo: profile.imo || '',
+        viber: profile.viber || '',
+        messengerLink: profile.messengerLink || '',
+        contactPrivacy: profile.contactPrivacy || 'public',
+        hobbies: profile.hobbies || [],
+        updatedAt: new Date().toISOString(),
+        updatedAtMillis: Date.now(),
+      },
+      { merge: true }
+    );
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `users/${targetId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice saving user profile:', err);
+    }
+    return false;
+  }
+}
+
+export async function fetchUserProfileFromFirestore(uid: string): Promise<Partial<UserProfile> | null> {
+  if (!uid) return null;
+  try {
+    const userRef = doc(db, 'users', uid);
+    const snap = await getDocSafe(userRef);
+    if (!snap || !snap.exists()) return null;
+    const data = snap.data();
+    return {
+      id: snap.id,
+      name: data.name || data.displayName,
+      email: data.email,
+      avatar: data.avatar,
+      coverPhoto: data.coverPhoto,
+      bio: data.bio,
+      location: data.location,
+      hometown: data.hometown,
+      work: data.work,
+      education: data.education,
+      relationship: data.relationship,
+      website: data.website,
+      thoughtBubble: data.thoughtBubble,
+      whatsapp: data.whatsapp,
+      imo: data.imo,
+      viber: data.viber,
+      messengerLink: data.messengerLink,
+      contactPrivacy: data.contactPrivacy || 'public',
+      hobbies: Array.isArray(data.hobbies) ? data.hobbies : undefined,
+    };
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.GET, `users/${uid}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice fetching user profile:', err);
+    }
+    return null;
+  }
+}
+
+export async function fetchUserProfileByNameFromFirestore(name: string): Promise<Partial<UserProfile> | null> {
+  const cleanName = name.trim();
+  if (!cleanName) return null;
+  try {
+    const q = query(collection(db, 'users'), where('name', '==', cleanName), limit(1));
+    const snap = await getDocs(q);
+    if (snap.empty) return null;
+    const docSnap = snap.docs[0];
+    const data = docSnap.data();
+    return {
+      id: docSnap.id,
+      name: data.name || data.displayName || cleanName,
+      avatar: data.avatar,
+      coverPhoto: data.coverPhoto,
+      bio: data.bio,
+      location: data.location,
+      hometown: data.hometown,
+      relationship: data.relationship,
+      website: data.website,
+      whatsapp: data.whatsapp,
+      imo: data.imo,
+      viber: data.viber,
+      messengerLink: data.messengerLink,
+      contactPrivacy: data.contactPrivacy || 'public',
+    };
+  } catch (err: any) {
+    if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice fetching user profile by name:', err);
+    }
+    return null;
+  }
+}
+

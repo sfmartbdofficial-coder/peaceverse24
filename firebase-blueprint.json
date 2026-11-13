@@ -11,6 +11,14 @@
         "avatar": { "type": "string" },
         "coverPhoto": { "type": "string" },
         "bio": { "type": "string" },
+        "whatsapp": { "type": "string" },
+        "imo": { "type": "string" },
+        "viber": { "type": "string" },
+        "messengerLink": { "type": "string" },
+        "contactPrivacy": {
+          "type": "string",
+          "enum": ["public", "friends", "private"]
+        },
         "isVerified": { "type": "boolean" },
         "friends": { "type": "array" },
         "createdAt": { "type": "string" }
@@ -69,24 +77,30 @@
     },
     "Notification": {
       "title": "Notification",
-      "description": "Realtime notification for interactions and moderation",
+      "description": "Realtime notification for interactions, broadcasts, and moderation",
       "type": "object",
       "properties": {
         "id": { "type": "string" },
+        "from": { "type": "string" },
+        "to": { "type": "string" },
         "recipientId": { "type": "string" },
         "senderId": { "type": "string" },
         "senderName": { "type": "string" },
         "senderAvatar": { "type": "string" },
         "type": {
           "type": "string",
-          "enum": ["like", "comment", "share", "follow", "moderation"]
+          "enum": ["like", "comment", "share", "follow", "moderation", "new_post", "broadcast"]
         },
+        "title": { "type": "string" },
         "message": { "type": "string" },
+        "image": { "type": "string" },
+        "link": { "type": "string" },
         "postId": { "type": "string" },
+        "read": { "type": "boolean" },
         "isRead": { "type": "boolean" },
         "createdAt": { "type": "string" }
       },
-      "required": ["id", "recipientId", "senderId", "senderName", "type", "message"]
+      "required": ["id", "type", "message"]
     },
     "Appeal": {
       "title": "Appeal",

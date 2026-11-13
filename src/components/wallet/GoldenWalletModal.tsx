@@ -15,6 +15,7 @@ import {
   ChevronRight,
   TrendingUp,
   History,
+  Globe,
 } from 'lucide-react';
 import { GoldenCashoutRequest } from '../../types';
 
@@ -53,13 +54,13 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
 
   // Cashout Form State
   const [cashoutCoins, setCashoutCoins] = useState<string>('50');
-  const [paymentMethod, setPaymentMethod] = useState<'bkash' | 'nagad' | 'rocket' | 'bank'>('bkash');
+  const [paymentMethod, setPaymentMethod] = useState<'paypal' | 'payoneer' | 'bkash' | 'nagad' | 'rocket' | 'bank'>('paypal');
   const [accountNumber, setAccountNumber] = useState<string>('');
   const [cashoutStatus, setCashoutStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [cashoutError, setCashoutError] = useState<string>('');
 
   // Buy State
-  const [buyMethod, setBuyMethod] = useState<'bkash' | 'nagad'>('bkash');
+  const [buyMethod, setBuyMethod] = useState<'paypal' | 'bkash' | 'nagad'>('paypal');
   const [selectedBuyPkg, setSelectedBuyPkg] = useState<typeof BUY_PACKAGES[0]>(BUY_PACKAGES[1]);
   const [buyStatus, setBuyStatus] = useState<'idle' | 'loading' | 'success'>('idle');
 
@@ -159,7 +160,7 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
                 <span className="text-2xl font-black text-amber-400">🪙 {userGoldenCoins}</span>
                 <span className="text-[10px] text-neutral-400">কয়েন</span>
               </div>
-              <p className="text-[10px] text-amber-200/70 mt-0.5">মূল্য: ৳ {userGoldenCoins} টাকা</p>
+              <p className="text-[10px] text-amber-200/70 mt-0.5 tabular-nums">মূল্য: ৳{userGoldenCoins} (${(userGoldenCoins / 120).toFixed(2)} USD)</p>
               <button
                 onClick={() => setActiveTab('buy')}
                 className="mt-2 text-[10px] font-extrabold text-sky-400 hover:text-sky-300 flex items-center gap-1 cursor-pointer"
@@ -171,14 +172,14 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
 
             <div className="bg-gradient-to-br from-emerald-950/60 to-black/40 border border-emerald-500/40 rounded-2xl p-3 relative overflow-hidden">
               <div className="flex items-center justify-between">
-                <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">ভিডিও থেকে অর্জিত আয়</p>
+                <p className="text-[10px] font-bold text-emerald-400 uppercase tracking-wide">Global Hadiya আয়</p>
                 <span className="w-2 h-2 rounded-full bg-emerald-400 animate-pulse" />
               </div>
               <div className="flex items-baseline gap-1 mt-1">
-                <span className="text-2xl font-black text-emerald-300">🪙 {userEarnedCoins}</span>
+                <span className="text-2xl font-black text-emerald-300 tabular-nums">🪙 {userEarnedCoins}</span>
                 <span className="text-[10px] text-emerald-400">কয়েন</span>
               </div>
-              <p className="text-[10px] text-emerald-200/80 mt-0.5">ক্যাশ আউট উপযোগী: ৳ {userEarnedCoins} টাকা</p>
+              <p className="text-[10px] text-emerald-200/80 mt-0.5 tabular-nums">PayPal/Cash: ৳{userEarnedCoins} (${(userEarnedCoins / 120).toFixed(2)} USD)</p>
               <button
                 onClick={() => setActiveTab('cashout')}
                 className="mt-2 text-[10px] font-extrabold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer"
@@ -273,26 +274,32 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
               {/* Payment Method Selector */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1.5">
-                  টাকা গ্রহণের মাধ্যম নির্বাচন করুন:
+                  গ্লোবাল ও লোকাল পেমেন্ট মাধ্যম নির্বাচন করুন:
                 </label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
                   {[
-                    { id: 'bkash', name: 'বিকাশ', sub: 'Personal', color: 'border-pink-500/50 bg-pink-500/10 text-pink-300' },
-                    { id: 'nagad', name: 'নগদ', sub: 'Personal', color: 'border-orange-500/50 bg-orange-500/10 text-orange-300' },
-                    { id: 'rocket', name: 'রকেট', sub: 'Personal', color: 'border-purple-500/50 bg-purple-500/10 text-purple-300' },
+                    { id: 'paypal', name: 'PayPal', sub: 'Global USD', color: 'border-sky-500/50 bg-sky-500/10 text-sky-300' },
+                    { id: 'payoneer', name: 'Payoneer', sub: 'Worldwide', color: 'border-amber-500/50 bg-amber-500/10 text-amber-300' },
+                    { id: 'bkash', name: 'বিকাশ', sub: 'BDT', color: 'border-pink-500/50 bg-pink-500/10 text-pink-300' },
+                    { id: 'nagad', name: 'নগদ', sub: 'BDT', color: 'border-orange-500/50 bg-orange-500/10 text-orange-300' },
+                    { id: 'rocket', name: 'রকেট', sub: 'BDT', color: 'border-purple-500/50 bg-purple-500/10 text-purple-300' },
                   ].map((m) => (
                     <button
                       key={m.id}
                       type="button"
                       onClick={() => setPaymentMethod(m.id as any)}
-                      className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                      className={`p-2 rounded-xl border text-center transition-all cursor-pointer ${
                         paymentMethod === m.id
                           ? `${m.color} ring-2 ring-emerald-400`
                           : 'border-white/10 bg-[#18191a] text-neutral-400 hover:text-white'
                       }`}
                     >
-                      <Smartphone className="w-4 h-4 mx-auto mb-1 text-emerald-400" />
-                      <p className="text-xs font-bold text-white">{m.name}</p>
+                      {m.id === 'paypal' || m.id === 'payoneer' ? (
+                        <Globe className="w-4 h-4 mx-auto mb-1 text-sky-400" />
+                      ) : (
+                        <Smartphone className="w-4 h-4 mx-auto mb-1 text-emerald-400" />
+                      )}
+                      <p className="text-[11px] font-bold text-white">{m.name}</p>
                       <p className="text-[9px] text-neutral-400">{m.sub}</p>
                     </button>
                   ))}
@@ -302,11 +309,13 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
               {/* Account Number Input */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1">
-                  আপনার {paymentMethod === 'bkash' ? 'বিকাশ' : paymentMethod === 'nagad' ? 'নগদ' : 'রকেট'} মোবাইল নম্বর:
+                  {paymentMethod === 'paypal' || paymentMethod === 'payoneer'
+                    ? `আপনার ${paymentMethod.toUpperCase()} ইমেইল:`
+                    : `আপনার ${paymentMethod === 'bkash' ? 'বিকাশ' : paymentMethod === 'nagad' ? 'নগদ' : 'রকেট'} মোবাইল নম্বর:`}
                 </label>
                 <input
                   type="text"
-                  placeholder="যেমন: 01712345678"
+                  placeholder={paymentMethod === 'paypal' || paymentMethod === 'payoneer' ? 'email@paypal-global.com' : 'যেমন: 01712345678'}
                   value={accountNumber}
                   onChange={(e) => setAccountNumber(e.target.value)}
                   className="w-full bg-[#18191a] border border-white/10 rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-neutral-500 focus:outline-none focus:border-emerald-400"
@@ -422,30 +431,41 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
               {/* Payment Method */}
               <div>
                 <label className="text-xs font-bold text-neutral-300 block mb-1.5">
-                  পেমেন্ট মাধ্যম (বিকাশ / নগদ):
+                  পেমেন্ট মাধ্যম (PayPal Global / বিকাশ / নগদ):
                 </label>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setBuyMethod('paypal')}
+                    className={`p-2.5 rounded-xl border text-center text-xs transition-all cursor-pointer ${
+                      buyMethod === 'paypal'
+                        ? 'border-sky-500 bg-sky-500/20 text-white ring-1 ring-sky-400 font-bold'
+                        : 'border-white/10 bg-[#18191a] text-neutral-400'
+                    }`}
+                  >
+                    🌐 PayPal Global
+                  </button>
                   <button
                     type="button"
                     onClick={() => setBuyMethod('bkash')}
-                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border text-center text-xs transition-all cursor-pointer ${
                       buyMethod === 'bkash'
                         ? 'border-pink-500 bg-pink-500/20 text-white ring-1 ring-pink-400 font-bold'
                         : 'border-white/10 bg-[#18191a] text-neutral-400'
                     }`}
                   >
-                    বিকাশ পেমেন্ট (bKash)
+                    বিকাশ (bKash)
                   </button>
                   <button
                     type="button"
                     onClick={() => setBuyMethod('nagad')}
-                    className={`p-2.5 rounded-xl border text-center transition-all cursor-pointer ${
+                    className={`p-2.5 rounded-xl border text-center text-xs transition-all cursor-pointer ${
                       buyMethod === 'nagad'
                         ? 'border-orange-500 bg-orange-500/20 text-white ring-1 ring-orange-400 font-bold'
                         : 'border-white/10 bg-[#18191a] text-neutral-400'
                     }`}
                   >
-                    নগদ পেমেন্ট (Nagad)
+                    নগদ (Nagad)
                   </button>
                 </div>
               </div>

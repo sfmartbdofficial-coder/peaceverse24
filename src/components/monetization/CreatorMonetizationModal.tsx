@@ -17,12 +17,14 @@ import {
   Eye,
   AlertCircle,
   HelpCircle,
-  Check
+  Check,
+  Globe,
 } from 'lucide-react';
 import { UserProfile, PageItem } from '../../types';
 import { PayoutRequest, MonetizedCreator } from '../../types/admin';
 import { INITIAL_CREATORS, INITIAL_PAYOUTS } from '../../data/adminData';
 import { useLanguage } from '../../context/LanguageContext';
+import { GlobalWorldMap } from '../global/GlobalWorldMap';
 
 interface CreatorMonetizationModalProps {
   userProfile: UserProfile;
@@ -80,14 +82,15 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
   });
 
   // Active view tab
-  const [activeTab, setActiveTab] = useState<'overview' | 'eligibility' | 'withdraw' | 'history'>('overview');
+  const [activeTab, setActiveTab] = useState<'overview' | 'global_hadiya' | 'eligibility' | 'withdraw' | 'history'>('overview');
 
   // Withdrawal form state
-  const [payoutMethod, setPayoutMethod] = useState<'bKash' | 'Nagad' | 'Bank'>('bKash');
+  const [payoutMethod, setPayoutMethod] = useState<'PayPal' | 'Stripe' | 'Payoneer' | 'bKash' | 'Nagad' | 'Bank'>('PayPal');
   const [payoutAccount, setPayoutAccount] = useState('');
   const [payoutAmount, setPayoutAmount] = useState('5000');
   const [submittingPayout, setSubmittingPayout] = useState(false);
   const [payoutSuccessMsg, setPayoutSuccessMsg] = useState<string | null>(null);
+  const [payoutErrorMsg, setPayoutErrorMsg] = useState<string | null>(null);
 
   // Ad streams toggle
   const [inStreamEnabled, setInStreamEnabled] = useState(true);
@@ -109,17 +112,19 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
   // Handle Payout Request Submission
   const handleRequestPayout = (e: React.FormEvent) => {
     e.preventDefault();
+    setPayoutErrorMsg(null);
+    setPayoutSuccessMsg(null);
     const amountNum = Number(payoutAmount);
     if (!amountNum || amountNum <= 0) {
-      alert('সঠিক উত্তোলনের পরিমাণ লিখুন।');
+      setPayoutErrorMsg('সঠিক উত্তোলনের পরিমাণ লিখুন (Enter a valid payout amount).');
       return;
     }
     if (amountNum > currentCreatorData.pendingBalance) {
-      alert(`আপনার বর্তমান উত্তোলনযোগ্য ব্যালেন্স ৳${currentCreatorData.pendingBalance}। এর বেশি তোলা সম্ভব নয়।`);
+      setPayoutErrorMsg(`আপনার বর্তমান উত্তোলনযোগ্য ব্যালেন্স ৳${currentCreatorData.pendingBalance} ($${(currentCreatorData.pendingBalance / 115).toFixed(2)} USD)। এর বেশি তোলা সম্ভব নয়।`);
       return;
     }
     if (!payoutAccount.trim()) {
-      alert('আপনার বিকাশ/নগদ বা ব্যাংক একাউন্ট নম্বর লিখুন।');
+      setPayoutErrorMsg(`আপনার ${payoutMethod} একাউন্ট / ইমেইল / নম্বর লিখুন।`);
       return;
     }
 
@@ -218,10 +223,10 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
         </div>
 
         {/* Navigation Tabs */}
-        <div className="flex border-b border-[#393a3b] bg-[#18191a] px-2 text-xs font-bold">
+        <div className="flex border-b border-[#393a3b] bg-[#18191a] px-2 text-xs font-bold overflow-x-auto no-scrollbar">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`flex-1 py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 min-w-[100px] py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap px-2 cursor-pointer ${
               activeTab === 'overview'
                 ? 'border-[#1877F2] text-[#1877F2]'
                 : 'border-transparent text-[#b0b3b8] hover:text-white'
@@ -232,39 +237,51 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
           </button>
 
           <button
+            onClick={() => setActiveTab('global_hadiya')}
+            className={`flex-1 min-w-[125px] py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap px-2 cursor-pointer ${
+              activeTab === 'global_hadiya'
+                ? 'border-[#1877F2] text-[#1877F2]'
+                : 'border-transparent text-[#b0b3b8] hover:text-white'
+            }`}
+          >
+            <Globe className="w-4 h-4" />
+            <span>Global Hadiya (20 Countries)</span>
+          </button>
+
+          <button
             onClick={() => setActiveTab('eligibility')}
-            className={`flex-1 py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 min-w-[110px] py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap px-2 cursor-pointer ${
               activeTab === 'eligibility'
                 ? 'border-[#1877F2] text-[#1877F2]'
                 : 'border-transparent text-[#b0b3b8] hover:text-white'
             }`}
           >
             <CheckCircle2 className="w-4 h-4" />
-            <span>শর্ত ও যোগ্যতা ({followersPercentage}%)</span>
+            <span>শর্ত ({followersPercentage}%)</span>
           </button>
 
           <button
             onClick={() => setActiveTab('withdraw')}
-            className={`flex-1 py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 min-w-[110px] py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap px-2 cursor-pointer ${
               activeTab === 'withdraw'
                 ? 'border-[#1877F2] text-[#1877F2]'
                 : 'border-transparent text-[#b0b3b8] hover:text-white'
             }`}
           >
             <ArrowUpRight className="w-4 h-4" />
-            <span>টাকা উত্তোলন (Withdraw)</span>
+            <span>PayPal / Withdraw</span>
           </button>
 
           <button
             onClick={() => setActiveTab('history')}
-            className={`flex-1 py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors ${
+            className={`flex-1 min-w-[95px] py-3 border-b-2 flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap px-2 cursor-pointer ${
               activeTab === 'history'
                 ? 'border-[#1877F2] text-[#1877F2]'
                 : 'border-transparent text-[#b0b3b8] hover:text-white'
             }`}
           >
             <Clock className="w-4 h-4" />
-            <span>পেমেন্ট হিস্ট্রি</span>
+            <span>হিস্ট্রি</span>
           </button>
         </div>
 
@@ -400,15 +417,49 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
                 </div>
               </div>
 
-              {/* Quick Action Button to Withdraw */}
-              <button
-                onClick={() => setActiveTab('withdraw')}
-                className="w-full py-3 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all"
-              >
-                <ArrowUpRight className="w-4 h-4" />
-                <span>ব্যালেন্স উত্তোলন করুন (৳{currentCreatorData.pendingBalance} প্রস্তুত আছে)</span>
-              </button>
+              {/* Quick Action Button to Global Map & Withdraw */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  onClick={() => setActiveTab('global_hadiya')}
+                  className="py-3 rounded-2xl bg-emerald-600/20 hover:bg-emerald-600/30 border border-emerald-500/40 text-emerald-300 font-bold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <Globe className="w-4 h-4" />
+                  <span>🌍 Hadiya from 20 Countries Map</span>
+                </button>
+                <button
+                  onClick={() => setActiveTab('withdraw')}
+                  className="py-3 rounded-2xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-lg transition-all cursor-pointer"
+                >
+                  <ArrowUpRight className="w-4 h-4" />
+                  <span>PayPal Global Payout (৳{currentCreatorData.pendingBalance})</span>
+                </button>
+              </div>
 
+            </div>
+          )}
+
+          {/* GLOBAL HADIYA 20-COUNTRY MAP TAB */}
+          {activeTab === 'global_hadiya' && (
+            <div className="space-y-4">
+              <div className="p-3.5 rounded-2xl bg-[#18191a] border border-emerald-500/30 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    <Globe className="w-4 h-4 text-[#1877F2]" />
+                    <span>Global Creator Hadiya — 20 Countries</span>
+                  </h3>
+                  <p className="text-[11px] text-[#b0b3b8]">
+                    Receive halal Hadiya worldwide from USA, UK, Saudi Arabia, Indonesia, Bangladesh &amp; payout via PayPal Global.
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setActiveTab('withdraw')}
+                  className="px-3 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#166fe5] text-white text-xs font-bold cursor-pointer"
+                >
+                  Payout via PayPal
+                </button>
+              </div>
+              <GlobalWorldMap mode="creator" />
             </div>
           )}
 
@@ -530,6 +581,13 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
           {activeTab === 'withdraw' && (
             <div className="space-y-4">
               
+              {payoutErrorMsg && (
+                <div className="p-3.5 rounded-2xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{payoutErrorMsg}</span>
+                </div>
+              )}
+
               {payoutSuccessMsg && (
                 <div className="p-4 rounded-2xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-start gap-2.5">
                   <CheckCircle2 className="w-5 h-5 text-emerald-400 flex-shrink-0 mt-0.5" />
@@ -540,55 +598,96 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
               <form onSubmit={handleRequestPayout} className="bg-[#18191a] p-4 rounded-2xl border border-[#393a3b] space-y-4">
                 <div className="flex items-center justify-between border-b border-[#393a3b] pb-3">
                   <div>
-                    <h3 className="text-sm font-bold text-white">উপার্জিত অর্থ উত্তোলন (Payout Request)</h3>
-                    <p className="text-xs text-[#b0b3b8]">ন্যূনতম উত্তোলন: ৳১,০০০ | সর্বোচ্চ: ৳{currentCreatorData.pendingBalance}</p>
+                    <h3 className="text-sm font-bold text-white">Global &amp; Local Payout Request</h3>
+                    <p className="text-xs text-[#b0b3b8]">
+                      PayPal Global / Stripe / Payoneer / bKash / Nagad • Max: ৳{currentCreatorData.pendingBalance} (${(currentCreatorData.pendingBalance / 115).toFixed(2)} USD)
+                    </p>
                   </div>
                   <span className="text-xs font-bold text-emerald-400 bg-emerald-500/10 px-2.5 py-1 rounded-full border border-emerald-500/20">
-                    উপলব্ধ: ৳{currentCreatorData.pendingBalance}
+                    ${(currentCreatorData.pendingBalance / 115).toFixed(2)} USD
                   </span>
                 </div>
 
                 {/* Payout Method Selector */}
                 <div className="space-y-2">
-                  <label className="text-xs font-bold text-white block">পেমেন্ট মাধ্যম বেছে নিন</label>
+                  <label className="text-xs font-bold text-white block">Select Global or Local Payout Method</label>
                   <div className="grid grid-cols-3 gap-2">
                     <button
                       type="button"
+                      onClick={() => setPayoutMethod('PayPal')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                        payoutMethod === 'PayPal'
+                          ? 'border-[#0070BA] bg-[#0070BA]/20 text-white font-bold'
+                          : 'border-[#393a3b] bg-[#242526] text-[#b0b3b8] hover:text-white'
+                      }`}
+                    >
+                      <Globe className="w-4 h-4 text-[#00AEEF]" />
+                      <span className="text-xs">PayPal Global</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPayoutMethod('Stripe')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                        payoutMethod === 'Stripe'
+                          ? 'border-indigo-500 bg-indigo-500/20 text-white font-bold'
+                          : 'border-[#393a3b] bg-[#242526] text-[#b0b3b8] hover:text-white'
+                      }`}
+                    >
+                      <DollarSign className="w-4 h-4 text-indigo-400" />
+                      <span className="text-xs">Stripe</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setPayoutMethod('Payoneer')}
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
+                        payoutMethod === 'Payoneer'
+                          ? 'border-orange-500 bg-orange-500/20 text-white font-bold'
+                          : 'border-[#393a3b] bg-[#242526] text-[#b0b3b8] hover:text-white'
+                      }`}
+                    >
+                      <ArrowUpRight className="w-4 h-4 text-orange-400" />
+                      <span className="text-xs">Payoneer</span>
+                    </button>
+
+                    <button
+                      type="button"
                       onClick={() => setPayoutMethod('bKash')}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                         payoutMethod === 'bKash'
                           ? 'border-[#E2136E] bg-[#E2136E]/15 text-white font-bold'
                           : 'border-[#393a3b] bg-[#242526] text-[#b0b3b8] hover:text-white'
                       }`}
                     >
-                      <Smartphone className="w-5 h-5 text-[#E2136E]" />
+                      <Smartphone className="w-4 h-4 text-[#E2136E]" />
                       <span className="text-xs">বিকাশ (bKash)</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setPayoutMethod('Nagad')}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                         payoutMethod === 'Nagad'
                           ? 'border-[#F7941D] bg-[#F7941D]/15 text-white font-bold'
                           : 'border-[#393a3b] bg-[#242526] text-[#b0b3b8] hover:text-white'
                       }`}
                     >
-                      <Smartphone className="w-5 h-5 text-[#F7941D]" />
+                      <Smartphone className="w-4 h-4 text-[#F7941D]" />
                       <span className="text-xs">নগদ (Nagad)</span>
                     </button>
 
                     <button
                       type="button"
                       onClick={() => setPayoutMethod('Bank')}
-                      className={`p-3 rounded-xl border flex flex-col items-center gap-1 transition-all ${
+                      className={`p-2.5 rounded-xl border flex flex-col items-center gap-1 transition-all cursor-pointer ${
                         payoutMethod === 'Bank'
                           ? 'border-[#1877F2] bg-[#1877F2]/15 text-white font-bold'
                           : 'border-[#393a3b] bg-[#242526] text-[#b0b3b8] hover:text-white'
                       }`}
                     >
-                      <Building className="w-5 h-5 text-[#1877F2]" />
-                      <span className="text-xs">ব্যাংক ট্রান্সফার</span>
+                      <Building className="w-4 h-4 text-[#1877F2]" />
+                      <span className="text-xs">Global Bank</span>
                     </button>
                   </div>
                 </div>
@@ -596,14 +695,26 @@ export const CreatorMonetizationModal: React.FC<CreatorMonetizationModalProps> =
                 {/* Account Number */}
                 <div className="space-y-1.5">
                   <label className="text-xs font-bold text-white block">
-                    {payoutMethod === 'Bank' ? 'ব্যাংক একাউন্ট নম্বর ও ব্যাংকের নাম' : `${payoutMethod} মোবাইল নম্বর`}
+                    {payoutMethod === 'PayPal' || payoutMethod === 'Payoneer' || payoutMethod === 'Stripe'
+                      ? `${payoutMethod} Email or Connected Account ID`
+                      : payoutMethod === 'Bank'
+                      ? 'SWIFT / IBAN / Bank Account Number'
+                      : `${payoutMethod} মোবাইল নম্বর`}
                   </label>
                   <input
                     type="text"
                     required
                     value={payoutAccount}
                     onChange={(e) => setPayoutAccount(e.target.value)}
-                    placeholder={payoutMethod === 'Bank' ? 'যেমন: Islami Bank BD - 2050123456789' : 'যেমন: 01711234567'}
+                    placeholder={
+                      payoutMethod === 'PayPal'
+                        ? 'creator@paypal-email.com'
+                        : payoutMethod === 'Stripe' || payoutMethod === 'Payoneer'
+                        ? 'creator@global-account.com'
+                        : payoutMethod === 'Bank'
+                        ? 'IBAN / SWIFT / Bank Account'
+                        : '01711234567'
+                    }
                     className="w-full bg-[#242526] border border-[#393a3b] rounded-xl px-3.5 py-2.5 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
                   />
                 </div>

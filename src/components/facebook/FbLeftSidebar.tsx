@@ -112,10 +112,10 @@ export const FbLeftSidebar: React.FC<FbLeftSidebarProps> = ({
       <div className="p-3.5 rounded-2xl bg-gradient-to-br from-emerald-950/70 via-[#242526] to-black border border-emerald-500/40 space-y-2">
         <div className="flex items-center gap-2 text-emerald-400 font-bold text-xs">
           <ShieldCheck className="w-4 h-4 flex-shrink-0" />
-          <span>Qalby হালাল সোশ্যাল নীতি</span>
+          <span>Peace World হালাল সোশ্যাল নীতি</span>
         </div>
         <p className="text-[11px] text-[#b0b3b8] leading-relaxed font-bengali">
-          বাদ্যযন্ত্রমুক্ত, অশ্লীল বিজ্ঞাপনহীন এবং খাঁটি কুরআন-সুন্নাহর নির্ভরযোগ্য ইসলামিক সামাজিক প্ল্যাটফর্ম।
+          Peace World - Halal Alternative to Facebook for 2 Billion Muslims. বাদ্যযন্ত্রমুক্ত ও খাঁটি কুরআন-সুন্নাহর বিশ্বব্যাপী সামাজিক প্ল্যাটফর্ম।
         </p>
         <button
           onClick={onOpenHalalPolicy}
@@ -128,7 +128,7 @@ export const FbLeftSidebar: React.FC<FbLeftSidebarProps> = ({
 
       {/* Footer Info */}
       <div className="px-2 text-[10px] text-[#b0b3b8] space-y-1">
-        <p>Qalby (قلبي) © 2026. ফেসবুকের বিকল্প হালাল মাধ্যম।</p>
+        <p>Peace World (Peaceverse) © 2026. Halal Alternative to Facebook for 2 Billion Muslims.</p>
       </div>
 
     </aside>

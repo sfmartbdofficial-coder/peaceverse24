@@ -100,8 +100,8 @@ export interface TranslationDictionary {
 
 export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   bn: {
-    appName: 'পিসভার্স (Peaceverse)',
-    tagline: '১০০% হালাল সোশ্যাল নেটওয়ার্ক',
+    appName: 'Peace World (পিসভার্স)',
+    tagline: 'Peace World - ২ বিলিয়ন মুসলিমের জন্য ফেসবুকের হালাল বিকল্প',
     navHome: 'হোম',
     navWatch: 'ওয়াচ',
     navFriends: 'বন্ধু',
@@ -148,8 +148,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'বন্ধ করুন',
   },
   en: {
-    appName: 'Peaceverse',
-    tagline: '100% Halal Islamic Social Network',
+    appName: 'Peace World (Peaceverse)',
+    tagline: 'Peace World - Halal Alternative to Facebook for 2 Billion Muslims',
     navHome: 'Home',
     navWatch: 'Watch',
     navFriends: 'Friends',
@@ -196,8 +196,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Close',
   },
   ar: {
-    appName: 'بيس فيرس (Peaceverse)',
-    tagline: 'شبكة اجتماعية إسلامية حلال ١٠٠٪',
+    appName: 'Peace World (بيس فيرس)',
+    tagline: 'Peace World - البديل الحلال لفيسبوك لـ ٢ مليار مسلم',
     navHome: 'الرئيسية',
     navWatch: 'فيديو',
     navFriends: 'الأصدقاء',
@@ -244,8 +244,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'إغلاق',
   },
   ur: {
-    appName: 'پیس ورس (Peaceverse)',
-    tagline: '۱۰۰٪ حلال اسلامی سوشل نیٹ ورک',
+    appName: 'Peace World (پیس ورس)',
+    tagline: 'Peace World - 2 ارب مسلمانوں کے لیے فیس بک کا حلال متبادل',
     navHome: 'ہوم',
     navWatch: 'ویڈیوز',
     navFriends: 'دوست',
@@ -436,8 +436,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Tutup',
   },
   tr: {
-    appName: 'Peaceverse',
-    tagline: '%100 Helal İslami Sosyal Ağ',
+    appName: 'Peace World (Peaceverse)',
+    tagline: 'Peace World - 2 Milyar Müslüman için Facebook’a Helal Alternatif',
     navHome: 'Ana Sayfa',
     navWatch: 'İzle',
     navFriends: 'Arkadaşlar',
@@ -484,8 +484,8 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
     close: 'Kapat',
   },
   fr: {
-    appName: 'Peaceverse',
-    tagline: 'Réseau Social Islamique 100% Halal',
+    appName: 'Peace World (Peaceverse)',
+    tagline: "Peace World - L'alternative Halal à Facebook pour 2 milliards de musulmans",
     navHome: 'Accueil',
     navWatch: 'Vidéos',
     navFriends: 'Amis',

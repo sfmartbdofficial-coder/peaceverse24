@@ -53,7 +53,7 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
+          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-halal-bites', 'page-angel-mahi', 'page-noor-academy'];
           const userPages = parsed.filter((p: any) => p.isOwner && !demoIds.includes(p.id));
           if (userPages.length > 0) {
             return userPages.map((p: any) => ({
@@ -156,12 +156,16 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
                 className="w-full flex items-center justify-between p-3.5 hover:bg-neutral-50 active:bg-neutral-100 transition-colors text-left cursor-pointer"
               >
                 <div className="flex items-center gap-3.5">
-                  <div className="w-12 h-12 rounded-full overflow-hidden border border-neutral-200 shadow-xs shrink-0 bg-neutral-100 flex items-center justify-center">
-                    <img
-                      src={prof.avatar}
-                      alt={prof.name}
-                      className="w-full h-full object-cover"
-                    />
+                  <div className="w-12 h-12 rounded-full overflow-hidden border border-neutral-200 shadow-xs shrink-0 bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-extrabold text-base">
+                    {prof.avatar ? (
+                      <img
+                        src={prof.avatar}
+                        alt={prof.name}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : (
+                      <span>{prof.name.trim().charAt(0).toUpperCase()}</span>
+                    )}
                   </div>
                   <div>
                     <p className="font-semibold text-[15px] text-neutral-900 leading-tight">

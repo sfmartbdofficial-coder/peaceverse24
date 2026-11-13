@@ -22,6 +22,11 @@ export const USER_PROFILE: UserProfile = {
   hometown: 'Dhaka, Bangladesh',
   relationship: 'Married',
   website: '',
+  whatsapp: '',
+  imo: '',
+  viber: '',
+  messengerLink: '',
+  contactPrivacy: 'public',
   hobbies: [],
   goldenCoins: 120,
   earnedCoins: 65,
@@ -31,6 +36,36 @@ export const USER_PROFILE: UserProfile = {
 export const INITIAL_STORIES: StoryItem[] = [];
 
 export const INITIAL_POSTS: PostItem[] = [
+  {
+    id: 'post-makkah-global-2026',
+    authorId: 'user-sheikh-makkah',
+    author: {
+      name: 'Sheikh Tariq Al-Harbi · Makkah 🇸🇦',
+      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
+      verified: true,
+      subtitle: 'Makkah, Saudi Arabia • 🌐',
+    },
+    timeAgo: '15m',
+    isPublic: true,
+    privacy: 'public',
+    status: 'approved',
+    contentBangla: 'الحمد لله رب العالمين، السلام عليكم ورحمة الله وبركاته إخوتي في كل مكان. نسأل الله أن يجمع قلوب المسلمين على الخير والسلام والبركة.',
+    arabicVerse: 'إِنَّمَا الْمُؤْمِنُونَ إِخْوَةٌ فَأَصْلِحُوا بَيْنَ أَخَوَيْكُمْ',
+    translation: 'The believers are but brothers, so make peace between your brothers. (Surah Al-Hujurat 49:10)',
+    reference: 'Surah Al-Hujurat 49:10',
+    category: 'Global Ummah',
+    reactions: {
+      total: 428,
+      likeCount: 310,
+      loveCount: 92,
+      subhanallahCount: 16,
+      mashaallahCount: 10,
+    },
+    userReaction: 'like',
+    comments: [],
+    sharesCount: 44,
+    isSaved: false,
+  },
   {
     id: 'post-user-first-post-2026',
     authorId: 'user-siddik',
@@ -44,7 +79,7 @@ export const INITIAL_POSTS: PostItem[] = [
     isPublic: true,
     privacy: 'public',
     status: 'approved',
-    contentBangla: 'আপনারা সবাই আমার পরিবারের সদস্য। আপনাদের দোয়া ও ভালোবাসায় এগিয়ে যেতে চাই।\n\n#PeaceVerse24 #FirstPost #Islamic #Alhamdulillah',
+    contentBangla: 'আপনারা সবাই আমার পরিবারের সদস্য। আপনাদের দোয়া ও ভালোবাসায় এগিয়ে যেতে চাই।\n\n#PeaceWorld #PeaceVerse #HalalCommunity #Alhamdulillah',
     mediaType: 'image',
     mediaUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
     category: 'Community',
@@ -64,7 +99,44 @@ export const INITIAL_POSTS: PostItem[] = [
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 
-export const INITIAL_MARKETPLACE: MarketplaceItem[] = [];
+export const INITIAL_MARKETPLACE: MarketplaceItem[] = [
+  {
+    id: 'pm-global-1',
+    title: 'Madinah Premium Ajwa Dates (1kg Box) · Peace Mart Global',
+    price: '$24.00',
+    location: 'Medina, Saudi Arabia',
+    image: 'https://images.unsplash.com/photo-1591604129939-f1efa4d9f7fa?auto=format&fit=crop&w=500&q=80',
+    sellerName: 'Peace Mart Global',
+    category: 'Halal Food & Honey',
+  },
+  {
+    id: 'pm-global-2',
+    title: 'Royal Oud & Amber Pure Ittar (12ml Alcohol-Free)',
+    price: '$32.00',
+    location: 'Dubai, UAE',
+    image: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=500&q=80',
+    sellerName: 'Peace Mart Global',
+    category: 'Oud & Fragrances',
+  },
+  {
+    id: 'pm-global-3',
+    title: 'Ottoman Velvet Prayer Mat (Janamaz) + Tasbih Set',
+    price: '$19.50',
+    location: 'Istanbul, Türkiye',
+    image: 'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=500&q=80',
+    sellerName: 'Peace Mart Global',
+    category: 'Prayer Mat & Tasbih',
+  },
+  {
+    id: 'pm-global-4',
+    title: 'Organic Sundarbans Raw Honey (500g Certified Halal)',
+    price: '$14.00',
+    location: 'Dhaka, Bangladesh',
+    image: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=500&q=80',
+    sellerName: 'Peace Mart Global',
+    category: 'Halal Food & Honey',
+  },
+];
 
 export const INITIAL_GROUPS: IslamicGroup[] = [];
 

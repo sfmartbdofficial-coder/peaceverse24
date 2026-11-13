@@ -208,7 +208,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#18191a] text-white flex flex-col justify-between animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-white text-[#050505] flex flex-col justify-between animate-in fade-in font-sans">
       
       {/* Hidden file input that triggers user's real phone/PC gallery */}
       <input
@@ -219,76 +219,84 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         onChange={handleDeviceUpload}
       />
 
-      {/* Top Header matching Screenshot 2: [ ✕ ] "New post" [ ••• ] */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#393a3b] bg-[#242526]">
+      {/* Top Header: [ ✕ ] "New post" [ ••• ] */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E6EB] bg-white">
         <button
+          type="button"
           onClick={onClose}
-          className="p-1 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+          className="p-1.5 rounded-full text-[#050505] hover:bg-[#F0F2F5] transition-colors cursor-pointer"
           title="বন্ধ করুন"
+          aria-label="Close"
         >
-          <X className="w-6 h-6 stroke-[2.5]" />
+          <X className="w-6 h-6 stroke-[2.4]" />
         </button>
 
-        <h1 className="text-base font-bold text-white">New post</h1>
+        <h1 className="text-[17px] font-bold text-[#050505]">New post</h1>
 
         <button
+          type="button"
           onClick={() => {}}
-          className="p-1.5 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+          className="p-1.5 rounded-full text-[#050505] hover:bg-[#F0F2F5] transition-colors cursor-pointer"
           title="More options"
+          aria-label="More options"
         >
           <MoreHorizontal className="w-5 h-5" />
         </button>
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-4 bg-white">
         
-        {/* Author row matching Screenshot 2 */}
+        {/* Author row */}
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-full overflow-hidden border border-[#393a3b] bg-neutral-800">
-            <img
-              src={userProfile.avatar}
-              alt={userProfile.name}
-              className="w-full h-full object-cover"
-            />
+          <div className="w-12 h-12 rounded-full overflow-hidden border border-[#E4E6EB] bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-extrabold text-lg shrink-0">
+            {userProfile.avatar ? (
+              <img
+                src={userProfile.avatar}
+                alt={userProfile.name}
+                className="w-full h-full object-cover"
+              />
+            ) : (
+              <span>{userProfile.name.trim().charAt(0).toUpperCase() || 'U'}</span>
+            )}
           </div>
 
           <div className="flex-1">
-            <h2 className="font-bold text-base text-white">{userProfile.name}</h2>
+            <h2 className="font-bold text-[15px] text-[#050505]">{userProfile.name}</h2>
             
             {/* Privacy Selector Dropdown Pill */}
             <div className="relative inline-block mt-0.5">
               <button
                 type="button"
                 onClick={() => setShowPrivacyMenu(!showPrivacyMenu)}
-                className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-md bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] text-xs font-semibold border border-[#4e4f50] transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-[#E7F3FF] hover:bg-[#DBE7F2] text-[#0866FF] text-xs font-bold border border-[#0866FF]/20 transition-colors cursor-pointer"
               >
                 {privacy === 'public' && (
                   <>
-                    <Globe className="w-3 h-3 text-[#1877F2]" />
+                    <Globe className="w-3 h-3 text-[#0866FF]" />
                     <span>Public</span>
                   </>
                 )}
                 {privacy === 'friends' && (
                   <>
-                    <Users className="w-3 h-3 text-emerald-400" />
+                    <Users className="w-3 h-3 text-emerald-600" />
                     <span>Friends</span>
                   </>
                 )}
                 {privacy === 'private' && (
                   <>
-                    <Lock className="w-3 h-3 text-amber-400" />
+                    <Lock className="w-3 h-3 text-amber-600" />
                     <span>Only Me</span>
                   </>
                 )}
-                <span className="text-[9px] text-[#b0b3b8]">▼</span>
+                <span className="text-[9px] text-[#0866FF]">▼</span>
               </button>
 
               {showPrivacyMenu && (
                 <>
                   <div className="fixed inset-0 z-40" onClick={() => setShowPrivacyMenu(false)} />
-                  <div className="absolute left-0 top-8 z-50 w-64 bg-[#242526] border border-[#393a3b] rounded-xl shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95">
-                    <p className="text-[11px] font-bold text-[#b0b3b8] px-2 py-1">পোস্টের প্রাইভেসী নির্বাচন করুন</p>
+                  <div className="absolute left-0 top-8 z-50 w-64 bg-white border border-[#E4E6EB] rounded-xl shadow-2xl p-1.5 space-y-1 animate-in fade-in zoom-in-95">
+                    <p className="text-[11px] font-bold text-[#65676B] px-2 py-1">পোস্টের প্রাইভেসী নির্বাচন করুন</p>
                     
                     <button
                       type="button"
@@ -296,14 +304,14 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                         setPrivacy('public');
                         setShowPrivacyMenu(false);
                       }}
-                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors ${
-                        privacy === 'public' ? 'bg-[#1877F2]/20 border border-[#1877F2]/40' : 'hover:bg-[#3a3b3c]'
+                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        privacy === 'public' ? 'bg-[#E7F3FF] border border-[#0866FF]/30' : 'hover:bg-[#F0F2F5]'
                       }`}
                     >
-                      <Globe className="w-4 h-4 text-[#1877F2] mt-0.5" />
+                      <Globe className="w-4 h-4 text-[#0866FF] mt-0.5" />
                       <div>
-                        <p className="text-xs font-bold text-white">Public (পাবলিক)</p>
-                        <p className="text-[10px] text-[#b0b3b8]">Peace World এর যেকোনো ব্যক্তি দেখতে পারবে</p>
+                        <p className="text-xs font-bold text-[#050505]">Public (পাবলিক)</p>
+                        <p className="text-[10px] text-[#65676B]">Peace World এর যেকোনো ব্যক্তি দেখতে পারবে</p>
                       </div>
                     </button>
 
@@ -313,14 +321,14 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                         setPrivacy('friends');
                         setShowPrivacyMenu(false);
                       }}
-                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors ${
-                        privacy === 'friends' ? 'bg-emerald-500/20 border border-emerald-500/40' : 'hover:bg-[#3a3b3c]'
+                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        privacy === 'friends' ? 'bg-emerald-50 border border-emerald-300' : 'hover:bg-[#F0F2F5]'
                       }`}
                     >
-                      <Users className="w-4 h-4 text-emerald-400 mt-0.5" />
+                      <Users className="w-4 h-4 text-emerald-600 mt-0.5" />
                       <div>
-                        <p className="text-xs font-bold text-white">Friends (বন্ধুরা)</p>
-                        <p className="text-[10px] text-[#b0b3b8]">শুধুমাত্র আপনার ফ্রেন্ডলিস্টের ব্যক্তিরা দেখতে পারবে</p>
+                        <p className="text-xs font-bold text-[#050505]">Friends (বন্ধুরা)</p>
+                        <p className="text-[10px] text-[#65676B]">শুধুমাত্র আপনার ফ্রেন্ডলিস্টের ব্যক্তিরা দেখতে পারবে</p>
                       </div>
                     </button>
 
@@ -330,14 +338,14 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                         setPrivacy('private');
                         setShowPrivacyMenu(false);
                       }}
-                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors ${
-                        privacy === 'private' ? 'bg-amber-500/20 border border-amber-500/40' : 'hover:bg-[#3a3b3c]'
+                      className={`w-full flex items-start gap-2.5 p-2 rounded-lg text-left transition-colors cursor-pointer ${
+                        privacy === 'private' ? 'bg-amber-50 border border-amber-300' : 'hover:bg-[#F0F2F5]'
                       }`}
                     >
-                      <Lock className="w-4 h-4 text-amber-400 mt-0.5" />
+                      <Lock className="w-4 h-4 text-amber-600 mt-0.5" />
                       <div>
-                        <p className="text-xs font-bold text-white">Only Me (শুধুমাত্র আমি)</p>
-                        <p className="text-[10px] text-[#b0b3b8]">শুধুমাত্র আপনি নিজে দেখতে পারবেন, ফিডে থাকবে না</p>
+                        <p className="text-xs font-bold text-[#050505]">Only Me (শুধুমাত্র আমি)</p>
+                        <p className="text-[10px] text-[#65676B]">শুধুমাত্র আপনি নিজে দেখতে পারবেন, ফিডে থাকবে না</p>
                       </div>
                     </button>
                   </div>
@@ -346,16 +354,16 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             </div>
 
             {selectedFeeling && (
-              <p className="text-xs text-amber-300 mt-1">is {selectedFeeling}</p>
+              <p className="text-xs font-medium text-amber-700 mt-1">is {selectedFeeling}</p>
             )}
             {taggedFriends.length > 0 && (
-              <p className="text-xs text-blue-300 mt-0.5">
+              <p className="text-xs font-medium text-[#0866FF] mt-0.5">
                 with {taggedFriends.join(', ')}
               </p>
             )}
             {selectedLocation && (
-              <p className="text-xs text-emerald-300 flex items-center gap-1 mt-0.5">
-                <MapPin className="w-3 h-3 text-red-400" />
+              <p className="text-xs font-medium text-emerald-700 flex items-center gap-1 mt-0.5">
+                <MapPin className="w-3 h-3 text-red-500" />
                 <span>at {selectedLocation}</span>
               </p>
             )}
@@ -364,74 +372,86 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         {/* Halal AI Verification Indicator */}
         {isVerifyingHalal && (
-          <div className="p-3 bg-blue-950/40 border border-[#1877F2]/50 rounded-xl flex items-center gap-2.5 text-xs text-blue-200">
-            <Loader2 className="w-4 h-4 animate-spin text-[#1877F2]" />
+          <div className="p-3 bg-[#E7F3FF] border border-[#0866FF]/30 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-[#0866FF]">
+            <Loader2 className="w-4 h-4 animate-spin text-[#0866FF]" />
             <span>Peace World Halal AI কনটেন্ট ও হালাল নীতিমালা যাচাই করছে...</span>
           </div>
         )}
 
         {/* Moderation Block Banner (Only shows when BLOCK_WORDS matched) */}
         {moderationError && (
-          <div className="p-3.5 bg-[#242526] border border-amber-500/60 rounded-xl flex items-center gap-2.5 text-xs text-amber-200 animate-in fade-in">
-            <ShieldAlert className="w-5 h-5 text-amber-400 shrink-0" />
-            <span className="font-semibold text-[13px] text-amber-200">
+          <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 animate-in fade-in">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+            <span className="font-semibold text-[13px] text-amber-900">
               দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে
             </span>
           </div>
         )}
 
-        {/* 4 Interactive Pills under Author matching Screenshot 2:
+        {/* 4 Interactive Pills under Author:
             [ 🎵 Music ] [ 👤 Tag/collaborate ] [ 📍 Location ] [ 😊 Feeling ] */}
         <div className="flex items-center gap-2 overflow-x-auto no-scrollbar py-1">
           {/* Music */}
           <button
+            type="button"
             onClick={() => setShowMusicPicker(!showMusicPicker)}
-            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
-              selectedMusic ? 'bg-teal-950 border-teal-500 text-teal-300' : 'bg-[#242526] border-[#393a3b] text-[#e4e6eb] hover:bg-[#3a3b3c]'
+            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              selectedMusic
+                ? 'bg-teal-50 border-teal-400 text-teal-700'
+                : 'bg-[#F0F2F5] border-[#E4E6EB] text-[#050505] hover:bg-[#E4E6EB]'
             }`}
           >
-            <Music className="w-3.5 h-3.5" />
+            <Music className="w-3.5 h-3.5 text-teal-600" />
             <span>{selectedMusic || 'Music'}</span>
           </button>
 
           {/* Tag/collaborate */}
           <button
+            type="button"
             onClick={() => setShowTagModal(!showTagModal)}
-            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
-              taggedFriends.length > 0 ? 'bg-blue-950 border-blue-500 text-blue-300' : 'bg-[#242526] border-[#393a3b] text-[#e4e6eb] hover:bg-[#3a3b3c]'
+            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              taggedFriends.length > 0
+                ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                : 'bg-[#F0F2F5] border-[#E4E6EB] text-[#050505] hover:bg-[#E4E6EB]'
             }`}
           >
-            <Users className="w-3.5 h-3.5" />
+            <Users className="w-3.5 h-3.5 text-[#0866FF]" />
             <span>{taggedFriends.length > 0 ? `Tagged (${taggedFriends.length})` : 'Tag/collaborate'}</span>
           </button>
 
           {/* Location */}
           <button
+            type="button"
             onClick={() => setShowLocationModal(!showLocationModal)}
-            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
-              selectedLocation ? 'bg-red-950 border-red-500 text-red-300' : 'bg-[#242526] border-[#393a3b] text-[#e4e6eb] hover:bg-[#3a3b3c]'
+            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              selectedLocation
+                ? 'bg-red-50 border-red-400 text-red-700'
+                : 'bg-[#F0F2F5] border-[#E4E6EB] text-[#050505] hover:bg-[#E4E6EB]'
             }`}
           >
-            <MapPin className="w-3.5 h-3.5 text-red-400" />
+            <MapPin className="w-3.5 h-3.5 text-red-500" />
             <span>{selectedLocation ? selectedLocation.split(',')[0] : 'Location'}</span>
           </button>
 
           {/* Feeling */}
           <button
+            type="button"
             onClick={() => setShowFeelingModal(!showFeelingModal)}
-            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 ${
-              selectedFeeling ? 'bg-amber-950 border-amber-500 text-amber-300' : 'bg-[#242526] border-[#393a3b] text-[#e4e6eb] hover:bg-[#3a3b3c]'
+            className={`px-3 py-1.5 rounded-full border text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 cursor-pointer ${
+              selectedFeeling
+                ? 'bg-amber-50 border-amber-400 text-amber-800'
+                : 'bg-[#F0F2F5] border-[#E4E6EB] text-[#050505] hover:bg-[#E4E6EB]'
             }`}
           >
-            <Smile className="w-3.5 h-3.5 text-amber-400" />
+            <Smile className="w-3.5 h-3.5 text-amber-500" />
             <span>{selectedFeeling ? 'Feeling added' : 'Feeling'}</span>
           </button>
         </div>
 
         {/* Music Picker subdrawer */}
         {showMusicPicker && (
-          <div className="p-3 bg-[#242526] rounded-xl border border-teal-500/40 space-y-2 animate-in fade-in">
-            <p className="text-xs font-bold text-teal-400">ইসলামিক তিলাওয়াত বা নাসহীদ নির্বাচন করুন:</p>
+          <div className="p-3 bg-[#F7F8FA] rounded-xl border border-teal-300 space-y-2 animate-in fade-in">
+            <p className="text-xs font-bold text-teal-700">ইসলামিক তিলাওয়াত বা নাসহীদ নির্বাচন করুন:</p>
             <div className="flex flex-wrap gap-1.5">
               {[
                 'সূরা আর-রহমান তিলাওয়াত 🎵',
@@ -441,11 +461,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               ].map((m) => (
                 <button
                   key={m}
+                  type="button"
                   onClick={() => {
                     setSelectedMusic(m);
                     setShowMusicPicker(false);
                   }}
-                  className="px-2.5 py-1 rounded-full bg-[#18191a] text-xs text-[#e4e6eb] hover:bg-teal-900"
+                  className="px-2.5 py-1 rounded-full bg-white border border-[#E4E6EB] text-xs font-medium text-[#050505] hover:bg-teal-50 hover:border-teal-400 cursor-pointer"
                 >
                   {m}
                 </button>
@@ -456,10 +477,10 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         {/* Tag Friends Modal */}
         {showTagModal && (
-          <div className="p-3 bg-[#242526] rounded-xl border border-blue-500/40 space-y-2.5 animate-in fade-in">
+          <div className="p-3 bg-[#F7F8FA] rounded-xl border border-[#0866FF]/30 space-y-2.5 animate-in fade-in">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-blue-400">বন্ধুদের ট্যাগ করুন</span>
-              <button onClick={() => setShowTagModal(false)} className="text-neutral-400 hover:text-white">
+              <span className="text-xs font-bold text-[#0866FF]">বন্ধুদের ট্যাগ করুন</span>
+              <button type="button" onClick={() => setShowTagModal(false)} className="text-[#65676B] hover:text-[#050505] cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -469,16 +490,17 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                 return (
                   <button
                     key={f.id}
+                    type="button"
                     onClick={() => toggleFriendTag(f.name)}
-                    className={`w-full p-2 rounded-lg flex items-center justify-between text-xs ${
-                      isTagged ? 'bg-blue-950 text-white' : 'hover:bg-[#3a3b3c] text-[#e4e6eb]'
+                    className={`w-full p-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
+                      isTagged ? 'bg-[#E7F3FF] text-[#0866FF] font-semibold' : 'hover:bg-[#E4E6EB] text-[#050505]'
                     }`}
                   >
                     <div className="flex items-center gap-2">
                       <img src={f.avatar} alt={f.name} className="w-6 h-6 rounded-full object-cover" />
                       <span>{f.name}</span>
                     </div>
-                    {isTagged && <Check className="w-3.5 h-3.5 text-blue-400" />}
+                    {isTagged && <Check className="w-3.5 h-3.5 text-[#0866FF]" />}
                   </button>
                 );
               })}
@@ -488,10 +510,10 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         {/* Location Picker */}
         {showLocationModal && (
-          <div className="p-3 bg-[#242526] rounded-xl border border-red-500/40 space-y-2 animate-in fade-in">
+          <div className="p-3 bg-[#F7F8FA] rounded-xl border border-red-300 space-y-2 animate-in fade-in">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-red-400">অবস্থান নির্বাচন করুন</span>
-              <button onClick={() => setShowLocationModal(false)} className="text-neutral-400 hover:text-white">
+              <span className="text-xs font-bold text-red-600">অবস্থান নির্বাচন করুন</span>
+              <button type="button" onClick={() => setShowLocationModal(false)} className="text-[#65676B] hover:text-[#050505] cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -499,13 +521,14 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               {LOCATIONS.map((loc) => (
                 <button
                   key={loc}
+                  type="button"
                   onClick={() => {
                     setSelectedLocation(loc);
                     setShowLocationModal(false);
                   }}
-                  className="w-full text-left p-2 rounded-lg hover:bg-[#3a3b3c] text-xs text-[#e4e6eb] flex items-center gap-2"
+                  className="w-full text-left p-2 rounded-lg hover:bg-[#E4E6EB] text-xs text-[#050505] flex items-center gap-2 cursor-pointer"
                 >
-                  <MapPin className="w-3.5 h-3.5 text-red-400" />
+                  <MapPin className="w-3.5 h-3.5 text-red-500" />
                   <span>{loc}</span>
                 </button>
               ))}
@@ -515,10 +538,10 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         {/* Feeling Picker */}
         {showFeelingModal && (
-          <div className="p-3 bg-[#242526] rounded-xl border border-amber-500/40 space-y-2 animate-in fade-in">
+          <div className="p-3 bg-[#F7F8FA] rounded-xl border border-amber-300 space-y-2 animate-in fade-in">
             <div className="flex items-center justify-between">
-              <span className="text-xs font-bold text-amber-400">অনুভূতি বা কার্যকলাপ</span>
-              <button onClick={() => setShowFeelingModal(false)} className="text-neutral-400 hover:text-white">
+              <span className="text-xs font-bold text-amber-700">অনুভূতি বা কার্যকলাপ</span>
+              <button type="button" onClick={() => setShowFeelingModal(false)} className="text-[#65676B] hover:text-[#050505] cursor-pointer">
                 <X className="w-4 h-4" />
               </button>
             </div>
@@ -526,11 +549,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               {ISLAMIC_FEELINGS.map((feel, i) => (
                 <button
                   key={i}
+                  type="button"
                   onClick={() => {
                     setSelectedFeeling(`${feel.label} ${feel.emoji}`);
                     setShowFeelingModal(false);
                   }}
-                  className="p-2 rounded-lg bg-[#18191a] hover:bg-[#3a3b3c] text-left text-xs flex items-center gap-1.5"
+                  className="p-2 rounded-lg bg-white border border-[#E4E6EB] hover:bg-amber-50 text-left text-xs text-[#050505] flex items-center gap-1.5 cursor-pointer"
                 >
                   <span className="text-base">{feel.emoji}</span>
                   <span className="truncate">{feel.bn}</span>
@@ -540,25 +564,25 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           </div>
         )}
 
-        {/* Text Area matching Screenshot 2 */}
-        <div className="min-h-[110px]">
+        {/* Text Area */}
+        <div className="min-h-[110px] bg-white">
           <textarea
             rows={4}
             placeholder="What's on your mind? / মনের কথা বা দ্বীনি উপদেশ লিখুন..."
             value={content}
             onChange={(e) => setContent(e.target.value)}
-            className="w-full bg-transparent placeholder-[#b0b3b8] focus:outline-none resize-none leading-relaxed text-[#e4e6eb] text-base font-bengali"
+            className="w-full bg-white placeholder-[#65676B] focus:outline-none resize-none leading-relaxed text-[#050505] text-[16px] font-bengali"
           />
         </div>
 
-        {/* Direct Button to open Phone Gallery if no photo is picked yet */}
+        {/* Light Gray Dashed Gallery Selector Box on White Background */}
         {!selectedPhoto && (
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 px-4 rounded-2xl bg-[#242526] hover:bg-[#3a3b3c] border border-dashed border-[#45bd62]/60 text-emerald-400 font-bold text-xs flex items-center justify-center gap-2.5 transition-all active:scale-98 shadow-sm"
+            className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-[#F7F8FA] border-2 border-dashed border-[#CED0D4] text-emerald-600 font-bold text-xs flex items-center justify-center gap-2.5 transition-all active:scale-98 shadow-2xs cursor-pointer"
           >
-            <div className="p-1.5 rounded-lg bg-[#45bd62]/20 text-[#45bd62]">
+            <div className="p-1.5 rounded-lg bg-emerald-50 text-[#45bd62]">
               <ImageIcon className="w-5 h-5" />
             </div>
             <span>আপনার ফোনের গ্যালারি থেকে ছবি বা ভিডিও সিলেক্ট করুন (Open Gallery)</span>
@@ -567,7 +591,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         {/* Photo / Video Preview with ✕ button */}
         {selectedPhoto && (
-          <div className="relative rounded-2xl overflow-hidden border border-[#393a3b] bg-neutral-900 group animate-in fade-in">
+          <div className="relative rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5] group animate-in fade-in">
             {isVideo ? (
               <video
                 src={selectedPhoto}
@@ -587,16 +611,16 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               <button
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
-                className="px-2.5 py-1 rounded-full bg-black/75 hover:bg-black text-xs font-bold text-white flex items-center gap-1 backdrop-blur-sm"
+                className="px-2.5 py-1 rounded-full bg-white/95 hover:bg-white text-xs font-bold text-[#050505] flex items-center gap-1 shadow-md border border-[#E4E6EB] cursor-pointer"
               >
-                <Upload className="w-3.5 h-3.5" />
+                <Upload className="w-3.5 h-3.5 text-[#0866FF]" />
                 <span>পরিবর্তন করুন</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setSelectedPhoto(null)}
-                className="p-1.5 rounded-full bg-black/75 hover:bg-black text-white backdrop-blur-sm"
+                className="p-1.5 rounded-full bg-white/95 hover:bg-white text-[#050505] shadow-md border border-[#E4E6EB] cursor-pointer"
                 title="মুছে ফেলুন"
               >
                 <X className="w-5 h-5 stroke-[2.5]" />
@@ -607,12 +631,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         {/* Ayah Box Form */}
         {showAyahBox && (
-          <div className="p-3 rounded-xl bg-[#242526] border border-emerald-500/40 space-y-2 animate-in fade-in">
-            <div className="flex items-center justify-between text-emerald-400 font-bold text-xs">
+          <div className="p-3 rounded-xl bg-[#F7F8FA] border border-emerald-300 space-y-2 animate-in fade-in">
+            <div className="flex items-center justify-between text-emerald-700 font-bold text-xs">
               <span className="flex items-center gap-1.5">
                 <BookOpen className="w-4 h-4" /> কুরআনের আয়াত বা হাদিস কার্ড
               </span>
-              <button onClick={() => setShowAyahBox(false)} className="text-neutral-400 hover:text-white">
+              <button type="button" onClick={() => setShowAyahBox(false)} className="text-[#65676B] hover:text-[#050505] cursor-pointer">
                 <X className="w-3.5 h-3.5" />
               </button>
             </div>
@@ -621,43 +645,42 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               placeholder="মূল আরবি পাঠ লিখুন..."
               value={arabicText}
               onChange={(e) => setArabicText(e.target.value)}
-              className="w-full bg-[#18191a] border border-[#393a3b] rounded-lg p-2 text-right font-arabic text-sm text-emerald-100 outline-none"
+              className="w-full bg-white border border-[#E4E6EB] rounded-lg p-2 text-right font-arabic text-sm text-[#050505] placeholder-[#65676B] outline-none focus:border-[#0866FF]"
             />
             <input
               type="text"
               placeholder="বাংলা অনুবাদ..."
               value={translationText}
               onChange={(e) => setTranslationText(e.target.value)}
-              className="w-full bg-[#18191a] border border-[#393a3b] rounded-lg px-2.5 py-1.5 text-xs text-[#e4e6eb] outline-none"
+              className="w-full bg-white border border-[#E4E6EB] rounded-lg px-2.5 py-1.5 text-xs text-[#050505] placeholder-[#65676B] outline-none focus:border-[#0866FF]"
             />
           </div>
         )}
 
       </div>
 
-      {/* Bottom Horizontal Action Cards matching Screenshot 2:
-          [ 🖼️ Gallery ] [ 👾 GIF / কার্ড ] [ 📹 Live ] [ 💬 WhatsApp ] */}
-      <div className="bg-[#242526] border-t border-[#393a3b] p-3 space-y-3">
+      {/* Bottom Action Bar: Light Gray Surface with Clean White Action Cards */}
+      <div className="bg-[#F0F2F5] border-t border-[#E4E6EB] p-3 space-y-3">
         <div className="grid grid-cols-4 gap-2">
-          {/* 1. Gallery -> Directly triggers device's native gallery picker! */}
+          {/* 1. Gallery */}
           <button
             type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="py-2.5 px-1 bg-[#18191a] hover:bg-[#3a3b3c] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#393a3b] active:scale-95"
+            className="py-2.5 px-1 bg-white hover:bg-[#F7F8FA] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#E4E6EB] shadow-2xs active:scale-95 cursor-pointer"
             title="আপনার মোবাইল বা কম্পিউটারের নিজস্ব গ্যালারি খুলুন"
           >
             <ImageIcon className="w-6 h-6 text-[#45bd62]" />
-            <span className="text-[11px] font-bold text-white">Gallery</span>
+            <span className="text-[11px] font-bold text-[#050505]">Gallery</span>
           </button>
 
-          {/* 2. GIF / কার্ড */}
+          {/* 2. কুরআন কার্ড */}
           <button
             type="button"
             onClick={() => setShowAyahBox(!showAyahBox)}
-            className="py-2.5 px-1 bg-[#18191a] hover:bg-[#3a3b3c] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#393a3b] active:scale-95"
+            className="py-2.5 px-1 bg-white hover:bg-[#F7F8FA] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#E4E6EB] shadow-2xs active:scale-95 cursor-pointer"
           >
-            <BookOpen className="w-6 h-6 text-emerald-400" />
-            <span className="text-[11px] font-bold text-white">কুরআন কার্ড</span>
+            <BookOpen className="w-6 h-6 text-emerald-600" />
+            <span className="text-[11px] font-bold text-[#050505]">কুরআন কার্ড</span>
           </button>
 
           {/* 3. Live */}
@@ -669,48 +692,48 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                 onOpenLive();
               }
             }}
-            className="py-2.5 px-1 bg-[#18191a] hover:bg-[#3a3b3c] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#393a3b] active:scale-95"
+            className="py-2.5 px-1 bg-white hover:bg-[#F7F8FA] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#E4E6EB] shadow-2xs active:scale-95 cursor-pointer"
           >
             <Radio className="w-6 h-6 text-red-500" />
-            <span className="text-[11px] font-bold text-white">Live</span>
+            <span className="text-[11px] font-bold text-[#050505]">Live</span>
           </button>
 
-          {/* 4. WhatsApp / শেয়ার */}
+          {/* 4. WhatsApp */}
           <button
             type="button"
             onClick={() => {
               if (navigator.share) {
                 navigator.share({
-                  title: 'Qalby Halal',
-                  text: content || 'Join Qalby Halal Community',
+                  title: 'Peace World',
+                  text: content || 'Join Peace World Community',
                   url: window.location.href,
                 }).catch(() => {});
               }
             }}
-            className="py-2.5 px-1 bg-[#18191a] hover:bg-[#3a3b3c] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#393a3b] active:scale-95"
+            className="py-2.5 px-1 bg-white hover:bg-[#F7F8FA] rounded-2xl flex flex-col items-center justify-center gap-1 transition-all border border-[#E4E6EB] shadow-2xs active:scale-95 cursor-pointer"
           >
-            <MessageSquare className="w-6 h-6 text-emerald-400" />
-            <span className="text-[11px] font-bold text-white">WhatsApp</span>
+            <MessageSquare className="w-6 h-6 text-[#25D366]" />
+            <span className="text-[11px] font-bold text-[#050505]">WhatsApp</span>
           </button>
         </div>
 
-        {/* Bottom Footer matching Screenshot 2: [ 🌐 Privacy ] and [ Next / Post ] */}
+        {/* Bottom Footer: [ 🌐 Public (পাবলিক) ] and [ পোস্ট করুন (Post) ] */}
         <div className="flex items-center justify-between pt-1">
           <button
             type="button"
             onClick={() => setShowPrivacyMenu(!showPrivacyMenu)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-[#18191a] border border-[#393a3b] text-xs font-semibold text-[#e4e6eb] hover:bg-[#3a3b3c] transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#CED0D4] text-xs font-semibold text-[#050505] hover:bg-[#E4E6EB] transition-colors cursor-pointer"
           >
-            {privacy === 'public' && <><Globe className="w-3.5 h-3.5 text-[#1877F2]" /><span>Public (পাবলিক)</span></>}
-            {privacy === 'friends' && <><Users className="w-3.5 h-3.5 text-emerald-400" /><span>Friends (বন্ধুরা)</span></>}
-            {privacy === 'private' && <><Lock className="w-3.5 h-3.5 text-amber-400" /><span>Only Me (গোপনীয়)</span></>}
+            {privacy === 'public' && <><Globe className="w-3.5 h-3.5 text-[#0866FF]" /><span>Public (পাবলিক)</span></>}
+            {privacy === 'friends' && <><Users className="w-3.5 h-3.5 text-emerald-600" /><span>Friends (বন্ধুরা)</span></>}
+            {privacy === 'private' && <><Lock className="w-3.5 h-3.5 text-amber-600" /><span>Only Me (গোপনীয়)</span></>}
           </button>
 
           <button
             type="button"
             onClick={handleSubmit}
             disabled={(!content.trim() && !arabicText.trim() && !selectedPhoto) || isVerifyingHalal}
-            className="px-6 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] disabled:opacity-40 text-white font-bold text-sm shadow-md transition-colors flex items-center gap-2"
+            className="px-6 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-40 text-white font-bold text-sm shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
           >
             {isVerifyingHalal ? (
               <>

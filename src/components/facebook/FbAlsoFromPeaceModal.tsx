@@ -1,19 +1,32 @@
 import React from 'react';
-import { X, Video, MessageCircle, Instagram, Send, ShieldCheck, ExternalLink, Sparkles } from 'lucide-react';
+import { X, Video, MessageCircle, Instagram, Send, ShieldCheck, ExternalLink, Sparkles, Briefcase } from 'lucide-react';
 
-export type AlsoAppType = 'edits' | 'threads' | 'instagram' | 'messenger' | 'whatsapp' | null;
+export type AlsoAppType = 'edits' | 'threads' | 'instagram' | 'business_suite' | 'messenger' | 'whatsapp' | null;
 
 interface FbAlsoFromPeaceModalProps {
   appType: AlsoAppType;
   onClose: () => void;
+  onOpenPeaceEdits?: () => void;
+  onOpenPeaceThreads?: () => void;
+  onOpenPeaceInsta?: () => void;
+  onOpenBusinessSuite?: () => void;
+  onOpenMessenger?: () => void;
 }
 
-export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appType, onClose }) => {
+export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({
+  appType,
+  onClose,
+  onOpenPeaceEdits,
+  onOpenPeaceThreads,
+  onOpenPeaceInsta,
+  onOpenBusinessSuite,
+  onOpenMessenger,
+}) => {
   if (!appType) return null;
 
   const appDetails: Record<
     string,
-    { title: string; subtitle: string; icon: any; iconBg: string; desc: string; features: string[] }
+    { title: string; subtitle: string; icon: any; iconBg: string; desc: string; features: string[]; ctaLabel: string }
   > = {
     edits: {
       title: 'Peace Edits (ভিডিও ও রিল এডিটর)',
@@ -22,6 +35,7 @@ export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appT
       iconBg: 'bg-gradient-to-tr from-pink-500 to-rose-500',
       desc: 'বাদ্যযন্ত্রহীন ইসলামিক নাশিদ, আরবি ক্যালিগ্রাফি সাবটাইটেল এবং ৪K এক্সপোর্ট সুবিধা সহ সম্পূর্ণ হালাল ভিডিও এডিটর।',
       features: ['অটো-আরবি সাবটাইটেল', '১০০% হালাল নাশিদ লাইব্রেরি', '৯:১৬ রিলস এক্সপোর্ট', 'নো-ওয়াটারমার্ক'],
+      ctaLabel: 'এখনই ভিডিও বানান',
     },
     threads: {
       title: 'Peace Threads (থ্রেডস)',
@@ -29,15 +43,26 @@ export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appT
       icon: MessageCircle,
       iconBg: 'bg-neutral-900 border border-neutral-700',
       desc: 'সংক্ষিপ্ত হাদিস, দ্বীনি পরামর্শ এবং চিন্তা-ভাবনা ৫০০০ ক্যারেক্টারে দ্রুত প্রকাশ করুন।',
-      features: ['ঝটপট টেক্সট থ্রেড', 'হাদিসের রেফারেন্স ট্যাগ', 'উম্মাহর সুস্থ আলোচনা', 'নো স্প্যাম পলিসি'],
+      features: ['ঝটপট টেক্সট থ্রেড', 'হাদিসের রেফারেন্স', 'উম্মাহর সুস্থ আলোচনা', 'নো স্প্যাম পলিসি'],
+      ctaLabel: 'এখনই থ্রেড লিখুন ✍️',
     },
     instagram: {
-      title: 'Peace Gram (পিস গ্রাম)',
+      title: 'Peace Insta (পিস ইন্সটা)',
       subtitle: 'ফটোগ্রাফি ও হালাল ভিজ্যুয়াল স্টোরিজ',
       icon: Instagram,
       iconBg: 'bg-gradient-to-tr from-amber-500 via-rose-500 to-purple-600',
       desc: 'প্রকৃতির অপার সৌন্দর্য, ইসলামিক ক্যালিগ্রাফি এবং লাইফস্টাইল ছবি নিরাপদে শেয়ার করার প্ল্যাটফর্ম।',
       features: ['হালাল ভিজ্যুয়াল ফিল্টার', '২৪ ঘণ্টার স্টোরিজ', 'ফটো ক্যারোসেল', 'পর্দা ও মার্জিত নীতি'],
+      ctaLabel: 'Peace Insta খুলুন',
+    },
+    business_suite: {
+      title: 'Peace Business Suite',
+      subtitle: 'আপনার পেজ, শপ ও বিজ্ঞাপন ব্যবস্থাপনা কেন্দ্র',
+      icon: Briefcase,
+      iconBg: 'bg-gradient-to-tr from-[#0866FF] to-cyan-500',
+      desc: 'এক জায়গা থেকেই আপনার Peaceverse24 পেজ, অর্ডার, মেসেজ, ইনসাইটস এবং হালাল ব্যবসা পরিচালনা করুন।',
+      features: ['পেজ ও শপ ম্যানেজার', 'রিয়েল-টাইম ইনসাইটস', 'ইনবক্স অটোমেশন', 'অর্ডার ট্র্যাকিং'],
+      ctaLabel: 'Business Suite খুলুন',
     },
     messenger: {
       title: 'Peace Messenger (মেসেঞ্জার)',
@@ -46,6 +71,7 @@ export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appT
       iconBg: 'bg-gradient-to-tr from-[#1877F2] to-cyan-400',
       desc: 'বন্ধু এবং পরিবারের সাথে দ্রুত বার্তা, ভয়েস নোট এবং কুরআন তিলাওয়াত অডিও শেয়ার করুন।',
       features: ['লাইভ মেসেজিং', 'ভয়েস অডিও নোটস', 'ইসলামিক রিঅ্যাকশন', 'গ্রুপ চ্যাট'],
+      ctaLabel: 'মেসেঞ্জার খুলুন',
     },
     whatsapp: {
       title: 'Peace WhatsApp (পিস চ্যাট)',
@@ -54,6 +80,7 @@ export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appT
       iconBg: 'bg-emerald-600',
       desc: 'সম্পূর্ণ গোপনীয়তার সাথে পরিবারের সাথে সংযুক্ত থাকুন। আপনার কোনো মেসেজ অন্য কেউ পড়তে পারবে না।',
       features: ['এন্ড-টু-এন্ড এনক্রিপশন', 'এইচডি অডিও ও ভিডিও কল', 'ডকুমেন্ট ও ফাইল শেয়ার', 'স্ট্যাটাস আপডেট'],
+      ctaLabel: 'চ্যাট শুরু করুন',
     },
   };
 
@@ -74,7 +101,7 @@ export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appT
               <p className="text-[11px] text-[#b0b3b8]">{current.subtitle}</p>
             </div>
           </div>
-          <button onClick={onClose} className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8]">
+          <button type="button" onClick={onClose} className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] cursor-pointer">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -106,10 +133,24 @@ export const FbAlsoFromPeaceModal: React.FC<FbAlsoFromPeaceModalProps> = ({ appT
         {/* Footer */}
         <div className="p-3 border-t border-[#393a3b] bg-[#18191a] flex gap-2">
           <button
-            onClick={onClose}
-            className="flex-1 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow flex items-center justify-center gap-1.5"
+            type="button"
+            onClick={() => {
+              onClose();
+              if (appType === 'edits' && onOpenPeaceEdits) {
+                onOpenPeaceEdits();
+              } else if (appType === 'threads' && onOpenPeaceThreads) {
+                onOpenPeaceThreads();
+              } else if (appType === 'instagram' && onOpenPeaceInsta) {
+                onOpenPeaceInsta();
+              } else if (appType === 'business_suite' && onOpenBusinessSuite) {
+                onOpenBusinessSuite();
+              } else if ((appType === 'messenger' || appType === 'whatsapp') && onOpenMessenger) {
+                onOpenMessenger();
+              }
+            }}
+            className="flex-1 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow flex items-center justify-center gap-1.5 cursor-pointer"
           >
-            <span>অ্যাপে প্রবেশ করুন</span>
+            <span>{current.ctaLabel}</span>
             <ExternalLink className="w-3.5 h-3.5" />
           </button>
         </div>

@@ -45,19 +45,21 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       <button
         type="button"
         onClick={onOpenProfile}
-        className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] dark:border-[#222222] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer relative"
+        className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] dark:border-[#222222] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer relative flex items-center justify-center"
         title={activeSwitchedPage ? `${activeSwitchedPage.name} পেজ প্রোফাইল` : "আপনার প্রোফাইল দেখুন (View Profile)"}
       >
-        <img
-          src={activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar}
-          alt={activeSwitchedPage ? activeSwitchedPage.name : userProfile.name}
-          onError={(e) => {
-            (e.currentTarget as HTMLImageElement).src =
-              'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
-          }}
-          className="w-full h-full object-cover rounded-full"
-          style={{ width: '40px', height: '40px', borderRadius: '50%' }}
-        />
+        {(activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar) ? (
+          <img
+            src={activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar}
+            alt={activeSwitchedPage ? activeSwitchedPage.name : userProfile.name}
+            className="w-full h-full object-cover rounded-full"
+            style={{ width: '40px', height: '40px', borderRadius: '50%' }}
+          />
+        ) : (
+          <span className="text-sm font-extrabold text-[#0866FF]">
+            {(activeSwitchedPage ? activeSwitchedPage.name : userProfile.name).trim().charAt(0).toUpperCase() || 'P'}
+          </span>
+        )}
       </button>
 
       {/* What's on your mind? Pill button */}

@@ -1,4 +1,4 @@
-export type ReactionType = 'like' | 'love' | 'subhanallah' | 'mashaallah' | 'care';
+export type ReactionType = 'like' | 'love' | 'subhanallah' | 'mashaallah' | 'care' | 'sad';
 
 export type FacebookMainTab =
   | 'home'
@@ -47,13 +47,15 @@ export interface PostItem {
   youtubeId?: string;
   duration?: string;
   isLive?: boolean;
-  category: 'Quran' | 'Hadith' | 'Dua' | 'Lecture' | 'Nasheed' | 'Community' | 'Live';
+  category: 'Quran' | 'Hadith' | 'Dua' | 'Lecture' | 'Nasheed' | 'Community' | 'Live' | 'Global Ummah';
   reactions: {
     total: number;
     likeCount: number;
     loveCount: number;
     subhanallahCount: number;
     mashaallahCount: number;
+    careCount?: number;
+    sadCount?: number;
   };
   userReaction?: ReactionType | null;
   comments: PostComment[];
@@ -91,13 +93,29 @@ export interface FriendRequest {
 
 export interface NotificationItem {
   id: string;
-  type: 'friend_request' | 'page_views' | 'page_posts' | 'follow' | 'general' | 'like' | 'comment' | 'share' | 'moderation';
+  type:
+    | 'friend_request'
+    | 'page_views'
+    | 'page_posts'
+    | 'follow'
+    | 'general'
+    | 'like'
+    | 'comment'
+    | 'share'
+    | 'moderation'
+    | 'new_post'
+    | 'broadcast';
   avatar: string;
   title: string;
   subtitle?: string;
+  image?: string;
+  link?: string;
+  from?: string;
+  to?: string;
+  read?: boolean;
   timeAgo: string;
   isUnread: boolean;
-  badgeType?: 'friend' | 'page' | 'heart' | 'bell' | 'like' | 'comment' | 'shield';
+  badgeType?: 'friend' | 'page' | 'heart' | 'bell' | 'like' | 'comment' | 'shield' | 'broadcast';
   requestData?: FriendRequest;
   postId?: string;
 }
@@ -132,6 +150,8 @@ export interface PageItem {
   category: string;
   likes: string;
   followersCount: number;
+  followingCount?: number;
+  followedBy?: string[];
   avatar: string;
   cover: string;
   views?: string;
@@ -141,6 +161,9 @@ export interface PageItem {
   description: string;
   bio?: string;
   phone?: string;
+  whatsapp?: string;
+  imo?: string;
+  viber?: string;
   website?: string;
   websites?: string[];
   email?: string;
@@ -190,6 +213,11 @@ export interface UserProfile {
   hometown?: string;
   relationship?: string;
   website?: string;
+  whatsapp?: string;
+  imo?: string;
+  viber?: string;
+  messengerLink?: string;
+  contactPrivacy?: 'public' | 'friends' | 'private';
   hobbies?: string[];
   goldenCoins?: number;
   earnedCoins?: number;
@@ -216,7 +244,7 @@ export interface GoldenCashoutRequest {
   userPhone?: string;
   coinsAmount: number;
   moneyAmount: number; // In BDT
-  paymentMethod: 'bkash' | 'nagad' | 'rocket' | 'bank';
+  paymentMethod: 'bkash' | 'nagad' | 'rocket' | 'bank' | 'paypal' | 'payoneer';
   accountNumber: string;
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string;

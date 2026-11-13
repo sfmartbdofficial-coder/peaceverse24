@@ -29,7 +29,7 @@ export interface MonetizedCreator {
   paidEarnings: number;
   pendingBalance: number;
   appliedDate: string;
-  payoutMethod: 'bKash' | 'Nagad' | 'Bank';
+  payoutMethod: 'bKash' | 'Nagad' | 'Bank' | 'PayPal' | 'Stripe' | 'Payoneer';
   accountNumber: string;
 }
 
@@ -39,7 +39,7 @@ export interface PayoutRequest {
   creatorName: string;
   creatorAvatar: string;
   amount: number;
-  method: 'bKash' | 'Nagad' | 'Bank';
+  method: 'bKash' | 'Nagad' | 'Bank' | 'PayPal' | 'Stripe' | 'Payoneer';
   accountNumber: string;
   date: string;
   status: 'paid' | 'pending';

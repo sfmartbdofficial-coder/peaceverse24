@@ -21,12 +21,16 @@ import {
   Heart,
   Info,
   User,
+  MessageCircle,
+  Eye,
+  Edit3,
 } from 'lucide-react';
 import { PageItem } from '../../types';
 
 interface FbCreatePageLandingViewProps {
   onBack: () => void;
   onPageCreated: (newPage: PageItem) => void;
+  onCreateFirstPost?: (newPage: PageItem) => void;
 }
 
 interface WebsiteEntry {
@@ -117,6 +121,7 @@ const ACTION_BUTTON_OPTIONS = [
 export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = ({
   onBack,
   onPageCreated,
+  onCreateFirstPost,
 }) => {
   // Option selection matching Screenshot 4 ("Which option is best for you?")
   const [creationOption, setCreationOption] = useState<'page' | 'profile'>('page');
@@ -129,6 +134,9 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
   // Contact Information
   const [phone, setPhone] = useState('');
+  const [whatsapp, setWhatsapp] = useState('');
+  const [imo, setImo] = useState('');
+  const [viber, setViber] = useState('');
   const [email, setEmail] = useState('');
   const [address, setAddress] = useState('');
   const [city, setCity] = useState('Dhaka, Bangladesh');
@@ -150,9 +158,9 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
     },
   ]);
 
-  // Visuals
-  const [selectedAvatar, setSelectedAvatar] = useState(PRESET_AVATARS[0]);
-  const [selectedCover, setSelectedCover] = useState(PRESET_COVERS[0]);
+  // Visuals (empty by default so user sees clear Add Cover & Add Logo setup CTAs)
+  const [selectedAvatar, setSelectedAvatar] = useState('');
+  const [selectedCover, setSelectedCover] = useState('');
 
   // Primary Action Button
   const [actionButton, setActionButton] = useState('Start Order');
@@ -160,6 +168,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
   // Validation & Loading state
   const [validationError, setValidationError] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [createdPageSuccess, setCreatedPageSuccess] = useState<PageItem | null>(null);
 
   // Helper: Add another website input
   const handleAddWebsite = () => {
@@ -240,6 +249,9 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       description: bio.trim() || `${pageName.trim()} - অফিসিয়াল Peaceverse24 পেজ।`,
       bio: bio.trim() || 'Welcome to our official Peaceverse24 Page.',
       phone: phone.trim() || undefined,
+      whatsapp: whatsapp.trim() || phone.trim() || undefined,
+      imo: imo.trim() || undefined,
+      viber: viber.trim() || undefined,
       email: email.trim() || undefined,
       website: validWebsites[0] || undefined,
       websites: validWebsites.length > 0 ? validWebsites : undefined,
@@ -261,8 +273,8 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
     setTimeout(() => {
       setIsSubmitting(false);
-      onPageCreated(newPage);
-    }, 400);
+      setCreatedPageSuccess(newPage);
+    }, 300);
   };
 
   return (
@@ -413,7 +425,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 required
                 value={pageName}
                 onChange={(e) => setPageName(e.target.value)}
-                placeholder="যেমন: হালাল ফুড কিচেন / SF MART BD / ইসলামিক আলো..."
+                placeholder="যেমন: SF MART BD / Peace Mart Global / Halal Food Kitchen"
                 className="w-full text-sm sm:text-base px-4 py-3.5 rounded-2xl bg-neutral-50 dark:bg-[#18191a] border-2 border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] focus:bg-white dark:focus:bg-[#242526] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none transition-all shadow-inner"
               />
               <p className="text-[11px] text-neutral-500 dark:text-[#B0B3B8] mt-1.5 flex items-center gap-1">
@@ -505,7 +517,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
                 <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5">
-                  ফোন বা হোয়াটসঅ্যাপ নম্বর (Phone / WhatsApp)
+                  ফোন নম্বর (Phone)
                 </label>
                 <div className="relative flex items-center">
                   <div className="absolute left-3.5 text-neutral-400">
@@ -535,6 +547,84 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="contact@yourbusiness.com"
                     className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {/* Social Messaging Contacts: WhatsApp, IMO, Viber (Optional + Recommended for Global Business) */}
+            <div className="pt-2 space-y-2.5">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span className="text-xs font-bold text-neutral-700 dark:text-[#E4E6EB]">
+                  ডিরেক্ট চ্যাট নম্বরসমূহ <span className="font-normal text-neutral-400">(Optional)</span>
+                </span>
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                  <Check className="w-3 h-3 stroke-[3]" />
+                  <span>Recommended for Global Business</span>
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5 flex items-center justify-between gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded bg-[#25D366]/20 text-[#25D366] flex items-center justify-center shrink-0">
+                        <MessageCircle className="w-3 h-3" />
+                      </span>
+                      <span>WhatsApp</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                      Global Ready
+                    </span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={whatsapp}
+                    onChange={(e) => setWhatsapp(e.target.value)}
+                    placeholder="+880 17XXXXXXXX (Optional)"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#25D366] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5 flex items-center justify-between gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded bg-[#0088CC]/20 text-[#0088CC] flex items-center justify-center shrink-0">
+                        <Phone className="w-3 h-3" />
+                      </span>
+                      <span>IMO</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                      Optional
+                    </span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={imo}
+                    onChange={(e) => setImo(e.target.value)}
+                    placeholder="+880 17XXXXXXXX (Optional)"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0088CC] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5 flex items-center justify-between gap-1">
+                    <span className="flex items-center gap-1.5">
+                      <span className="w-4 h-4 rounded bg-[#7360F2]/20 text-[#7360F2] flex items-center justify-center shrink-0">
+                        <Phone className="w-3 h-3" />
+                      </span>
+                      <span>Viber</span>
+                    </span>
+                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                      Optional
+                    </span>
+                  </label>
+                  <input
+                    type="tel"
+                    value={viber}
+                    onChange={(e) => setViber(e.target.value)}
+                    placeholder="+880 17XXXXXXXX (Optional)"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#7360F2] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
                   />
                 </div>
               </div>
@@ -676,18 +766,33 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 প্রোফাইল ছবি / লোগো (Profile Picture / Logo)
               </label>
               <div className="flex items-center gap-3">
-                <div className="w-16 h-16 rounded-2xl overflow-hidden border-2 border-[#0866FF] shadow-md shrink-0 bg-neutral-900">
-                  <img
-                    src={selectedAvatar}
-                    alt="Selected Avatar"
-                    className="w-full h-full object-cover"
+                <label className="w-16 h-16 rounded-full overflow-hidden border-2 border-dashed border-[#0866FF] shadow-xs shrink-0 bg-[#E4E6EB] flex flex-col items-center justify-center cursor-pointer hover:bg-[#D8DADF] transition-colors">
+                  {selectedAvatar ? (
+                    <img
+                      src={selectedAvatar}
+                      alt="Selected Avatar"
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <>
+                      <Plus className="w-4 h-4 text-[#050505]" />
+                      <span className="text-[9px] font-bold text-[#050505] leading-tight text-center px-1">
+                        লোগো
+                      </span>
+                    </>
+                  )}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    onChange={(e) => handleFileUpload(e, 'avatar')}
+                    className="hidden"
                   />
-                </div>
+                </label>
 
                 <div className="flex-1 space-y-1.5">
                   <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-neutral-100 dark:bg-[#3a3b3c] hover:bg-neutral-200 text-xs font-bold text-neutral-800 dark:text-white cursor-pointer transition-colors shadow-xs">
                     <Camera className="w-4 h-4 text-[#0866FF]" />
-                    <span>ফোন বা কম্পিউটার থেকে ছবি আপলোড করুন</span>
+                    <span>+ লোগো যোগ করুন (Add Logo)</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -696,7 +801,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     />
                   </label>
                   <p className="text-[11px] text-neutral-400">
-                    অথবা নিচের প্রস্তুতকৃত লোগোগুলো থেকে যেকোনো একটি বেছে নিন:
+                    ঐচ্ছিক: এখনই আপলোড করুন অথবা পেজ তৈরির পরেও যোগ করতে পারবেন।
                   </p>
                 </div>
               </div>
@@ -723,22 +828,37 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
               <label className="block text-xs sm:text-sm font-bold text-neutral-900 dark:text-white mb-2">
                 কভার ফটো (Cover Photo)
               </label>
-              <div className="relative h-28 w-full rounded-2xl overflow-hidden border border-neutral-300 dark:border-[#3a3b3c] shadow-xs">
-                <img
-                  src={selectedCover}
-                  alt="Selected Cover"
-                  className="w-full h-full object-cover"
-                />
-                <label className="absolute bottom-2.5 right-2.5 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white text-xs font-bold backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all shadow-md">
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>কভার পরিবর্তন</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={(e) => handleFileUpload(e, 'cover')}
-                    className="hidden"
-                  />
-                </label>
+              <div className="relative h-32 w-full rounded-2xl overflow-hidden border border-neutral-300 dark:border-[#3a3b3c] bg-[#E4E6EB] shadow-xs flex items-center justify-center">
+                {selectedCover ? (
+                  <>
+                    <img
+                      src={selectedCover}
+                      alt="Selected Cover"
+                      className="w-full h-full object-cover"
+                    />
+                    <label className="absolute bottom-2.5 right-2.5 px-3 py-1.5 rounded-xl bg-black/60 hover:bg-black/80 text-white text-xs font-bold backdrop-blur-md flex items-center gap-1.5 cursor-pointer transition-all shadow-md">
+                      <Camera className="w-3.5 h-3.5" />
+                      <span>কভার পরিবর্তন</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        onChange={(e) => handleFileUpload(e, 'cover')}
+                        className="hidden"
+                      />
+                    </label>
+                  </>
+                ) : (
+                  <label className="px-4 py-2.5 rounded-xl bg-white hover:bg-neutral-50 text-[#050505] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-neutral-300 transition-all">
+                    <Camera className="w-4 h-4 text-[#0866FF]" />
+                    <span>+ কভার ফটো যোগ করুন (Add Cover Photo)</span>
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleFileUpload(e, 'cover')}
+                      className="hidden"
+                    />
+                  </label>
+                )}
               </div>
 
               <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 pt-2.5">
@@ -770,7 +890,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 <span>অ্যাকশন বাটন নির্বাচন (Action Button)</span>
               </h3>
               <p className="text-xs text-neutral-500 dark:text-[#B0B3B8] mt-0.5">
-                ভিজিটররা আপনার পেজে ঢুকেই কোন বাটনটি দেখতে পাবে (যেমন SF MART BD পেজে &quot;Start Order&quot;)
+                ভিজিটররা আপনার পেজে ঢুকেই কোন বাটনটি দেখতে পাবে (যেমন Peace Mart Global পেজে &quot;Start Order&quot;)
               </p>
             </div>
 
@@ -816,6 +936,113 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
           </div>
         </form>
       </div>
+
+      {/* Facebook-style Confetti + Page Created Success Overlay */}
+      {createdPageSuccess && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
+          {/* Confetti Particles */}
+          <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
+            {Array.from({ length: 34 }).map((_, i) => {
+              const colors = [
+                'bg-[#0866FF]',
+                'bg-emerald-400',
+                'bg-amber-400',
+                'bg-pink-500',
+                'bg-sky-400',
+                'bg-violet-500',
+              ];
+              const leftPct = ((i * 29 + 7) % 96) + 2;
+              const delaySec = ((i % 7) * 0.14).toFixed(2);
+              const durationSec = (1.9 + (i % 5) * 0.35).toFixed(2);
+              const isCircle = i % 3 === 0;
+              return (
+                <span
+                  key={i}
+                  className={`absolute top-0 animate-confetti-fall ${colors[i % colors.length]} ${
+                    isCircle ? 'w-2.5 h-2.5 rounded-full' : 'w-2 h-4 rounded-xs'
+                  }`}
+                  style={{
+                    left: `${leftPct}%`,
+                    animationDelay: `${delaySec}s`,
+                    animationDuration: `${durationSec}s`,
+                  }}
+                />
+              );
+            })}
+          </div>
+
+          {/* Success Card */}
+          <div className="relative z-10 w-full max-w-md bg-white dark:bg-[#242526] border border-neutral-200 dark:border-[#393a3b] rounded-3xl p-6 text-center shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+            <div className="relative w-20 h-20 mx-auto">
+              {createdPageSuccess.avatar ? (
+                <img
+                  src={createdPageSuccess.avatar}
+                  alt={createdPageSuccess.name}
+                  className="w-20 h-20 rounded-2xl object-cover border-4 border-[#0866FF] shadow-lg"
+                />
+              ) : (
+                <div className="w-20 h-20 rounded-2xl bg-[#E7F3FF] text-[#0866FF] border-4 border-[#0866FF] shadow-lg flex items-center justify-center font-extrabold text-2xl">
+                  {createdPageSuccess.name.trim().charAt(0).toUpperCase() || <Flag className="w-8 h-8" />}
+                </div>
+              )}
+              <span className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white dark:border-[#242526] shadow-md">
+                <Check className="w-4 h-4 stroke-[3]" />
+              </span>
+            </div>
+
+            <div className="space-y-1.5">
+              <h2 className="text-lg sm:text-xl font-extrabold text-neutral-900 dark:text-white leading-snug">
+                🎉 অভিনন্দন! আপনার {createdPageSuccess.name} পেজ তৈরি হয়েছে!
+              </h2>
+              <p className="text-xs text-neutral-500 dark:text-[#B0B3B8]">
+                আপনার নতুন পেজটি এখন সবার জন্য উন্মুক্ত। নিচের যেকোনো একটি অপশন বেছে নিন:
+              </p>
+            </div>
+
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={() => onPageCreated(createdPageSuccess)}
+                className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer"
+              >
+                <Eye className="w-4 h-4" />
+                <span>View Your Page</span>
+              </button>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (onCreateFirstPost) {
+                      onCreateFirstPost(createdPageSuccess);
+                    } else {
+                      onPageCreated(createdPageSuccess);
+                    }
+                  }}
+                  className="w-full py-2.5 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-neutral-900 dark:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                >
+                  <Edit3 className="w-4 h-4 text-[#0866FF]" />
+                  <span>Create First Post</span>
+                </button>
+
+                <a
+                  href={`https://wa.me/?text=${encodeURIComponent(
+                    `🎉 অভিনন্দন! Peaceverse24-এ আমার নতুন পেজ "${createdPageSuccess.name}" তৈরি হয়েছে! আমাদের পেজে যুক্ত হোন: ${
+                      typeof window !== 'undefined' ? window.location.origin : 'https://peaceverse24.app'
+                    }`
+                  )}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#25D366] hover:bg-[#20bd5a] text-white font-bold text-xs flex items-center justify-center gap-1.5 shadow-sm transition-colors cursor-pointer"
+                >
+                  <MessageCircle className="w-4 h-4 fill-white/20" />
+                  <span>Share on WhatsApp</span>
+                </a>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

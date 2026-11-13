@@ -27,12 +27,26 @@ import {
   Phone,
   Coins,
   ArrowDownLeft,
+  MessageCircle,
+  Lock,
+  Users,
+  Send,
+  Eye,
+  ExternalLink,
 } from 'lucide-react';
 import { UserProfile, PostItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
 import { FbEditProfileModal } from './FbEditProfileModal';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
+import {
+  getWhatsAppUrl,
+  getImoDeepLink,
+  getViberDeepLink,
+  getMessengerUrl,
+  openDeepLinkWithFallback,
+  normalizePhoneNumber,
+} from '../../utils/contactLinks';
 
 interface FbProfileViewProps {
   userProfile: UserProfile;
@@ -49,6 +63,8 @@ interface FbProfileViewProps {
   onDeletePost?: (postId: string) => void;
   onOpenReel?: (post: PostItem) => void;
   onOpenGoldenWallet?: () => void;
+  viewedProfile?: UserProfile | null;
+  onBackToOwnProfile?: () => void;
 }
 
 export const FbProfileView: React.FC<FbProfileViewProps> = ({
@@ -66,7 +82,12 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   onDeletePost,
   onOpenReel,
   onOpenGoldenWallet,
+  viewedProfile,
+  onBackToOwnProfile,
 }) => {
+  const activeProfile = viewedProfile || userProfile;
+  const isOwnProfile = !viewedProfile || viewedProfile.name === userProfile.name;
+  const [viewAsMode, setViewAsMode] = useState<'owner' | 'friend' | 'public'>('owner');
   const [profileTab, setProfileTab] = useState<'all' | 'photos' | 'reels'>('all');
   const [showEditModal, setShowEditModal] = useState(false);
   const [showMonetizationModal, setShowMonetizationModal] = useState(false);
@@ -85,7 +106,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
-          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-angel-mahi', 'page-noor-academy'];
+          const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-halal-bites', 'page-angel-mahi', 'page-noor-academy'];
           const userPages = parsed.filter((p: any) => p.isOwner && !demoIds.includes(p.id));
           if (userPages.length > 0) {
             return userPages.map((p: any) => ({
@@ -281,36 +302,53 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           </div>
         </div>
 
-        {/* 4. NAME SECTION:
-            - Name "Sharif Hasan" style: Bold 24px, center.
-            - Below "331 friends" 14px grey.
-            - Right side dropdown arrow button grey circle with red notification dot top-right. */}
+        {/* Banner when visiting another user's profile */}
+        {!isOwnProfile && onBackToOwnProfile && (
+          <div className="mt-2 mb-1 p-2.5 rounded-xl bg-[#E7F3FF] dark:bg-[#1877F2]/15 border border-[#1877F2]/30 flex items-center justify-between">
+            <span className="text-xs font-semibold text-[#050505] dark:text-white flex items-center gap-1.5">
+              <Eye className="w-4 h-4 text-[#0866FF]" />
+              আপনি {activeProfile.name}-এর প্রোফাইল দেখছেন
+            </span>
+            <button
+              onClick={onBackToOwnProfile}
+              className="px-2.5 py-1 rounded-lg bg-[#0866FF] text-white text-[11px] font-bold cursor-pointer"
+            >
+              নিজের প্রোফাইলে ফিরুন
+            </button>
+          </div>
+        )}
+
+        {/* 4. NAME SECTION: */}
         <div className="mt-3 text-center space-y-1">
           <div className="relative flex items-center justify-center px-2">
             <h1 className="text-[24px] font-bold text-[#050505] dark:text-white tracking-tight leading-tight">
-              {activeProfileId === 'main'
-                ? (userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Siddik')
-                : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (userProfile.name || 'Siddik'))}
+              {!isOwnProfile
+                ? activeProfile.name
+                : activeProfileId === 'main'
+                ? (activeProfile.name && activeProfile.name !== 'New Member' ? activeProfile.name : 'Siddik')
+                : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (activeProfile.name || 'Siddik'))}
             </h1>
 
             {/* Right side dropdown arrow button: grey circle with red notification dot top-right */}
-            <button
-              onClick={() => setShowProfileSwitcher(true)}
-              className="absolute right-0 top-1/2 -translate-y-1/2 cursor-pointer p-0 rounded-full hover:opacity-95 active:scale-95 transition-all group"
-              title="Switch profile or page"
-            >
-              <div className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:group-hover:bg-[#4E4F50] flex items-center justify-center text-[#050505] dark:text-[#E4E6EB] shadow-xs transition-colors border border-neutral-200/50 dark:border-white/5">
-                <ChevronDown className="w-5 h-5 stroke-[2.2]" />
-              </div>
-              {extraProfiles.some((p) => (p.notifications || 0) > 0) && (
-                <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E41E3F] ring-2 ring-white dark:ring-[#121212]" />
-              )}
-            </button>
+            {isOwnProfile && (
+              <button
+                onClick={() => setShowProfileSwitcher(true)}
+                className="absolute right-0 top-1/2 -translate-y-1/2 cursor-pointer p-0 rounded-full hover:opacity-95 active:scale-95 transition-all group"
+                title="Switch profile or page"
+              >
+                <div className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:group-hover:bg-[#4E4F50] flex items-center justify-center text-[#050505] dark:text-[#E4E6EB] shadow-xs transition-colors border border-neutral-200/50 dark:border-white/5">
+                  <ChevronDown className="w-5 h-5 stroke-[2.2]" />
+                </div>
+                {extraProfiles.some((p) => (p.notifications || 0) > 0) && (
+                  <span className="absolute -top-0.5 -right-0.5 w-3 h-3 rounded-full bg-[#E41E3F] ring-2 ring-white dark:ring-[#121212]" />
+                )}
+              </button>
+            )}
           </div>
 
           {/* Below "331 friends" 14px grey */}
           <p className="text-[14px] text-[#65676B] dark:text-[#B0B3B8] font-normal">
-            {userProfile.friendsCount || 331} friends
+            {activeProfile.friendsCount || 331} friends
           </p>
 
           {/* Below that: show 3 friend avatars overlapping, then text "Friends with things in common" grey 13px */}
@@ -324,27 +362,26 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           </div>
         </div>
 
-        {/* Two buttons:
-            "Add to story" blue #0866FF, white text, + icon, width 60%.
-            "Edit profile" grey #3A3B3C, white text, pencil icon, width 38%.
-            Both height 36px, border-radius 8px, flex row gap 8px */}
-        <div className="flex items-center gap-2 mt-4 w-full">
-          <button
-            onClick={onAddStory}
-            className="w-[60%] h-[36px] rounded-[8px] bg-[#0866FF] hover:bg-[#1877F2] text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 shadow-sm transition-colors"
-          >
-            <Plus className="w-4 h-4 stroke-[3]" />
-            <span>Add to story</span>
-          </button>
+        {/* Two buttons */}
+        {isOwnProfile && (
+          <div className="flex items-center gap-2 mt-4 w-full">
+            <button
+              onClick={onAddStory}
+              className="w-[60%] h-[36px] rounded-[8px] bg-[#0866FF] hover:bg-[#1877F2] text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 shadow-sm transition-colors"
+            >
+              <Plus className="w-4 h-4 stroke-[3]" />
+              <span>Add to story</span>
+            </button>
 
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="w-[38%] h-[36px] rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:hover:bg-[#4E4F50] text-[#050505] dark:text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 transition-colors"
-          >
-            <Edit2 className="w-4 h-4" />
-            <span>Edit profile</span>
-          </button>
-        </div>
+            <button
+              onClick={() => setShowEditModal(true)}
+              className="w-[38%] h-[36px] rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3A3B3C] dark:hover:bg-[#4E4F50] text-[#050505] dark:text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 transition-colors"
+            >
+              <Edit2 className="w-4 h-4" />
+              <span>Edit profile</span>
+            </button>
+          </div>
+        )}
 
         {/* Golden Wallet Banner in Profile */}
         <div
@@ -439,7 +476,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
               <MapPin className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                Lives in <span className="font-semibold text-[#050505] dark:text-white">{userProfile.location || 'Dhaka, Bangladesh'}</span>
+                Lives in <span className="font-semibold text-[#050505] dark:text-white">{activeProfile.location || 'Dhaka, Bangladesh'}</span>
               </span>
             </div>
 
@@ -447,7 +484,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
               <Home className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                From <span className="font-semibold text-[#050505] dark:text-white">{userProfile.hometown || 'Dhaka, Bangladesh'}</span>
+                From <span className="font-semibold text-[#050505] dark:text-white">{activeProfile.hometown || 'Dhaka, Bangladesh'}</span>
               </span>
             </div>
 
@@ -455,7 +492,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
               <Cake className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                Born <span className="font-semibold text-[#050505] dark:text-white">{userProfile.birthDate || 'August 17, 1991'}</span>
+                Born <span className="font-semibold text-[#050505] dark:text-white">{activeProfile.birthDate || 'August 17, 1991'}</span>
               </span>
             </div>
 
@@ -463,11 +500,169 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             <div className="flex items-center gap-3 text-[15px] text-[#65676B] dark:text-[#E4E6EB]">
               <Heart className="w-5 h-5 text-[#65676B] dark:text-[#B0B3B8] shrink-0" />
               <span>
-                <span className="font-semibold text-[#050505] dark:text-white">{userProfile.relationship || 'Married'}</span>
+                <span className="font-semibold text-[#050505] dark:text-white">{activeProfile.relationship || 'Married'}</span>
               </span>
             </div>
           </div>
         </div>
+
+        {/* 6.5 CONTACT SECTION ("যোগাযোগ করুন" - WhatsApp, IMO, Viber, Messenger with Privacy) */}
+        {(() => {
+          const waUrl = getWhatsAppUrl(activeProfile.whatsapp);
+          const imoLink = getImoDeepLink(activeProfile.imo);
+          const viberLink = getViberDeepLink(activeProfile.viber);
+          const messengerUrl = getMessengerUrl(activeProfile.messengerLink);
+          const hasAnyContact = Boolean(waUrl || imoLink || viberLink || messengerUrl);
+          const privacy = activeProfile.contactPrivacy || 'public';
+
+          // Determine effective viewer role
+          const effectiveViewer = isOwnProfile ? viewAsMode : 'public';
+          const canSeeContacts =
+            effectiveViewer === 'owner' ||
+            privacy === 'public' ||
+            (privacy === 'friends' && effectiveViewer === 'friend');
+
+          if (!hasAnyContact && !isOwnProfile) return null;
+
+          return (
+            <div className="mt-5 pt-4 border-t border-[#E4E6EB] dark:border-[#222222] space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-[16px] text-[#050505] dark:text-white">
+                    যোগাযোগ করুন
+                  </h3>
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[#F0F2F5] dark:bg-[#242526] text-[#65676B] dark:text-[#B0B3B8] border border-[#E4E6EB] dark:border-[#393a3b]">
+                    {privacy === 'public' && <><Globe className="w-3 h-3 text-emerald-500" /> Public</>}
+                    {privacy === 'friends' && <><Users className="w-3 h-3 text-blue-500" /> Friends</>}
+                    {privacy === 'private' && <><Lock className="w-3 h-3 text-amber-500" /> Only me</>}
+                  </span>
+                </div>
+
+                {isOwnProfile && (
+                  <button
+                    onClick={() => setShowEditModal(true)}
+                    className="text-[#0866FF] hover:underline font-semibold text-[13px] cursor-pointer"
+                  >
+                    {hasAnyContact ? 'Edit' : '+ Add Contact'}
+                  </button>
+                )}
+              </div>
+
+              {isOwnProfile && hasAnyContact && (
+                <div className="flex items-center gap-1.5 text-[11px]">
+                  <span className="text-[#65676B] dark:text-[#B0B3B8]">Preview as:</span>
+                  {(['owner', 'friend', 'public'] as const).map((m) => (
+                    <button
+                      key={m}
+                      type="button"
+                      onClick={() => setViewAsMode(m)}
+                      className={`px-2 py-0.5 rounded-md font-semibold transition-colors cursor-pointer ${
+                        viewAsMode === m
+                          ? 'bg-[#0866FF] text-white'
+                          : 'bg-[#F0F2F5] dark:bg-[#242526] text-[#65676B] dark:text-[#B0B3B8]'
+                      }`}
+                    >
+                      {m === 'owner' ? 'নিজে' : m === 'friend' ? 'Friend' : 'Public'}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {hasAnyContact ? (
+                canSeeContacts ? (
+                  <div className="space-y-2.5">
+                    {waUrl && (
+                      <a
+                        href={waUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="w-full px-4 py-2.5 rounded-xl bg-[#25D366] hover:bg-[#1ebe5d] active:scale-[0.99] text-white font-bold text-sm flex items-center justify-between shadow-sm transition-all"
+                      >
+                        <span className="flex items-center gap-2.5">
+                          <span className="w-8 h-8 rounded-full bg-white/20 flex items-center justify-center">
+                            <MessageCircle className="w-4 h-4 fill-current" />
+                          </span>
+                          <span className="text-left">
+                            <span className="block leading-tight">WhatsApp এ মেসেজ দিন</span>
+                            <span className="text-[11px] font-medium text-white/90 block">
+                              wa.me/{normalizePhoneNumber(activeProfile.whatsapp)}
+                            </span>
+                          </span>
+                        </span>
+                        <ExternalLink className="w-4 h-4 opacity-90 shrink-0" />
+                      </a>
+                    )}
+
+                    {(imoLink || viberLink || messengerUrl) && (
+                      <div className="flex flex-wrap gap-2">
+                        {imoLink && (
+                          <button
+                            type="button"
+                            onClick={() => openDeepLinkWithFallback(imoLink, 'https://imo.im/')}
+                            className="flex-1 min-w-[120px] px-3.5 py-2.5 rounded-xl bg-[#0088CC] hover:bg-[#0077b5] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                          >
+                            <Phone className="w-4 h-4" />
+                            <span>IMO</span>
+                          </button>
+                        )}
+
+                        {viberLink && (
+                          <button
+                            type="button"
+                            onClick={() => openDeepLinkWithFallback(viberLink, 'https://www.viber.com/')}
+                            className="flex-1 min-w-[120px] px-3.5 py-2.5 rounded-xl bg-[#7360F2] hover:bg-[#614ce0] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all cursor-pointer"
+                          >
+                            <Phone className="w-4 h-4" />
+                            <span>Viber</span>
+                          </button>
+                        )}
+
+                        {messengerUrl && (
+                          <a
+                            href={messengerUrl}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex-1 min-w-[120px] px-3.5 py-2.5 rounded-xl bg-[#0084FF] hover:bg-[#0073e6] active:scale-[0.98] text-white font-bold text-xs flex items-center justify-center gap-2 shadow-sm transition-all"
+                          >
+                            <Send className="w-4 h-4" />
+                            <span>Messenger</span>
+                          </a>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3 rounded-xl bg-[#F0F2F5] dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] text-xs text-[#65676B] dark:text-[#B0B3B8] flex items-center gap-2">
+                    <Lock className="w-4 h-4 shrink-0" />
+                    <span>
+                      {privacy === 'friends'
+                        ? 'এই যোগাযোগ তথ্য শুধুমাত্র বন্ধুদের (Friends only) জন্য সংরক্ষিত।'
+                        : 'এই যোগাযোগ তথ্য ব্যক্তিগত (Only me) হিসেবে সেট করা আছে।'}
+                    </span>
+                  </div>
+                )
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => setShowEditModal(true)}
+                  className="w-full p-3.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] dark:bg-[#242526] dark:hover:bg-[#3a3b3c] border border-dashed border-[#1877F2]/40 text-left transition-colors cursor-pointer flex items-center justify-between gap-3"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-[#050505] dark:text-white">
+                      WhatsApp, IMO ও Viber নম্বর যোগ করুন
+                    </p>
+                    <p className="text-[11px] text-[#65676B] dark:text-[#B0B3B8] mt-0.5">
+                      ভিজিটররা সরাসরি আপনার প্রোফাইল থেকে এক ক্লিকে চ্যাট করতে পারবে
+                    </p>
+                  </div>
+                  <span className="px-3 py-1.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold shrink-0">
+                    + যোগ করুন
+                  </span>
+                </button>
+              )}
+            </div>
+          );
+        })()}
 
       </div>
 

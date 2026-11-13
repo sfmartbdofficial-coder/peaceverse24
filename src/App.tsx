@@ -38,6 +38,10 @@ import { FbSavedPostsView } from './components/facebook/FbSavedPostsView';
 import { FbGroupsView } from './components/facebook/FbGroupsView';
 import { FbPagesView } from './components/facebook/FbPagesView';
 import { FbMemoriesView } from './components/facebook/FbMemoriesView';
+import { PeaceThreadsView } from './components/facebook/PeaceThreadsView';
+import { PeaceInstaView } from './components/facebook/PeaceInstaView';
+import { PeaceBusinessSuiteView } from './components/facebook/PeaceBusinessSuiteView';
+import { PeaceEditsModal } from './components/facebook/PeaceEditsModal';
 import { HalalGuaranteeModal } from './components/HalalGuaranteeModal';
 import { AdminPortal } from './components/admin/AdminPortal';
 import { LegalModal, LegalTabType } from './components/legal/LegalModal';
@@ -50,11 +54,20 @@ import { GoldenWalletModal } from './components/wallet/GoldenWalletModal';
 import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
-import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, RefreshCw } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
 import { PeaceDoveEmblem } from './components/landing/PeaceDoveEmblem';
+import { GlobalPrayerQiblaView } from './components/global/GlobalPrayerQiblaView';
+import {
+  GLOBAL_CITIES,
+  GlobalCity,
+  PrayerSchedule,
+  detectUserGlobalCity,
+  fetchPrayerTimesForCity,
+  getDailyQuranVerse,
+} from './lib/globalPrayer';
 import { fetchSupabasePosts, fetchSupabaseStories, insertSupabasePost } from './lib/supabase';
 import {
   auth,
@@ -69,13 +82,24 @@ import {
   moderateRealtimePost,
   deleteRealtimePost,
   createRealtimePost,
+  markNotificationAsRead,
   markAllRealtimeNotificationsRead,
+  saveUserProfileToFirestore,
+  fetchUserProfileFromFirestore,
+  fetchUserProfileByNameFromFirestore,
 } from './lib/firebase';
+import {
+  registerPushServiceWorker,
+  subscribeToForegroundFcm,
+  broadcastCreatorNotification,
+} from './lib/fcm';
+import { loadPeaceSettings } from './utils/settingsStorage';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<FacebookMainTab>('home');
   const [tabHistory, setTabHistory] = useState<FacebookMainTab[]>(['home']);
   const [searchQuery, setSearchQuery] = useState('');
+  const [viewedProfile, setViewedProfile] = useState<UserProfile | null>(null);
 
   // Modals state
   const [showCreatePost, setShowCreatePost] = useState(false);
@@ -85,6 +109,24 @@ export default function App() {
   const [showLive, setShowLive] = useState(false);
   const [showHalalPolicy, setShowHalalPolicy] = useState(false);
   const [activeReelPostId, setActiveReelPostId] = useState<string | null>(null);
+  const { currentLang } = useLanguage();
+  const [globalCity, setGlobalCity] = useState<GlobalCity>(GLOBAL_CITIES[0]);
+  const [globalPrayerSchedule, setGlobalPrayerSchedule] = useState<PrayerSchedule | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    detectUserGlobalCity().then((detected) => {
+      if (active) {
+        setGlobalCity(detected);
+        fetchPrayerTimesForCity(detected).then((res) => {
+          if (active) setGlobalPrayerSchedule(res);
+        });
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   // Active Switched Page State (Matching Facebook Screenshot 3)
   const [activeSwitchedPage, setActiveSwitchedPage] = useState<PageItem | null>(() => {
@@ -94,9 +136,11 @@ export default function App() {
     } catch {}
     return null;
   });
+  const [selectedPageIdToOpen, setSelectedPageIdToOpen] = useState<string | null>(null);
 
   const handleSwitchToPage = (page: PageItem) => {
     setActiveSwitchedPage(page);
+    setSelectedPageIdToOpen(page.id);
     try {
       localStorage.setItem('qalby_switched_page', JSON.stringify(page));
     } catch {}
@@ -106,6 +150,7 @@ export default function App() {
 
   const handleSwitchToPersonal = () => {
     setActiveSwitchedPage(null);
+    setSelectedPageIdToOpen(null);
     try {
       localStorage.removeItem('qalby_switched_page');
     } catch {}
@@ -236,6 +281,22 @@ export default function App() {
           birthDate: prev.birthDate || 'August 17, 1991',
           relationship: prev.relationship || 'Married',
         }));
+
+        fetchUserProfileFromFirestore(usr.uid).then((remote) => {
+          if (!remote) return;
+          setUserProfile((prev) => ({
+            ...prev,
+            whatsapp: prev.whatsapp || remote.whatsapp || '',
+            imo: prev.imo || remote.imo || '',
+            viber: prev.viber || remote.viber || '',
+            messengerLink: prev.messengerLink || remote.messengerLink || '',
+            contactPrivacy: prev.contactPrivacy || remote.contactPrivacy || 'public',
+            bio: prev.bio || remote.bio || '',
+            work: prev.work || remote.work || '',
+            education: prev.education || remote.education || '',
+            website: prev.website || remote.website || '',
+          }));
+        });
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/"
         const path = window.location.pathname;
         if (path === '/' || path === '') {
@@ -498,14 +559,85 @@ export default function App() {
       setNotifications(liveNotifs);
     });
 
+    // 4. Register Firebase FCM / Web Push Service Worker & foreground listener
+    registerPushServiceWorker();
+    let unsubFcm = () => {};
+    subscribeToForegroundFcm((item) => {
+      setNotifications((prev) => (prev.some((n) => n.id === item.id) ? prev : [item, ...prev]));
+    }).then((unsub) => {
+      unsubFcm = unsub;
+    });
+
+    const handleSwMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'PEACEVERSE_OPEN_POST') {
+        const targetId = event.data.postId;
+        if (targetId) {
+          setCurrentTab('home');
+          setTimeout(() => {
+            const el = document.getElementById(`post-${targetId}`);
+            el?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }, 300);
+        }
+      }
+    };
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.addEventListener('message', handleSwMessage);
+    }
+
     return () => {
       unsubPosts();
       unsubNotifs();
+      unsubFcm();
+      if ('serviceWorker' in navigator) {
+        navigator.serviceWorker.removeEventListener('message', handleSwMessage);
+      }
     };
   }, []);
 
-  // Infinite Scroll IntersectionObserver: loads next 10 videos as user scrolls down
+  // Pull-to-refresh & silent background refresh state (no visible button)
+  const [isPullRefreshing, setIsPullRefreshing] = useState(false);
+  const [pullDistance, setPullDistance] = useState(0);
+  const touchStartYRef = React.useRef<number | null>(null);
+
+  const refreshFeedSilently = React.useCallback(async () => {
+    try {
+      const [spPosts, spStories] = await Promise.all([
+        fetchSupabasePosts(0, 20),
+        fetchSupabaseStories(),
+      ]);
+
+      if (spPosts.length > 0) {
+        setPosts((prev) => {
+          const map = new Map<string, PostItem>();
+          prev.forEach((p) => map.set(p.id, p));
+          spPosts.forEach((p) => map.set(p.id, p));
+          return Array.from(map.values()).sort((a: any, b: any) => {
+            const tA = new Date(a.createdAt || a.createdAtMillis || 0).getTime();
+            const tB = new Date(b.createdAt || b.createdAtMillis || 0).getTime();
+            return tB - tA;
+          });
+        });
+      }
+
+      if (spStories.length > 0) {
+        setStories(spStories);
+      }
+    } catch {
+      // Silent background refresh
+    }
+  }, []);
+
+  // Silent background refresh every 60 seconds without any UI button
   useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      refreshFeedSilently();
+    }, 60000);
+    return () => window.clearInterval(intervalId);
+  }, [refreshFeedSilently]);
+
+  // Infinite Scroll IntersectionObserver: loads next 10 videos/posts as user scrolls down
+  useEffect(() => {
+    if (currentTab !== 'home') return;
     const sentinel = bottomSentinelRef.current;
     if (!sentinel) return;
 
@@ -543,7 +675,7 @@ export default function App() {
 
     observer.observe(sentinel);
     return () => observer.disconnect();
-  }, [posts.length]);
+  }, [posts.length, currentTab]);
 
   useEffect(() => {
     try {
@@ -559,6 +691,9 @@ export default function App() {
 
   // Navigate to tab with history tracking
   const navigateToTab = (newTab: FacebookMainTab) => {
+    if (newTab !== 'profile') {
+      setViewedProfile(null);
+    }
     if (newTab === currentTab) return;
     setTabHistory((prev) => [...prev, newTab]);
     setCurrentTab(newTab);
@@ -585,17 +720,39 @@ export default function App() {
     const post = posts.find((p) => p.id === postId);
     const currentReaction = post?.userReaction;
 
+    const getCountKey = (r: ReactionType) => {
+      switch (r) {
+        case 'like': return 'likeCount' as const;
+        case 'love': return 'loveCount' as const;
+        case 'subhanallah': return 'subhanallahCount' as const;
+        case 'mashaallah': return 'mashaallahCount' as const;
+        case 'care': return 'careCount' as const;
+        case 'sad': return 'sadCount' as const;
+      }
+    };
+
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
           const isSameReaction = p.userReaction === reaction;
           const nextReaction = isSameReaction ? null : reaction;
           const totalDiff = isSameReaction ? -1 : p.userReaction ? 0 : 1;
+          const nextCounts = { ...p.reactions };
+
+          if (p.userReaction) {
+            const oldKey = getCountKey(p.userReaction);
+            nextCounts[oldKey] = Math.max(0, (nextCounts[oldKey] || 0) - 1);
+          }
+          if (nextReaction) {
+            const newKey = getCountKey(nextReaction);
+            nextCounts[newKey] = (nextCounts[newKey] || 0) + 1;
+          }
+
           return {
             ...p,
             userReaction: nextReaction,
             reactions: {
-              ...p.reactions,
+              ...nextCounts,
               total: Math.max(0, p.reactions.total + totalDiff),
             },
           };
@@ -765,13 +922,86 @@ export default function App() {
     moderateRealtimePost(postId, status, reason, post?.author.name);
   };
 
-  // Handle new post created
+  const addLocalBroadcastNotification = React.useCallback((item: NotificationItem) => {
+    setNotifications((prev) => (prev.some((n) => n.id === item.id) ? prev : [item, ...prev]));
+  }, []);
+
+  const handleOpenNotification = React.useCallback(
+    (notif: NotificationItem) => {
+      // Mark read locally & in Firestore
+      setNotifications((prev) =>
+        prev.map((n) => (n.id === notif.id ? { ...n, isUnread: false, read: true } : n))
+      );
+      markNotificationAsRead(notif.id);
+
+      if (notif.link?.includes('tab=marketplace')) {
+        navigateToTab('marketplace');
+        return;
+      }
+      if (notif.link?.includes('tab=pages')) {
+        navigateToTab('pages');
+        return;
+      }
+      if (notif.link?.includes('tab=reels')) {
+        navigateToTab('reels');
+        return;
+      }
+
+      if (notif.postId) {
+        const matched = posts.find((p) => p.id === notif.postId);
+        if (matched && matched.mediaType === 'video') {
+          setActiveReelPostId(matched.id);
+          return;
+        }
+        navigateToTab('home');
+        setTimeout(() => {
+          const el = document.getElementById(`post-${notif.postId}`);
+          if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          }
+        }, 250);
+        return;
+      }
+
+      navigateToTab('home');
+    },
+    [posts]
+  );
+
+  // Handle new post created (triggers Creator Broadcast /api/notify-all when enabled)
   const handlePostCreated = (newPost: PostItem) => {
     setPosts((prev) => [newPost, ...prev]);
     insertSupabasePost(newPost);
     createRealtimePost(newPost);
     setShowCreatePost(false);
     navigateToTab('home');
+
+    const prefs = loadPeaceSettings();
+    if (prefs.creatorNotifyFollowersOnPost && (newPost.privacy || 'public') === 'public') {
+      const contentType =
+        newPost.mediaType === 'video' ? 'video' : newPost.mediaType === 'image' ? 'photo' : 'post';
+      const creatorName = newPost.author?.name || 'প্রিয় দাদা';
+      broadcastCreatorNotification({
+        creatorId: newPost.authorId || activeSwitchedPage?.id || effectiveProfile.id || creatorName,
+        creatorName,
+        creatorAvatar: newPost.author?.avatar || effectiveProfile.avatar,
+        contentType,
+        title:
+          contentType === 'video'
+            ? `${creatorName} নতুন ভিডিও আপলোড করেছেন`
+            : contentType === 'photo'
+            ? `${creatorName} নতুন ছবি আপলোড করেছেন`
+            : `${creatorName} নতুন পোস্ট আপলোড করেছেন`,
+        body:
+          newPost.contentBangla?.trim().slice(0, 95) ||
+          '১০০% হালাল পণ্যের নতুন কালেকশন ও পোস্ট দেখুন',
+        thumbnail: newPost.mediaUrl,
+        postId: newPost.id,
+        link: `/?postId=${newPost.id}`,
+        broadcastToAll: prefs.creatorSendPushToAllUsers,
+        onLocalNotify: addLocalBroadcastNotification,
+      });
+    }
   };
 
   // Handle new story created
@@ -781,13 +1011,33 @@ export default function App() {
     navigateToTab('home');
   };
 
-  // Handle new reel created
+  // Handle new reel created (triggers Creator Broadcast /api/notify-all when enabled)
   const handleReelCreated = (newReel: PostItem) => {
     setPosts((prev) => [newReel, ...prev]);
     insertSupabasePost(newReel);
     createRealtimePost(newReel);
     setShowCreateReel(false);
     navigateToTab('reels');
+
+    const prefs = loadPeaceSettings();
+    if (prefs.creatorNotifyFollowersOnPost) {
+      const creatorName = newReel.author?.name || 'প্রিয় দাদা';
+      broadcastCreatorNotification({
+        creatorId: newReel.authorId || activeSwitchedPage?.id || effectiveProfile.id || creatorName,
+        creatorName,
+        creatorAvatar: newReel.author?.avatar || effectiveProfile.avatar,
+        contentType: 'video',
+        title: `${creatorName} নতুন ভিডিও আপলোড করেছেন`,
+        body:
+          newReel.contentBangla?.trim().slice(0, 95) ||
+          '১০০% হালাল পণ্যের নতুন কালেকশন দেখুন',
+        thumbnail: newReel.mediaUrl,
+        postId: newReel.id,
+        link: `/?tab=reels&postId=${newReel.id}`,
+        broadcastToAll: prefs.creatorSendPushToAllUsers,
+        onLocalNotify: addLocalBroadcastNotification,
+      });
+    }
   };
 
   // Handle new live created
@@ -1048,7 +1298,70 @@ export default function App() {
         goldenCashoutRequests={cashoutRequests}
         onApproveGoldenCashout={handleApproveGoldenCashout}
         onRejectGoldenCashout={handleRejectGoldenCashout}
+        userProfile={effectiveProfile}
+        onBroadcastNotification={addLocalBroadcastNotification}
       />
+    );
+  }
+
+  // 5. Internal Peaceverse Mini-Apps (stay inside Peaceverse, no external redirect)
+  if (currentPath === '/peace-threads') {
+    return (
+      <div className={isDarkMode ? 'dark' : ''}>
+        <PeaceThreadsView
+          userProfile={effectiveProfile}
+          onBack={() => navigateToPath('/home')}
+        />
+      </div>
+    );
+  }
+
+  if (currentPath === '/peace-insta') {
+    return (
+      <div className={isDarkMode ? 'dark' : ''}>
+        <PeaceInstaView
+          userProfile={effectiveProfile}
+          posts={posts}
+          onBack={() => navigateToPath('/home')}
+        />
+      </div>
+    );
+  }
+
+  if (currentPath === '/business-suite' || currentPath === '/peace-business') {
+    return (
+      <div className={isDarkMode ? 'dark' : ''}>
+        <PeaceBusinessSuiteView
+          onBack={() => navigateToPath('/home')}
+          userProfile={effectiveProfile}
+          onSwitchToPage={(page) => {
+            handleSwitchToPage(page);
+            navigateToPath('/home');
+          }}
+        />
+      </div>
+    );
+  }
+
+  if (currentPath === '/peace-edits-editor') {
+    return (
+      <PeaceEditsModal
+        isOpen={true}
+        onClose={() => navigateToPath('/home')}
+        userProfile={userProfile}
+        onPublishReel={(newReel) => {
+          handleReelCreated(newReel);
+          navigateToPath('/home');
+        }}
+      />
+    );
+  }
+
+  if (currentPath === '/qibla') {
+    return (
+      <div className={isDarkMode ? 'dark' : ''}>
+        <GlobalPrayerQiblaView onBack={() => navigateToPath('/home')} />
+      </div>
     );
   }
 
@@ -1070,6 +1383,7 @@ export default function App() {
             setActiveChatFriend(null);
           }}
           onOpenMenu={() => navigateToTab('menu')}
+          onOpenQibla={() => navigateToPath('/qibla')}
           onBack={goBack}
           showBackButton={currentTab !== 'home'}
           unreadMessagesCount={unreadMessagesCount}
@@ -1081,37 +1395,82 @@ export default function App() {
         
         {/* TAB 1: Home (ফিড - Exact Facebook Style Container max-w-[500px]) */}
         {currentTab === 'home' && (
-          <div className="max-w-[500px] mx-auto pb-24 space-y-2">
-            {/* Sticky Switched Page Mode Top Banner (Matching Facebook Screenshot 3) */}
+          <div
+            className="max-w-[500px] mx-auto pb-24 space-y-2"
+            onTouchStart={(e) => {
+              if (window.scrollY <= 0 && e.touches.length === 1) {
+                touchStartYRef.current = e.touches[0].clientY;
+              } else {
+                touchStartYRef.current = null;
+              }
+            }}
+            onTouchMove={(e) => {
+              if (touchStartYRef.current !== null && window.scrollY <= 0) {
+                const delta = e.touches[0].clientY - touchStartYRef.current;
+                if (delta > 0) {
+                  setPullDistance(Math.min(delta * 0.45, 64));
+                }
+              }
+            }}
+            onTouchEnd={async () => {
+              if (pullDistance >= 48 && !isPullRefreshing) {
+                setIsPullRefreshing(true);
+                await refreshFeedSilently();
+                setIsPullRefreshing(false);
+              }
+              touchStartYRef.current = null;
+              setPullDistance(0);
+            }}
+          >
+            {/* Mobile Pull-to-Refresh Spinner (visible only while pulling/refreshing) */}
+            {(pullDistance > 12 || isPullRefreshing) && (
+              <div
+                className="flex items-center justify-center overflow-hidden transition-all"
+                style={{ height: isPullRefreshing ? 40 : Math.max(24, pullDistance) }}
+              >
+                <Loader2
+                  className={`w-5 h-5 text-[#0866FF] ${isPullRefreshing ? 'animate-spin' : ''}`}
+                />
+              </div>
+            )}
+
+            {/* Clean 56px Facebook-style Active Profile Header (Clicking opens Page Profile) */}
             {activeSwitchedPage && (
-              <div className="bg-gradient-to-r from-[#0866FF] via-blue-600 to-sky-600 text-white rounded-[12px] p-2.5 sm:p-3 shadow-md flex items-center justify-between gap-2.5 text-xs font-semibold animate-in slide-in-from-top duration-200">
+              <div
+                onClick={() => {
+                  setSelectedPageIdToOpen(activeSwitchedPage.id);
+                  navigateToTab('pages');
+                }}
+                className="h-[56px] bg-[#0866FF] hover:bg-[#1877F2] text-white rounded-[10px] px-3.5 shadow-xs flex items-center justify-between gap-3 cursor-pointer transition-colors"
+                title="পেজ প্রোফাইল দেখুন"
+              >
                 <div className="flex items-center gap-2.5 min-w-0">
-                  <img
-                    src={activeSwitchedPage.avatar}
-                    alt={activeSwitchedPage.name}
-                    onError={(e) => {
-                      (e.currentTarget as HTMLImageElement).src =
-                        'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80';
-                    }}
-                    className="w-8 h-8 rounded-full object-cover border-2 border-white/80 shrink-0"
-                  />
-                  <div className="min-w-0">
-                    <p className="font-bold text-sm text-white truncate">
+                  {activeSwitchedPage.avatar ? (
+                    <img
+                      src={activeSwitchedPage.avatar}
+                      alt={activeSwitchedPage.name}
+                      className="w-9 h-9 rounded-full object-cover border border-white/80 shrink-0"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-white text-[#0866FF] font-extrabold text-sm flex items-center justify-center border border-white/80 shrink-0">
+                      {activeSwitchedPage.name.trim().charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <div className="min-w-0 leading-tight">
+                    <p className="font-bold text-[15px] text-white truncate">
                       {activeSwitchedPage.name}
                     </p>
-                    <p className="text-[11px] text-blue-100 font-medium">
-                      পেইজ মোডে আছেন (Page Profile Active)
-                    </p>
+                    <div className="flex items-center gap-1.5 text-[11px] text-white/90 font-medium">
+                      <span className="w-2 h-2 rounded-full bg-[#31A24C] inline-block shrink-0" />
+                      <span>Profile Active • View Page</span>
+                    </div>
                   </div>
                 </div>
 
-                <button
-                  onClick={handleSwitchToPersonal}
-                  className="px-3 py-1.5 rounded-xl bg-white text-[#0866FF] hover:bg-blue-50 font-black text-xs shrink-0 shadow-sm transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-                >
-                  <RefreshCw className="w-3.5 h-3.5 stroke-[2.5]" />
-                  <span>আইডিতে ফিরুন</span>
-                </button>
+                <span
+                  className="w-2.5 h-2.5 rounded-full bg-[#31A24C] ring-2 ring-white/80 shrink-0"
+                  aria-label="Online"
+                />
               </div>
             )}
 
@@ -1125,8 +1484,10 @@ export default function App() {
               }}
               onOpenProfile={() => {
                 if (activeSwitchedPage) {
+                  setSelectedPageIdToOpen(activeSwitchedPage.id);
                   navigateToTab('pages');
                 } else {
+                  setViewedProfile(null);
                   navigateToTab('profile');
                 }
               }}
@@ -1139,6 +1500,46 @@ export default function App() {
                 onOpenCreateStory={() => setShowCreateStory(true)}
                 onOpenCreateReel={() => setShowCreateReel(true)}
               />
+            </div>
+
+            {/* Global Prayer Times, Daily Quran Verse & Qibla Compass Strip */}
+            <div className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                    <Clock className="w-4 h-4" />
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-[#050505] dark:text-white truncate">
+                      {globalCity.flag} {globalCity.city} •{' '}
+                      {globalPrayerSchedule
+                        ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${globalPrayerSchedule.nextPrayer.time})`
+                        : 'Global Prayer Times'}
+                    </p>
+                    <p className="text-[10px] text-[#65676B] dark:text-[#b0b3b8] truncate">
+                      Peace World — Halal Alternative to Facebook for 2 Billion Muslims
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => navigateToPath('/qibla')}
+                  className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] dark:bg-[#0866FF]/20 text-[#0866FF] dark:text-sky-300 text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
+                >
+                  <Compass className="w-3.5 h-3.5" />
+                  <span>Qibla</span>
+                </button>
+              </div>
+
+              <div className="p-2 rounded-lg bg-[#F0F2F5] dark:bg-[#242526] flex items-start gap-2 text-[11px]">
+                <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
+                <p className="text-[#050505] dark:text-[#e4e6eb] leading-snug">
+                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+                    {getDailyQuranVerse(currentLang).surahRef}:{' '}
+                  </span>
+                  {getDailyQuranVerse(currentLang).localized}
+                </p>
+              </div>
             </div>
 
             {/* Filter Tabs matching exact Facebook style */}
@@ -1202,21 +1603,47 @@ export default function App() {
               ) : (
                 <>
                   {visiblePosts.map((post) => (
+                    <div key={post.id} id={`post-${post.id}`}>
                     <FbPostCard
-                      key={post.id}
                       post={post}
                       onToggleReaction={handleToggleReaction}
                       onToggleSave={handleToggleSave}
                       onAddComment={handleAddComment}
                       onEditPost={handleEditPost}
                       onDeletePost={handleDeletePost}
-                      onOpenProfile={() => navigateToTab('profile')}
+                      onOpenProfile={async (authorName) => {
+                        if (!authorName || authorName === userProfile.name) {
+                          setViewedProfile(null);
+                          navigateToTab('profile');
+                          return;
+                        }
+                        const baseAuthorProfile: UserProfile = {
+                          id: post.authorId || `author-${authorName}`,
+                          name: authorName,
+                          avatar: post.author.avatar,
+                          coverPhoto: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                          friendsCount: 245,
+                          location: 'Dhaka, Bangladesh',
+                          hometown: 'Bangladesh',
+                          birthDate: '1994',
+                          contactPrivacy: 'public',
+                        };
+                        setViewedProfile(baseAuthorProfile);
+                        navigateToTab('profile');
+                        const remote = await fetchUserProfileByNameFromFirestore(authorName);
+                        if (remote) {
+                          setViewedProfile((prev) =>
+                            prev && prev.name === authorName ? { ...prev, ...remote } : prev
+                          );
+                        }
+                      }}
                       onTypingChange={handleTypingChange}
                       currentUserId={userProfile.id || 'user-me'}
                       currentUserName={userProfile.name}
                       onOpenReel={(p) => setActiveReelPostId(p.id)}
                       onOpenGiftModal={(p) => setSelectedGiftPost(p)}
                     />
+                    </div>
                   ))}
 
                   {/* Infinite Scroll Sentinel: loads next 10 videos as user scrolls */}
@@ -1263,7 +1690,11 @@ export default function App() {
 
         {/* TAB 4: Marketplace (মার্কেটপ্লেস ও হালাল শপ) */}
         {currentTab === 'marketplace' && (
-          <FbMarketplaceView onBack={goBack} />
+          <FbMarketplaceView
+            onBack={goBack}
+            userProfile={effectiveProfile}
+            onBroadcastNotification={addLocalBroadcastNotification}
+          />
         )}
 
         {/* TAB 5: Notifications (নোটিফিকেশন - Screenshot 2) */}
@@ -1274,6 +1705,11 @@ export default function App() {
             onBack={goBack}
             onConfirmRequest={handleConfirmRequest}
             onDeleteRequest={handleDeleteRequest}
+            onOpenNotification={handleOpenNotification}
+            onMarkAllRead={() => {
+              setNotifications((prev) => prev.map((n) => ({ ...n, isUnread: false, read: true })));
+              markAllRealtimeNotificationsRead(notifications);
+            }}
           />
         )}
 
@@ -1281,15 +1717,27 @@ export default function App() {
         {currentTab === 'profile' && (
           <FbProfileView
             userProfile={userProfile}
-            userPosts={userPosts}
+            userPosts={
+              viewedProfile
+                ? posts.filter((p) => p.author.name === viewedProfile.name)
+                : userPosts
+            }
+            viewedProfile={viewedProfile}
+            onBackToOwnProfile={() => setViewedProfile(null)}
             onOpenMenu={() => navigateToTab('menu')}
             onOpenPages={() => navigateToTab('pages')}
-            onBack={goBack}
+            onBack={() => {
+              setViewedProfile(null);
+              goBack();
+            }}
             onAddStory={() => setShowCreateStory(true)}
             onToggleReaction={handleToggleReaction}
             onToggleSave={handleToggleSave}
             onAddComment={handleAddComment}
-            onUpdateProfile={(updated) => setUserProfile(updated)}
+            onUpdateProfile={(updated) => {
+              setUserProfile(updated);
+              saveUserProfileToFirestore(updated);
+            }}
             onEditPost={handleEditPost}
             onDeletePost={handleDeletePost}
             onOpenReel={(p) => setActiveReelPostId(p.id)}
@@ -1301,11 +1749,18 @@ export default function App() {
         {currentTab === 'menu' && (
           <FbMenuView
             userProfile={userProfile}
+            onUpdateProfile={(updated) => {
+              setUserProfile(updated);
+              saveUserProfileToFirestore(updated);
+            }}
             activeSwitchedPage={activeSwitchedPage}
             onSwitchToPage={handleSwitchToPage}
             onSwitchToPersonal={handleSwitchToPersonal}
             onNavigateTab={navigateToTab}
-            onOpenProfile={() => navigateToTab('profile')}
+            onOpenProfile={() => {
+              setViewedProfile(null);
+              navigateToTab('profile');
+            }}
             onOpenHalalPolicy={() => setShowHalalPolicy(true)}
             onOpenAdminPortal={() => {
               setShowAdminPortal(true);
@@ -1321,6 +1776,7 @@ export default function App() {
             onOpenAuth={() => setShowAuthModal(true)}
             onLogout={handleLogout}
             onBack={goBack}
+            onBroadcastNotification={addLocalBroadcastNotification}
             onOpenMessenger={() => {
               setShowMessengerModal(true);
               setActiveChatFriend(null);
@@ -1328,6 +1784,8 @@ export default function App() {
             unreadMessagesCount={unreadMessagesCount}
             isDarkMode={isDarkMode}
             onToggleDarkMode={handleToggleDarkMode}
+            onPublishReel={handleReelCreated}
+            onNavigatePath={navigateToPath}
           />
         )}
 
@@ -1355,9 +1813,14 @@ export default function App() {
         {/* TAB 10: Pages */}
         {currentTab === 'pages' && (
           <FbPagesView
-            onBack={goBack}
+            onBack={() => {
+              setSelectedPageIdToOpen(null);
+              goBack();
+            }}
             userProfile={userProfile}
             onSwitchToPage={handleSwitchToPage}
+            onBroadcastNotification={addLocalBroadcastNotification}
+            initialSelectedPageId={selectedPageIdToOpen}
           />
         )}
 
@@ -1374,8 +1837,8 @@ export default function App() {
         onTabChange={navigateToTab}
         userProfile={userProfile}
         activeSwitchedPage={activeSwitchedPage}
-        friendRequestsCount={2}
-        notificationsCount={28}
+        friendRequestsCount={pendingFriendRequestsCount || 2}
+        notificationsCount={unreadNotificationsCount}
       />
 
       {/* 4. Facebook Create Post Modal */}

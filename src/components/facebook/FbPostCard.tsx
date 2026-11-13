@@ -27,6 +27,25 @@ import {
 import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
 import { FbVideoPlayer } from './FbVideoPlayer';
 import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
+import { useLanguage } from '../../context/LanguageContext';
+import { detectTextScript, shouldAutoTranslate, translateText } from '../../lib/translate';
+
+interface HalalReactionMeta {
+  type: ReactionType;
+  emoji: string;
+  label: string;
+  textColor: string;
+  bgTint: string;
+}
+
+const HALAL_REACTIONS: HalalReactionMeta[] = [
+  { type: 'like', emoji: '🤲', label: 'Dua', textColor: 'text-[#1877F2]', bgTint: 'bg-[#1877F2]' },
+  { type: 'love', emoji: '❤️', label: 'MashaAllah', textColor: 'text-[#FA3E3E]', bgTint: 'bg-[#FA3E3E]' },
+  { type: 'subhanallah', emoji: '🕋', label: 'SubhanAllah', textColor: 'text-emerald-600 dark:text-emerald-400', bgTint: 'bg-emerald-600' },
+  { type: 'mashaallah', emoji: '🙏', label: 'Alhamdulillah', textColor: 'text-[#0866FF]', bgTint: 'bg-[#0866FF]' },
+  { type: 'care', emoji: '🤝', label: 'InshaAllah', textColor: 'text-amber-500', bgTint: 'bg-amber-500' },
+  { type: 'sad', emoji: '😢', label: 'Astagfirullah', textColor: 'text-[#65676B] dark:text-[#b0b3b8]', bgTint: 'bg-[#65676B]' },
+];
 
 interface FbPostCardProps {
   post: PostItem;
@@ -62,6 +81,10 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [editArabic, setEditArabic] = useState(post.arabicVerse || '');
   const [editTranslation, setEditTranslation] = useState(post.translation || '');
   const [showReactionsMenu, setShowReactionsMenu] = useState(false);
+  const [hoveredReaction, setHoveredReaction] = useState<ReactionType | null>(null);
+  const [flyingEmoji, setFlyingEmoji] = useState<{ id: number; emoji: string } | null>(null);
+  const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggeredRef = useRef(false);
   const [showComments, setShowComments] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
@@ -75,7 +98,62 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
   const [appealSubmitted, setAppealSubmitted] = useState(false);
 
+  const { currentLang } = useLanguage();
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+
+  // Auto-translate state (Google Translate API)
+  const [translatedBody, setTranslatedBody] = useState<string | null>(null);
+  const [translatedVerse, setTranslatedVerse] = useState<string | null>(null);
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [showOriginalText, setShowOriginalText] = useState(false);
+
+  React.useEffect(() => {
+    let active = true;
+    const bodyText = post.contentBangla || '';
+    const verseMeaning = post.translation || '';
+
+    setShowOriginalText(false);
+
+    if (!bodyText.trim()) {
+      setTranslatedBody(null);
+      return;
+    }
+
+    const needsBodyTranslate = shouldAutoTranslate(bodyText, currentLang);
+    const needsVerseTranslate = Boolean(verseMeaning) && shouldAutoTranslate(verseMeaning, currentLang);
+
+    if (!needsBodyTranslate && !needsVerseTranslate) {
+      setTranslatedBody(null);
+      setTranslatedVerse(null);
+      return;
+    }
+
+    setIsTranslating(true);
+    Promise.all([
+      needsBodyTranslate ? translateText(bodyText, currentLang) : Promise.resolve(null),
+      needsVerseTranslate ? translateText(verseMeaning, currentLang) : Promise.resolve(null),
+    ])
+      .then(([bodyRes, verseRes]) => {
+        if (!active) return;
+        setTranslatedBody(bodyRes && bodyRes.translatedText !== bodyText ? bodyRes.translatedText : null);
+        setTranslatedVerse(verseRes && verseRes.translatedText !== verseMeaning ? verseRes.translatedText : null);
+      })
+      .finally(() => {
+        if (active) setIsTranslating(false);
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [post.contentBangla, post.translation, currentLang]);
+
+  const handleManualTranslate = async () => {
+    setIsTranslating(true);
+    setShowOriginalText(false);
+    const res = await translateText(post.contentBangla, currentLang);
+    setTranslatedBody(res.translatedText);
+    setIsTranslating(false);
+  };
 
   // Sync follow status
   React.useEffect(() => {
@@ -255,24 +333,35 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     setCommentInput((prev) => (prev ? `${prev} ${phrase}` : phrase));
   };
 
-  const getReactionDisplay = () => {
-    switch (post.userReaction) {
-      case 'love':
-        return { text: 'Love', color: 'text-[#fa3e3e]', icon: <Heart className="w-4 h-4 fill-current text-[#fa3e3e]" /> };
-      case 'subhanallah':
-        return { text: 'SubhanAllah', color: 'text-emerald-400', icon: <span className="text-sm">🤲</span> };
-      case 'mashaallah':
-        return { text: 'MashaAllah', color: 'text-teal-400', icon: <span className="text-sm">🌸</span> };
-      case 'care':
-        return { text: 'Care', color: 'text-amber-400', icon: <span className="text-sm">🤍</span> };
-      case 'like':
-        return { text: 'Like', color: 'text-[#1877F2]', icon: <ThumbsUp className="w-4 h-4 fill-current text-[#1877F2]" /> };
-      default:
-        return { text: 'Like', color: 'text-[#b0b3b8]', icon: <ThumbsUp className="w-4 h-4" /> };
+  const triggerReactionWithAnimation = (reaction: ReactionType) => {
+    const isAddingOrChanging = post.userReaction !== reaction;
+    if (isAddingOrChanging) {
+      const meta = HALAL_REACTIONS.find((r) => r.type === reaction) || HALAL_REACTIONS[0];
+      setFlyingEmoji({ id: Date.now(), emoji: meta.emoji });
+      setTimeout(() => setFlyingEmoji(null), 850);
     }
+    onToggleReaction(post.id, reaction);
+    setShowReactionsMenu(false);
+    setHoveredReaction(null);
   };
 
-  const reactionInfo = getReactionDisplay();
+  const activeReactionMeta = post.userReaction
+    ? HALAL_REACTIONS.find((r) => r.type === post.userReaction) || HALAL_REACTIONS[0]
+    : null;
+
+  const reactionSummaryItems = [
+    { ...HALAL_REACTIONS[0], count: post.reactions.likeCount || 0 },
+    { ...HALAL_REACTIONS[1], count: post.reactions.loveCount || 0 },
+    { ...HALAL_REACTIONS[2], count: post.reactions.subhanallahCount || 0 },
+    { ...HALAL_REACTIONS[3], count: post.reactions.mashaallahCount || 0 },
+    { ...HALAL_REACTIONS[4], count: post.reactions.careCount || 0 },
+    { ...HALAL_REACTIONS[5], count: post.reactions.sadCount || 0 },
+  ].filter((item) => item.count > 0);
+
+  const visibleSummaryItems =
+    reactionSummaryItems.length > 0
+      ? reactionSummaryItems.slice(0, 4)
+      : [{ ...HALAL_REACTIONS[0], count: post.reactions.total || 0 }];
 
   return (
     <article className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden space-y-2.5 transition-all">
@@ -454,16 +543,59 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
       </div>
 
-      {/* 2. Post Content Text (or Colorful background text if set) */}
+      {/* 2. Post Content Text (Auto-translated to user's selected language) */}
       {post.bgGradient ? (
-        <div className={`${post.bgGradient} p-8 min-h-[180px] flex items-center justify-center text-center`}>
+        <div className={`${post.bgGradient} p-8 min-h-[180px] flex flex-col items-center justify-center text-center gap-2`}>
           <p className="text-xl sm:text-2xl font-bold text-white font-bengali leading-relaxed drop-shadow">
-            {post.contentBangla}
+            {!showOriginalText && translatedBody ? translatedBody : post.contentBangla}
           </p>
+          {translatedBody && (
+            <button
+              type="button"
+              onClick={() => setShowOriginalText(!showOriginalText)}
+              className="text-[11px] font-semibold text-white/90 underline cursor-pointer"
+            >
+              {showOriginalText ? `🌐 View ${currentLang.toUpperCase()} translation` : 'Show original'}
+            </button>
+          )}
         </div>
       ) : (
-        <div className="px-3 sm:px-4 text-[15px] text-[#050505] dark:text-[#e4e6eb] font-bengali leading-relaxed whitespace-pre-line">
-          <p>{post.contentBangla}</p>
+        <div className="px-3 sm:px-4 space-y-1.5">
+          <div className="text-[15px] text-[#050505] dark:text-[#e4e6eb] font-bengali leading-relaxed whitespace-pre-line">
+            <p>{!showOriginalText && translatedBody ? translatedBody : post.contentBangla}</p>
+          </div>
+          <div className="flex items-center gap-2 text-[11px] text-[#65676B] dark:text-[#b0b3b8]">
+            {isTranslating && (
+              <span className="flex items-center gap-1 text-[#0866FF]">
+                <Loader2 className="w-3 h-3 animate-spin" />
+                <span>Translating via Google Translate...</span>
+              </span>
+            )}
+            {!isTranslating && translatedBody && (
+              <button
+                type="button"
+                onClick={() => setShowOriginalText(!showOriginalText)}
+                className="flex items-center gap-1 text-[#0866FF] hover:underline font-medium cursor-pointer"
+              >
+                <Globe className="w-3 h-3" />
+                <span>
+                  {showOriginalText
+                    ? `Translate back to ${currentLang.toUpperCase()}`
+                    : `Auto-translated (${detectTextScript(post.contentBangla).toUpperCase()} → ${currentLang.toUpperCase()}) · Show original`}
+                </span>
+              </button>
+            )}
+            {!isTranslating && !translatedBody && post.contentBangla.trim().length > 4 && (
+              <button
+                type="button"
+                onClick={handleManualTranslate}
+                className="flex items-center gap-1 hover:text-[#0866FF] cursor-pointer"
+              >
+                <Globe className="w-3 h-3" />
+                <span>Translate ({currentLang.toUpperCase()})</span>
+              </button>
+            )}
+          </div>
         </div>
       )}
 
@@ -473,21 +605,21 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           <div className="flex items-center justify-between mb-1.5">
             <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5" />
-              <span>{post.reference || 'পবিত্র আয়াত'}</span>
+              <span>{post.reference || 'Holy Verse'}</span>
             </span>
             <button
               onClick={handleCopyAyah}
               className="px-2 py-0.5 rounded bg-neutral-100 dark:bg-[#3a3b3c] text-[10px] text-neutral-800 dark:text-[#e4e6eb] hover:bg-neutral-200 cursor-pointer"
             >
-              {copiedToast ? 'কপি হয়েছে ✓' : 'কপি আয়াত'}
+              {copiedToast ? 'Copied ✓' : 'Copy Verse'}
             </button>
           </div>
-          <p className="text-base sm:text-lg font-arabic text-right text-emerald-900 dark:text-emerald-100 leading-loose py-1">
+          <p className="text-base sm:text-lg font-arabic text-right text-emerald-900 dark:text-emerald-100 leading-loose py-1" dir="rtl">
             {post.arabicVerse}
           </p>
-          {post.translation && (
+          {(translatedVerse || post.translation) && (
             <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] mt-1 font-bengali border-t border-neutral-200 dark:border-[#393a3b] pt-1">
-              {post.translation}
+              {!showOriginalText && translatedVerse ? translatedVerse : post.translation}
             </p>
           )}
         </div>
@@ -538,117 +670,151 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           />
         )}
 
-      {/* 5. Reactions Summary Bar matching Screenshot 2 */}
-      <div className="flex items-center justify-between px-3 sm:px-4 py-1.5 text-[13px] text-[#65676B] dark:text-[#b0b3b8]">
-        {/* Left: Like thumb icon + count */}
-        <div className="flex items-center gap-1.5">
-          <div className="flex items-center -space-x-1">
-            <span className="w-5 h-5 rounded-full bg-[#0866FF] flex items-center justify-center text-[10px] text-white shadow-xs">
-              👍
-            </span>
-            {post.reactions.loveCount > 0 && (
-              <span className="w-5 h-5 rounded-full bg-[#FA3E3E] flex items-center justify-center text-[10px] text-white shadow-xs">
-                ❤️
+      {/* 5. Halal Reactions Summary Bar */}
+      <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B] dark:text-[#b0b3b8]">
+        <div className="flex items-center justify-between gap-2">
+          {/* Left: Overlapping Reaction Emojis + Counts [🤲15 ❤️3 🕋1] */}
+          <div className="flex items-center gap-1.5 min-w-0">
+            <div className="flex items-center gap-1 flex-wrap tabular-nums">
+              {visibleSummaryItems.map((item) => (
+                <span
+                  key={item.type}
+                  className="inline-flex items-center gap-0.5 text-xs font-medium text-[#050505] dark:text-[#e4e6eb]"
+                  title={item.label}
+                >
+                  <span className="text-sm">{item.emoji}</span>
+                  <span className="text-[#65676B] dark:text-[#b0b3b8]">{item.count}</span>
+                </span>
+              ))}
+            </div>
+            {post.reactions.total > 0 && (
+              <span className="text-xs text-[#65676B] dark:text-[#b0b3b8] tabular-nums hidden sm:inline">
+                · {post.reactions.total} total
               </span>
             )}
           </div>
-          <span className="font-normal text-[13px] text-[#65676B] dark:text-[#b0b3b8] hover:underline cursor-pointer">
-            {post.reactions.total || 1}
-          </span>
-        </div>
 
-        {/* Right: Comments, Shares, and floating reactions emojis (😢👍) */}
-        <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] dark:text-[#b0b3b8]">
-          <button
-            onClick={() => setShowComments(!showComments)}
-            className="hover:underline cursor-pointer"
-          >
-            {post.comments.length} comments
-          </button>
-          <span>•</span>
-          <button onClick={handleShare} className="hover:underline cursor-pointer">
-            {post.sharesCount} shares
-          </button>
-          
-          {/* Reaction emojis floating right like 2nd screenshot (😢👍) */}
-          <div className="flex items-center -space-x-1 pl-1 select-none" title="Reactions">
-            <span className="text-sm">😢</span>
-            <span className="text-sm">👍</span>
+          {/* Right: Comments & Shares */}
+          <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] dark:text-[#b0b3b8] shrink-0 tabular-nums">
+            <button
+              onClick={() => setShowComments(!showComments)}
+              className="hover:underline cursor-pointer"
+            >
+              {post.comments.length} comments
+            </button>
+            <span>•</span>
+            <button onClick={handleShare} className="hover:underline cursor-pointer">
+              {post.sharesCount} shares
+            </button>
           </div>
         </div>
+
+        {/* Personalized attribution line when user reacted */}
+        {activeReactionMeta && (
+          <p className="text-[11px] text-[#65676B] dark:text-[#b0b3b8] truncate">
+            You{post.reactions.total > 1 ? ` and ${post.reactions.total - 1} others` : ''} reacted with {activeReactionMeta.emoji} {activeReactionMeta.label}
+          </p>
+        )}
       </div>
 
-      {/* 6. Facebook 3 Primary Action Buttons: Like, Comment, Share (Exact 3 Equal Columns) */}
-      <div className="border-t border-[#E4E6EB] dark:border-[#393a3b] mx-3 py-1 flex items-center justify-between">
-        {/* Column 1: Like (thumbs up 20px, text 15px medium) */}
+      {/* 6. Facebook Action Bar: Dua/Like (with 6 Halal Reactions popup), Comment, Share, Hadiya */}
+      <div className="border-t border-[#E4E6EB] dark:border-[#393a3b] mx-3 py-1 flex items-center justify-between relative">
+        {/* Column 1: Halal Reaction Button (Tap = Dua, Hover/Long-Press = 6 Reactions Bar) */}
         <div
           className="relative flex-1"
           onMouseEnter={() => setShowReactionsMenu(true)}
-          onMouseLeave={() => setShowReactionsMenu(false)}
+          onMouseLeave={() => {
+            setShowReactionsMenu(false);
+            setHoveredReaction(null);
+          }}
         >
+          {/* Floating Emoji Animation when selected */}
+          {flyingEmoji && (
+            <span
+              key={flyingEmoji.id}
+              className="pointer-events-none absolute left-1/2 -translate-x-1/2 -top-2 z-50 text-3xl animate-peace-fly select-none"
+            >
+              {flyingEmoji.emoji}
+            </span>
+          )}
+
+          {/* Long-press / Hover Backdrop for mobile dismissal */}
           {showReactionsMenu && (
-            <div className="absolute -top-11 left-0 z-40 bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] rounded-full px-2.5 py-1 shadow-2xl flex items-center gap-2 animate-in fade-in slide-in-from-bottom-2">
-              <button
-                onClick={() => {
-                  onToggleReaction(post.id, 'like');
-                  setShowReactionsMenu(false);
-                }}
-                className="hover:scale-125 transition-transform text-xl cursor-pointer"
-                title="Like"
-              >
-                👍
-              </button>
-              <button
-                onClick={() => {
-                  onToggleReaction(post.id, 'love');
-                  setShowReactionsMenu(false);
-                }}
-                className="hover:scale-125 transition-transform text-xl cursor-pointer"
-                title="Love"
-              >
-                ❤️
-              </button>
-              <button
-                onClick={() => {
-                  onToggleReaction(post.id, 'care');
-                  setShowReactionsMenu(false);
-                }}
-                className="hover:scale-125 transition-transform text-xl cursor-pointer"
-                title="Care"
-              >
-                🥰
-              </button>
-              <button
-                onClick={() => {
-                  onToggleReaction(post.id, 'subhanallah');
-                  setShowReactionsMenu(false);
-                }}
-                className="hover:scale-125 transition-transform text-xl cursor-pointer"
-                title="Sad"
-              >
-                😢
-              </button>
-              <button
-                onClick={() => {
-                  onToggleReaction(post.id, 'mashaallah');
-                  setShowReactionsMenu(false);
-                }}
-                className="hover:scale-125 transition-transform text-xl cursor-pointer"
-                title="Haha"
-              >
-                😆
-              </button>
+            <div
+              className="fixed inset-0 z-30 sm:hidden"
+              onTouchStart={() => setShowReactionsMenu(false)}
+              onClick={() => setShowReactionsMenu(false)}
+            />
+          )}
+
+          {/* 6 Halal Reactions Popup Bar [ 🤲 ❤️ 🕋 🙏 🤝 😢 ] */}
+          {showReactionsMenu && (
+            <div className="absolute -top-14 left-0 z-40 bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] rounded-full px-2.5 py-1.5 shadow-2xl flex items-center gap-1.5 sm:gap-2">
+              {HALAL_REACTIONS.map((item, idx) => (
+                <button
+                  key={item.type}
+                  type="button"
+                  style={{ animationDelay: `${idx * 35}ms` }}
+                  onMouseEnter={() => setHoveredReaction(item.type)}
+                  onMouseLeave={() => setHoveredReaction(null)}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    triggerReactionWithAnimation(item.type);
+                  }}
+                  className="relative group/react w-9 h-9 rounded-full flex items-center justify-center text-2xl hover:scale-125 hover:-translate-y-1.5 active:scale-110 transition-transform cursor-pointer animate-reaction-pop"
+                  title={item.label}
+                >
+                  {hoveredReaction === item.type && (
+                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-neutral-900 text-white text-[10px] font-bold whitespace-nowrap shadow-md pointer-events-none">
+                      {item.label}
+                    </span>
+                  )}
+                  <span>{item.emoji}</span>
+                </button>
+              ))}
             </div>
           )}
 
           <button
-            onClick={() => onToggleReaction(post.id, post.userReaction ? 'like' : 'like')}
-            className={`w-full py-1.5 rounded-md hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-              post.userReaction ? 'text-[#0866FF] font-semibold' : 'text-[#65676B] dark:text-[#b0b3b8] font-medium'
+            type="button"
+            onTouchStart={() => {
+              longPressTriggeredRef.current = false;
+              longPressTimerRef.current = setTimeout(() => {
+                longPressTriggeredRef.current = true;
+                setShowReactionsMenu(true);
+              }, 420);
+            }}
+            onTouchEnd={() => {
+              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+            }}
+            onTouchMove={() => {
+              if (longPressTimerRef.current) clearTimeout(longPressTimerRef.current);
+            }}
+            onContextMenu={(e) => {
+              e.preventDefault();
+              setShowReactionsMenu(true);
+            }}
+            onClick={() => {
+              if (longPressTriggeredRef.current) {
+                longPressTriggeredRef.current = false;
+                return;
+              }
+              triggerReactionWithAnimation(post.userReaction || 'like');
+            }}
+            className={`w-full py-1.5 rounded-md hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] flex items-center justify-center gap-1.5 transition-colors cursor-pointer select-none ${
+              activeReactionMeta
+                ? `${activeReactionMeta.textColor} font-bold`
+                : 'text-[#65676B] dark:text-[#b0b3b8] font-medium'
             }`}
           >
-            <ThumbsUp className={`w-5 h-5 ${post.userReaction ? 'fill-[#0866FF] text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'}`} />
-            <span className="text-[15px]">Like</span>
+            {activeReactionMeta ? (
+              <span className="text-lg leading-none">{activeReactionMeta.emoji}</span>
+            ) : (
+              <span className="text-lg leading-none">🤲</span>
+            )}
+            <span className="text-[14px] sm:text-[15px] whitespace-nowrap">
+              {activeReactionMeta ? activeReactionMeta.label : 'Dua'}
+            </span>
           </button>
         </div>
 

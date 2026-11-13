@@ -1,56 +1,155 @@
-import React from 'react';
-import { Clock, Radio, Users, MessageCircle, Sparkles } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { Clock, Radio, Users, MessageCircle, Compass, BookOpen, MapPin } from 'lucide-react';
 import { ChatFriend } from '../../types';
+import {
+  GLOBAL_CITIES,
+  GlobalCity,
+  PrayerSchedule,
+  detectUserGlobalCity,
+  fetchPrayerTimesForCity,
+  getDailyQuranVerse,
+} from '../../lib/globalPrayer';
+import { useLanguage } from '../../context/LanguageContext';
 
 interface FbRightSidebarProps {
   friends: ChatFriend[];
   onOpenChatWithFriend: (friend: ChatFriend) => void;
   onOpenWatchLive: () => void;
+  onOpenQibla?: () => void;
 }
 
 export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
   friends,
   onOpenChatWithFriend,
   onOpenWatchLive,
+  onOpenQibla,
 }) => {
-  const prayerTimes = [
-    { name: 'ফজর', time: '০৪:৫২ AM', current: false },
-    { name: 'যোহর', time: '১১:৫৮ AM', current: false },
-    { name: 'আসর', time: '০৩:৪৮ PM', current: true },
-    { name: 'মাগরিব', time: '০৫:৩৫ PM', current: false },
-    { name: 'ইশা', time: '০৬:৪৯ PM', current: false },
-  ];
+  const { currentLang } = useLanguage();
+  const [city, setCity] = useState<GlobalCity>(GLOBAL_CITIES[0]);
+  const [schedule, setSchedule] = useState<PrayerSchedule | null>(null);
+
+  useEffect(() => {
+    let active = true;
+    detectUserGlobalCity().then((detected) => {
+      if (active) setCity(detected);
+    });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    fetchPrayerTimesForCity(city).then((res) => {
+      if (active) setSchedule(res);
+    });
+    return () => {
+      active = false;
+    };
+  }, [city]);
+
+  const dailyVerse = getDailyQuranVerse(currentLang);
+  const prayerRows = schedule
+    ? [
+        { name: 'Fajr', time: schedule.times.Fajr },
+        { name: 'Dhuhr', time: schedule.times.Dhuhr },
+        { name: 'Asr', time: schedule.times.Asr },
+        { name: 'Maghrib', time: schedule.times.Maghrib },
+        { name: 'Isha', time: schedule.times.Isha },
+      ]
+    : [
+        { name: 'Fajr', time: '04:50' },
+        { name: 'Dhuhr', time: '12:15' },
+        { name: 'Asr', time: '15:35' },
+        { name: 'Maghrib', time: '18:05' },
+        { name: 'Isha', time: '19:25' },
+      ];
 
   return (
     <aside className="hidden xl:block w-80 sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto no-scrollbar p-3 space-y-4">
       
-      {/* 1. Daily Prayer Times Widget */}
+      {/* 1. Global Prayer Times & Qibla Compass Widget */}
       <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-3.5 space-y-2.5">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-2">
           <div className="flex items-center gap-1.5 text-xs font-bold text-white">
             <Clock className="w-4 h-4 text-emerald-400" />
-            <span>আজকের নামাজের সময়সূচি</span>
+            <span>Global Prayer Times</span>
           </div>
-          <span className="text-[10px] text-emerald-400 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/30">
-            ঢাকা
-          </span>
+          <select
+            value={city.id}
+            onChange={(e) => {
+              const found = GLOBAL_CITIES.find((c) => c.id === e.target.value);
+              if (found) setCity(found);
+            }}
+            aria-label="Select prayer city"
+            className="text-[10px] text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/30 outline-none cursor-pointer"
+          >
+            {GLOBAL_CITIES.map((c) => (
+              <option key={c.id} value={c.id} className="bg-[#18191a] text-white">
+                {c.flag} {c.city}
+              </option>
+            ))}
+          </select>
         </div>
 
-        <div className="grid grid-cols-5 gap-1 text-center">
-          {prayerTimes.map((p) => (
-            <div
-              key={p.name}
-              className={`p-1.5 rounded-lg border text-xs ${
-                p.current
-                  ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold ring-1 ring-emerald-400'
-                  : 'bg-[#18191a] border-neutral-800 text-[#b0b3b8]'
-              }`}
-            >
-              <p className="text-[10px]">{p.name}</p>
-              <p className="text-[10px] font-mono mt-0.5">{p.time.split(' ')[0]}</p>
-            </div>
-          ))}
+        <div className="flex items-center justify-between text-[11px] text-[#b0b3b8]">
+          <span className="flex items-center gap-1">
+            <MapPin className="w-3 h-3 text-sky-400" />
+            <span>{city.city}, {city.country}</span>
+          </span>
+          {schedule && (
+            <span className="text-emerald-400 font-semibold tabular-nums">
+              Next: {schedule.nextPrayer.name} ({schedule.nextPrayer.time})
+            </span>
+          )}
         </div>
+
+        <div className="grid grid-cols-5 gap-1 text-center tabular-nums">
+          {prayerRows.map((p) => {
+            const isNext = schedule?.nextPrayer.name === p.name;
+            return (
+              <div
+                key={p.name}
+                className={`p-1.5 rounded-lg border text-xs ${
+                  isNext
+                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold ring-1 ring-emerald-400'
+                    : 'bg-[#18191a] border-neutral-800 text-[#b0b3b8]'
+                }`}
+              >
+                <p className="text-[10px]">{p.name}</p>
+                <p className="text-[10px] font-mono mt-0.5">{p.time}</p>
+              </div>
+            );
+          })}
+        </div>
+
+        {onOpenQibla && (
+          <button
+            type="button"
+            onClick={onOpenQibla}
+            className="w-full py-2 rounded-xl bg-[#0866FF]/15 hover:bg-[#0866FF]/25 border border-[#0866FF]/35 text-[#4EA1FF] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+          >
+            <Compass className="w-4 h-4" />
+            <span>Open Global Qibla Compass (/qibla)</span>
+          </button>
+        )}
+      </div>
+
+      {/* 1.5. Daily Quran Verse in User's Selected Language */}
+      <div className="bg-[#242526] rounded-2xl border border-emerald-500/30 p-3.5 space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Daily Quran Verse</span>
+          </span>
+          <span className="text-[10px] text-[#b0b3b8]">{dailyVerse.surahRef}</span>
+        </div>
+        <p className="text-sm font-arabic text-right text-emerald-100 leading-relaxed" dir="rtl">
+          {dailyVerse.arabic}
+        </p>
+        <p className="text-xs text-[#e4e6eb] leading-relaxed">
+          {dailyVerse.localized}
+        </p>
       </div>
 
       {/* 2. Makkah Live 24/7 Preview Card */}
@@ -87,7 +186,7 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
       {/* 3. Facebook Contacts / Online Muslim Friends */}
       <div className="space-y-1">
         <div className="flex items-center justify-between px-2 py-1 text-[#b0b3b8] font-bold text-xs uppercase tracking-wider">
-          <span>যোগাযোগ (Contacts)</span>
+          <span>Global Ummah Contacts</span>
           <Users className="w-4 h-4" />
         </div>
 
@@ -111,7 +210,7 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
             <div className="flex-1 min-w-0">
               <p className="text-xs font-semibold text-[#e4e6eb] truncate">{friend.name}</p>
               <p className="text-[10px] text-[#b0b3b8] truncate">
-                {friend.online ? 'সক্রিয় আছেন' : friend.lastSeen}
+                {friend.online ? 'Active now' : friend.lastSeen}
               </p>
             </div>
 
@@ -119,7 +218,6 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
           </div>
         ))}
       </div>
-
     </aside>
   );
 };

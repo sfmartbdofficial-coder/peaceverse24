@@ -213,7 +213,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                     <h3 className="text-base font-bold text-white">২. টেকনিক্যাল স্পেসিফিকেশন ও রিলিজ</h3>
                     <div className="bg-[#18191a] p-4 rounded-xl border border-[#393a3b] space-y-1 text-xs font-mono">
                       <p><span className="text-[#8a8d91]">App Name:</span> Peaceverse (পিসভার্স)</p>
-                      <p><span className="text-[#8a8d91]">Version:</span> 2.4.0 (Global Play Store Release)</p>
+                      <p><span className="text-[#8a8d91]">Version:</span> v1.0 Global Launch (Global Play Store Release)</p>
                       <p><span className="text-[#8a8d91]">Target Platform:</span> Web, Android (PWA / TWA), iOS</p>
                       <p><span className="text-[#8a8d91]">Engine:</span> React 19, TypeScript, Tailwind CSS, Express, Gemini AI</p>
                       <p><span className="text-[#8a8d91]">Security:</span> 256-Bit SSL Encryption, Google Cloud Run Infrastructure</p>
@@ -243,7 +243,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                     <h3 className="text-base font-bold text-white">2. Technical & Release Information</h3>
                     <div className="bg-[#18191a] p-4 rounded-xl border border-[#393a3b] space-y-1 text-xs font-mono">
                       <p><span className="text-[#8a8d91]">Application Name:</span> Qalby</p>
-                      <p><span className="text-[#8a8d91]">Version:</span> 2.4.0 (International Production Release)</p>
+                      <p><span className="text-[#8a8d91]">Version:</span> v1.0 Global Launch (International Production Release)</p>
                       <p><span className="text-[#8a8d91]">Architectural Stack:</span> React 19, TypeScript, Tailwind CSS, Express, Gemini AI</p>
                       <p><span className="text-[#8a8d91]">Hosting & Security:</span> Enterprise Google Cloud Run, SSL/TLS Encryption</p>
                     </div>

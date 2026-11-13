@@ -277,10 +277,12 @@ export const FbGoldenGiftModal: React.FC<FbGoldenGiftModalProps> = ({
 
         {/* Footer Actions */}
         <div className="p-4 border-t border-white/10 bg-[#18191a] flex items-center justify-between gap-3">
-          <div className="text-xs">
+          <div className="text-xs tabular-nums">
             <span className="text-neutral-400">মোট হাদিয়া: </span>
             <span className="font-black text-amber-400 text-base">🪙 {currentAmount} গোল্ডেন</span>
-            <span className="text-[10px] text-neutral-400 ml-1">({currentAmount} টাকা)</span>
+            <span className="text-[10px] text-neutral-400 ml-1">
+              (৳{currentAmount} / ${(currentAmount / 120).toFixed(2)} USD)
+            </span>
           </div>
 
           <button

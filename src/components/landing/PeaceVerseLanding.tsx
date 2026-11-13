@@ -1,26 +1,24 @@
 import React, { useState } from 'react';
 import {
+  Eye,
+  EyeOff,
   Globe,
-  Download,
-  Users,
-  Shield,
-  Award,
-  Sparkles,
-  ArrowRight,
-  Info,
-  Heart,
-  QrCode,
-  Smartphone,
-  ExternalLink,
-  BookOpen,
-  Compass,
-  CheckCircle2,
+  Loader2,
   X,
-  LogIn,
-  UserPlus,
+  AlertCircle,
+  CheckCircle2,
+  MailCheck,
+  ShieldCheck,
 } from 'lucide-react';
-import { PeaceDoveEmblem } from './PeaceDoveEmblem';
-import { GeometricBackground } from './GeometricBackground';
+import {
+  loginWithEmail,
+  loginWithGoogle,
+  registerWithEmail,
+  resetPassword,
+} from '../../lib/firebase';
+import { useLanguage } from '../../context/LanguageContext';
+import { SupportedLanguage } from '../../i18n/languages';
+import { GlobalWorldMap } from '../global/GlobalWorldMap';
 
 interface PeaceVerseLandingProps {
   onNavigateTo: (path: string) => void;
@@ -28,694 +26,702 @@ interface PeaceVerseLandingProps {
   onOpenLegalTab?: (tab: string) => void;
 }
 
+const MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+];
+const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
+const CURRENT_YEAR = 2026;
+const YEARS = Array.from({ length: 90 }, (_, i) => String(CURRENT_YEAR - 13 - i));
+
+const FOOTER_LANGS: { code: SupportedLanguage; label: string }[] = [
+  { code: 'en', label: 'English (UK)' },
+  { code: 'bn', label: 'বাংলা' },
+  { code: 'ar', label: 'العربية' },
+  { code: 'ur', label: 'اردو' },
+  { code: 'tr', label: 'Türkçe' },
+  { code: 'fr', label: 'Français (France)' },
+  { code: 'id', label: 'Bahasa Indonesia' },
+  { code: 'ms', label: 'Bahasa Melayu' },
+  { code: 'hi', label: 'हिन्दी' },
+  { code: 'es', label: 'Español' },
+];
+
 export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   onNavigateTo,
-  onOpenDownloadModal,
   onOpenLegalTab,
 }) => {
-  const [showQrModal, setShowQrModal] = useState(false);
-  const [activeInfoModal, setActiveInfoModal] = useState<string | null>(null);
-  const [showSignUpPrompt, setShowSignUpPrompt] = useState<{
-    isOpen: boolean;
-    featureTitle?: string;
-  }>({ isOpen: false });
+  const { currentLang, setLanguage } = useLanguage();
 
-  const handleFeatureCardClick = (title: string) => {
-    setShowSignUpPrompt({ isOpen: true, featureTitle: title });
-    setTimeout(() => {
-      onNavigateTo('/signup');
-    }, 1500);
+  // Login Form State (Facebook-style card)
+  const [loginIdentifier, setLoginIdentifier] = useState('');
+  const [loginPassword, setLoginPassword] = useState('');
+  const [showLoginPass, setShowLoginPass] = useState(false);
+  const [loginLoading, setLoginLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+  const [loginError, setLoginError] = useState<string | null>(null);
+
+  // Forgotten Password Modal State
+  const [showResetModal, setShowResetModal] = useState(false);
+  const [resetEmail, setResetEmail] = useState('');
+  const [resetLoading, setResetLoading] = useState(false);
+  const [resetFeedback, setResetFeedback] = useState<string | null>(null);
+  const [resetError, setResetError] = useState<string | null>(null);
+
+  // Facebook-style Sign Up Modal State
+  const [showSignUpModal, setShowSignUpModal] = useState(false);
+  const [firstName, setFirstName] = useState('');
+  const [surname, setSurname] = useState('');
+  const [regContact, setRegContact] = useState('');
+  const [regPassword, setRegPassword] = useState('');
+  const [dobDay, setDobDay] = useState('15');
+  const [dobMonth, setDobMonth] = useState('Jan');
+  const [dobYear, setDobYear] = useState('1998');
+  const [gender, setGender] = useState<'Female' | 'Male' | 'Custom'>('Male');
+  const [signUpLoading, setSignUpLoading] = useState(false);
+  const [signUpError, setSignUpError] = useState<string | null>(null);
+
+  // World Map & Footer Info Modal
+  const [showWorldMapModal, setShowWorldMapModal] = useState(false);
+  const [footerInfoModal, setFooterInfoModal] = useState<'about' | 'help' | null>(null);
+
+  const normalizeIdentifierToEmail = (input: string) => {
+    const trimmed = input.trim();
+    if (trimmed.includes('@')) return trimmed;
+    const digits = trimmed.replace(/[^0-9+]/g, '');
+    if (digits.length >= 6) {
+      return `${digits.replace(/\+/g, '')}@phone.peaceverse.app`;
+    }
+    return trimmed;
   };
 
-  const handleDownloadClick = () => {
-    if (onOpenDownloadModal) {
-      onOpenDownloadModal();
-    } else {
-      setShowQrModal(true);
+  const mapAuthError = (err: any): string => {
+    const code = err?.code || '';
+    const msg = err?.message || '';
+    if (code === 'auth/invalid-credential' || code === 'auth/wrong-password' || code === 'auth/user-not-found') {
+      return 'The email address or password you entered is incorrect.';
+    }
+    if (code === 'auth/email-already-in-use') {
+      return 'An account with this email or mobile number already exists.';
+    }
+    if (code === 'auth/weak-password') {
+      return 'Password should be at least 6 characters.';
+    }
+    if (code === 'auth/invalid-email') {
+      return 'Please enter a valid email address or mobile number.';
+    }
+    if (code === 'auth/popup-closed-by-user') {
+      return 'Google sign-in popup was closed.';
+    }
+    return msg || 'Authentication failed. Please try again.';
+  };
+
+  const handleLoginSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    if (!loginIdentifier.trim() || !loginPassword) {
+      setLoginError('Please enter your email/phone and password.');
+      return;
+    }
+
+    setLoginLoading(true);
+    try {
+      const resolvedEmail = normalizeIdentifierToEmail(loginIdentifier);
+      await loginWithEmail(resolvedEmail, loginPassword);
+      onNavigateTo('/home');
+    } catch (err: any) {
+      setLoginError(mapAuthError(err));
+    } finally {
+      setLoginLoading(false);
+    }
+  };
+
+  const handleGoogleSignIn = async () => {
+    setLoginError(null);
+    setGoogleLoading(true);
+    try {
+      const user = await loginWithGoogle();
+      if (user) {
+        onNavigateTo('/home');
+      }
+    } catch (err: any) {
+      setLoginError(mapAuthError(err));
+    } finally {
+      setGoogleLoading(false);
+    }
+  };
+
+  const handleSignUpSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setSignUpError(null);
+
+    if (!firstName.trim() || !surname.trim()) {
+      setSignUpError("What's your name? Please enter First name and Surname.");
+      return;
+    }
+    if (!regContact.trim()) {
+      setSignUpError('Please enter your mobile number or email address.');
+      return;
+    }
+    if (regPassword.length < 6) {
+      setSignUpError('Please choose a password of at least 6 characters.');
+      return;
+    }
+
+    setSignUpLoading(true);
+    try {
+      const fullName = `${firstName.trim()} ${surname.trim()}`;
+      const resolvedEmail = normalizeIdentifierToEmail(regContact);
+      try {
+        localStorage.setItem(
+          'peaceverse_signup_meta',
+          JSON.stringify({
+            name: fullName,
+            birthDate: `${dobDay} ${dobMonth} ${dobYear}`,
+            gender,
+            contact: regContact.trim(),
+          })
+        );
+        localStorage.setItem('peaceverse_registered_name', fullName);
+      } catch {}
+
+      const user = await registerWithEmail(resolvedEmail, regPassword, fullName);
+      if (user) {
+        setShowSignUpModal(false);
+        onNavigateTo('/home');
+      }
+    } catch (err: any) {
+      setSignUpError(mapAuthError(err));
+    } finally {
+      setSignUpLoading(false);
+    }
+  };
+
+  const handlePasswordReset = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setResetError(null);
+    setResetFeedback(null);
+    if (!resetEmail.trim()) {
+      setResetError('Please enter your email address.');
+      return;
+    }
+    setResetLoading(true);
+    try {
+      await resetPassword(resetEmail.trim());
+      setResetFeedback('Password reset link sent! Please check your email inbox.');
+    } catch (err: any) {
+      setResetError(mapAuthError(err));
+    } finally {
+      setResetLoading(false);
     }
   };
 
   return (
-    <GeometricBackground>
-      {/* 1. TOP NAVIGATION BAR */}
-      <header className="sticky top-0 z-40 w-full backdrop-blur-xl bg-[#030712]/80 border-b border-blue-500/20 px-4 sm:px-8 py-3.5 transition-all">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen flex flex-col justify-between bg-[#F0F2F5] text-[#1C1E21] font-sans">
+      {/* MAIN FACEBOOK SPLIT SCREEN (Left 40% Brand + Right 60% Login Card) */}
+      <main className="flex-1 flex items-center justify-center px-4 py-10 sm:py-16">
+        <div className="w-full max-w-[980px] flex flex-col lg:flex-row items-center lg:items-start justify-between gap-8 lg:gap-12">
           
-          {/* Top Left: Logo PeaceVerse */}
-          <button
-            onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
-            className="flex items-center gap-2.5 group cursor-pointer"
-          >
-            {/* Geometric star emblem mark */}
-            <div className="relative w-8 h-8 rounded-xl bg-gradient-to-tr from-blue-600 via-sky-500 to-cyan-400 p-[1.5px] shadow-[0_0_15px_rgba(56,189,248,0.45)] group-hover:scale-105 transition-transform">
-              <div className="w-full h-full bg-[#060b18] rounded-[10px] flex items-center justify-center">
-                <svg viewBox="0 0 24 24" className="w-4 h-4 text-sky-400" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M12 2L15 8L22 9L17 14L18 21L12 18L6 21L7 14L2 9L9 8L12 2Z" />
-                </svg>
-              </div>
-            </div>
-
-            <span className="font-extrabold text-xl tracking-tight text-white group-hover:text-sky-300 transition-colors">
-              PeaceVerse
-            </span>
-          </button>
-
-          {/* Top Right: Login button, Sign Up blue button */}
-          <div className="flex items-center gap-2 sm:gap-3">
-            <button
-              onClick={() => onNavigateTo('/login')}
-              className="flex items-center gap-1.5 px-3 sm:px-4 py-2 text-xs sm:text-sm font-semibold text-slate-300 hover:text-white rounded-full hover:bg-slate-800/60 transition-all cursor-pointer"
-            >
-              <LogIn className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-sky-400" />
-              <span>Login</span>
-            </button>
-
-            <button
-              onClick={() => onNavigateTo('/signup')}
-              className="flex items-center gap-1.5 px-4 sm:px-5 py-2 text-xs sm:text-sm font-bold text-white bg-blue-600 hover:bg-blue-500 rounded-full shadow-[0_0_18px_rgba(37,99,235,0.5)] active:scale-95 transition-all cursor-pointer"
-            >
-              <UserPlus className="w-3.5 h-3.5 sm:w-4 sm:h-4" />
-              <span>Sign Up</span>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      {/* 2. HERO SECTION */}
-      <section className="relative pt-8 sm:pt-14 pb-12 sm:pb-20 px-4 sm:px-6 flex flex-col items-center text-center max-w-4xl mx-auto">
-        
-        {/* Circular bird logo with Islamic geometric pattern */}
-        <div className="mb-4 sm:mb-6 animate-in zoom-in-95 duration-700">
-          <PeaceDoveEmblem size={175} />
-        </div>
-
-        {/* Brand name under emblem */}
-        <h2 className="text-2xl sm:text-3xl font-extrabold tracking-wide text-sky-400 drop-shadow-[0_0_15px_rgba(56,189,248,0.4)] mb-3">
-          peaceverse
-        </h2>
-
-        {/* Global Community Badge */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1 rounded-full bg-blue-950/70 border border-sky-400/35 text-sky-300 text-xs font-semibold backdrop-blur-md mb-2 shadow-[0_0_15px_rgba(56,189,248,0.15)]">
-          <Globe className="w-3.5 h-3.5 text-sky-400" />
-          <span>Positive Global Community</span>
-        </div>
-
-        {/* Sub-tagline */}
-        <p className="text-xs sm:text-sm text-sky-200/80 font-medium mb-4">
-          Feel Peace With Global Community
-        </p>
-
-        {/* Main Tagline */}
-        <h1 className="text-2xl sm:text-4xl md:text-5xl font-black text-white leading-tight sm:leading-snug tracking-tight max-w-2xl mb-8">
-          Building a peaceful community for everyone worldwide.
-        </h1>
-
-        {/* CTA Buttons: Get Started & Download App */}
-        <div className="flex flex-col sm:flex-row items-center justify-center gap-3.5 w-full sm:w-auto mb-10">
-          <button
-            onClick={() => onNavigateTo('/signup')}
-            className="w-full sm:w-auto px-7 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(37,99,235,0.6)] active:scale-95 transition-all cursor-pointer"
-          >
-            <span>Get Started</span>
-            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-          </button>
-
-          <button
-            onClick={handleDownloadClick}
-            className="w-full sm:w-auto px-7 py-3 rounded-xl bg-slate-900/80 hover:bg-slate-800/90 text-slate-200 hover:text-white font-bold text-sm sm:text-base border border-blue-500/40 flex items-center justify-center gap-2 backdrop-blur-md active:scale-95 transition-all cursor-pointer shadow-[0_0_20px_rgba(56,189,248,0.12)]"
-          >
-            <Download className="w-4 h-4 text-sky-400" />
-            <span>Download App</span>
-          </button>
-        </div>
-
-        {/* 10K+ active members pill */}
-        <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-slate-900/70 border border-slate-700/60 text-slate-300 text-xs font-semibold backdrop-blur-md shadow-sm">
-          <Users className="w-3.5 h-3.5 text-sky-400" />
-          <span>10K+ active members</span>
-        </div>
-      </section>
-
-      {/* 3. ABOUT PEACEVERSE SECTION */}
-      <section className="py-10 px-4 sm:px-6 max-w-4xl mx-auto">
-        <div className="flex flex-col items-center text-center mb-8">
-          <div className="inline-flex items-center gap-1.5 px-3.5 py-1 rounded-full bg-blue-950/60 border border-sky-400/30 text-sky-300 text-xs font-semibold mb-3">
-            <Info className="w-3.5 h-3.5 text-sky-400" />
-            <span>About PeaceVerse</span>
-          </div>
-
-          <h2 className="text-xl sm:text-3xl font-extrabold text-white max-w-xl leading-snug mb-3">
-            Building a peaceful community for everyone worldwide
-          </h2>
-
-          <p className="text-xs sm:text-sm text-slate-300 leading-relaxed max-w-2xl">
-            PeaceVerse24 is a global platform connecting people to share knowledge, support each other, and grow together. We provide a safe, respectful space to learn, discuss and grow as a positive global community.
-          </p>
-        </div>
-
-        {/* 3 Stats Highlights: 100+ Countries, 24/7 Support, 100% Safe & Secure */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6 my-8">
-          
-          {/* Card 1: 100+ Countries */}
-          <div className="flex flex-col items-center text-center p-5 rounded-2xl bg-slate-900/60 border border-blue-500/25 backdrop-blur-md hover:border-sky-400/50 transition-all shadow-[0_0_20px_rgba(37,99,235,0.12)]">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center text-white mb-3 shadow-[0_0_20px_rgba(56,189,248,0.5)]">
-              <Heart className="w-6 h-6 fill-white text-white" />
-            </div>
-            <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              100+
-            </span>
-            <span className="text-xs text-slate-300 font-medium mt-1">
-              Countries Reached
-            </span>
-          </div>
-
-          {/* Card 2: 24/7 Support */}
-          <div className="flex flex-col items-center text-center p-5 rounded-2xl bg-slate-900/60 border border-blue-500/25 backdrop-blur-md hover:border-sky-400/50 transition-all shadow-[0_0_20px_rgba(37,99,235,0.12)]">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center text-white mb-3 shadow-[0_0_20px_rgba(56,189,248,0.5)]">
-              <Award className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              24/7
-            </span>
-            <span className="text-xs text-slate-300 font-medium mt-1">
-              Community Support
-            </span>
-          </div>
-
-          {/* Card 3: 100% Safe & Secure */}
-          <div className="flex flex-col items-center text-center p-5 rounded-2xl bg-slate-900/60 border border-blue-500/25 backdrop-blur-md hover:border-sky-400/50 transition-all shadow-[0_0_20px_rgba(37,99,235,0.12)]">
-            <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-blue-600 to-sky-400 flex items-center justify-center text-white mb-3 shadow-[0_0_20px_rgba(56,189,248,0.5)]">
-              <Shield className="w-6 h-6 text-white" />
-            </div>
-            <span className="text-2xl sm:text-3xl font-black text-white tracking-tight">
-              100%
-            </span>
-            <span className="text-xs text-slate-300 font-medium mt-1">
-              Safe & Secure
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. KEY PLATFORM FEATURES (from Screenshot 2) */}
-      <section className="py-6 px-4 sm:px-6 max-w-4xl mx-auto space-y-3.5">
-        
-        {/* Feature 1: Communities */}
-        <button
-          type="button"
-          onClick={() => handleFeatureCardClick('Communities')}
-          className="w-full flex items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-blue-500/25 backdrop-blur-md hover:border-sky-400/60 hover:bg-slate-800/80 hover:shadow-[0_0_30px_rgba(56,189,248,0.2)] transition-all cursor-pointer group text-left active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-600/30 border border-sky-400/30 flex items-center justify-center text-sky-400 shrink-0 group-hover:scale-110 group-hover:bg-blue-600/50 transition-all">
-              <Users className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-white group-hover:text-sky-300 transition-colors">
-                Communities
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                Join community circles, share knowledge, and grow together in harmony.
-              </p>
-            </div>
-          </div>
-          <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-1 transition-all shrink-0" />
-        </button>
-
-        {/* Feature 2: Rich Helpful Content */}
-        <button
-          type="button"
-          onClick={() => handleFeatureCardClick('Rich Helpful Content')}
-          className="w-full flex items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-blue-500/25 backdrop-blur-md hover:border-sky-400/60 hover:bg-slate-800/80 hover:shadow-[0_0_30px_rgba(56,189,248,0.2)] transition-all cursor-pointer group text-left active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-600/30 border border-sky-400/30 flex items-center justify-center text-sky-400 shrink-0 group-hover:scale-110 group-hover:bg-blue-600/50 transition-all">
-              <BookOpen className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-white group-hover:text-sky-300 transition-colors">
-                Rich Helpful Content
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                Articles, reminders, videos & inspiring lifestyle content curated for you.
-              </p>
-            </div>
-          </div>
-          <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-1 transition-all shrink-0" />
-        </button>
-
-        {/* Feature 3: Discover */}
-        <button
-          type="button"
-          onClick={() => handleFeatureCardClick('Discover')}
-          className="w-full flex items-center justify-between gap-4 p-4 sm:p-5 rounded-2xl bg-slate-900/70 border border-blue-500/25 backdrop-blur-md hover:border-sky-400/60 hover:bg-slate-800/80 hover:shadow-[0_0_30px_rgba(56,189,248,0.2)] transition-all cursor-pointer group text-left active:scale-[0.99]"
-        >
-          <div className="flex items-center gap-4">
-            <div className="w-12 h-12 rounded-xl bg-blue-600/30 border border-sky-400/30 flex items-center justify-center text-sky-400 shrink-0 group-hover:scale-110 group-hover:bg-blue-600/50 transition-all">
-              <Compass className="w-6 h-6" />
-            </div>
-            <div>
-              <h3 className="text-sm sm:text-base font-bold text-white group-hover:text-sky-300 transition-colors">
-                Discover
-              </h3>
-              <p className="text-xs sm:text-sm text-slate-300 mt-0.5">
-                Explore events, creators, courses and connect with the global community.
-              </p>
-            </div>
-          </div>
-          <ArrowRight className="w-5 h-5 text-slate-500 group-hover:text-sky-400 group-hover:translate-x-1 transition-all shrink-0" />
-        </button>
-      </section>
-
-      {/* 5. DOWNLOAD THE PEACEVERSE APP SECTION */}
-      <section className="py-10 px-4 sm:px-6 max-w-4xl mx-auto">
-        <div className="relative rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-slate-900/90 via-blue-950/40 to-slate-900/90 border border-sky-400/40 backdrop-blur-xl shadow-[0_0_35px_rgba(56,189,248,0.2)] flex flex-col md:flex-row items-center justify-between gap-6 overflow-hidden">
-          
-          {/* Neon inner glow effect */}
-          <div className="pointer-events-none absolute -top-20 -left-20 w-60 h-60 bg-blue-500/20 rounded-full blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -right-20 w-60 h-60 bg-sky-400/20 rounded-full blur-3xl" />
-
-          {/* Left Text & Store Buttons */}
-          <div className="flex-1 space-y-4 text-center md:text-left z-10">
-            <h3 className="text-xl sm:text-2xl font-black text-white">
-              Download the PeaceVerse App
-            </h3>
-            <p className="text-xs sm:text-sm text-slate-300 max-w-md leading-relaxed">
-              Stay connected on the go. Get reminders, join communities, and access helpful content anywhere.
-            </p>
-
-            <div className="flex flex-wrap items-center justify-center md:justify-start gap-3 pt-2">
-              {/* Apple App Store */}
-              <button
-                onClick={handleDownloadClick}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-black/80 hover:bg-black text-white border border-slate-700/80 hover:border-sky-400/60 shadow-md active:scale-95 transition-all cursor-pointer"
-              >
-                <svg className="w-5 h-5 fill-current" viewBox="0 0 24 24">
-                  <path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.81-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M15.97 6.37c.62-.75 1.04-1.8 0.92-2.85-.9.04-1.99.6-2.64 1.35-.57.65-1.07 1.71-.93 2.73 1.01.08 2.03-.49 2.65-1.23z" />
-                </svg>
-                <div className="text-left leading-tight">
-                  <span className="block text-[9px] uppercase tracking-wider text-slate-400">Download on the</span>
-                  <span className="block text-xs font-bold text-white">App Store</span>
-                </div>
-              </button>
-
-              {/* Google Play Store */}
-              <button
-                onClick={handleDownloadClick}
-                className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-black/80 hover:bg-black text-white border border-slate-700/80 hover:border-sky-400/60 shadow-md active:scale-95 transition-all cursor-pointer"
-              >
-                <svg className="w-5 h-5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M3.61 2.17L13.88 12.44 3.61 22.71c-.36-.37-.61-.92-.61-1.58V3.75c0-.66.25-1.21.61-1.58z" />
-                  <path fill="#EA4335" d="M17.15 9.17L13.88 12.44 3.61 2.17c.4-.24.9-.33 1.44-.02l12.1 7.02z" />
-                  <path fill="#FBBC05" d="M17.15 15.71l-12.1 7.02c-.54.31-1.04.22-1.44-.02L13.88 12.44l3.27 3.27z" />
-                  <path fill="#34A853" d="M21.2 12.44c.48.33.8.84.8 1.44 0 .6-.32 1.11-.8 1.44l-4.05 2.39-3.27-3.27 3.27-3.27 4.05 2.39z" />
-                </svg>
-                <div className="text-left leading-tight">
-                  <span className="block text-[9px] uppercase tracking-wider text-slate-400">GET IT ON</span>
-                  <span className="block text-xs font-bold text-white">Google Play</span>
-                </div>
-              </button>
-            </div>
-          </div>
-
-          {/* Right QR Code Box matching screenshot */}
-          <div className="shrink-0 flex flex-col items-center justify-center p-4 rounded-2xl bg-[#060d24]/90 border border-sky-400/40 shadow-[0_0_20px_rgba(56,189,248,0.3)] z-10">
-            <div className="w-28 h-28 sm:w-32 sm:h-32 bg-white rounded-xl p-2 flex items-center justify-center shadow-inner">
-              {/* Detailed SVG QR Code */}
-              <svg viewBox="0 0 100 100" className="w-full h-full text-slate-900">
-                {/* QR corner 1 */}
-                <rect x="5" y="5" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="6" rx="3" />
-                <rect x="13" y="13" width="12" height="12" fill="currentColor" rx="1.5" />
-                {/* QR corner 2 */}
-                <rect x="67" y="5" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="6" rx="3" />
-                <rect x="75" y="13" width="12" height="12" fill="currentColor" rx="1.5" />
-                {/* QR corner 3 */}
-                <rect x="5" y="67" width="28" height="28" fill="none" stroke="currentColor" strokeWidth="6" rx="3" />
-                <rect x="13" y="75" width="12" height="12" fill="currentColor" rx="1.5" />
-                {/* QR Pattern dots */}
-                <rect x="38" y="10" width="6" height="6" fill="currentColor" />
-                <rect x="48" y="10" width="6" height="6" fill="currentColor" />
-                <rect x="40" y="24" width="8" height="6" fill="currentColor" />
-                <rect x="54" y="24" width="6" height="6" fill="currentColor" />
-                <rect x="10" y="42" width="6" height="6" fill="currentColor" />
-                <rect x="22" y="42" width="6" height="6" fill="currentColor" />
-                <rect x="36" y="38" width="28" height="28" fill="#1877F2" rx="4" />
-                {/* Center dove icon */}
-                <circle cx="50" cy="52" r="8" fill="white" />
-                <polygon points="50,47 54,54 46,54" fill="#1877F2" />
-                <rect x="70" y="44" width="8" height="6" fill="currentColor" />
-                <rect x="84" y="44" width="6" height="6" fill="currentColor" />
-                <rect x="42" y="72" width="6" height="6" fill="currentColor" />
-                <rect x="54" y="72" width="8" height="6" fill="currentColor" />
-                <rect x="42" y="84" width="12" height="6" fill="currentColor" />
-                <rect x="72" y="72" width="6" height="6" fill="currentColor" />
-                <rect x="84" y="80" width="6" height="8" fill="currentColor" />
-              </svg>
-            </div>
-            <span className="text-[11px] font-bold text-sky-300 mt-2">
-              Scan to Download
-            </span>
-          </div>
-        </div>
-      </section>
-
-      {/* 6. JOIN PEACEVERSE TODAY SECTION */}
-      <section className="py-8 px-4 sm:px-6 max-w-4xl mx-auto">
-        <div className="rounded-3xl p-6 sm:p-8 bg-gradient-to-br from-blue-900/40 via-blue-950/60 to-slate-900/90 border border-blue-500/35 backdrop-blur-xl shadow-[0_0_30px_rgba(37,99,235,0.25)] flex flex-col items-center text-center space-y-4">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-blue-900/60 border border-sky-400/30 text-sky-300 text-xs font-semibold">
-            <Sparkles className="w-3.5 h-3.5 text-sky-400" />
-            <span>Join PeaceVerse today</span>
-          </div>
-
-          <h2 className="text-xl sm:text-3xl font-black text-white">
-            Join PeaceVerse today
-          </h2>
-
-          <p className="text-xs sm:text-sm text-slate-300 max-w-md">
-            Start your journey with the global community. Free to join, always positive and supportive.
-          </p>
-
-          <button
-            onClick={() => onNavigateTo('/signup')}
-            className="w-full sm:w-auto px-8 py-3.5 rounded-full bg-blue-600 hover:bg-blue-500 text-white font-extrabold text-sm sm:text-base flex items-center justify-center gap-2 shadow-[0_0_25px_rgba(37,99,235,0.6)] active:scale-95 transition-all cursor-pointer mt-2"
-          >
-            <span>Get Started Now</span>
-            <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-          </button>
-        </div>
-
-        {/* Trusted Worldwide Badge */}
-        <div className="flex justify-center mt-6">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-slate-900/60 border border-blue-500/20 text-slate-400 text-xs font-medium">
-            <Shield className="w-3.5 h-3.5 text-sky-400" />
-            <span>Trusted by a global community worldwide</span>
-          </div>
-        </div>
-      </section>
-
-      {/* 7. FOOTER */}
-      <footer className="w-full border-t border-slate-800/80 bg-[#020510] pt-12 pb-8 px-4 sm:px-8 mt-12">
-        <div className="max-w-4xl mx-auto space-y-8">
-          
-          {/* Footer Logo & Tagline */}
-          <div className="flex flex-col items-center sm:items-start text-center sm:text-left">
-            <div className="flex items-center gap-2.5 mb-1.5">
-              <div className="w-6 h-6 rounded-lg bg-blue-600 flex items-center justify-center p-1 text-white shadow-sm">
-                <svg viewBox="0 0 24 24" className="w-full h-full" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <path d="M12 2L15 8L22 9L17 14L18 21L12 18L6 21L7 14L2 9L9 8L12 2Z" />
-                </svg>
-              </div>
-              <span className="text-xl font-black tracking-tight text-white">
+          {/* LEFT SIDE (40%): Logo PeaceVerse + Small Rocket Emblem + Tagline */}
+          <div className="w-full lg:w-[44%] flex flex-col items-center lg:items-start text-center lg:text-left lg:pt-10 space-y-4">
+            <div className="flex items-center gap-3">
+              <img
+                src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
+                alt="PeaceVerse Logo"
+                className="w-11 h-11 rounded-xl object-cover shadow-md border border-[#0866FF]/20 shrink-0"
+              />
+              <h1 className="text-[44px] sm:text-[54px] font-black tracking-tight text-[#0866FF] leading-none">
                 PeaceVerse
+              </h1>
+            </div>
+
+            <p className="text-[22px] sm:text-[26px] leading-[30px] sm:leading-[32px] text-[#1C1E21] font-normal max-w-[460px]">
+              PeaceVerse - Building a peaceful community for everyone worldwide.
+            </p>
+
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 pt-1">
+              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-300 px-3 py-1 rounded-full">
+                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
+                <span>Peace World - Halal Alternative to Facebook for 2 Billion Muslims</span>
               </span>
-            </div>
-            <p className="text-xs text-sky-300/80 font-medium">
-              Feel Peace With Global Community
-            </p>
-          </div>
 
-          {/* Links Grid matching screenshot */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-6 pt-4 text-xs">
-            {/* Company */}
-            <div className="space-y-2.5">
-              <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">Company</span>
-              <ul className="space-y-2 text-slate-400">
-                <li>
-                  <button
-                    onClick={() => setActiveInfoModal('about')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    About Us
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveInfoModal('careers')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    Careers
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveInfoModal('contact')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    Contact
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Legal */}
-            <div className="space-y-2.5">
-              <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">Legal</span>
-              <ul className="space-y-2 text-slate-400">
-                <li>
-                  <button
-                    onClick={() => onOpenLegalTab ? onOpenLegalTab('privacy') : setActiveInfoModal('privacy')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    Privacy Policy
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => onOpenLegalTab ? onOpenLegalTab('guidelines') : setActiveInfoModal('guidelines')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    Community Guidelines
-                  </button>
-                </li>
-              </ul>
-            </div>
-
-            {/* Support */}
-            <div className="space-y-2.5 col-span-2 sm:col-span-1">
-              <span className="font-bold text-slate-300 uppercase tracking-wider text-[11px]">Support</span>
-              <ul className="space-y-2 text-slate-400">
-                <li>
-                  <button
-                    onClick={() => setActiveInfoModal('help')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    Help Center
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => setActiveInfoModal('faq')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    FAQ
-                  </button>
-                </li>
-                <li>
-                  <button
-                    onClick={() => onNavigateTo('/signup')}
-                    className="hover:text-sky-300 transition-colors text-left"
-                  >
-                    Community
-                  </button>
-                </li>
-              </ul>
-            </div>
-          </div>
-
-          {/* Copyright line */}
-          <div className="pt-6 border-t border-slate-900 text-center space-y-1.5 text-[11px] text-slate-500">
-            <p>© 2024 PeaceVerse24. All rights reserved.</p>
-            <p>
-              Made for a positive community worldwide •{' '}
               <button
-                onClick={() => onOpenLegalTab ? onOpenLegalTab('privacy') : setActiveInfoModal('privacy')}
-                className="hover:underline"
+                type="button"
+                onClick={() => setShowWorldMapModal(true)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0866FF] bg-white hover:bg-[#E7F3FF] border border-[#DADDE1] px-3 py-1 rounded-full shadow-xs transition-colors cursor-pointer"
               >
-                Privacy
-              </button>{' '}
-              •{' '}
-              <button
-                onClick={() => onOpenLegalTab ? onOpenLegalTab('terms') : setActiveInfoModal('terms')}
-                className="hover:underline"
-              >
-                Terms
-              </button>{' '}
-              •{' '}
-              <button
-                onClick={() => setActiveInfoModal('help')}
-                className="hover:underline"
-              >
-                Help Center
+                <Globe className="w-3.5 h-3.5" />
+                <span>🌍 Live Global Users Map (20+ Countries)</span>
               </button>
-            </p>
+            </div>
           </div>
 
+          {/* RIGHT SIDE (60%): White Card with Shadow */}
+          <div className="w-full lg:w-[52%] flex flex-col items-center">
+            <div className="w-full max-w-[396px] bg-white rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.1)] p-4 sm:p-5 space-y-3.5">
+              
+              {loginError && (
+                <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{loginError}</span>
+                </div>
+              )}
+
+              <form onSubmit={handleLoginSubmit} className="space-y-3">
+                <div>
+                  <input
+                    type="text"
+                    placeholder="Email address or phone number"
+                    value={loginIdentifier}
+                    onChange={(e) => setLoginIdentifier(e.target.value)}
+                    autoComplete="username"
+                    className="w-full px-4 py-3.5 text-[16px] bg-white border border-[#DDDFE2] rounded-[6px] text-[#1C1E21] placeholder-[#8A8D91] focus:outline-none focus:border-[#0866FF] focus:ring-2 focus:ring-[#E7F3FF]"
+                  />
+                </div>
+
+                <div className="relative">
+                  <input
+                    type={showLoginPass ? 'text' : 'password'}
+                    placeholder="Password"
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    autoComplete="current-password"
+                    className="w-full px-4 py-3.5 pr-11 text-[16px] bg-white border border-[#DDDFE2] rounded-[6px] text-[#1C1E21] placeholder-[#8A8D91] focus:outline-none focus:border-[#0866FF] focus:ring-2 focus:ring-[#E7F3FF]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowLoginPass(!showLoginPass)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#606770] hover:text-[#1C1E21] p-1 cursor-pointer"
+                    aria-label="Toggle password visibility"
+                  >
+                    {showLoginPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
+
+                <button
+                  type="submit"
+                  disabled={loginLoading || googleLoading}
+                  className="w-full py-3 bg-[#0866FF] hover:bg-[#166FE5] active:scale-[0.99] disabled:opacity-60 text-white font-bold text-[19px] rounded-[6px] transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {loginLoading && <Loader2 className="w-5 h-5 animate-spin" />}
+                  <span>Log in</span>
+                </button>
+              </form>
+
+              {/* Center Forgotten Password Link */}
+              <div className="text-center pt-0.5">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(loginIdentifier.includes('@') ? loginIdentifier : '');
+                    setResetError(null);
+                    setResetFeedback(null);
+                    setShowResetModal(true);
+                  }}
+                  className="text-[14px] text-[#0866FF] hover:underline font-medium cursor-pointer"
+                >
+                  Forgotten password?
+                </button>
+              </div>
+
+              {/* Divider Line */}
+              <div className="border-t border-[#DADDE1] my-2" />
+
+              {/* Center Green Create new account Button */}
+              <div className="flex flex-col items-center gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSignUpError(null);
+                    setShowSignUpModal(true);
+                  }}
+                  className="px-6 py-3 bg-[#42B72A] hover:bg-[#36A420] active:scale-[0.99] text-white font-bold text-[17px] rounded-[6px] transition-all cursor-pointer shadow-xs"
+                >
+                  Create new account
+                </button>
+
+                <button
+                  type="button"
+                  onClick={handleGoogleSignIn}
+                  disabled={loginLoading || googleLoading}
+                  className="w-full py-2.5 px-3 bg-[#F5F6F7] hover:bg-[#EBEDF0] border border-[#DADDE1] rounded-[6px] text-[13px] font-semibold text-[#1C1E21] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                >
+                  {googleLoading ? (
+                    <Loader2 className="w-4 h-4 animate-spin text-[#0866FF]" />
+                  ) : (
+                    <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+                      <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
+                      <path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3.05c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.11-6.72-4.96H1.29v3.14C3.26 21.3 7.31 24 12 24z" />
+                      <path fill="#FBBC05" d="M5.28 14.24c-.24-.72-.38-1.49-.38-2.24s.14-1.52.38-2.24V6.62H1.29C.47 8.24 0 10.06 0 12s.47 3.76 1.29 5.38l3.99-3.14z" />
+                      <path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.31 0 3.26 2.7 1.29 6.62l3.99 3.14c.95-2.85 3.6-4.96 6.72-4.96z" />
+                    </svg>
+                  )}
+                  <span>Continue with Google</span>
+                </button>
+              </div>
+            </div>
+
+            <p className="mt-5 text-[13px] text-[#1C1E21] text-center">
+              <strong className="font-semibold">Create a Page</strong> for a halal brand, masjid, or Islamic creator.
+            </p>
+          </div>
+        </div>
+      </main>
+
+      {/* COMPACT FACEBOOK-STYLE FOOTER */}
+      <footer className="bg-white border-t border-[#DDDFE2] py-5 px-4 text-[12px] text-[#737373]">
+        <div className="max-w-[980px] mx-auto space-y-2.5">
+          {/* Languages Row */}
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            {FOOTER_LANGS.map((lang) => (
+              <button
+                key={lang.code}
+                type="button"
+                onClick={() => setLanguage(lang.code)}
+                className={`hover:underline cursor-pointer ${
+                  currentLang === lang.code ? 'font-bold text-[#1C1E21]' : 'text-[#737373]'
+                }`}
+              >
+                {lang.label}
+              </button>
+            ))}
+          </div>
+
+          <div className="border-t border-[#DDDFE2]" />
+
+          {/* Compact Legal / Info Links */}
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <button
+              type="button"
+              onClick={() => setShowSignUpModal(true)}
+              className="hover:underline cursor-pointer"
+            >
+              Sign Up
+            </button>
+            <button
+              type="button"
+              onClick={() => setFooterInfoModal('about')}
+              className="hover:underline cursor-pointer"
+            >
+              About
+            </button>
+            <button
+              type="button"
+              onClick={() => (onOpenLegalTab ? onOpenLegalTab('privacy') : setFooterInfoModal('about'))}
+              className="hover:underline cursor-pointer"
+            >
+              Privacy
+            </button>
+            <button
+              type="button"
+              onClick={() => (onOpenLegalTab ? onOpenLegalTab('terms') : setFooterInfoModal('about'))}
+              className="hover:underline cursor-pointer"
+            >
+              Terms
+            </button>
+            <button
+              type="button"
+              onClick={() => setFooterInfoModal('help')}
+              className="hover:underline cursor-pointer"
+            >
+              Help
+            </button>
+            <button
+              type="button"
+              onClick={() => setShowWorldMapModal(true)}
+              className="hover:underline cursor-pointer text-[#0866FF]"
+            >
+              Global Ummah Map
+            </button>
+          </div>
+
+          <p className="text-[11px] text-[#737373]">PeaceVerse (Peace World) © 2026</p>
         </div>
       </footer>
 
-      {/* QR Code / App Download Modal */}
-      {showQrModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-blue-500/40 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-2xl relative">
-            <button
-              onClick={() => setShowQrModal(false)}
-              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            <div className="w-12 h-12 rounded-2xl bg-blue-600/30 border border-sky-400/30 flex items-center justify-center text-sky-400 mx-auto">
-              <Smartphone className="w-6 h-6" />
+      {/* SIGN UP MODAL (Facebook Popup Style) */}
+      {showSignUpModal && (
+        <div className="fixed inset-0 z-50 bg-white/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-[432px] rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.2)] border border-[#DADDE1] overflow-hidden animate-in zoom-in-95">
+            {/* Modal Header */}
+            <div className="px-4 py-3 border-b border-[#DADDE1] flex items-start justify-between">
+              <div>
+                <h2 className="text-[28px] font-bold text-[#1C1E21] leading-tight">Sign Up</h2>
+                <p className="text-[15px] text-[#606770]">It&apos;s quick and easy.</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowSignUpModal(false)}
+                className="p-1 text-[#606770] hover:text-[#1C1E21] rounded-full hover:bg-[#F0F2F5] cursor-pointer"
+                aria-label="Close sign up"
+              >
+                <X className="w-6 h-6" />
+              </button>
             </div>
-            <h3 className="text-lg font-black text-white">Download PeaceVerse App</h3>
-            <p className="text-xs text-slate-300">
-              Install PeaceVerse directly on your Android, iPhone or desktop as a Progressive Web App (PWA).
-            </p>
-            <div className="p-3 bg-white rounded-2xl inline-block mx-auto shadow-md">
-              <QrCode className="w-32 h-32 text-slate-900" />
-            </div>
-            <button
-              onClick={() => {
-                setShowQrModal(false);
-                if (onOpenDownloadModal) onOpenDownloadModal();
-              }}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs shadow-md transition-all"
-            >
-              Open Installation Guide
-            </button>
+
+            {/* Modal Form */}
+            <form onSubmit={handleSignUpSubmit} className="p-4 space-y-3 text-left">
+              {signUpError && (
+                <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>{signUpError}</span>
+                </div>
+              )}
+
+              {/* First Name & Last Name Side by Side */}
+              <div className="grid grid-cols-2 gap-2.5">
+                <input
+                  type="text"
+                  placeholder="First name"
+                  value={firstName}
+                  onChange={(e) => setFirstName(e.target.value)}
+                  required
+                  className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                />
+                <input
+                  type="text"
+                  placeholder="Last name"
+                  value={surname}
+                  onChange={(e) => setSurname(e.target.value)}
+                  required
+                  className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                />
+              </div>
+
+              {/* Mobile or Email */}
+              <input
+                type="text"
+                placeholder="Mobile number or email address"
+                value={regContact}
+                onChange={(e) => setRegContact(e.target.value)}
+                required
+                className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+              />
+
+              {/* New Password */}
+              <input
+                type="password"
+                placeholder="New password"
+                value={regPassword}
+                onChange={(e) => setRegPassword(e.target.value)}
+                required
+                className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+              />
+
+              {/* Date of birth: Day, Month, Year dropdowns */}
+              <div className="space-y-1">
+                <label className="text-[12px] text-[#606770] font-medium block">Date of birth</label>
+                <div className="grid grid-cols-3 gap-2.5">
+                  <select
+                    value={dobDay}
+                    onChange={(e) => setDobDay(e.target.value)}
+                    aria-label="Day"
+                    className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                  >
+                    {DAYS.map((d) => (
+                      <option key={d} value={d}>{d}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={dobMonth}
+                    onChange={(e) => setDobMonth(e.target.value)}
+                    aria-label="Month"
+                    className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                  >
+                    {MONTHS.map((m) => (
+                      <option key={m} value={m}>{m}</option>
+                    ))}
+                  </select>
+
+                  <select
+                    value={dobYear}
+                    onChange={(e) => setDobYear(e.target.value)}
+                    aria-label="Year"
+                    className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                  >
+                    {YEARS.map((y) => (
+                      <option key={y} value={y}>{y}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Gender Radio Row */}
+              <div className="space-y-1">
+                <label className="text-[12px] text-[#606770] font-medium block">Gender</label>
+                <div className="grid grid-cols-3 gap-2.5">
+                  {(['Female', 'Male', 'Custom'] as const).map((g) => (
+                    <label
+                      key={g}
+                      className="flex items-center justify-between px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] cursor-pointer"
+                    >
+                      <span>{g}</span>
+                      <input
+                        type="radio"
+                        name="gender"
+                        value={g}
+                        checked={gender === g}
+                        onChange={() => setGender(g)}
+                        className="accent-[#0866FF]"
+                      />
+                    </label>
+                  ))}
+                </div>
+              </div>
+
+              <p className="text-[11px] text-[#777777] leading-snug pt-0.5">
+                By clicking Sign Up, you agree to our{' '}
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalTab?.('terms')}
+                  className="text-[#385898] hover:underline cursor-pointer"
+                >
+                  Halal Terms
+                </button>
+                ,{' '}
+                <button
+                  type="button"
+                  onClick={() => onOpenLegalTab?.('privacy')}
+                  className="text-[#385898] hover:underline cursor-pointer"
+                >
+                  Privacy Policy
+                </button>{' '}
+                and Community Guidelines.
+              </p>
+
+              <div className="pt-2 flex justify-center">
+                <button
+                  type="submit"
+                  disabled={signUpLoading}
+                  className="min-w-[194px] px-8 py-2 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[18px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                >
+                  {signUpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Sign Up</span>
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}
 
-      {/* Info Dialog Modal */}
-      {activeInfoModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900 border border-blue-500/40 rounded-3xl max-w-md w-full p-6 space-y-4 shadow-2xl relative text-left">
-            <button
-              onClick={() => setActiveInfoModal(null)}
-              className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-slate-800 text-slate-400 hover:text-white"
-            >
-              <X className="w-5 h-5" />
-            </button>
-            
-            <h3 className="text-lg font-bold text-white capitalize">
-              {activeInfoModal === 'about' && 'About PeaceVerse'}
-              {activeInfoModal === 'careers' && 'Careers at PeaceVerse'}
-              {activeInfoModal === 'contact' && 'Contact Support'}
-              {activeInfoModal === 'privacy' && 'Privacy Policy'}
-              {activeInfoModal === 'guidelines' && 'Community Guidelines'}
-              {activeInfoModal === 'help' && 'Help Center'}
-              {activeInfoModal === 'faq' && 'Frequently Asked Questions'}
-              {activeInfoModal === 'terms' && 'Terms of Service'}
-            </h3>
-
-            <div className="text-xs text-slate-300 leading-relaxed space-y-2 max-h-72 overflow-y-auto pr-1">
-              {activeInfoModal === 'about' && (
-                <p>
-                  PeaceVerse is dedicated to providing a safe, positive, and helpful online environment for people around the world. We believe social media should elevate, inspire, and connect communities peacefully without harassment, toxicity, or harmful content.
-                </p>
-              )}
-              {activeInfoModal === 'careers' && (
-                <p>
-                  We are always looking for passionate engineers, designers, and community guardians who want to make the internet a friendlier place. Reach out to careers@peaceverse24.com with your portfolio.
-                </p>
-              )}
-              {activeInfoModal === 'contact' && (
-                <p>
-                  Have questions or need assistance? Our 24/7 community support team is available at support@peaceverse24.com or via the Help Center.
-                </p>
-              )}
-              {(activeInfoModal === 'privacy' || activeInfoModal === 'terms') && (
-                <p>
-                  PeaceVerse respects user privacy and secures data with modern encryption. Your personal information is protected, never sold to third parties, and account deletion can be requested anytime from Settings.
-                </p>
-              )}
-              {activeInfoModal === 'guidelines' && (
-                <p>
-                  Our community guidelines promote respect, authenticity, and peace. Harassment, hate speech, explicit content, spam, and abusive interactions are strictly prohibited.
-                </p>
-              )}
-              {(activeInfoModal === 'help' || activeInfoModal === 'faq') && (
-                <p>
-                  Quick answers: You can create an account using your email or Google account. PeaceVerse is 100% free to join. You can install our app directly onto your phone screen by selecting 'Add to Home Screen'.
-                </p>
-              )}
+      {/* FORGOTTEN PASSWORD MODAL */}
+      {showResetModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-[420px] rounded-[8px] shadow-2xl border border-[#DADDE1] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#DADDE1] flex items-center justify-between">
+              <h3 className="text-[18px] font-bold text-[#1C1E21]">Find your account</h3>
+              <button
+                type="button"
+                onClick={() => setShowResetModal(false)}
+                className="p-1 text-[#606770] hover:text-[#1C1E21] rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
             </div>
+            <form onSubmit={handlePasswordReset} className="p-4 space-y-3">
+              <p className="text-[14px] text-[#606770]">
+                Please enter your email address to receive a password reset link.
+              </p>
+              <input
+                type="email"
+                placeholder="Email address"
+                value={resetEmail}
+                onChange={(e) => setResetEmail(e.target.value)}
+                required
+                className="w-full px-3.5 py-2.5 border border-[#CCD0D5] rounded-[6px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+              />
+              {resetError && (
+                <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+                  <AlertCircle className="w-4 h-4 shrink-0" />
+                  <span>{resetError}</span>
+                </div>
+              )}
+              {resetFeedback && (
+                <div className="p-2.5 rounded-md bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+                  <MailCheck className="w-4 h-4 shrink-0" />
+                  <span>{resetFeedback}</span>
+                </div>
+              )}
+              <div className="flex justify-end gap-2 pt-2 border-t border-[#DADDE1]">
+                <button
+                  type="button"
+                  onClick={() => setShowResetModal(false)}
+                  className="px-4 py-2 rounded-[6px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#4B4F56] font-bold text-[14px] cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={resetLoading}
+                  className="px-5 py-2 rounded-[6px] bg-[#0866FF] hover:bg-[#166FE5] text-white font-bold text-[14px] flex items-center gap-1.5 cursor-pointer"
+                >
+                  {resetLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                  <span>Send Reset Link</span>
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
+      {/* LIVE GLOBAL WORLD MAP MODAL (20 Countries Online Users) */}
+      {showWorldMapModal && (
+        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-[#18191A] border border-[#393A3B] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl p-4 sm:p-5 space-y-3 text-white">
+            <div className="flex items-center justify-between border-b border-[#393A3B] pb-3">
+              <div>
+                <h3 className="text-base font-extrabold text-white">
+                  Peace World — Global Live Ummah Network
+                </h3>
+                <p className="text-xs text-[#b0b3b8]">
+                  Connecting 2 Billion Muslims globally across USA, UK, Saudi Arabia, Indonesia, Bangladesh &amp; 20+ nations
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowWorldMapModal(false)}
+                className="p-1.5 rounded-full bg-[#3A3B3C] hover:bg-[#4E4F50] text-white cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <GlobalWorldMap mode="landing" />
+          </div>
+        </div>
+      )}
+
+      {/* FOOTER INFO MODAL (About / Help) */}
+      {footerInfoModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-md rounded-xl shadow-2xl border border-[#DADDE1] p-5 space-y-3">
+            <div className="flex items-center justify-between border-b border-[#DADDE1] pb-2.5">
+              <h3 className="font-bold text-base text-[#1C1E21]">
+                {footerInfoModal === 'about' ? 'About PeaceVerse (Peace World)' : 'PeaceVerse Help Center'}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setFooterInfoModal(null)}
+                className="p-1 rounded-full hover:bg-[#F0F2F5] text-[#606770] cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <p className="text-sm text-[#4B4F56] leading-relaxed">
+              {footerInfoModal === 'about'
+                ? 'Peace World — Halal Alternative to Facebook for 2 Billion Muslims. Connect worldwide with auto-translated posts, global prayer times, Qibla compass, Peace Mart Global, and halal creator monetization.'
+                : 'Need help logging in or creating an account? Click "Create new account" for instant access, or use "Forgotten password?" to reset your email credentials.'}
+            </p>
             <button
-              onClick={() => setActiveInfoModal(null)}
-              className="w-full py-2.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs"
+              type="button"
+              onClick={() => setFooterInfoModal(null)}
+              className="w-full py-2 rounded-md bg-[#0866FF] hover:bg-[#166FE5] text-white font-bold text-sm cursor-pointer"
             >
               Close
             </button>
           </div>
         </div>
       )}
-
-      {/* Floating Toast Notification for Sign Up Prompt */}
-      {showSignUpPrompt.isOpen && (
-        <div className="fixed top-6 left-1/2 -translate-x-1/2 z-50 w-full max-w-md px-4 animate-in slide-in-from-top duration-300">
-          <div className="bg-slate-900/95 border border-sky-400/60 rounded-2xl p-4 shadow-[0_0_35px_rgba(56,189,248,0.45)] backdrop-blur-xl flex items-center justify-between gap-3 text-white">
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600/30 border border-sky-400/40 flex items-center justify-center text-sky-400 shrink-0 shadow-sm animate-pulse">
-                <Sparkles className="w-5 h-5" />
-              </div>
-              <div className="text-left">
-                <h4 className="text-xs sm:text-sm font-black text-white">
-                  Please Sign Up to join our communities
-                </h4>
-                <p className="text-[11px] text-sky-300 flex items-center gap-1.5 mt-0.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-sky-400 animate-ping" />
-                  <span>Taking you to /signup...</span>
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => onNavigateTo('/signup')}
-              className="px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white font-bold text-xs rounded-lg shrink-0 shadow-sm transition-all cursor-pointer flex items-center gap-1"
-            >
-              <span>Join</span>
-              <ArrowRight className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Modal Dialog for Sign Up Prompt */}
-      {showSignUpPrompt.isOpen && (
-        <div className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm flex items-center justify-center p-4 animate-in fade-in">
-          <div className="bg-slate-900/95 border border-sky-400/50 rounded-3xl max-w-sm w-full p-6 text-center space-y-4 shadow-[0_0_50px_rgba(56,189,248,0.35)] relative animate-in zoom-in-95">
-            <div className="w-14 h-14 rounded-2xl bg-blue-600/30 border border-sky-400/40 flex items-center justify-center text-sky-400 mx-auto shadow-[0_0_20px_rgba(56,189,248,0.35)]">
-              <Users className="w-7 h-7" />
-            </div>
-            
-            <div className="space-y-1.5">
-              <span className="text-[10px] uppercase font-bold tracking-wider text-sky-400 bg-blue-950/70 border border-sky-400/30 px-3 py-0.5 rounded-full">
-                {showSignUpPrompt.featureTitle || 'Communities'}
-              </span>
-              <h3 className="text-lg font-black text-white pt-1">
-                Please Sign Up to join our communities
-              </h3>
-              <p className="text-xs text-slate-300 leading-relaxed">
-                Unlock {showSignUpPrompt.featureTitle || 'communities'}, meet inspiring creators, and engage with our positive global network.
-              </p>
-            </div>
-
-            <div className="flex items-center justify-center gap-2 text-xs font-semibold text-sky-300 py-1">
-              <span className="w-2 h-2 rounded-full bg-sky-400 animate-ping" />
-              <span>Redirecting to /signup...</span>
-            </div>
-
-            <button
-              onClick={() => onNavigateTo('/signup')}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-95 text-white font-bold text-xs shadow-[0_0_20px_rgba(37,99,235,0.5)] transition-all cursor-pointer flex items-center justify-center gap-2"
-            >
-              <span>Go to Sign Up Now</span>
-              <ArrowRight className="w-4 h-4 stroke-[2.5]" />
-            </button>
-          </div>
-        </div>
-      )}
-
-    </GeometricBackground>
+    </div>
   );
 };
