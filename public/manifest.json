@@ -1,81 +1,14 @@
 {
-  "id": "/",
-  "name": "Peaceverse24 - Halal Social",
-  "short_name": "Peaceverse24",
-  "description": "Halal Alternative to Facebook for 2 Billion Muslims",
+  "name": "Peaceverse24 - Halal Social Network",
+  "short_name": "Peaceverse",
+  "description": "100% Halal Islamic social network",
   "start_url": "/",
-  "scope": "/",
   "display": "standalone",
-  "display_override": ["standalone", "minimal-ui"],
-  "orientation": "portrait",
-  "dir": "ltr",
-  "lang": "en",
   "background_color": "#0a4a2a",
   "theme_color": "#0a4a2a",
-  "prefer_related_applications": false,
-  "categories": ["social", "lifestyle"],
   "icons": [
-    {
-      "src": "/icon-192.png",
-      "sizes": "192x192",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "any"
-    },
-    {
-      "src": "/icon-maskable-512.png",
-      "sizes": "512x512",
-      "type": "image/png",
-      "purpose": "maskable"
-    }
-  ],
-  "screenshots": [
-    {
-      "src": "/screenshot-wide.png",
-      "sizes": "1280x720",
-      "type": "image/png",
-      "form_factor": "wide",
-      "label": "Peaceverse24.com Desktop Halal Social Feed"
-    },
-    {
-      "src": "/screenshot-narrow.png",
-      "sizes": "720x1280",
-      "type": "image/png",
-      "form_factor": "narrow",
-      "label": "Peaceverse24.com Mobile Halal Social Feed"
-    }
-  ],
-  "shortcuts": [
-    {
-      "name": "Home Feed",
-      "short_name": "Feed",
-      "description": "Open Peaceverse24.com Halal Social Feed",
-      "url": "/",
-      "icons": [
-        {
-          "src": "/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    },
-    {
-      "name": "Qibla & Prayer",
-      "short_name": "Qibla",
-      "description": "Global Prayer Times & Qibla Compass",
-      "url": "/qibla",
-      "icons": [
-        {
-          "src": "/icon-192.png",
-          "sizes": "192x192",
-          "type": "image/png"
-        }
-      ]
-    }
+    {"src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any"},
+    {"src": "/icon-512-maskable.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable"}
   ]
 }
