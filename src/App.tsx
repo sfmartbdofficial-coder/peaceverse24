@@ -49,6 +49,7 @@ import { AdminPortal } from './components/admin/AdminPortal';
 import { LegalModal, LegalTabType } from './components/legal/LegalModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
+import { OfflineIndicator } from './components/pwa/OfflineIndicator';
 import { CreatorMonetizationModal } from './components/monetization/CreatorMonetizationModal';
 import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
 import { FbGoldenGiftModal } from './components/golden/FbGoldenGiftModal';
@@ -56,7 +57,7 @@ import { GoldenWalletModal } from './components/wallet/GoldenWalletModal';
 import { useLanguage } from './context/LanguageContext';
 import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
-import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
@@ -66,8 +67,10 @@ import {
   GLOBAL_CITIES,
   GlobalCity,
   PrayerSchedule,
+  computeNextPrayer,
   detectUserGlobalCity,
   fetchPrayerTimesForCity,
+  getCachedOrFallbackPrayerSchedule,
   getDailyQuranVerse,
 } from './lib/globalPrayer';
 import { fetchSupabasePosts, fetchSupabaseStories, insertSupabasePost } from './lib/supabase';
@@ -113,8 +116,67 @@ export default function App() {
   const [showHalalPolicy, setShowHalalPolicy] = useState(false);
   const [activeReelPostId, setActiveReelPostId] = useState<string | null>(null);
   const { currentLang } = useLanguage();
-  const [globalCity, setGlobalCity] = useState<GlobalCity>(GLOBAL_CITIES[0]);
-  const [globalPrayerSchedule, setGlobalPrayerSchedule] = useState<PrayerSchedule | null>(null);
+  const [globalCity, setGlobalCity] = useState<GlobalCity>(GLOBAL_CITIES[4]);
+  const [globalPrayerSchedule, setGlobalPrayerSchedule] = useState<PrayerSchedule | null>(() =>
+    getCachedOrFallbackPrayerSchedule()
+  );
+  const [adhanEnabled, setAdhanEnabled] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('adhanEnabled') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [adhanToast, setAdhanToast] = useState<string | null>(null);
+  const adhanToastTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastAdhanCheckKeyRef = React.useRef<string>('');
+
+  const showAdhanToast = React.useCallback((message: string) => {
+    setAdhanToast(message);
+    if (adhanToastTimerRef.current) {
+      clearTimeout(adhanToastTimerRef.current);
+    }
+    adhanToastTimerRef.current = setTimeout(() => {
+      setAdhanToast(null);
+    }, 5000);
+  }, []);
+
+  const playAdhanTone = React.useCallback(() => {
+    try {
+      const AudioCtx =
+        window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext;
+      if (!AudioCtx) return;
+
+      const ctx = new AudioCtx();
+      if (ctx.state === 'suspended') {
+        ctx.resume().catch(() => {});
+      }
+
+      const now = ctx.currentTime;
+      const oscillator = ctx.createOscillator();
+      const gain = ctx.createGain();
+
+      oscillator.type = 'sine';
+      oscillator.frequency.setValueAtTime(440, now);
+      oscillator.frequency.linearRampToValueAtTime(600, now + 2.0);
+
+      gain.gain.setValueAtTime(0.0001, now);
+      gain.gain.linearRampToValueAtTime(0.3, now + 0.15);
+      gain.gain.exponentialRampToValueAtTime(0.0001, now + 2.0);
+
+      oscillator.connect(gain);
+      gain.connect(ctx.destination);
+
+      oscillator.start(now);
+      oscillator.stop(now + 2.05);
+      oscillator.onended = () => {
+        ctx.close().catch(() => {});
+      };
+    } catch {
+      // Ignore if audio context is blocked before user gesture
+    }
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -130,6 +192,143 @@ export default function App() {
       active = false;
     };
   }, []);
+
+  // Request notification permission on app load if not yet granted
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window) {
+      if (Notification.permission !== 'granted' && Notification.permission !== 'denied') {
+        try {
+          Notification.requestPermission().catch(() => {});
+        } catch {}
+      }
+    }
+  }, []);
+
+  // Sync prayer schedule & Adhan toggle state to Service Worker
+  useEffect(() => {
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) return;
+    if (!globalPrayerSchedule) return;
+
+    const scheduleArray = (['Fajr', 'Dhuhr', 'Asr', 'Maghrib', 'Isha'] as const).map((name) => ({
+      name,
+      time: String(globalPrayerSchedule.times[name] || '').split(' ')[0].slice(0, 5),
+    }));
+
+    const payload = {
+      type: 'PEACEVERSE_SYNC_PRAYER_SCHEDULE',
+      payload: {
+        city: globalPrayerSchedule.city || globalCity.city || 'Dhaka',
+        enabled: adhanEnabled,
+        schedule: scheduleArray,
+      },
+    };
+
+    if (navigator.serviceWorker.controller) {
+      navigator.serviceWorker.controller.postMessage(payload);
+    }
+    navigator.serviceWorker.ready
+      .then((reg) => {
+        reg.active?.postMessage(payload);
+      })
+      .catch(() => {});
+  }, [globalPrayerSchedule, globalCity, adhanEnabled]);
+
+  const checkPrayerTime = React.useCallback(() => {
+    if (!globalPrayerSchedule) return;
+
+    // Keep nextPrayer countdown fresh
+    const updatedNext = computeNextPrayer(globalPrayerSchedule.times);
+    setGlobalPrayerSchedule((prev) =>
+      prev &&
+      (prev.nextPrayer.name !== updatedNext.name ||
+        prev.nextPrayer.remainingText !== updatedNext.remainingText)
+        ? { ...prev, nextPrayer: updatedNext }
+        : prev
+    );
+
+    if (!adhanEnabled) return;
+
+    const now = new Date();
+    const currentHHMM = `${String(now.getHours()).padStart(2, '0')}:${String(
+      now.getMinutes()
+    ).padStart(2, '0')}`;
+    const todayKey = now.toISOString().slice(0, 10);
+
+    const prayers: Array<{ name: keyof PrayerSchedule['times']; label: string }> = [
+      { name: 'Fajr', label: 'Fajr' },
+      { name: 'Dhuhr', label: 'Dhuhr' },
+      { name: 'Asr', label: 'Asr' },
+      { name: 'Maghrib', label: 'Maghrib' },
+      { name: 'Isha', label: 'Isha' },
+    ];
+
+    for (const prayer of prayers) {
+      const cleanTime = String(globalPrayerSchedule.times[prayer.name] || '')
+        .split(' ')[0]
+        .slice(0, 5);
+      if (currentHHMM === cleanTime) {
+        const dedupeKey = `${todayKey}-${prayer.label}-${cleanTime}`;
+        if (lastAdhanCheckKeyRef.current === dedupeKey) return;
+        lastAdhanCheckKeyRef.current = dedupeKey;
+
+        playAdhanTone();
+        showAdhanToast(`🕌 ${prayer.label} Adhan - Time to Pray - Allahu Akbar`);
+        break;
+      }
+    }
+  }, [globalPrayerSchedule, adhanEnabled, playAdhanTone, showAdhanToast]);
+
+  // Every 60s check if current time matches prayer schedule
+  useEffect(() => {
+    checkPrayerTime();
+    const intervalId = setInterval(checkPrayerTime, 60 * 1000);
+    return () => clearInterval(intervalId);
+  }, [checkPrayerTime]);
+
+  const handleToggleAdhan = React.useCallback(async () => {
+    const nextState = !adhanEnabled;
+    setAdhanEnabled(nextState);
+    try {
+      localStorage.setItem('adhanEnabled', String(nextState));
+    } catch {}
+
+    if (nextState) {
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission !== 'granted') {
+        try {
+          await Notification.requestPermission();
+        } catch {}
+      }
+
+      playAdhanTone();
+      showAdhanToast('🔔 Adhan notifications ON');
+
+      const prayerName = globalPrayerSchedule?.nextPrayer?.name || 'Maghrib';
+      const prayerTime = globalPrayerSchedule?.nextPrayer?.time || '17:15';
+      const cityLabel = globalPrayerSchedule?.city || globalCity.city || 'Dhaka';
+
+      if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+        try {
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.ready;
+            await reg.showNotification(`🕌 ${prayerName} Adhan`, {
+              body: `${cityLabel} • ${prayerName} (${prayerTime}) • Time to pray. May Allah accept it.`,
+              icon: '/icon-512.png',
+              badge: '/icon-192.png',
+              tag: `adhan-${prayerName}`,
+              renotify: true,
+            } as NotificationOptions);
+          } else {
+            new Notification(`🕌 ${prayerName} Adhan`, {
+              body: `${cityLabel} • ${prayerName} (${prayerTime}) • Time to pray. May Allah accept it.`,
+              icon: '/icon-512.png',
+            });
+          }
+        } catch {}
+      }
+    } else {
+      showAdhanToast('🔕 Adhan notifications OFF');
+    }
+  }, [adhanEnabled, globalPrayerSchedule, globalCity, playAdhanTone, showAdhanToast]);
 
   // Active Switched Page State (Matching Facebook Screenshot 3)
   const [activeSwitchedPage, setActiveSwitchedPage] = useState<PageItem | null>(() => {
@@ -1362,7 +1561,7 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen font-sans bg-white text-black selection:bg-[#0866FF] selection:text-white">
+    <div className="min-h-screen w-full overflow-x-hidden font-sans bg-white text-black selection:bg-[#0866FF] selection:text-white">
       
       {/* 1. Facebook App Top Bar (shown on Home, Reels, Marketplace; Friends/Groups/Pages/Feeds/Profile/Notifications/Menu render their own exact FB headers) */}
       {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && currentTab !== 'groups' && currentTab !== 'friends' && currentTab !== 'pages' && currentTab !== 'feeds' && (
@@ -1517,14 +1716,35 @@ export default function App() {
                     </p>
                   </div>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => navigateToPath('/qibla')}
-                  className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
-                >
-                  <Compass className="w-3.5 h-3.5" />
-                  <span>Qibla</span>
-                </button>
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <button
+                    type="button"
+                    onClick={handleToggleAdhan}
+                    aria-label={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
+                    title={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
+                    className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border ${
+                      adhanEnabled
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                        : 'bg-[#F0F2F5] text-[#65676B] border-[#E4E6EB] hover:bg-[#E4E6EB] hover:text-black'
+                    }`}
+                  >
+                    {adhanEnabled ? (
+                      <Bell className="w-3.5 h-3.5 text-emerald-600" />
+                    ) : (
+                      <BellOff className="w-3.5 h-3.5 text-[#65676B]" />
+                    )}
+                    <span>{adhanEnabled ? 'ON' : 'OFF'}</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => navigateToPath('/qibla')}
+                    className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
+                  >
+                    <Compass className="w-3.5 h-3.5" />
+                    <span>Qibla</span>
+                  </button>
+                </div>
               </div>
 
               <div className="p-2 rounded-lg bg-[#F0F2F5] flex items-start gap-2 text-[11px]">
@@ -1955,7 +2175,27 @@ export default function App() {
         />
       )}
 
-      {/* 8. PWA Website-to-App Install Slide-up Banner */}
+      {/* 8. Offline Status Indicator, Adhan Toast & PWA Install Banner */}
+      <OfflineIndicator />
+      {adhanToast && (
+        <div
+          role="status"
+          aria-live="polite"
+          className="fixed bottom-[70px] left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-[430px] pointer-events-auto"
+        >
+          <div className="bg-white/95 backdrop-blur-md text-black border border-emerald-200 rounded-2xl px-4 py-2.5 shadow-xl flex items-center justify-between gap-2 text-xs font-semibold">
+            <span className="truncate">{adhanToast}</span>
+            <button
+              type="button"
+              onClick={() => setAdhanToast(null)}
+              className="text-[#65676B] hover:text-black text-xs font-bold px-1.5 cursor-pointer shrink-0"
+              aria-label="Dismiss notification toast"
+            >
+              ✕
+            </button>
+          </div>
+        </div>
+      )}
       {currentTab !== 'profile' && (
         <PWAInstallBanner onOpenGuide={() => setShowInstallModal(true)} />
       )}

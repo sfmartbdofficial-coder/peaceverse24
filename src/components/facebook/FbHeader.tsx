@@ -63,7 +63,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   // If in search mode or has active search query, render the Facebook search bar on top
   if (isSearching || searchQuery.trim().length > 0) {
     return (
-      <header className="sticky top-0 z-40 bg-white border-b border-[#E4E6EB] px-3 sm:px-4 py-2 shadow-xs">
+      <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 border-b border-[#E4E6EB] px-3 sm:px-4 py-2 shadow-xs">
         <div className="max-w-[700px] mx-auto flex items-center gap-2.5">
           <button
             onClick={() => {
@@ -106,10 +106,10 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   }
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-[#E4E6EB] shadow-xs">
-      <div className="max-w-[700px] mx-auto px-3 sm:px-4 py-2 flex items-center justify-between gap-2">
+    <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 border-b border-[#E4E6EB] shadow-xs">
+      <div className="max-w-[700px] mx-auto px-2.5 sm:px-4 py-2 flex items-center justify-between gap-1.5 sm:gap-2">
         {/* Left: Optional Back Arrow or Menu + Logo */}
-        <div className="flex items-center gap-1.5 sm:gap-2 min-w-0">
+        <div className="flex items-center gap-1 sm:gap-2 min-w-0">
           {showBackButton && onBack && (
             <button
               onClick={onBack}
@@ -128,7 +128,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
             <Menu className="w-6 h-6 stroke-[2.5]" />
           </button>
 
-          <span className="font-black text-xl sm:text-2xl tracking-tight text-[#0866FF] flex items-center select-none font-sans whitespace-nowrap shrink-0">
+          <span className="font-black text-lg sm:text-2xl tracking-tight text-[#0866FF] flex items-center select-none font-sans truncate">
             Peaceverse24.com
           </span>
         </div>

@@ -3,7 +3,6 @@ import react from '@vitejs/plugin-react';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {defineConfig} from 'vite';
-import { VitePWA } from 'vite-plugin-pwa';
 
 const rootDir = path.dirname(fileURLToPath(import.meta.url));
 
@@ -96,17 +95,6 @@ export default defineConfig(() => {
       suppressWsPlugin(),
       react(),
       tailwindcss(),
-      VitePWA({
-        registerType: 'autoUpdate',
-        devOptions: {
-          enabled: true,
-          type: 'module',
-        },
-        workbox: {
-          globPatterns: ['**/*.{js,css,html,ico,png,svg,jpg,jpeg,woff,woff2}'],
-          maximumFileSizeToCacheInBytes: 5 * 1024 * 1024,
-        },
-      }),
     ],
     resolve: {
       alias: {

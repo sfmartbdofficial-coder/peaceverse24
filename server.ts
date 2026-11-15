@@ -521,6 +521,18 @@ app.post('/api/translate', async (req, res) => {
 async function startServer() {
   const httpServer = http.createServer(app);
 
+  // Ensure service-worker.js and manifest.json are served with PWA-compliant headers
+  app.use((req, res, next) => {
+    if (req.path === '/service-worker.js') {
+      res.setHeader('Service-Worker-Allowed', '/');
+      res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    } else if (req.path === '/manifest.json') {
+      res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
+      res.setHeader('Cache-Control', 'public, max-age=3600');
+    }
+    next();
+  });
+
   if (process.env.NODE_ENV === 'production') {
     app.use(express.static(path.resolve(__dirname, 'dist')));
     app.get('*', (_req, res) => {

@@ -90,7 +90,7 @@ export const Header: React.FC<HeaderProps> = ({
   ];
 
   return (
-    <header className="sticky top-0 z-40 bg-white border-b border-[#E4E6EB] px-2 sm:px-4 py-2 transition-all">
+    <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 border-b border-[#E4E6EB] px-2 sm:px-4 py-2 transition-all">
       <div className="max-w-[1920px] mx-auto flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Left: Hamburger + Peaceverse24.com Logo */}

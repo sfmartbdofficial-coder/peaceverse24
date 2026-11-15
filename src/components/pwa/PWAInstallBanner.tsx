@@ -97,10 +97,10 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide 
           <>
             {/* Left: App Icon + Clear Install Prompt */}
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 border border-[#E4E6EB] bg-white shadow-xs">
+              <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 border border-[#E4E6EB] bg-[#0a0a0f] shadow-xs">
                 <img
-                  src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
-                  alt="Peaceverse24.com"
+                  src="/icon-192.png"
+                  alt="Peaceverse24"
                   className="w-full h-full object-cover"
                 />
               </div>

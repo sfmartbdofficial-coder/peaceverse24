@@ -20,7 +20,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
   notificationsCount,
 }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E4E6EB] px-1 py-1 shadow-md">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 border-t border-[#E4E6EB] px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-md">
       <div className="max-w-[500px] mx-auto flex items-center justify-between">
         
         {/* 1. Home (🏠) */}

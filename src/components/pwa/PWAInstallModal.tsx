@@ -50,10 +50,10 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-[#0e4fbc] p-0.5 shadow-sm flex-shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-[#0a0a0f] p-0.5 shadow-sm flex-shrink-0 border border-[#0a8a4b]/30">
               <img
-                src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
-                alt="Peaceverse24.com"
+                src="/icon-192.png"
+                alt="Peaceverse24"
                 className="w-full h-full object-cover rounded-[14px]"
               />
             </div>

@@ -17,7 +17,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({
   onOpenUploadModal,
 }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E4E6EB] px-2 py-1.5 transition-all lg:hidden">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 border-t border-[#E4E6EB] px-2 pt-1.5 pb-[max(0.375rem,env(safe-area-inset-bottom))] transition-all lg:hidden">
       <div className="max-w-md mx-auto flex items-center justify-between">
         
         {/* 1. Home */}
