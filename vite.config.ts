@@ -91,6 +91,7 @@ const suppressWsPlugin = () => ({
 
 export default defineConfig(() => {
   return {
+    publicDir: 'public',
     plugins: [
       suppressWsPlugin(),
       react(),
