@@ -206,7 +206,7 @@ export function triggerPushNotification(title: string, options?: NotificationOpt
 export async function testFirebaseConnection(): Promise<boolean> {
   try {
     await getDocFromServer(doc(db, 'test', 'connection'));
-    console.log('Peace World: Connected to Firestore successfully.');
+    console.log('Peaceverse24.com: Connected to Firestore successfully.');
     return true;
   } catch (err: any) {
     if (
@@ -214,7 +214,7 @@ export async function testFirebaseConnection(): Promise<boolean> {
       err?.code === 'unavailable' ||
       err?.message?.includes('unavailable')
     ) {
-      console.warn('Peace World: Firestore offline mode active. App working seamlessly.');
+      console.warn('Peaceverse24.com: Firestore offline mode active. App working seamlessly.');
     }
     return false;
   }
@@ -241,7 +241,7 @@ export function subscribeToRealtimePosts(
           livePosts.push({
             id: docSnap.id,
             author: data.author || {
-              name: data.authorName || 'Peace World User',
+              name: data.authorName || 'Peaceverse24.com User',
               avatar: data.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
               verified: data.authorVerified ?? true,
               subtitle: data.authorSubtitle || 'Just now • 🌐',
@@ -555,7 +555,7 @@ export async function moderateRealtimePost(
       id: `mod-notif-${Date.now()}`,
       type: 'moderation',
       avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=200&q=80',
-      title: 'Peace World কনটেন্ট মডারেশন টিম',
+      title: 'Peaceverse24.com কনটেন্ট মডারেশন টিম',
       subtitle: statusMsg,
       timeAgo: 'Just now',
       isUnread: true,
@@ -940,7 +940,8 @@ export async function logoutUser(): Promise<void> {
 // ==========================================
 
 export async function saveUserProfileToFirestore(profile: UserProfile): Promise<boolean> {
-  const targetId = auth.currentUser?.uid || profile.id || 'user-me';
+  const targetId = auth.currentUser?.uid;
+  if (!targetId) return false;
   try {
     const userRef = doc(db, 'users', targetId);
     await setDoc(
@@ -1054,3 +1055,303 @@ export async function fetchUserProfileByNameFromFirestore(name: string): Promise
   }
 }
 
+// ==========================================
+// REAL USER SUBCOLLECTIONS (NO MOCK DATA)
+// ==========================================
+
+export interface UserLinkHistoryItem {
+  id: string;
+  title: string;
+  url: string;
+  time: string;
+  createdAtMillis?: number;
+}
+
+export interface UserActivityLogItem {
+  id: string;
+  category: string;
+  text: string;
+  time: string;
+  createdAtMillis?: number;
+}
+
+export interface UserOrderRecord {
+  id: string;
+  shopName: string;
+  itemsSummary: string;
+  amount: number;
+  paymentMethod: string;
+  status: string;
+  createdAt: string;
+}
+
+export interface UserDeviceSession {
+  id: string;
+  device: string;
+  location: string;
+  isCurrent: boolean;
+  time: string;
+}
+
+function resolveActiveUserId(uid?: string): string | null {
+  const authUid = auth.currentUser?.uid;
+  if (!authUid) return null;
+  if (uid && uid !== authUid) return authUid;
+  return authUid;
+}
+
+export async function fetchUserLinkHistory(uid?: string): Promise<UserLinkHistoryItem[]> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return [];
+  const path = `users/${targetId}/link_history`;
+  try {
+    const q = query(collection(db, path), orderBy('createdAtMillis', 'desc'), limit(50));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        title: String(data.title || data.url || ''),
+        url: String(data.url || ''),
+        time: String(data.visitedAt || data.time || ''),
+        createdAtMillis: Number(data.createdAtMillis || 0),
+      };
+    });
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, path);
+    }
+    return [];
+  }
+}
+
+export async function recordUserLinkVisit(uid: string | undefined, title: string, url: string): Promise<void> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId || !url) return;
+  const linkId = `link-${Date.now()}`;
+  const path = `users/${targetId}/link_history/${linkId}`;
+  try {
+    await setDoc(doc(db, path), {
+      id: linkId,
+      userId: targetId,
+      title: title || url,
+      url,
+      visitedAt: new Date().toLocaleDateString('bn-BD'),
+      createdAtMillis: Date.now(),
+    });
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.CREATE, path);
+    }
+  }
+}
+
+export async function clearUserLinkHistory(uid?: string): Promise<void> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return;
+  const path = `users/${targetId}/link_history`;
+  try {
+    const snap = await getDocs(collection(db, path));
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  }
+}
+
+export async function fetchUserActivityLog(uid?: string): Promise<UserActivityLogItem[]> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return [];
+  const path = `users/${targetId}/activity_log`;
+  try {
+    const q = query(collection(db, path), orderBy('createdAtMillis', 'desc'), limit(50));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        category: String(data.category || 'Activity'),
+        text: String(data.text || ''),
+        time: String(data.time || data.createdAt || ''),
+        createdAtMillis: Number(data.createdAtMillis || 0),
+      };
+    });
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, path);
+    }
+    return [];
+  }
+}
+
+export async function logUserActivity(
+  uid: string | undefined,
+  category: string,
+  text: string
+): Promise<void> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId || !text.trim()) return;
+  const actId = `act-${Date.now()}`;
+  const path = `users/${targetId}/activity_log/${actId}`;
+  try {
+    await setDoc(doc(db, path), {
+      id: actId,
+      userId: targetId,
+      category,
+      text: text.trim(),
+      createdAt: new Date().toISOString(),
+      createdAtMillis: Date.now(),
+    });
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.CREATE, path);
+    }
+  }
+}
+
+export async function clearUserActivityLog(uid?: string): Promise<void> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return;
+  const path = `users/${targetId}/activity_log`;
+  try {
+    const snap = await getDocs(collection(db, path));
+    await Promise.all(snap.docs.map((d) => deleteDoc(d.ref)));
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  }
+}
+
+export async function fetchUserOrders(uid?: string): Promise<UserOrderRecord[]> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return [];
+  const path = `users/${targetId}/orders`;
+  try {
+    const q = query(collection(db, path), orderBy('createdAtMillis', 'desc'), limit(25));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        shopName: String(data.shopName || ''),
+        itemsSummary: String(data.itemsSummary || ''),
+        amount: Number(data.amount || 0),
+        paymentMethod: String(data.paymentMethod || ''),
+        status: String(data.status || 'Pending'),
+        createdAt: String(data.createdAt || ''),
+      };
+    });
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, path);
+    }
+    return [];
+  }
+}
+
+export async function fetchUserDeviceSessions(uid?: string): Promise<UserDeviceSession[]> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return [];
+  const path = `users/${targetId}/sessions`;
+  try {
+    const snap = await getDocs(collection(db, path));
+    return snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        device: String(data.device || ''),
+        location: String(data.location || ''),
+        isCurrent: Boolean(data.isCurrent),
+        time: String(data.time || ''),
+      };
+    });
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, path);
+    }
+    return [];
+  }
+}
+
+export async function clearOtherUserDeviceSessions(uid?: string): Promise<void> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return;
+  const path = `users/${targetId}/sessions`;
+  try {
+    const snap = await getDocs(collection(db, path));
+    await Promise.all(
+      snap.docs
+        .filter((d) => !d.data().isCurrent)
+        .map((d) => deleteDoc(d.ref))
+    );
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.DELETE, path);
+    }
+  }
+}
+
+export async function saveUserSettingsToFirestore(
+  uid: string | undefined,
+  patch: Record<string, unknown>
+): Promise<void> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return;
+  const path = `users/${targetId}/settings/preferences`;
+  try {
+    await setDoc(
+      doc(db, path),
+      {
+        ...patch,
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, path);
+    }
+  }
+}
+
+export async function fetchUserSettingsFromFirestore(
+  uid?: string
+): Promise<Record<string, any> | null> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return null;
+  const path = `users/${targetId}/settings/preferences`;
+  try {
+    const snap = await getDocSafe(doc(db, path));
+    if (!snap || !snap.exists()) return null;
+    return snap.data();
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.GET, path);
+    }
+    return null;
+  }
+}
+
+export async function fetchUserPublicPresenceStats(
+  uid?: string
+): Promise<{ followersCount: number; postsCount: number }> {
+  const targetId = resolveActiveUserId(uid);
+  if (!targetId) return { followersCount: 0, postsCount: 0 };
+  try {
+    const [followersSnap, postsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'follows'), where('targetId', '==', targetId))),
+      getDocs(query(collection(db, 'posts'), where('authorId', '==', targetId))),
+    ]);
+    return {
+      followersCount: followersSnap.size,
+      postsCount: postsSnap.size,
+    };
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, 'follows');
+    }
+    return { followersCount: 0, postsCount: 0 };
+  }
+}

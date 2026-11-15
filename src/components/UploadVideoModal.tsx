@@ -19,7 +19,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
   const [description, setDescription] = useState('');
   const [arabicSnippet, setArabicSnippet] = useState('');
   const [translationSnippet, setTranslationSnippet] = useState('');
-  const [tags, setTags] = useState('Quran, Recitation, Qalby, Halal');
+  const [tags, setTags] = useState('Quran, Recitation, Peaceverse24.com, Halal');
   const [halalConfirmed, setHalalConfirmed] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
 
@@ -67,10 +67,10 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
         subscribers: '1K',
         isSubscribed: true,
       },
-      description: description.trim() || '100% Halal Islamic content uploaded to Qalby.',
+      description: description.trim() || '100% Halal Islamic content uploaded to Peaceverse24.com.',
       arabicSnippet: arabicSnippet.trim() || undefined,
       translationSnippet: translationSnippet.trim() || undefined,
-      reference: 'Qalby User Submission',
+      reference: 'Peaceverse24.com User Submission',
       tags: tags.split(',').map((t) => t.trim()).filter(Boolean),
       likes: '1',
     };
@@ -79,35 +79,35 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
-      <div className="bg-[#181818] w-full max-w-xl rounded-2xl border border-neutral-800 shadow-2xl flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 overflow-y-auto">
+      <div className="bg-white text-black w-full max-w-xl rounded-2xl border border-[#E4E6EB] shadow-2xl flex flex-col my-auto overflow-hidden animate-in fade-in zoom-in-95">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-neutral-800 bg-[#121212]">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-[#E4E6EB] bg-white">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-lg bg-emerald-950/80 border border-emerald-500/40 flex items-center justify-center text-emerald-400">
+            <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600">
               <Upload className="w-4 h-4" />
             </div>
             <div>
-              <h2 className="text-sm sm:text-base font-bold text-white flex items-center gap-1.5">
-                Qalby Studio - কন্টেন্ট আপলোড (Upload Video)
+              <h2 className="text-sm sm:text-base font-bold text-black flex items-center gap-1.5">
+                Peaceverse24.com Studio - কন্টেন্ট আপলোড (Upload Video)
               </h2>
-              <p className="text-[11px] text-neutral-400">
+              <p className="text-[11px] text-[#65676B]">
                 ইউটিউবের বিকল্প ১০০% হালাল প্ল্যাটফর্মে আপনার কন্টেন্ট প্রকাশ করুন
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+            className="p-1.5 rounded-full text-[#65676B] hover:text-black hover:bg-[#F0F2F5] transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Form Body */}
-        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[78vh] overflow-y-auto no-scrollbar text-xs">
+        <form onSubmit={handleSubmit} className="p-5 space-y-4 max-h-[78vh] overflow-y-auto no-scrollbar text-xs bg-white">
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-950/60 border border-rose-800/80 text-rose-200 flex items-center gap-2">
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 flex items-center gap-2">
               <AlertCircle className="w-4 h-4 flex-shrink-0" />
               <span>{errorMsg}</span>
             </div>
@@ -115,8 +115,8 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
 
           {/* Title Bangla */}
           <div>
-            <label className="block font-semibold text-neutral-200 mb-1">
-              ভিডিওর বাংলা শিরোনাম (Bengali Title) <span className="text-rose-400">*</span>
+            <label className="block font-semibold text-black mb-1">
+              ভিডিওর বাংলা শিরোনাম (Bengali Title) <span className="text-rose-600">*</span>
             </label>
             <input
               type="text"
@@ -124,13 +124,13 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               placeholder="যেমন: সূরা আর-রহমান তিলাওয়াত অথবা নামাজের সঠিক নিয়ম"
               value={titleBangla}
               onChange={(e) => setTitleBangla(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
             />
           </div>
 
           {/* Title English */}
           <div>
-            <label className="block font-semibold text-neutral-300 mb-1">
+            <label className="block font-semibold text-black mb-1">
               ইংরেজি শিরোনাম (English Title)
             </label>
             <input
@@ -138,14 +138,14 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               placeholder="e.g., Beautiful Surah Rahman Recitation"
               value={titleEnglish}
               onChange={(e) => setTitleEnglish(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
             />
           </div>
 
           {/* YouTube Video URL or ID */}
           <div>
-            <label className="block font-semibold text-neutral-200 mb-1">
-              ইউটিউব ভিডিও লিঙ্ক অথবা আইডি (YouTube Link / ID) <span className="text-rose-400">*</span>
+            <label className="block font-semibold text-black mb-1">
+              ইউটিউব ভিডিও লিঙ্ক অথবা আইডি (YouTube Link / ID) <span className="text-rose-600">*</span>
             </label>
             <input
               type="text"
@@ -153,9 +153,9 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               placeholder="https://www.youtube.com/watch?v=... অথবা BvWfq37j9_4"
               value={youtubeId}
               onChange={(e) => handleUrlChange(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-500 font-mono text-xs"
+              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] font-mono text-xs"
             />
-            <span className="text-[10px] text-neutral-400 mt-1 block">
+            <span className="text-[10px] text-[#65676B] mt-1 block">
               যেকোনো ইসলামিক ইউটিউব ভিডিওর লিঙ্ক পেস্ট করলে স্বয়ংক্রিয়ভাবে আইডি গ্রহণ করবে।
             </span>
           </div>
@@ -163,13 +163,13 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
           {/* Category & Channel Row */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label className="block font-semibold text-neutral-200 mb-1">
+              <label className="block font-semibold text-black mb-1">
                 ক্যাটাগরি (Category)
               </label>
               <select
                 value={category}
                 onChange={(e) => setCategory(e.target.value as CategoryType)}
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3 py-2.5 text-neutral-100 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2.5 text-black focus:outline-none focus:border-[#0866FF]"
               >
                 <option value="Quran">Quran (পবিত্র কুরআন)</option>
                 <option value="Hadith">Hadith (সহীহ হাদিস)</option>
@@ -183,7 +183,7 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
             </div>
 
             <div>
-              <label className="block font-semibold text-neutral-200 mb-1">
+              <label className="block font-semibold text-black mb-1">
                 চ্যানেল বা বক্তার নাম (Channel Name)
               </label>
               <input
@@ -191,14 +191,14 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
                 placeholder="যেমন: Sheikh Mishary অথবা My Islamic Channel"
                 value={channelName}
                 onChange={(e) => setChannelName(e.target.value)}
-                className="w-full bg-neutral-900 border border-neutral-700 rounded-xl px-3.5 py-2.5 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
               />
             </div>
           </div>
 
           {/* Arabic snippet & Bengali translation (Optional) */}
-          <div className="p-3 rounded-xl bg-neutral-900/60 border border-neutral-800 space-y-2">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-medium">
+          <div className="p-3 rounded-xl bg-white border border-[#E4E6EB] space-y-2">
+            <div className="flex items-center gap-1.5 text-emerald-700 font-medium">
               <Sparkles className="w-3.5 h-3.5" />
               <span>মূল আরবি আয়াত ও অর্থ (ঐচ্ছিক)</span>
             </div>
@@ -207,20 +207,20 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               placeholder="মূল আরবি টেক্সট (যদি কুরআন বা হাদিস হয়)..."
               value={arabicSnippet}
               onChange={(e) => setArabicSnippet(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg p-2 text-right font-arabic text-sm text-emerald-100 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg p-2 text-right font-arabic text-sm text-black focus:outline-none focus:border-[#0866FF]"
             />
             <input
               type="text"
               placeholder="বাংলা অনুবাদ..."
               value={translationSnippet}
               onChange={(e) => setTranslationSnippet(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-lg px-2.5 py-1.5 text-xs text-neutral-200 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg px-2.5 py-1.5 text-xs text-black focus:outline-none focus:border-[#0866FF]"
             />
           </div>
 
           {/* Description */}
           <div>
-            <label className="block font-semibold text-neutral-300 mb-1">
+            <label className="block font-semibold text-black mb-1">
               বিস্তারিত বিবরণ (Description)
             </label>
             <textarea
@@ -228,21 +228,21 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
               placeholder="ভিডিও সম্পর্কে প্রয়োজনীয় তথ্য ও উপদেশ..."
               value={description}
               onChange={(e) => setDescription(e.target.value)}
-              className="w-full bg-neutral-900 border border-neutral-700 rounded-xl p-3 text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
             />
           </div>
 
           {/* 100% Halal Assurance Checkbox */}
-          <div className="p-3.5 rounded-xl bg-emerald-950/40 border border-emerald-500/50 flex items-start gap-3">
+          <div className="p-3.5 rounded-xl bg-emerald-50 border border-emerald-200 flex items-start gap-3">
             <input
               type="checkbox"
               id="halalConfirm"
               checked={halalConfirmed}
               onChange={(e) => setHalalConfirmed(e.target.checked)}
-              className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 bg-neutral-900 border-neutral-600 cursor-pointer"
+              className="mt-0.5 w-4 h-4 rounded text-emerald-600 focus:ring-emerald-500 border-emerald-300 cursor-pointer"
             />
-            <label htmlFor="halalConfirm" className="text-xs text-neutral-200 leading-relaxed cursor-pointer">
-              <span className="font-bold text-emerald-400 flex items-center gap-1">
+            <label htmlFor="halalConfirm" className="text-xs text-black leading-relaxed cursor-pointer">
+              <span className="font-bold text-emerald-700 flex items-center gap-1">
                 <ShieldCheck className="w-3.5 h-3.5" /> ১০০% হালাল কন্টেন্ট অঙ্গীকার
               </span>
               আমি সাক্ষ্য দিচ্ছি যে এই ভিডিওটিতে কোনো বাদ্যযন্ত্র, অনৈসলামিক বিজ্ঞাপন বা হারাম বিষয়বস্তু নেই এবং এটি কুরআন-সুন্নাহ সম্মত।
@@ -250,20 +250,20 @@ export const UploadVideoModal: React.FC<UploadVideoModalProps> = ({
           </div>
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-neutral-800">
+          <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-[#E4E6EB]">
             <button
               type="button"
               onClick={onClose}
-              className="px-4 py-2 rounded-xl text-neutral-400 hover:text-white hover:bg-neutral-800 transition-colors"
+              className="px-4 py-2 rounded-xl bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] font-semibold transition-colors cursor-pointer"
             >
               বাতিল
             </button>
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold transition-all shadow-md shadow-emerald-950/40 flex items-center gap-1.5"
+              className="px-5 py-2 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] text-white font-bold transition-all shadow-sm flex items-center gap-1.5 cursor-pointer"
             >
               <Upload className="w-4 h-4" />
-              <span>Qalby-তে প্রকাশ করুন (Publish)</span>
+              <span>Peaceverse24.com-এ প্রকাশ করুন (Publish)</span>
             </button>
           </div>
         </form>

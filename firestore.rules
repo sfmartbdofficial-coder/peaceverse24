@@ -10,10 +10,34 @@ service cloud.firestore {
       return isAuthenticated() && request.auth.uid == userId;
     }
 
-    // Users
+    // Users and per-user private subcollections
     match /users/{userId} {
       allow read: if true;
-      allow write: if true; // Allows applet anonymous/guest setup or authenticated user
+      allow write: if isOwner(userId);
+
+      match /link_history/{linkId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /activity_log/{activityId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /orders/{orderId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /settings/{settingId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /sessions/{sessionId} {
+        allow read, write: if isOwner(userId);
+      }
+
+      match /mobile_sim/{simId} {
+        allow read, write: if isOwner(userId);
+      }
     }
 
     // Posts

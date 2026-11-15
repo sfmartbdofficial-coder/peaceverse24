@@ -230,19 +230,19 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                 alt="PeaceVerse Logo"
                 className="w-11 h-11 rounded-xl object-cover shadow-md border border-[#0866FF]/20 shrink-0"
               />
-              <h1 className="text-[44px] sm:text-[54px] font-black tracking-tight text-[#0866FF] leading-none">
-                PeaceVerse
+              <h1 className="text-[40px] sm:text-[48px] font-black tracking-tight text-[#0866FF] leading-none">
+                Peaceverse24.com
               </h1>
             </div>
 
-            <p className="text-[22px] sm:text-[26px] leading-[30px] sm:leading-[32px] text-[#1C1E21] font-normal max-w-[460px]">
-              PeaceVerse - Building a peaceful community for everyone worldwide.
+            <p className="text-[22px] sm:text-[26px] leading-[30px] sm:leading-[32px] text-black font-normal max-w-[460px]">
+              Peaceverse24.com — Building a peaceful community for everyone worldwide.
             </p>
 
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 pt-1">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-300 px-3 py-1 rounded-full">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Peace World - Halal Alternative to Facebook for 2 Billion Muslims</span>
+                <span>Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims</span>
               </span>
 
               <button
@@ -435,7 +435,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </button>
           </div>
 
-          <p className="text-[11px] text-[#737373]">PeaceVerse (Peace World) © 2026</p>
+          <p className="text-[11px] text-[#737373]">Peaceverse24.com — Halal Alternative © 2026</p>
         </div>
       </footer>
 
@@ -667,21 +667,21 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
       {/* LIVE GLOBAL WORLD MAP MODAL (20 Countries Online Users) */}
       {showWorldMapModal && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-[#18191A] border border-[#393A3B] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl p-4 sm:p-5 space-y-3 text-white">
-            <div className="flex items-center justify-between border-b border-[#393A3B] pb-3">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+          <div className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-y-auto shadow-2xl p-4 sm:p-5 space-y-3 text-black">
+            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
               <div>
-                <h3 className="text-base font-extrabold text-white">
-                  Peace World — Global Live Ummah Network
+                <h3 className="text-base font-extrabold text-black">
+                  Peaceverse24.com — Global Live Ummah Network
                 </h3>
-                <p className="text-xs text-[#b0b3b8]">
+                <p className="text-xs text-[#65676B]">
                   Connecting 2 Billion Muslims globally across USA, UK, Saudi Arabia, Indonesia, Bangladesh &amp; 20+ nations
                 </p>
               </div>
               <button
                 type="button"
                 onClick={() => setShowWorldMapModal(false)}
-                className="p-1.5 rounded-full bg-[#3A3B3C] hover:bg-[#4E4F50] text-white cursor-pointer"
+                className="p-1.5 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -696,8 +696,8 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-md rounded-xl shadow-2xl border border-[#DADDE1] p-5 space-y-3">
             <div className="flex items-center justify-between border-b border-[#DADDE1] pb-2.5">
-              <h3 className="font-bold text-base text-[#1C1E21]">
-                {footerInfoModal === 'about' ? 'About PeaceVerse (Peace World)' : 'PeaceVerse Help Center'}
+              <h3 className="font-bold text-base text-black">
+                {footerInfoModal === 'about' ? 'About Peaceverse24.com' : 'Peaceverse24.com Help Center'}
               </h3>
               <button
                 type="button"
@@ -709,7 +709,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </div>
             <p className="text-sm text-[#4B4F56] leading-relaxed">
               {footerInfoModal === 'about'
-                ? 'Peace World — Halal Alternative to Facebook for 2 Billion Muslims. Connect worldwide with auto-translated posts, global prayer times, Qibla compass, Peace Mart Global, and halal creator monetization.'
+                ? 'Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims. Connect worldwide with auto-translated posts, global prayer times, Qibla compass, Peace Mart Global, and halal creator monetization.'
                 : 'Need help logging in or creating an account? Click "Create new account" for instant access, or use "Forgotten password?" to reset your email credentials.'}
             </p>
             <button

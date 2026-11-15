@@ -634,7 +634,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
                   type="tel"
                   value={whatsapp}
                   onChange={(e) => setWhatsapp(e.target.value)}
-                  placeholder="+880 1712-345678 (অথবা 01712345678)"
+                  placeholder="যেমন: +880 1XXX-XXXXXX"
                   className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505] placeholder-[#65676B] outline-none focus:border-[#25D366]"
                 />
               </div>
@@ -656,7 +656,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
                   type="tel"
                   value={imo}
                   onChange={(e) => setImo(e.target.value)}
-                  placeholder="+880 1712-345678"
+                  placeholder="যেমন: +880 1XXX-XXXXXX"
                   className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505] placeholder-[#65676B] outline-none focus:border-[#0088CC]"
                 />
               </div>
@@ -678,7 +678,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
                   type="tel"
                   value={viber}
                   onChange={(e) => setViber(e.target.value)}
-                  placeholder="+880 1712-345678"
+                  placeholder="যেমন: +880 1XXX-XXXXXX"
                   className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505] placeholder-[#65676B] outline-none focus:border-[#7360F2]"
                 />
               </div>

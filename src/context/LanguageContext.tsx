@@ -123,21 +123,21 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
 
       {/* Language Switcher Modal */}
       {showLanguageModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
-          <div className="bg-[#242526] text-white rounded-2xl border border-[#393a3b] shadow-2xl w-full max-w-md overflow-hidden p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-[#393a3b] pb-3">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm animate-in fade-in">
+          <div className="bg-white text-black rounded-2xl border border-[#E4E6EB] shadow-2xl w-full max-w-md overflow-hidden p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
               <div className="flex items-center gap-2">
                 <span className="text-xl">🌐</span>
                 <div>
-                  <h3 className="font-bold text-base">{t.languageSelect}</h3>
-                  <p className="text-[11px] text-[#b0b3b8]">
+                  <h3 className="font-bold text-base text-black">{t.languageSelect}</h3>
+                  <p className="text-[11px] text-[#65676B]">
                     {detectedCountry ? `শনাক্তকৃত দেশ: ${detectedCountry}` : 'বিশ্বের সমস্ত দেশের স্বয়ংক্রিয় ভাষা'}
                   </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowLanguageModal(false)}
-                className="p-1 rounded-full text-[#b0b3b8] hover:text-white hover:bg-[#3a3b3c]"
+                className="p-1 rounded-full text-[#65676B] hover:text-black hover:bg-[#F0F2F5]"
               >
                 ✕
               </button>
@@ -150,19 +150,19 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="দেশ বা ভাষা খুঁজুন (Search country or language)..."
-                className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
               />
               {searchQuery && (
                 <button
                   onClick={() => setSearchQuery('')}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#b0b3b8] hover:text-white"
+                  className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#65676B] hover:text-black"
                 >
                   ✕
                 </button>
               )}
             </div>
 
-            <p className="text-[11px] text-[#b0b3b8]">
+            <p className="text-[11px] text-[#65676B]">
               আপনার দেশ অনুযায়ী ভাষা স্বয়ংক্রিয়ভাবে সক্রিয় হবে। আপনি চাইলে যেকোনো দেশ বা ভাষার তালিকা থেকে নির্বাচন করতে পারেন:
             </p>
 
@@ -173,26 +173,26 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
                   onClick={() => setLanguage(lang.code)}
                   className={`w-full p-2.5 rounded-xl flex items-center justify-between border transition-all text-left ${
                     currentLang === lang.code
-                      ? 'bg-[#1877F2]/20 border-[#1877F2] text-white font-bold'
-                      : 'bg-[#18191a] border-[#393a3b] text-[#b0b3b8] hover:bg-[#3a3b3c] hover:text-white'
+                      ? 'bg-[#0866FF]/10 border-[#0866FF] text-black font-bold'
+                      : 'bg-white border-[#E4E6EB] text-black hover:bg-[#F0F2F5]'
                   }`}
                 >
                   <div className="flex items-center gap-3 min-w-0 flex-1">
                     <span className="text-2xl flex-shrink-0">{lang.flag}</span>
                     <div className="truncate">
-                      <p className="text-sm font-semibold truncate flex items-center gap-2">
+                      <p className="text-sm font-semibold truncate flex items-center gap-2 text-black">
                         <span>{lang.nativeName}</span>
                         {currentLang === lang.code && (
-                          <span className="text-[10px] bg-[#1877F2] text-white px-2 py-0.5 rounded-full font-bold">
+                          <span className="text-[10px] bg-[#0866FF] text-white px-2 py-0.5 rounded-full font-bold">
                             সক্রিয়
                           </span>
                         )}
                       </p>
-                      <p className="text-[11px] text-[#8a8d91] truncate">{lang.country}</p>
+                      <p className="text-[11px] text-[#65676B] truncate">{lang.country}</p>
                     </div>
                   </div>
                   {currentLang === lang.code && (
-                    <span className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-xs flex-shrink-0 ml-2">
+                    <span className="w-5 h-5 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs flex-shrink-0 ml-2">
                       ✓
                     </span>
                   )}
@@ -200,15 +200,15 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
               ))}
 
               {filteredLanguages.length === 0 && (
-                <p className="text-center py-4 text-xs text-[#b0b3b8]">কোনো ভাষা বা দেশ পাওয়া যায়নি</p>
+                <p className="text-center py-4 text-xs text-[#65676B]">কোনো ভাষা বা দেশ পাওয়া যায়নি</p>
               )}
             </div>
 
-            <div className="pt-2 border-t border-[#393a3b] flex items-center justify-between">
-              <span className="text-[11px] text-[#8a8d91]">১৮+ প্রধান ভাষা ও বিশ্বব্যাপী ১৯৫+ দেশ সাপোর্ট</span>
+            <div className="pt-2 border-t border-[#E4E6EB] flex items-center justify-between">
+              <span className="text-[11px] text-[#65676B]">১৮+ প্রধান ভাষা ও বিশ্বব্যাপী ১৯৫+ দেশ সাপোর্ট</span>
               <button
                 onClick={() => setShowLanguageModal(false)}
-                className="px-4 py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-semibold text-white transition-colors"
+                className="px-4 py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-xs font-semibold text-black transition-colors"
               >
                 {t.close}
               </button>

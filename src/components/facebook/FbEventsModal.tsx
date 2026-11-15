@@ -42,7 +42,7 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
       timeStr: 'সকাল ৯:০০ - দুপুর ২:০০',
       location: 'বায়তুল মোকাররম দক্ষিণ গেট, ঢাকা',
       banner: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&w=600&q=80',
-      host: 'Peace World চ্যারিটি ফান্ড',
+      host: 'Peaceverse24.com চ্যারিটি ফান্ড',
       goingCount: 154,
       interestedCount: 310,
       category: 'Charity Drive',
@@ -53,7 +53,7 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
       title: 'অনলাইন আন্তর্জাতিক ইসলামিক ওয়েবিনার: তথ্যপ্রযুক্তিতে হালাল ক্যারিয়ার ও ফ্রিল্যান্সিং',
       dateStr: 'বুধবার, ১২ নভেম্বর ২০২৬',
       timeStr: 'রাত ৮:৩০ - রাত ১০:০০',
-      location: 'Peace World Live Stream',
+      location: 'Peaceverse24.com Live Stream',
       banner: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=600&q=80',
       host: 'Islamic IT Network',
       goingCount: 890,
@@ -130,55 +130,55 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
       : events;
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-[#e4e6eb]">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
+      <div className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-black">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#393a3b]">
+        <div className="flex items-center justify-between p-4 border-b border-[#E4E6EB] bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-500 flex items-center justify-center text-white shadow">
               <Calendar className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-base text-white">Events (ইভেন্টস)</h2>
-              <p className="text-[11px] text-[#b0b3b8]">ইসলামিক মাহফিল, সম্মেলন ও সামাজিক সেবামূলক ইভেন্ট</p>
+              <h2 className="font-bold text-base text-black">Events (ইভেন্টস)</h2>
+              <p className="text-[11px] text-[#65676B]">ইসলামিক মাহফিল, সম্মেলন ও সামাজিক সেবামূলক ইভেন্ট</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab switch */}
-        <div className="flex border-b border-[#393a3b] bg-[#18191a]">
+        <div className="flex border-b border-[#E4E6EB] bg-white">
           <button
             onClick={() => setActiveTab('all')}
-            className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
               activeTab === 'all'
-                ? 'border-[#1877F2] text-[#1877F2]'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF]'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             সব ইভেন্ট
           </button>
           <button
             onClick={() => setActiveTab('going')}
-            className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors cursor-pointer ${
               activeTab === 'going'
-                ? 'border-[#1877F2] text-[#1877F2]'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF]'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             আমার অংশগ্রহণ ({events.filter((e) => e.userRsvp).length})
           </button>
           <button
             onClick={() => setActiveTab('create')}
-            className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1 ${
+            className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1 cursor-pointer ${
               activeTab === 'create'
-                ? 'border-[#1877F2] text-[#1877F2]'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF]'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             <Plus className="w-3.5 h-3.5" />
@@ -187,40 +187,40 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
           {activeTab === 'create' ? (
             <form onSubmit={handleCreateEvent} className="space-y-3.5">
               <div>
-                <label className="text-xs font-bold text-[#b0b3b8] block mb-1">ইভেন্টের নাম (Title) *</label>
+                <label className="text-xs font-bold text-black block mb-1">ইভেন্টের নাম (Title) *</label>
                 <input
                   type="text"
                   required
-                  placeholder="যেমন: সখীপুর হাফেজিয়া মাদ্রাসায় আন্তর্জাতিক কেরাত মাহফিল"
+                  placeholder="যেমন: সখীপুর হাফেজিয়া মাদ্রাসায় আন্তর্জাতিক কিরাত মাহফিল"
                   value={newEventTitle}
                   onChange={(e) => setNewEventTitle(e.target.value)}
-                  className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                  className="w-full bg-white border border-[#CED0D4] rounded-xl p-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="text-xs font-bold text-[#b0b3b8] block mb-1">তারিখ (Date)</label>
+                  <label className="text-xs font-bold text-black block mb-1">তারিখ (Date)</label>
                   <input
                     type="text"
                     placeholder="শুক্রবার, ২০ নভেম্বর"
                     value={newEventDate}
                     onChange={(e) => setNewEventDate(e.target.value)}
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-white border border-[#CED0D4] rounded-xl p-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                   />
                 </div>
                 <div>
-                  <label className="text-xs font-bold text-[#b0b3b8] block mb-1">স্থান (Location)</label>
+                  <label className="text-xs font-bold text-black block mb-1">স্থান (Location)</label>
                   <input
                     type="text"
                     placeholder="সখীপুর, টাঙ্গাইল"
                     value={newEventLocation}
                     onChange={(e) => setNewEventLocation(e.target.value)}
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl p-2.5 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-white border border-[#CED0D4] rounded-xl p-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                   />
                 </div>
               </div>
@@ -228,11 +228,11 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
               <button
                 type="submit"
                 disabled={createSuccess}
-                className="w-full py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow flex items-center justify-center gap-1.5 transition-all"
+                className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] text-white font-bold text-xs shadow flex items-center justify-center gap-1.5 transition-all cursor-pointer"
               >
                 {createSuccess ? (
                   <>
-                    <Check className="w-4 h-4 text-emerald-300" />
+                    <Check className="w-4 h-4 text-emerald-200" />
                     <span>ইভেন্ট তৈরি সম্পন্ন!</span>
                   </>
                 ) : (
@@ -248,7 +248,7 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
               {filtered.map((item) => (
                 <div
                   key={item.id}
-                  className="rounded-2xl bg-[#18191a] border border-[#393a3b] overflow-hidden shadow-sm space-y-3"
+                  className="rounded-2xl bg-white border border-[#E4E6EB] overflow-hidden shadow-xs space-y-3"
                 >
                   <div className="relative h-36 w-full">
                     <img src={item.banner} alt={item.title} className="w-full h-full object-cover" />
@@ -258,11 +258,11 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
                   </div>
 
                   <div className="p-3.5 space-y-2">
-                    <h3 className="font-bold text-sm text-white leading-snug">{item.title}</h3>
+                    <h3 className="font-bold text-sm text-black leading-snug">{item.title}</h3>
                     
-                    <div className="flex flex-col gap-1 text-xs text-[#b0b3b8]">
+                    <div className="flex flex-col gap-1 text-xs text-[#65676B]">
                       <div className="flex items-center gap-2">
-                        <Calendar className="w-3.5 h-3.5 text-[#1877F2] shrink-0" />
+                        <Calendar className="w-3.5 h-3.5 text-[#0866FF] shrink-0" />
                         <span>{item.dateStr} • {item.timeStr}</span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -270,19 +270,19 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
                         <span className="truncate">{item.location}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        <Users className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <Users className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
                         <span>{item.goingCount} জন উপস্থিত থাকবেন • {item.interestedCount} জন আগ্রহী</span>
                       </div>
                     </div>
 
                     {/* Action buttons */}
-                    <div className="flex items-center gap-2 pt-2 border-t border-[#393a3b]">
+                    <div className="flex items-center gap-2 pt-2 border-t border-[#E4E6EB]">
                       <button
                         onClick={() => handleToggleRsvp(item.id, 'going')}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                           item.userRsvp === 'going'
-                            ? 'bg-[#1877F2] text-white shadow'
-                            : 'bg-[#242526] hover:bg-[#3a3b3c] text-[#e4e6eb] border border-[#393a3b]'
+                            ? 'bg-[#0866FF] text-white shadow'
+                            : 'bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black border border-[#E4E6EB]'
                         }`}
                       >
                         <Check className="w-3.5 h-3.5" />
@@ -290,10 +290,10 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
                       </button>
                       <button
                         onClick={() => handleToggleRsvp(item.id, 'interested')}
-                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+                        className={`flex-1 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
                           item.userRsvp === 'interested'
                             ? 'bg-amber-600 text-white shadow'
-                            : 'bg-[#242526] hover:bg-[#3a3b3c] text-[#e4e6eb] border border-[#393a3b]'
+                            : 'bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black border border-[#E4E6EB]'
                         }`}
                       >
                         <Sparkles className="w-3.5 h-3.5" />
@@ -308,10 +308,10 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#393a3b] bg-[#18191a] text-center">
+        <div className="p-3 border-t border-[#E4E6EB] bg-white text-center">
           <button
             onClick={onClose}
-            className="w-full py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs"
+            className="w-full py-2 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-bold text-xs cursor-pointer"
           >
             বন্ধ করুন
           </button>

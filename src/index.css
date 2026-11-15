@@ -3,7 +3,7 @@
 
 @layer base {
   body {
-    @apply bg-[#121212] text-[#e4e6eb] antialiased selection:bg-[#0064FF] selection:text-white;
+    @apply bg-white text-black antialiased selection:bg-[#0866FF] selection:text-white;
     font-family: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
   }
 }
@@ -12,7 +12,7 @@
 .fb-container {
   max-width: 500px;
   margin: auto;
-  background: #121212;
+  background: #FFFFFF;
   gap: 8px;
 }
 
@@ -27,33 +27,33 @@
   min-width: 112px;
   height: 190px;
   border-radius: 10px;
-  background: #1C1C1D;
-  border: 1px solid #222222;
+  background: #FFFFFF;
+  border: 1px solid #E4E6EB;
   position: relative;
 }
 
 .create-btn {
   width: 32px;
   height: 32px;
-  background: #0064FF;
+  background: #0866FF;
   border-radius: 50%;
 }
 
 .post-box {
-  background: #1C1C1D;
+  background: #FFFFFF;
   padding: 12px;
   border-radius: 10px;
   display: flex;
   align-items: center;
   gap: 10px;
-  border: 1px solid #222222;
+  border: 1px solid #E4E6EB;
 }
 
 .post-input {
-  background: #3A3B3C;
+  background: #F0F2F5;
   border-radius: 20px;
   padding: 10px 15px;
-  color: #aaaaaa;
+  color: #65676B;
   width: 100%;
 }
 
@@ -61,12 +61,12 @@
   display: flex;
   gap: 15px;
   padding: 10px 15px;
-  border-bottom: 1px solid #222222;
+  border-bottom: 1px solid #E4E6EB;
 }
 
 .filter-active {
-  color: #0064FF;
-  border-bottom: 3px solid #0064FF;
+  color: #0866FF;
+  border-bottom: 3px solid #0866FF;
   padding-bottom: 5px;
 }
 

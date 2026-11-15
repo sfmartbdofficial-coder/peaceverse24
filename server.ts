@@ -348,6 +348,53 @@ app.post('/api/notify-all', async (req, res) => {
 });
 
 // ==========================================
+// REAL-TIME MOBILE CENTER SIM / DATA STATUS API
+// ==========================================
+app.get('/api/mobile-center/status', async (req, res) => {
+  try {
+    const carrierApiUrl = process.env.MOBILE_CARRIER_API_URL;
+    const carrierApiKey = process.env.MOBILE_CARRIER_API_KEY;
+    const msisdn = typeof req.query.msisdn === 'string' ? req.query.msisdn.trim() : '';
+
+    if (carrierApiUrl && msisdn) {
+      const upstream = await fetch(`${carrierApiUrl}?msisdn=${encodeURIComponent(msisdn)}`, {
+        headers: carrierApiKey ? { Authorization: `Bearer ${carrierApiKey}` } : undefined,
+      });
+      if (upstream.ok) {
+        const data: any = await upstream.json();
+        return res.json({
+          simDetected: Boolean(data?.simDetected ?? data?.operator),
+          operator: data?.operator || null,
+          dataBalance: data?.dataBalance || null,
+          expiry: data?.expiry || null,
+          freeModeAvailable: Boolean(data?.freeModeAvailable),
+          message: data?.message || null,
+        });
+      }
+    }
+
+    // No fake SIM or fake balance fallback
+    return res.json({
+      simDetected: false,
+      operator: null,
+      dataBalance: null,
+      expiry: null,
+      freeModeAvailable: false,
+      message: 'সিম কার্ড পাওয়া যায়নি',
+    });
+  } catch (error: any) {
+    return res.json({
+      simDetected: false,
+      operator: null,
+      dataBalance: null,
+      expiry: null,
+      freeModeAvailable: false,
+      message: 'সিম কার্ড পাওয়া যায়নি',
+    });
+  }
+});
+
+// ==========================================
 // GLOBAL GOOGLE TRANSLATE API ENDPOINT
 // ==========================================
 const translationCache = new Map<string, { translatedText: string; detectedSourceLang: string }>();

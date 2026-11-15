@@ -118,15 +118,15 @@ export const QuranHadithBrowser: React.FC = () => {
   );
 
   return (
-    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 pb-24">
+    <div className="max-w-4xl mx-auto px-3 sm:px-4 py-4 pb-24 bg-white text-black">
       {/* Tab Switcher */}
-      <div className="flex bg-neutral-900 p-1 rounded-xl border border-neutral-800 mb-4 max-w-sm mx-auto">
+      <div className="flex bg-[#F0F2F5] p-1 rounded-xl border border-[#E4E6EB] mb-4 max-w-sm mx-auto">
         <button
           onClick={() => setSection('quran')}
           className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
             section === 'quran'
-              ? 'bg-emerald-600 text-white shadow-md'
-              : 'text-neutral-400 hover:text-white'
+              ? 'bg-[#0866FF] text-white shadow-sm'
+              : 'text-[#65676B] hover:text-black'
           }`}
         >
           পবিত্র কুরআন (Surahs)
@@ -135,8 +135,8 @@ export const QuranHadithBrowser: React.FC = () => {
           onClick={() => setSection('hadith')}
           className={`flex-1 py-2 text-xs sm:text-sm font-semibold rounded-lg transition-all ${
             section === 'hadith'
-              ? 'bg-emerald-600 text-white shadow-md'
-              : 'text-neutral-400 hover:text-white'
+              ? 'bg-[#0866FF] text-white shadow-sm'
+              : 'text-[#65676B] hover:text-black'
           }`}
         >
           সহীহ হাদিস (Hadith)
@@ -150,9 +150,9 @@ export const QuranHadithBrowser: React.FC = () => {
           placeholder={section === 'quran' ? 'সূরা অনুসন্ধান করুন...' : 'হাদিস অনুসন্ধান করুন...'}
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-[#181818] border border-neutral-800 rounded-xl px-9 py-2.5 text-xs text-neutral-100 placeholder-neutral-500 focus:outline-none focus:border-emerald-500"
+          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-9 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
         />
-        <Search className="w-4 h-4 text-neutral-500 absolute left-3 top-3" />
+        <Search className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
       </div>
 
       {/* Quran List */}
@@ -161,33 +161,33 @@ export const QuranHadithBrowser: React.FC = () => {
           {filteredSurahs.map((surah) => (
             <div
               key={surah.number}
-              className="p-4 rounded-xl bg-neutral-900/70 border border-neutral-800 hover:border-emerald-500/40 transition-all space-y-2.5"
+              className="p-4 rounded-xl bg-white border border-[#E4E6EB] hover:border-[#0866FF]/50 transition-all space-y-2.5 shadow-2xs"
             >
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
+              <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-2">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-950/80 border border-emerald-500/30 flex items-center justify-center text-emerald-400 font-bold text-xs">
+                  <div className="w-8 h-8 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 font-bold text-xs">
                     {surah.number}
                   </div>
                   <div>
-                    <h3 className="text-sm font-bold text-neutral-100">
+                    <h3 className="text-sm font-bold text-black">
                       {surah.nameBangla} ({surah.nameEnglish})
                     </h3>
-                    <p className="text-[11px] text-neutral-400">
+                    <p className="text-[11px] text-[#65676B]">
                       {surah.revelationType} • {surah.versesCount} আয়াত
                     </p>
                   </div>
                 </div>
-                <span className="text-xl font-arabic text-emerald-300 font-bold">
+                <span className="text-xl font-arabic text-emerald-700 font-bold">
                   {surah.nameArabic}
                 </span>
               </div>
 
               {/* Sample Ayat snippet */}
-              <div className="bg-black/40 p-3 rounded-lg border border-neutral-800">
-                <p className="text-base sm:text-lg font-arabic text-right text-emerald-100 leading-loose">
+              <div className="bg-[#F0F2F5] p-3 rounded-lg border border-[#E4E6EB]">
+                <p className="text-base sm:text-lg font-arabic text-right text-black leading-loose">
                   {surah.keyAyah}
                 </p>
-                <p className="text-xs text-neutral-300 mt-2 font-bengali">
+                <p className="text-xs text-[#65676B] mt-2 font-bengali">
                   {surah.keyTranslation}
                 </p>
               </div>
@@ -197,11 +197,11 @@ export const QuranHadithBrowser: React.FC = () => {
                   onClick={() =>
                     handleCopy(`q-${surah.number}`, `${surah.keyAyah}\n\n${surah.keyTranslation} — সূরা ${surah.nameBangla}`)
                   }
-                  className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded bg-neutral-800 text-neutral-300 hover:text-white"
+                  className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded bg-[#F0F2F5] text-black hover:bg-[#E4E6EB]"
                 >
                   {copiedId === `q-${surah.number}` ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
                       <span>কপি হয়েছে</span>
                     </>
                   ) : (
@@ -223,31 +223,31 @@ export const QuranHadithBrowser: React.FC = () => {
           {filteredHadiths.map((h) => (
             <div
               key={h.id}
-              className="p-4 rounded-xl bg-neutral-900/70 border border-neutral-800 hover:border-emerald-500/40 transition-all space-y-2.5"
+              className="p-4 rounded-xl bg-white border border-[#E4E6EB] hover:border-[#0866FF]/50 transition-all space-y-2.5 shadow-2xs"
             >
-              <div className="flex items-center justify-between border-b border-neutral-800/80 pb-2">
-                <span className="text-xs font-semibold text-emerald-400">
+              <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-2">
+                <span className="text-xs font-semibold text-emerald-700">
                   {h.book} • হাদিস নং {h.hadithNo}
                 </span>
-                <span className="text-[11px] text-neutral-400">বর্ণনাকারী: {h.narrator}</span>
+                <span className="text-[11px] text-[#65676B]">বর্ণনাকারী: {h.narrator}</span>
               </div>
 
-              <p className="text-base sm:text-lg font-arabic text-right text-emerald-100 leading-loose">
+              <p className="text-base sm:text-lg font-arabic text-right text-black leading-loose">
                 {h.arabic}
               </p>
 
-              <p className="text-xs sm:text-sm text-neutral-300 font-bengali">
+              <p className="text-xs sm:text-sm text-[#65676B] font-bengali">
                 {h.bangla}
               </p>
 
               <div className="flex justify-end">
                 <button
                   onClick={() => handleCopy(h.id, `${h.arabic}\n\n${h.bangla} — ${h.book}, হাদিস ${h.hadithNo}`)}
-                  className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded bg-neutral-800 text-neutral-300 hover:text-white"
+                  className="flex items-center gap-1 text-[11px] px-2.5 py-1 rounded bg-[#F0F2F5] text-black hover:bg-[#E4E6EB]"
                 >
                   {copiedId === h.id ? (
                     <>
-                      <Check className="w-3.5 h-3.5 text-emerald-400" />
+                      <Check className="w-3.5 h-3.5 text-emerald-600" />
                       <span>কপি হয়েছে</span>
                     </>
                   ) : (

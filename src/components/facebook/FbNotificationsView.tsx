@@ -62,27 +62,27 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
   const unreadCount = filteredNotifications.filter((n) => n.isUnread).length;
 
   return (
-    <div className="max-w-[700px] mx-auto min-h-screen bg-[#F0F2F5] dark:bg-[#121212] text-[#050505] dark:text-[#e4e6eb] pb-24 font-sans">
+    <div className="max-w-[700px] mx-auto min-h-screen bg-white text-black pb-24 font-sans">
       {/* Top Header */}
-      <div className="sticky top-0 z-30 bg-white dark:bg-[#242526] border-b border-[#E4E6EB] dark:border-[#393a3b] px-4 py-2.5 space-y-2">
+      <div className="sticky top-0 z-30 bg-white border-b border-[#E4E6EB] px-4 py-2.5 space-y-2">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
               onClick={onBack}
-              className="p-1.5 rounded-full text-[#050505] dark:text-[#e4e6eb] hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] transition-colors cursor-pointer"
+              className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors cursor-pointer"
               title="পেছনে যান (Back)"
             >
               <ArrowLeft className="w-6 h-6 stroke-[2.5]" />
             </button>
             <button
               onClick={onOpenMenu}
-              className="p-1 rounded-full text-[#050505] dark:text-[#b0b3b8] hover:bg-[#F0F2F5] dark:hover:bg-[#3a3b3c] cursor-pointer"
+              className="p-1 rounded-full text-black hover:bg-[#F0F2F5] cursor-pointer"
               title="Menu"
             >
               <Menu className="w-5 h-5 stroke-[2.5]" />
             </button>
             <div>
-              <h1 className="font-bold text-xl sm:text-2xl text-[#050505] dark:text-white leading-none">
+              <h1 className="font-bold text-xl sm:text-2xl text-black leading-none">
                 Notifications
               </h1>
               {unreadCount > 0 && (
@@ -97,7 +97,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
             {onMarkAllRead && unreadCount > 0 && (
               <button
                 onClick={onMarkAllRead}
-                className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] dark:bg-[#0866FF]/20 text-[#0866FF] text-[11px] font-bold flex items-center gap-1 hover:bg-[#d8ebff] transition-colors cursor-pointer"
+                className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 hover:bg-[#d8ebff] transition-colors cursor-pointer"
                 title="সব পঠিত হিসেবে চিহ্নিত করুন"
               >
                 <CheckCheck className="w-3.5 h-3.5" />
@@ -106,7 +106,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
             )}
             <button
               onClick={() => setSearchOpen((prev) => !prev)}
-              className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-[#050505] dark:text-[#e4e6eb] flex items-center justify-center transition-colors cursor-pointer"
+              className="w-9 h-9 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black flex items-center justify-center transition-colors cursor-pointer"
               title="Search notifications"
             >
               <Search className="w-5 h-5" />
@@ -120,31 +120,31 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
             placeholder="নোটিফিকেশন খুঁজুন..."
-            className="w-full px-3.5 py-2 rounded-xl bg-[#F0F2F5] dark:bg-[#18191a] border border-[#E4E6EB] dark:border-[#393a3b] text-xs outline-none focus:border-[#0866FF]"
+            className="w-full px-3.5 py-2 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-xs text-black outline-none focus:border-[#0866FF]"
           />
         )}
       </div>
 
       {/* Subheading */}
-      <div className="px-4 py-3 flex items-center justify-between">
-        <h2 className="text-base font-bold text-[#050505] dark:text-white">New & Creator Broadcasts</h2>
+      <div className="px-4 py-3 flex items-center justify-between bg-white">
+        <h2 className="text-base font-bold text-black">New & Creator Broadcasts</h2>
       </div>
 
       {/* Empty State */}
       {filteredNotifications.length === 0 && (
-        <div className="mx-4 p-8 rounded-2xl bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] text-center space-y-2">
-          <div className="w-12 h-12 rounded-full bg-[#E7F3FF] dark:bg-[#0866FF]/20 text-[#0866FF] flex items-center justify-center mx-auto">
+        <div className="mx-4 p-8 rounded-2xl bg-white border border-[#E4E6EB] text-center space-y-2">
+          <div className="w-12 h-12 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center mx-auto">
             <Bell className="w-6 h-6" />
           </div>
-          <h3 className="font-bold text-sm text-[#050505] dark:text-white">কোনো নোটিফিকেশন নেই</h3>
-          <p className="text-xs text-[#65676B] dark:text-[#b0b3b8]">
+          <h3 className="font-bold text-sm text-black">কোনো নোটিফিকেশন নেই</h3>
+          <p className="text-xs text-[#65676B]">
             ক্রিয়েটর বা পেজ নতুন ভিডিও, ছবি বা পোস্ট আপলোড করলে সাথে সাথে এখানে দেখতে পাবেন।
           </p>
         </div>
       )}
 
       {/* Notifications List */}
-      <div className="divide-y divide-[#E4E6EB] dark:divide-[#393a3b]/60 bg-white dark:bg-transparent">
+      <div className="divide-y divide-[#E4E6EB] bg-white">
         {filteredNotifications.map((item) => {
           const isConfirmed = confirmedIds[item.id];
           const isBroadcast = item.type === 'new_post' || item.type === 'broadcast';
@@ -161,8 +161,8 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                 item.type !== 'friend_request' ? 'cursor-pointer' : ''
               } ${
                 item.isUnread
-                  ? 'bg-[#E7F3FF]/70 dark:bg-[#242526]/90 hover:bg-[#E7F3FF]'
-                  : 'hover:bg-[#F0F2F5] dark:hover:bg-[#242526]/50'
+                  ? 'bg-[#E7F3FF]/60 hover:bg-[#E7F3FF]'
+                  : 'bg-white hover:bg-[#F0F2F5]'
               }`}
             >
               {/* Avatar with Type Badge */}
@@ -174,26 +174,26 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                     (e.currentTarget as HTMLImageElement).src =
                       '/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg';
                   }}
-                  className="w-14 h-14 rounded-full object-cover border border-[#E4E6EB] dark:border-[#393a3b]"
+                  className="w-14 h-14 rounded-full object-cover border border-[#E4E6EB]"
                 />
 
                 {item.type === 'friend_request' && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0866FF] border-2 border-white dark:border-[#242526] flex items-center justify-center text-white">
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0866FF] border-2 border-white flex items-center justify-center text-white">
                     <UserCheck className="w-3.5 h-3.5" />
                   </div>
                 )}
                 {item.badgeType === 'page' && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#fa3e3e] border-2 border-white dark:border-[#242526] flex items-center justify-center text-white">
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#fa3e3e] border-2 border-white flex items-center justify-center text-white">
                     <Flag className="w-3.5 h-3.5 fill-current" />
                   </div>
                 )}
                 {item.badgeType === 'heart' && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#e41e3f] border-2 border-white dark:border-[#242526] flex items-center justify-center text-white">
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#e41e3f] border-2 border-white flex items-center justify-center text-white">
                     <Heart className="w-3.5 h-3.5 fill-current" />
                   </div>
                 )}
                 {(isBroadcast || item.badgeType === 'broadcast') && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-600 border-2 border-white dark:border-[#242526] flex items-center justify-center text-white shadow-xs">
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-600 border-2 border-white flex items-center justify-center text-white shadow-xs">
                     {item.title.includes('ভিডিও') ? (
                       <Video className="w-3.5 h-3.5" />
                     ) : (
@@ -202,7 +202,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                   </div>
                 )}
                 {item.badgeType === 'bell' && !isBroadcast && (
-                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0866FF] border-2 border-white dark:border-[#242526] flex items-center justify-center text-white">
+                  <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-[#0866FF] border-2 border-white flex items-center justify-center text-white">
                     <Bell className="w-3.5 h-3.5" />
                   </div>
                 )}
@@ -213,25 +213,25 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                 <div className="flex items-start justify-between gap-2">
                   <div className="min-w-0 flex-1">
                     {isBroadcast && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold mb-1">
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-[10px] font-bold mb-1">
                         <Megaphone className="w-3 h-3" />
                         <span>Creator Broadcast</span>
                       </span>
                     )}
-                    <p className="text-sm text-[#050505] dark:text-[#e4e6eb] leading-snug">
-                      <span className="font-bold text-[#050505] dark:text-white">
+                    <p className="text-sm text-black leading-snug">
+                      <span className="font-bold text-black">
                         {item.title.includes(' sent you')
                           ? item.title.split(' sent you')[0]
                           : item.title}
                       </span>
                       {item.title.includes(' sent you') && ' sent you a friend request.'}
-                      <span className="text-xs text-[#65676B] dark:text-[#b0b3b8] font-normal ml-1.5">
+                      <span className="text-xs text-[#65676B] font-normal ml-1.5">
                         • {item.timeAgo}
                       </span>
                     </p>
 
                     {item.subtitle && (
-                      <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] mt-0.5 line-clamp-2">
+                      <p className="text-xs text-[#65676B] mt-0.5 line-clamp-2">
                         {item.subtitle}
                       </p>
                     )}
@@ -251,7 +251,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                       onError={(e) => {
                         (e.currentTarget as HTMLImageElement).style.display = 'none';
                       }}
-                      className="w-14 h-14 rounded-xl object-cover border border-[#E4E6EB] dark:border-[#393a3b] shrink-0 shadow-xs"
+                      className="w-14 h-14 rounded-xl object-cover border border-[#E4E6EB] shrink-0 shadow-xs"
                     />
                   )}
 
@@ -262,7 +262,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                         e.stopPropagation();
                         handleDelete(item.id);
                       }}
-                      className="p-1 text-[#65676B] dark:text-[#b0b3b8] hover:text-[#050505] dark:hover:text-white rounded-full flex-shrink-0 cursor-pointer"
+                      className="p-1 text-[#65676B] hover:text-black rounded-full flex-shrink-0 cursor-pointer"
                       title="Remove notification"
                     >
                       <MoreHorizontal className="w-5 h-5" />
@@ -282,7 +282,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                 {item.type === 'friend_request' && (
                   <div className="mt-2.5 flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
                     {isConfirmed ? (
-                      <span className="text-xs font-bold text-emerald-600 bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-500/40 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
+                      <span className="text-xs font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5">
                         <Check className="w-3.5 h-3.5" /> Request Accepted (বন্ধু হিসেবে যুক্ত হয়েছেন)
                       </span>
                     ) : (
@@ -295,7 +295,7 @@ export const FbNotificationsView: React.FC<FbNotificationsViewProps> = ({
                         </button>
                         <button
                           onClick={() => handleDelete(item.id)}
-                          className="flex-1 max-w-[130px] py-2 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] dark:text-[#e4e6eb] text-xs font-bold text-center transition-colors cursor-pointer"
+                          className="flex-1 max-w-[130px] py-2 rounded-lg bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black text-xs font-bold text-center transition-colors cursor-pointer"
                         >
                           Delete
                         </button>

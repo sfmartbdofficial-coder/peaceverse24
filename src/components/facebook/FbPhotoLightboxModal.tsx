@@ -112,7 +112,7 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
       navigator
         .share({
           title: post.author.name,
-          text: post.contentBangla || 'Peaceverse Photo',
+          text: post.contentBangla || 'Peaceverse24.com Photo',
           url: displayPhoto,
         })
         .catch(() => {});
@@ -220,19 +220,19 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
               </button>
 
               {showMenu && (
-                <div className="absolute right-0 top-11 z-50 w-48 bg-[#242526] rounded-2xl border border-[#393a3b] shadow-2xl py-1 text-xs font-semibold overflow-hidden animate-in fade-in zoom-in-95">
+                <div className="absolute right-0 top-11 z-50 w-48 bg-white rounded-2xl border border-[#E4E6EB] shadow-2xl py-1 text-xs font-semibold overflow-hidden animate-in fade-in zoom-in-95 text-black">
                   <button
                     onClick={handleDownload}
-                    className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-[#3a3b3c] text-left text-white transition-colors cursor-pointer"
+                    className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-[#F0F2F5] text-left text-black transition-colors cursor-pointer"
                   >
-                    <Download className="w-4 h-4 text-sky-400" />
+                    <Download className="w-4 h-4 text-[#0866FF]" />
                     <span>ছবি ফোনে সংরক্ষণ করুন</span>
                   </button>
                   <button
                     onClick={handleShare}
-                    className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-[#3a3b3c] text-left text-white transition-colors cursor-pointer"
+                    className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-[#F0F2F5] text-left text-black transition-colors cursor-pointer"
                   >
-                    <Share2 className="w-4 h-4 text-emerald-400" />
+                    <Share2 className="w-4 h-4 text-emerald-600" />
                     <span>শেয়ার করুন</span>
                   </button>
                   {onToggleSave && (
@@ -242,10 +242,10 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
                         setShowMenu(false);
                         showToast(post.isSaved ? 'সেভ থেকে সরানো হয়েছে' : 'পোস্টটি সেভ করা হয়েছে');
                       }}
-                      className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-[#3a3b3c] text-left text-white transition-colors cursor-pointer"
+                      className="w-full px-3.5 py-2.5 flex items-center gap-2.5 hover:bg-[#F0F2F5] text-left text-black transition-colors cursor-pointer"
                     >
-                      <Bookmark className="w-4 h-4 text-amber-400" />
-                      <span>{post.isSaved ? 'সেভ তালিকা থেকে মুছুন' : 'ফেসবুকে সেভ করুন'}</span>
+                      <Bookmark className="w-4 h-4 text-amber-600" />
+                      <span>{post.isSaved ? 'সেভ তালিকা থেকে মুছুন' : 'Peaceverse24.com-এ সেভ করুন'}</span>
                     </button>
                   )}
                 </div>
@@ -419,18 +419,18 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
 
         {/* Expandable Comments Drawer if opened */}
         {showCommentsDrawer && (
-          <div className="max-h-48 overflow-y-auto space-y-2 bg-[#18191a]/95 rounded-2xl p-3 border border-white/10 animate-in fade-in slide-in-from-bottom-2">
-            <div className="flex items-center justify-between border-b border-white/10 pb-1.5">
-              <span className="font-bold text-xs text-white">মন্তব্যসমূহ ({post.comments?.length || 0})</span>
+          <div className="max-h-48 overflow-y-auto space-y-2 bg-white text-black rounded-2xl p-3 border border-[#E4E6EB] animate-in fade-in slide-in-from-bottom-2 shadow-xl">
+            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-1.5">
+              <span className="font-bold text-xs text-black">মন্তব্যসমূহ ({post.comments?.length || 0})</span>
               <button
                 onClick={() => setShowCommentsDrawer(false)}
-                className="text-white/60 hover:text-white text-xs"
+                className="text-[#65676B] hover:text-black text-xs"
               >
                 ✕
               </button>
             </div>
             {(!post.comments || post.comments.length === 0) ? (
-              <p className="text-xs text-white/50 text-center py-2">
+              <p className="text-xs text-[#65676B] text-center py-2">
                 এখনও কোনো মন্তব্য নেই। প্রথম মন্তব্যটি আপনি করুন!
               </p>
             ) : (
@@ -443,13 +443,13 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
                       className="w-6 h-6 rounded-full object-cover shrink-0"
                     />
                   ) : (
-                    <div className="w-6 h-6 rounded-full bg-neutral-700 text-white flex items-center justify-center font-bold text-[10px] shrink-0">
+                    <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
                       {(comment.author || 'U')[0]}
                     </div>
                   )}
-                  <div className="bg-white/10 rounded-xl px-2.5 py-1.5 flex-1">
-                    <p className="font-bold text-white text-[11px]">{comment.author || 'ব্যবহারকারী'}</p>
-                    <p className="text-white/90 text-xs mt-0.5">{comment.text}</p>
+                  <div className="bg-[#F0F2F5] rounded-xl px-2.5 py-1.5 flex-1">
+                    <p className="font-bold text-black text-[11px]">{comment.author || 'ব্যবহারকারী'}</p>
+                    <p className="text-black text-xs mt-0.5">{comment.text}</p>
                   </div>
                 </div>
               ))

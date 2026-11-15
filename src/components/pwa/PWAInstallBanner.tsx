@@ -87,9 +87,9 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide 
           : 'translate-y-0 opacity-100 scale-100 animate-in slide-in-from-bottom-2 duration-200'
       }`}
     >
-      <div className="bg-[#242526]/95 backdrop-blur-md text-white rounded-2xl border border-[#3E4042] shadow-2xl py-2 px-3 flex items-center justify-between gap-2.5">
+      <div className="bg-white/95 backdrop-blur-md text-black rounded-2xl border border-[#E4E6EB] shadow-2xl py-2 px-3 flex items-center justify-between gap-2.5">
         {installedSuccessfully ? (
-          <div className="flex items-center justify-center gap-1.5 w-full py-1 text-emerald-400 text-xs font-semibold">
+          <div className="flex items-center justify-center gap-1.5 w-full py-1 text-emerald-700 text-xs font-semibold">
             <Check className="w-4 h-4 stroke-[3]" />
             <span>মাশাআল্লাহ! ইন্সটল সম্পন্ন হয়েছে</span>
           </div>
@@ -97,15 +97,15 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide 
           <>
             {/* Left: App Icon + Clear Install Prompt */}
             <div className="flex items-center gap-2.5 min-w-0 flex-1">
-              <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 border border-[#3E4042] bg-neutral-800 shadow-xs">
+              <div className="w-8 h-8 rounded-xl overflow-hidden flex-shrink-0 border border-[#E4E6EB] bg-white shadow-xs">
                 <img
                   src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
-                  alt="Peaceverse"
+                  alt="Peaceverse24.com"
                   className="w-full h-full object-cover"
                 />
               </div>
-              <p className="text-xs sm:text-[13px] font-semibold text-[#E4E6EB] truncate">
-                Peaceverse অ্যাপ ফোনে ইন্সটল করুন
+              <p className="text-xs sm:text-[13px] font-semibold text-black truncate">
+                Peaceverse24.com অ্যাপ ফোনে ইন্সটল করুন
               </p>
             </div>
 
@@ -126,7 +126,7 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide 
                 onClick={handleDismiss}
                 aria-label="Close install banner"
                 title="বন্ধ করুন (Close)"
-                className="w-8 h-8 rounded-full bg-[#3A3B3C] hover:bg-[#4E4F50] active:scale-95 text-white flex items-center justify-center transition-all cursor-pointer border border-white/10"
+                className="w-8 h-8 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] active:scale-95 text-black flex items-center justify-center transition-all cursor-pointer border border-[#E4E6EB]"
               >
                 <X className="w-4 h-4 stroke-[2.75]" />
               </button>

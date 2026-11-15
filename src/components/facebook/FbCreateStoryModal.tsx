@@ -124,7 +124,7 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#18191a] text-white flex flex-col animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-white text-black flex flex-col animate-in fade-in">
       
       {/* Hidden file input */}
       <input
@@ -136,20 +136,20 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
       />
 
       {/* 1. Top Bar matching Screenshot 3 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#393a3b] bg-[#242526]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E6EB] bg-white">
         <button
           onClick={onClose}
-          className="p-1 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+          className="p-1 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
           title="বন্ধ করুন (Close)"
         >
           <X className="w-6 h-6 stroke-[2.5]" />
         </button>
 
-        <h1 className="text-base font-bold text-white">Create story</h1>
+        <h1 className="text-base font-bold text-black">Create story</h1>
 
         <button
           onClick={() => {}}
-          className="p-1.5 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+          className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
           title="Settings"
         >
           <Settings className="w-5 h-5" />
@@ -157,24 +157,24 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
       </div>
 
       {/* 2. Top Interactive Tiles matching Screenshot 3: [ Aa Text (New) ] [ 🎵 Music ] [ ⚏ Collage ] [ Templates ] */}
-      <div className="p-3 bg-[#18191a] border-b border-[#393a3b]">
+      <div className="p-3 bg-white border-b border-[#E4E6EB]">
         <div className="flex items-center gap-2.5 overflow-x-auto no-scrollbar py-1">
           {/* Tile 1: Aa Text */}
           <button
             onClick={() => setActiveMode('text')}
-            className={`flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center transition-all ${
+            className={`flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center transition-all border ${
               activeMode === 'text'
-                ? 'bg-gradient-to-tr from-purple-800 to-indigo-600 ring-2 ring-white scale-105'
-                : 'bg-gradient-to-tr from-[#3a3b3c] to-[#242526] hover:brightness-110'
+                ? 'bg-gradient-to-tr from-purple-700 to-indigo-600 text-white border-[#0866FF] ring-2 ring-[#0866FF] scale-105'
+                : 'bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black border-[#E4E6EB]'
             }`}
           >
             <div className="w-full flex justify-end">
-              <span className="bg-[#1877F2] text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider text-white">
+              <span className="bg-[#0866FF] text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider text-white">
                 New
               </span>
             </div>
-            <Type className="w-7 h-7 text-white stroke-[2.5]" />
-            <span className="text-xs font-bold text-white">Text</span>
+            <Type className={`w-7 h-7 stroke-[2.5] ${activeMode === 'text' ? 'text-white' : 'text-black'}`} />
+            <span className="text-xs font-bold">Text</span>
           </button>
 
           {/* Tile 2: Music / Tilawat */}
@@ -184,15 +184,15 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
               setStoryText('সূরা আর-রহমানের মধুর তিলাওয়াত 🎵');
               setArabicText('فَبِأَيِّ آلَاءِ رَبِّكُمَا تُكَذِّبَانِ');
             }}
-            className={`flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center transition-all ${
+            className={`flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center transition-all border ${
               activeMode === 'music'
-                ? 'bg-gradient-to-tr from-teal-700 to-emerald-600 ring-2 ring-white scale-105'
-                : 'bg-gradient-to-tr from-[#3a3b3c] to-[#242526] hover:brightness-110'
+                ? 'bg-gradient-to-tr from-teal-700 to-emerald-600 text-white border-[#0866FF] ring-2 ring-[#0866FF] scale-105'
+                : 'bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black border-[#E4E6EB]'
             }`}
           >
             <div className="w-full h-3" />
-            <Music className="w-7 h-7 text-teal-400 stroke-[2.5]" />
-            <span className="text-xs font-bold text-white">Music</span>
+            <Music className={`w-7 h-7 stroke-[2.5] ${activeMode === 'music' ? 'text-white' : 'text-teal-600'}`} />
+            <span className="text-xs font-bold">Music</span>
           </button>
 
           {/* Tile 3: Collage */}
@@ -200,15 +200,15 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
             onClick={() => {
               fileInputRef.current?.click();
             }}
-            className="flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center bg-gradient-to-tr from-[#3a3b3c] to-[#242526] hover:brightness-110 transition-all"
+            className="flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black border border-[#E4E6EB] transition-all"
           >
             <div className="w-full flex justify-end">
-              <span className="bg-[#1877F2] text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider text-white">
+              <span className="bg-[#0866FF] text-[9px] font-black px-1.5 py-0.5 rounded-md uppercase tracking-wider text-white">
                 New
               </span>
             </div>
-            <LayoutGrid className="w-7 h-7 text-blue-400 stroke-[2.5]" />
-            <span className="text-xs font-bold text-white">Collage</span>
+            <LayoutGrid className="w-7 h-7 text-[#0866FF] stroke-[2.5]" />
+            <span className="text-xs font-bold text-black">Collage</span>
           </button>
 
           {/* Tile 4: Templates */}
@@ -216,11 +216,11 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
             onClick={() => {
               setActiveMode('gallery');
             }}
-            className="flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center bg-gradient-to-tr from-[#3a3b3c] to-[#242526] hover:brightness-110 transition-all"
+            className="flex-1 min-w-[90px] h-24 rounded-2xl p-2.5 flex flex-col justify-between items-center text-center bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black border border-[#E4E6EB] transition-all"
           >
             <div className="w-full h-3" />
-            <Layers className="w-7 h-7 text-amber-400 stroke-[2.5]" />
-            <span className="text-xs font-bold text-white">Templates</span>
+            <Layers className="w-7 h-7 text-amber-600 stroke-[2.5]" />
+            <span className="text-xs font-bold text-black">Templates</span>
           </button>
         </div>
       </div>
@@ -289,22 +289,22 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
 
       {/* 4. Full Gallery Grid matching Screenshot 3 */}
       {activeMode === 'gallery' && (
-        <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col">
+        <div className="flex-1 overflow-y-auto no-scrollbar flex flex-col bg-white">
           {/* Gallery Subheader: "Gallery ⌄" + "Select multiple" */}
-          <div className="flex items-center justify-between px-4 py-3 bg-[#18191a] sticky top-0 z-20 border-b border-[#393a3b]">
+          <div className="flex items-center justify-between px-4 py-3 bg-white sticky top-0 z-20 border-b border-[#E4E6EB]">
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-1.5 cursor-pointer hover:text-white"
+              className="flex items-center gap-1.5 cursor-pointer hover:text-[#0866FF]"
               title="আপনার ফোনের গ্যালারি খুলুন"
             >
-              <span className="font-bold text-sm text-white">Gallery</span>
-              <ChevronDown className="w-4 h-4 text-[#b0b3b8]" />
+              <span className="font-bold text-sm text-black">Gallery</span>
+              <ChevronDown className="w-4 h-4 text-[#65676B]" />
             </button>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-full bg-[#1877F2] hover:bg-[#166fe5] text-xs font-bold text-white flex items-center gap-1.5 transition-colors shadow-sm"
+                className="px-3 py-1.5 rounded-full bg-[#0866FF] hover:bg-[#166fe5] text-xs font-bold text-white flex items-center gap-1.5 transition-colors shadow-sm"
               >
                 <Upload className="w-3.5 h-3.5" />
                 <span>ফোনের গ্যালারি খুলুন</span>
@@ -312,7 +312,7 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
 
               <button
                 onClick={() => fileInputRef.current?.click()}
-                className="px-3 py-1.5 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-semibold text-white transition-colors"
+                className="px-3 py-1.5 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-semibold text-black transition-colors"
               >
                 Select multiple
               </button>
@@ -320,35 +320,35 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
           </div>
 
           {/* Prominent Banner for Device Gallery */}
-          <div className="p-3 bg-[#242526] border-b border-[#393a3b] flex items-center justify-between">
+          <div className="p-3 bg-white border-b border-[#E4E6EB] flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 flex items-center justify-center">
+              <div className="w-9 h-9 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
                 <Camera className="w-5 h-5" />
               </div>
               <div>
-                <p className="text-xs font-bold text-white">আপনার মোবাইল বা পিসির গ্যালারি</p>
-                <p className="text-[10px] text-[#b0b3b8]">নিজের ছবি বা তিলাওয়াত সিলেক্ট করুন</p>
+                <p className="text-xs font-bold text-black">আপনার মোবাইল বা পিসির গ্যালারি</p>
+                <p className="text-[10px] text-[#65676B]">নিজের ছবি বা তিলাওয়াত সিলেক্ট করুন</p>
               </div>
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-white border border-[#4e4f50]"
+              className="px-3 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-black border border-[#CCD0D5]"
             >
               ফাইল বাছুন
             </button>
           </div>
 
           {/* Grid of Images matching Screenshot 3 */}
-          <div className="p-1 grid grid-cols-3 gap-1 flex-1">
+          <div className="p-1 grid grid-cols-3 gap-1 flex-1 bg-white">
             {/* Device Gallery Big Tile */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="aspect-square bg-gradient-to-br from-[#1877F2]/20 to-[#242526] hover:from-[#1877F2]/30 flex flex-col items-center justify-center gap-1.5 transition-all border-2 border-dashed border-[#1877F2] p-2"
+              className="aspect-square bg-[#E7F3FF] hover:bg-[#DBEAFE] flex flex-col items-center justify-center gap-1.5 transition-all border-2 border-dashed border-[#0866FF] p-2"
             >
-              <div className="w-10 h-10 rounded-full bg-[#1877F2] flex items-center justify-center text-white shadow-md">
+              <div className="w-10 h-10 rounded-full bg-[#0866FF] flex items-center justify-center text-white shadow-md">
                 <Camera className="w-5 h-5 stroke-[2.5]" />
               </div>
-              <span className="text-[10px] font-bold text-white text-center leading-tight">
+              <span className="text-[10px] font-bold text-black text-center leading-tight">
                 আপনার গ্যালারি<br />(Open Gallery)
               </span>
             </button>
@@ -358,11 +358,11 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
               <div
                 key={`up-${i}`}
                 onClick={() => handlePublishStory(url, 'আমার নতুন ফটো স্টোরি 🌸')}
-                className="aspect-square relative overflow-hidden group cursor-pointer border border-[#393a3b]"
+                className="aspect-square relative overflow-hidden group cursor-pointer border border-[#E4E6EB]"
               >
                 <img src={url} alt="Uploaded" className="w-full h-full object-cover group-hover:scale-105 transition-transform" />
                 <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <span className="px-2 py-1 rounded bg-[#1877F2] text-xs font-bold text-white">Share</span>
+                  <span className="px-2 py-1 rounded bg-[#0866FF] text-xs font-bold text-white">Share</span>
                 </div>
               </div>
             ))}
@@ -372,7 +372,7 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
               <div
                 key={item.id}
                 onClick={() => handlePublishStory(item.url, item.title, item.arabic)}
-                className="aspect-square relative overflow-hidden group cursor-pointer bg-neutral-900 border border-[#2a2b2c]"
+                className="aspect-square relative overflow-hidden group cursor-pointer bg-[#F0F2F5] border border-[#E4E6EB]"
               >
                 <img
                   src={item.url}
@@ -383,7 +383,7 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
                   <p className="text-[10px] font-bold text-white truncate drop-shadow">{item.title}</p>
                 </div>
                 <div className="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                  <div className="w-5 h-5 rounded-full bg-[#1877F2] text-white flex items-center justify-center shadow">
+                  <div className="w-5 h-5 rounded-full bg-[#0866FF] text-white flex items-center justify-center shadow">
                     <Check className="w-3 h-3 stroke-[3]" />
                   </div>
                 </div>

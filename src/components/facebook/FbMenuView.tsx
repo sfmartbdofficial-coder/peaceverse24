@@ -34,7 +34,6 @@ import {
   Radio,
   CreditCard,
   Link2,
-  Moon,
   Smartphone,
   Home,
   Zap,
@@ -71,12 +70,12 @@ import {
 } from '../../utils/settingsStorage';
 import { broadcastCreatorNotification } from '../../lib/fcm';
 import { getActivePrayerPauseStatus } from '../../lib/globalPrayer';
+import { saveUserSettingsToFirestore, fetchUserSettingsFromFirestore } from '../../lib/firebase';
 
 // Import interactive sub-modals
 import { FbAvatarsModal } from './FbAvatarsModal';
 import { FbBirthdaysModal } from './FbBirthdaysModal';
 import { FbEventsModal } from './FbEventsModal';
-import { FbFeedsModal } from './FbFeedsModal';
 import { FbFindsModal } from './FbFindsModal';
 import { FbGamesModal } from './FbGamesModal';
 import { FbMessengerKidsModal } from './FbMessengerKidsModal';
@@ -108,8 +107,6 @@ interface FbMenuViewProps {
   onSwitchToPage?: (page: PageItem) => void;
   onSwitchToPersonal?: () => void;
   unreadMessagesCount?: number;
-  isDarkMode?: boolean;
-  onToggleDarkMode?: (isDark: boolean) => void;
   onPublishReel?: (newReel: PostItem) => void;
   onNavigatePath?: (path: string) => void;
   onBroadcastNotification?: (notif: NotificationItem) => void;
@@ -134,8 +131,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onSwitchToPage,
   onSwitchToPersonal,
   unreadMessagesCount = 0,
-  isDarkMode = false,
-  onToggleDarkMode,
   onPublishReel,
   onNavigatePath,
   onBroadcastNotification,
@@ -153,7 +148,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [showAvatarsModal, setShowAvatarsModal] = useState(false);
   const [showBirthdaysModal, setShowBirthdaysModal] = useState(false);
   const [showEventsModal, setShowEventsModal] = useState(false);
-  const [showFeedsModal, setShowFeedsModal] = useState(false);
   const [showFindsModal, setShowFindsModal] = useState(false);
   const [showGamesModal, setShowGamesModal] = useState(false);
   const [showKidsModal, setShowKidsModal] = useState(false);
@@ -165,7 +159,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [selectedSwitchPage, setSelectedSwitchPage] = useState<PageItem | null>(null);
-  const [darkModeInline, setDarkModeInline] = useState(isDarkMode);
   const [showCreatePageLanding, setShowCreatePageLanding] = useState(false);
   const [peacePrefs, setPeacePrefs] = useState<PeaceSettingsPrefs>(() => loadPeaceSettings());
 
@@ -181,11 +174,19 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [broadcastDone, setBroadcastDone] = useState(false);
 
   useEffect(() => {
-    setDarkModeInline(isDarkMode);
-  }, [isDarkMode]);
+    if (!userProfile?.id) return;
+    fetchUserSettingsFromFirestore(userProfile.id).then((remote) => {
+      if (!remote) return;
+      setPeacePrefs((prev) => savePeaceSettings({ ...prev, ...remote }));
+    });
+  }, [userProfile?.id]);
 
   const handleUpdatePrefs = (patch: Partial<PeaceSettingsPrefs>) => {
-    setPeacePrefs((prev) => savePeaceSettings({ ...prev, ...patch }));
+    setPeacePrefs((prev) => {
+      const next = savePeaceSettings({ ...prev, ...patch });
+      saveUserSettingsToFirestore(userProfile?.id, patch);
+      return next;
+    });
   };
 
   const prayerStatus = getActivePrayerPauseStatus(peacePrefs.prayerPauseMinutes);
@@ -288,7 +289,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   }
 
   return (
-    <div className="max-w-[500px] mx-auto min-h-screen bg-[#F0F2F5] text-neutral-900 pb-24 p-3 sm:p-4 space-y-3 font-sans select-none">
+    <div className="max-w-[500px] mx-auto min-h-screen bg-white text-black pb-24 p-3 sm:p-4 space-y-3 font-sans select-none">
       
       {/* 1. TOP HEADER: Back arrow, Menu title, Settings gear, Search, Messenger mail/lightning icon */}
       <div className="flex items-center justify-between pb-2">
@@ -408,20 +409,20 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         </div>
       </div>
 
-      {/* 1.2. (+) CREATE PEACEVERSE24 PAGE BUTTON */}
+      {/* 1.2. (+) CREATE PEACEVERSE24.COM PAGE BUTTON */}
       <div
         onClick={() => setShowCreatePageLanding(true)}
         className="flex items-center gap-3 p-3 sm:p-3.5 bg-white rounded-2xl hover:bg-neutral-50 cursor-pointer transition-all border border-neutral-200/80 shadow-xs active:scale-[0.99] group"
-        title="নতুন peaceverse24 পেজ খুলুন"
+        title="নতুন Peaceverse24.com পেজ খুলুন"
       >
         <div className="w-10 h-10 rounded-full bg-neutral-100 group-hover:bg-[#0866FF]/15 text-neutral-800 group-hover:text-[#0866FF] flex items-center justify-center shrink-0 transition-colors">
           <Plus className="w-5 h-5 stroke-[2.5]" />
         </div>
         <div className="flex-1 min-w-0">
-          <p className="font-bold text-[15px] text-neutral-900 leading-tight">
-            Create peaceverse24 Page
+          <p className="font-bold text-[15px] text-black leading-tight">
+            Create Peaceverse24.com Page
           </p>
-          <p className="text-[11px] text-neutral-500 truncate">
+          <p className="text-[11px] text-[#65676B] truncate">
             ব্যবসা, ব্র্যান্ড বা ব্যক্তিত্বের জন্য নতুন পেজ তৈরি করুন
           </p>
         </div>
@@ -481,7 +482,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                       {page.name.trim().charAt(0).toUpperCase()}
                     </span>
                   )}
-                  <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-white dark:bg-neutral-800 border border-neutral-300 flex items-center justify-center shadow-xs">
+                  <div className="absolute -bottom-0.5 -right-0.5 w-6 h-6 rounded-full bg-white border border-neutral-300 flex items-center justify-center shadow-xs">
                     <Flag className="w-3 h-3 text-[#1877F2]" />
                   </div>
                 </div>
@@ -580,14 +581,14 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             </div>
             <div className="min-w-0">
               <div className="flex items-center gap-1.5">
-                <span className="text-[15px] font-bold text-neutral-900 dark:text-white group-hover:text-amber-500 transition-colors leading-tight">
+                <span className="text-[15px] font-bold text-black group-hover:text-amber-500 transition-colors leading-tight">
                   গোল্ডেন ওয়ালেট ও ক্যাশ আউট
                 </span>
-                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-500 to-yellow-400 text-neutral-950 tracking-wider uppercase shadow-2xs">
+                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black bg-gradient-to-r from-amber-500 to-yellow-400 text-black tracking-wider uppercase shadow-2xs">
                   bKash / নগদ
                 </span>
               </div>
-              <p className="text-[11px] text-amber-700 dark:text-amber-300 font-semibold truncate mt-0.5">
+              <p className="text-[11px] text-amber-700 font-semibold truncate mt-0.5">
                 কয়েন উপহার দিন • অর্জিত কয়েন বিকাশ ও নগদে ক্যাশ আউট করুন
               </p>
             </div>
@@ -642,7 +643,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
 
         {/* 8. Feeds (newspaper icon) */}
         <button
-          onClick={() => setShowFeedsModal(true)}
+          onClick={() => onNavigateTab('feeds')}
           className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
         >
           <Newspaper className="w-6 h-6 text-black shrink-0" />
@@ -904,28 +905,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   </div>
                   <ChevronRight className="w-4 h-4 text-neutral-400" />
                 </button>
-
-                {/* 2.5 Dark mode */}
-                <div
-                  onClick={() => {
-                    const nextVal = !darkModeInline;
-                    setDarkModeInline(nextVal);
-                    if (onToggleDarkMode) onToggleDarkMode(nextVal);
-                  }}
-                  className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between font-medium text-neutral-800 cursor-pointer"
-                >
-                  <div className="flex items-center gap-3.5">
-                    <Moon className="w-5 h-5 text-indigo-700 shrink-0" />
-                    <span className="text-[14.5px]">Dark mode</span>
-                  </div>
-                  <div
-                    className={`w-10 h-5 flex items-center rounded-full p-0.5 transition-colors ${
-                      darkModeInline ? 'bg-[#0866FF] justify-end' : 'bg-neutral-300 justify-start'
-                    }`}
-                  >
-                    <div className="bg-white w-4 h-4 rounded-full shadow-md" />
-                  </div>
-                </div>
 
                 {/* 2.6 Language -> বাংলা / English / العربية + All 18+ Global Languages */}
                 <div
@@ -1226,14 +1205,14 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   <ChevronRight className="w-4 h-4 text-neutral-400" />
                 </button>
 
-                {/* 5.3 About Peace World */}
+                {/* 5.3 About Peaceverse24.com */}
                 <button
                   onClick={() => setSettingsModalType('about_peace_world')}
-                  className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between text-left font-medium text-neutral-800 cursor-pointer"
+                  className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between text-left font-medium text-black cursor-pointer"
                 >
                   <div className="flex items-center gap-3.5">
                     <Info className="w-5 h-5 text-emerald-600 shrink-0" />
-                    <span className="text-[14.5px]">About Peace World</span>
+                    <span className="text-[14.5px]">About Peaceverse24.com</span>
                   </div>
                   <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
                     v1.0 Global Launch
@@ -1310,7 +1289,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           >
             <div className="flex items-center gap-3">
               <LayoutGrid className="w-5 h-5 text-neutral-700" />
-              <span>Also from Peaceverse</span>
+              <span>Also from Peaceverse24.com</span>
             </div>
             {showAlsoAccordion ? (
               <ChevronUp className="w-5 h-5 text-neutral-500" />
@@ -1337,7 +1316,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 onClick={() => setAlsoAppType('threads')}
                 className="w-full px-3 py-2.5 rounded-lg hover:bg-neutral-100 active:bg-neutral-200/70 flex items-center gap-3.5 text-left transition-colors cursor-pointer"
               >
-                <div className="w-9 h-9 rounded-xl bg-neutral-950 flex items-center justify-center text-white shadow-xs shrink-0">
+                <div className="w-9 h-9 rounded-xl bg-[#0866FF] flex items-center justify-center text-white shadow-xs shrink-0">
                   <AtSign className="w-5 h-5 stroke-[2.4]" />
                 </div>
                 <span className="text-[16px] font-medium text-neutral-900">Peace Threads</span>
@@ -1434,16 +1413,16 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
 
       {/* Log out confirmation dialog */}
       {showLogoutConfirm && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-[#242526] border border-[#393a3b] rounded-2xl p-5 max-w-sm w-full space-y-4 text-[#e4e6eb] shadow-2xl animate-in fade-in">
-            <h3 className="font-bold text-lg text-white">লগআউট নিশ্চিত করুন</h3>
-            <p className="text-xs text-[#b0b3b8]">
+        <div className="fixed inset-0 z-50 bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white border border-[#E4E6EB] rounded-2xl p-5 max-w-sm w-full space-y-4 text-black shadow-2xl animate-in fade-in">
+            <h3 className="font-bold text-lg text-black">লগআউট নিশ্চিত করুন</h3>
+            <p className="text-xs text-[#65676B]">
               আপনি কি নিশ্চিত যে আপনার একাউন্ট ({userProfile.name}) থেকে লগআউট করতে চান?
             </p>
             <div className="flex gap-2.5 pt-2">
               <button
                 onClick={() => setShowLogoutConfirm(false)}
-                className="flex-1 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white text-xs font-bold transition-colors cursor-pointer"
+                className="flex-1 py-2.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-black text-xs font-bold transition-colors cursor-pointer"
               >
                 বাতিল
               </button>
@@ -1474,16 +1453,15 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       <FbBirthdaysModal
         isOpen={showBirthdaysModal}
         onClose={() => setShowBirthdaysModal(false)}
+        userAvatar={activeSwitchedPage?.avatar || userProfile.avatar}
+        userName={activeSwitchedPage?.name || userProfile.name}
+        onOpenMessenger={onOpenMessenger}
+        onOpenProfile={onOpenProfile}
       />
 
       <FbEventsModal
         isOpen={showEventsModal}
         onClose={() => setShowEventsModal(false)}
-      />
-
-      <FbFeedsModal
-        isOpen={showFeedsModal}
-        onClose={() => setShowFeedsModal(false)}
       />
 
       <FbFindsModal
@@ -1518,13 +1496,8 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         onUpdateProfile={onUpdateProfile}
         prefs={peacePrefs}
         onUpdatePrefs={handleUpdatePrefs}
-        isDarkMode={darkModeInline}
         onOpenLegalTab={onOpenLegalTab}
         onLogout={onLogout}
-        onToggleDarkMode={(dark) => {
-          setDarkModeInline(dark);
-          if (onToggleDarkMode) onToggleDarkMode(dark);
-        }}
       />
 
       <FbAlsoFromPeaceModal
@@ -1603,24 +1576,24 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       {/* Creator Broadcast Dashboard Modal (Opened on [Send All]) */}
       {showBroadcastModal && (
         <div
-          className="fixed inset-0 z-50 bg-black/75 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
+          className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-3 sm:p-4"
           onClick={() => !broadcastSending && setShowBroadcastModal(false)}
         >
           <div
-            className="bg-white dark:bg-[#242526] border border-neutral-200 dark:border-[#393a3b] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95"
+            className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-md overflow-hidden shadow-2xl animate-in fade-in zoom-in-95 text-black"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Header */}
-            <div className="flex items-center justify-between px-4 py-3.5 border-b border-neutral-200 dark:border-[#393a3b]">
+            <div className="flex items-center justify-between px-4 py-3.5 border-b border-[#E4E6EB] bg-white">
               <div className="flex items-center gap-2.5">
                 <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 text-white flex items-center justify-center shadow-xs">
                   <Megaphone className="w-5 h-5" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-[15px] text-neutral-900 dark:text-white leading-tight">
+                  <h3 className="font-bold text-[15px] text-black leading-tight">
                     Creator Broadcast Dashboard
                   </h3>
-                  <p className="text-[11px] text-neutral-500 dark:text-[#b0b3b8]">
+                  <p className="text-[11px] text-[#65676B]">
                     Instant Push &amp; Bell Notification to All Users
                   </p>
                 </div>
@@ -1629,16 +1602,16 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 type="button"
                 disabled={broadcastSending}
                 onClick={() => setShowBroadcastModal(false)}
-                className="w-8 h-8 rounded-full bg-neutral-100 hover:bg-neutral-200 dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-neutral-700 dark:text-[#e4e6eb] flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
+                className="w-8 h-8 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black flex items-center justify-center transition-colors cursor-pointer disabled:opacity-50"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Form */}
-            <form onSubmit={handleSendMenuBroadcast} className="p-4 space-y-3.5">
+            <form onSubmit={handleSendMenuBroadcast} className="p-4 space-y-3.5 bg-white">
               <div>
-                <label className="block text-xs font-bold text-neutral-700 dark:text-[#e4e6eb] mb-1">
+                <label className="block text-xs font-bold text-black mb-1">
                   Title
                 </label>
                 <input
@@ -1647,12 +1620,12 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   value={broadcastTitle}
                   onChange={(e) => setBroadcastTitle(e.target.value)}
                   placeholder="প্রিয় দাদা নতুন ভিডিও আপলোড করেছেন"
-                  className="w-full rounded-xl border border-neutral-300 dark:border-[#393a3b] bg-neutral-50 dark:bg-[#18191a] px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0866FF]"
+                  className="w-full rounded-xl border border-[#CED0D4] bg-white px-3 py-2 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-700 dark:text-[#e4e6eb] mb-1">
+                <label className="block text-xs font-bold text-black mb-1">
                   Message
                 </label>
                 <textarea
@@ -1661,13 +1634,13 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   value={broadcastMessage}
                   onChange={(e) => setBroadcastMessage(e.target.value)}
                   placeholder="১০০% হালাল পণ্যের নতুন কালেকশন দেখুন"
-                  className="w-full rounded-xl border border-neutral-300 dark:border-[#393a3b] bg-neutral-50 dark:bg-[#18191a] px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0866FF] resize-none"
+                  className="w-full rounded-xl border border-[#CED0D4] bg-white px-3 py-2 text-xs text-black focus:outline-none focus:border-[#0866FF] resize-none"
                 />
               </div>
 
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-xs font-bold text-neutral-700 dark:text-[#e4e6eb] flex items-center gap-1.5">
+                  <label className="text-xs font-bold text-black flex items-center gap-1.5">
                     <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
                     <span>Image</span>
                   </label>
@@ -1697,10 +1670,10 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   value={broadcastImage}
                   onChange={(e) => setBroadcastImage(e.target.value)}
                   placeholder="https://... or upload image"
-                  className="w-full rounded-xl border border-neutral-300 dark:border-[#393a3b] bg-neutral-50 dark:bg-[#18191a] px-3 py-2 text-xs text-neutral-900 dark:text-white focus:outline-none focus:border-[#0866FF]"
+                  className="w-full rounded-xl border border-[#CED0D4] bg-white px-3 py-2 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                 />
                 {broadcastImage && (
-                  <div className="mt-2 rounded-xl overflow-hidden border border-neutral-200 dark:border-[#393a3b] h-28 bg-neutral-100 dark:bg-[#18191a]">
+                  <div className="mt-2 rounded-xl overflow-hidden border border-[#E4E6EB] h-28 bg-[#F0F2F5]">
                     <img
                       src={broadcastImage}
                       alt="Broadcast preview"
@@ -1712,9 +1685,9 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
 
               {/* Progress Bar */}
               {broadcastProgress && (
-                <div className="p-3 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-emerald-500/40 space-y-2 animate-in fade-in">
+                <div className="p-3 rounded-xl bg-[#F0F2F5] border border-emerald-500/40 space-y-2 animate-in fade-in">
                   <div className="flex items-center justify-between text-xs font-bold">
-                    <span className="text-emerald-700 dark:text-emerald-400 flex items-center gap-1.5">
+                    <span className="text-emerald-700 flex items-center gap-1.5">
                       {broadcastDone ? (
                         <CheckCircle2 className="w-4 h-4 text-emerald-600" />
                       ) : (
@@ -1726,11 +1699,11 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                           : `Broadcasting: ${broadcastProgress.sent.toLocaleString()}/${broadcastProgress.total.toLocaleString()}...`}
                       </span>
                     </span>
-                    <span className="text-neutral-900 dark:text-white font-mono tabular-nums">
+                    <span className="text-black font-mono tabular-nums">
                       {Math.min(100, Math.round((broadcastProgress.sent / broadcastProgress.total) * 100))}%
                     </span>
                   </div>
-                  <div className="w-full h-2.5 rounded-full bg-neutral-200 dark:bg-[#2a2b2d] overflow-hidden">
+                  <div className="w-full h-2.5 rounded-full bg-[#E4E6EB] overflow-hidden">
                     <div
                       className="h-full bg-gradient-to-r from-[#0866FF] via-sky-500 to-emerald-500 transition-all duration-200 rounded-full"
                       style={{

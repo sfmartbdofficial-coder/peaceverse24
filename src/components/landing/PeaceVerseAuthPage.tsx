@@ -231,20 +231,12 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
   };
 
   return (
-    <div className="min-h-screen w-full bg-[#030712] text-white flex flex-col justify-between py-6 px-4 sm:px-6 relative overflow-hidden">
-      {/* Background glow effects */}
-      <div
-        className="pointer-events-none absolute -top-32 left-1/2 -translate-x-1/2 w-[600px] h-[500px] rounded-full blur-[100px] opacity-60"
-        style={{
-          background: 'radial-gradient(circle, rgba(37, 99, 235, 0.45) 0%, rgba(14, 165, 233, 0.2) 50%, transparent 80%)',
-        }}
-      />
-
+    <div className="min-h-screen w-full bg-white text-black flex flex-col justify-between py-6 px-4 sm:px-6 relative overflow-hidden">
       {/* Top Bar with Back to Landing Page */}
       <header className="w-full max-w-md mx-auto flex items-center justify-between z-10">
         <button
           onClick={() => onNavigateTo('/')}
-          className="flex items-center gap-1.5 text-xs font-semibold text-slate-300 hover:text-white bg-slate-900/60 hover:bg-slate-800/80 px-3.5 py-1.5 rounded-full border border-blue-500/25 transition-all active:scale-95 cursor-pointer backdrop-blur-md"
+          className="flex items-center gap-1.5 text-xs font-semibold text-black bg-[#F0F2F5] hover:bg-[#E4E6EB] px-3.5 py-1.5 rounded-full border border-[#E4E6EB] transition-all active:scale-95 cursor-pointer"
         >
           <ArrowLeft className="w-3.5 h-3.5" />
           <span>Back to Home</span>
@@ -252,33 +244,33 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
         <div className="flex items-center gap-2">
           {/* Stylized Logo mark */}
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-tr from-blue-600 to-cyan-400 flex items-center justify-center p-1 shadow-[0_0_12px_rgba(56,189,248,0.4)]">
+          <div className="w-7 h-7 rounded-lg bg-[#0866FF] flex items-center justify-center p-1 shadow-xs">
             <svg viewBox="0 0 24 24" className="w-full h-full text-white" fill="none" stroke="currentColor" strokeWidth="2.5">
               <path d="M12 2L15 8L22 9L17 14L18 21L12 18L6 21L7 14L2 9L9 8L12 2Z" />
             </svg>
           </div>
-          <span className="font-extrabold text-base tracking-tight bg-gradient-to-r from-white via-sky-200 to-blue-400 bg-clip-text text-transparent">
-            PeaceVerse
+          <span className="font-extrabold text-base tracking-tight text-[#0866FF]">
+            Peaceverse24.com
           </span>
         </div>
       </header>
 
       {/* Main Auth Card Container */}
       <main className="w-full max-w-md mx-auto my-auto z-10 pt-4 pb-6">
-        <div className="relative rounded-3xl p-6 sm:p-8 bg-slate-900/75 border border-blue-500/30 backdrop-blur-xl shadow-[0_0_40px_rgba(37,99,235,0.22)]">
+        <div className="relative rounded-3xl p-6 sm:p-8 bg-white border border-[#E4E6EB] shadow-lg">
           
-          {/* Glowing Top Dove Icon Header */}
+          {/* Top Dove Icon Header */}
           <div className="flex flex-col items-center text-center mb-6">
             <PeaceDoveEmblem size={88} className="mb-3" />
-            <span className="text-[10px] tracking-wider uppercase font-bold text-sky-400 bg-blue-950/70 border border-sky-400/30 px-3 py-0.5 rounded-full mb-2">
+            <span className="text-[10px] tracking-wider uppercase font-bold text-[#0866FF] bg-[#E7F3FF] border border-blue-200 px-3 py-0.5 rounded-full mb-2">
               Positive Global Community
             </span>
-            <h1 className="text-xl sm:text-2xl font-black text-white tracking-tight">
-              {mode === 'login' && 'Sign in to PeaceVerse'}
-              {mode === 'signup' && 'Create Your PeaceVerse Account'}
+            <h1 className="text-xl sm:text-2xl font-black text-black tracking-tight">
+              {mode === 'login' && 'Sign in to Peaceverse24.com'}
+              {mode === 'signup' && 'Create Your Peaceverse24.com Account'}
               {mode === 'forgot' && 'Reset Your Password'}
             </h1>
-            <p className="text-xs text-slate-300 mt-1 max-w-xs">
+            <p className="text-xs text-[#65676B] mt-1 max-w-xs">
               {mode === 'login' && 'Welcome back! Connect with your peaceful community worldwide.'}
               {mode === 'signup' && 'Join millions sharing positive, safe, and helpful content.'}
               {mode === 'forgot' && 'Enter your registered email to receive recovery instructions.'}
@@ -286,7 +278,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           </div>
 
           {/* Mode Switcher Tabs */}
-          <div className="flex p-1 bg-slate-950/80 rounded-2xl border border-blue-500/20 mb-5">
+          <div className="flex p-1 bg-[#F0F2F5] rounded-2xl border border-[#E4E6EB] mb-5">
             <button
               type="button"
               onClick={() => {
@@ -296,8 +288,8 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
               }}
               className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                 mode === 'login'
-                  ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-[#0866FF] text-white shadow-xs'
+                  : 'text-[#65676B] hover:text-black'
               }`}
             >
               Sign In
@@ -311,8 +303,8 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
               }}
               className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
                 mode === 'signup'
-                  ? 'bg-blue-600 text-white shadow-[0_0_15px_rgba(37,99,235,0.4)]'
-                  : 'text-slate-400 hover:text-white'
+                  ? 'bg-[#0866FF] text-white shadow-xs'
+                  : 'text-[#65676B] hover:text-black'
               }`}
             >
               Sign Up
@@ -321,16 +313,16 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
           {/* Active Logged-In User Banner (if opened while already signed in) */}
           {currentUser && (
-            <div className="mb-5 p-3 rounded-2xl bg-sky-500/15 border border-sky-400/30 text-xs flex items-center justify-between gap-3 animate-in fade-in">
+            <div className="mb-5 p-3 rounded-2xl bg-[#E7F3FF] border border-blue-200 text-xs flex items-center justify-between gap-3 animate-in fade-in">
               <div className="min-w-0">
-                <span className="text-[10px] uppercase font-bold text-sky-400 tracking-wider block">বর্তমানে সাইন-ইন আছেন:</span>
-                <p className="font-bold text-white truncate text-xs">{currentUser.displayName || currentUser.email}</p>
+                <span className="text-[10px] uppercase font-bold text-[#0866FF] tracking-wider block">বর্তমানে সাইন-ইন আছেন:</span>
+                <p className="font-bold text-black truncate text-xs">{currentUser.displayName || currentUser.email}</p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
                   type="button"
                   onClick={onNavigateHome}
-                  className="px-3 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-bold text-[11px] shadow transition-colors cursor-pointer"
+                  className="px-3 py-1.5 rounded-xl bg-[#0866FF] hover:bg-blue-600 text-white font-bold text-[11px] shadow-xs transition-colors cursor-pointer"
                 >
                   হোমে যান
                 </button>
@@ -343,7 +335,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                       await logoutUser();
                     }
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-rose-600/90 hover:bg-rose-600 text-white font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-[11px] flex items-center gap-1 transition-colors cursor-pointer"
                   title="অন্য আইডি দিয়ে লগইন করতে লগআউট করুন"
                 >
                   <LogOut className="w-3 h-3" />
@@ -355,15 +347,15 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
           {/* Feedback Alerts */}
           {errorMsg && (
-            <div className="mb-4 p-3 rounded-2xl bg-rose-500/15 border border-rose-500/35 text-rose-300 text-xs flex items-center gap-2.5 animate-in fade-in">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <div className="mb-4 p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2.5 animate-in fade-in">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
               <span className="font-medium">{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="mb-4 p-3 rounded-2xl bg-emerald-500/15 border border-emerald-500/35 text-emerald-300 text-xs flex items-center gap-2.5 animate-in fade-in">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <div className="mb-4 p-3 rounded-2xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2.5 animate-in fade-in">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
               <span>{successMsg}</span>
             </div>
           )}
@@ -375,7 +367,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl bg-white text-slate-800 hover:bg-slate-100 font-bold text-xs flex items-center justify-center gap-2.5 shadow-md active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-xl bg-white border border-[#E4E6EB] text-black hover:bg-[#F0F2F5] font-bold text-xs flex items-center justify-center gap-2.5 shadow-xs active:scale-[0.99] transition-all cursor-pointer disabled:opacity-50"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
@@ -398,10 +390,10 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                 <span>Continue with Google</span>
               </button>
 
-              <div className="flex items-center gap-3 my-4 text-[11px] text-slate-400">
-                <div className="flex-1 h-[1px] bg-slate-800" />
+              <div className="flex items-center gap-3 my-4 text-[11px] text-[#65676B]">
+                <div className="flex-1 h-[1px] bg-[#E4E6EB]" />
                 <span>or use email</span>
-                <div className="flex-1 h-[1px] bg-slate-800" />
+                <div className="flex-1 h-[1px] bg-[#E4E6EB]" />
               </div>
             </div>
           )}
@@ -410,25 +402,25 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           <form onSubmit={handleSubmit} className="space-y-3.5">
             {mode === 'signup' && (
               <div>
-                <label className="text-[11px] font-semibold text-slate-300 mb-1 block">Full Name</label>
+                <label className="text-[11px] font-semibold text-black mb-1 block">Full Name</label>
                 <div className="relative flex items-center">
-                  <User className="w-4 h-4 text-slate-400 absolute left-3.5" />
+                  <User className="w-4 h-4 text-[#65676B] absolute left-3.5" />
                   <input
                     type="text"
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="e.g. Alex Johnson"
-                    className="w-full bg-slate-950/70 border border-slate-700/60 rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-10 pr-3 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="text-[11px] font-semibold text-slate-300 mb-1 block">Email Address</label>
+              <label className="text-[11px] font-semibold text-black mb-1 block">Email Address</label>
               <div className="relative flex items-center">
-                <Mail className="w-4 h-4 text-slate-400 absolute left-3.5" />
+                <Mail className="w-4 h-4 text-[#65676B] absolute left-3.5" />
                 <input
                   type="email"
                   required
@@ -439,24 +431,24 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                   }}
                   onBlur={() => setEmailTouched(true)}
                   placeholder="name@example.com"
-                  className={`w-full bg-slate-950/70 border rounded-xl pl-10 pr-3 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none transition-colors ${
+                  className={`w-full bg-[#F0F2F5] border rounded-xl pl-10 pr-3 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none transition-colors ${
                     showEmailError
-                      ? 'border-rose-500/80 focus:border-rose-500 bg-rose-950/25 shadow-[0_0_12px_rgba(244,63,94,0.25)]'
-                      : 'border-slate-700/60 focus:border-blue-500'
+                      ? 'border-rose-500 focus:border-rose-600 bg-rose-50'
+                      : 'border-[#E4E6EB] focus:border-[#0866FF]'
                   }`}
                 />
               </div>
 
               {/* Real-time Email Validation: Shows immediately under the email input */}
               {showEmailError && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-rose-400 animate-in fade-in">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-400" />
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-rose-600 animate-in fade-in">
+                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
                   <span className="font-semibold">{emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়'}</span>
                 </div>
               )}
               {emailTouched && email.trim().length > 0 && emailValidation.isValid && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-400 animate-in fade-in">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-400" />
+                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-700 animate-in fade-in">
+                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
                   <span>ইমেইলটি সঠিক ও সক্রিয় ✓</span>
                 </div>
               )}
@@ -465,31 +457,31 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             {mode !== 'forgot' && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-semibold text-slate-300">Password</label>
+                  <label className="text-[11px] font-semibold text-black">Password</label>
                   {mode === 'login' && (
                     <button
                       type="button"
                       onClick={() => setMode('forgot')}
-                      className="text-[10px] text-sky-400 hover:underline"
+                      className="text-[10px] text-[#0866FF] hover:underline"
                     >
                       Forgot password?
                     </button>
                   )}
                 </div>
                 <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 text-slate-400 absolute left-3.5" />
+                  <Lock className="w-4 h-4 text-[#65676B] absolute left-3.5" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
-                    className="w-full bg-slate-950/70 border border-slate-700/60 rounded-xl pl-10 pr-10 py-2.5 text-xs text-white placeholder-slate-500 focus:outline-none focus:border-blue-500 transition-colors"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-10 pr-10 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 p-1 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                    className="absolute right-3 p-1 text-[#65676B] hover:text-black transition-colors cursor-pointer"
                     title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -501,7 +493,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 rounded-xl bg-blue-600 hover:bg-blue-500 active:scale-[0.99] text-white font-bold text-xs shadow-[0_0_20px_rgba(37,99,235,0.45)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
+              className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-blue-600 active:scale-[0.99] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
             >
               {loading ? (
                 <>
@@ -511,7 +503,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
               ) : (
                 <>
                   <span>
-                    {mode === 'login' && 'Sign In to PeaceVerse'}
+                    {mode === 'login' && 'Sign In to Peaceverse24.com'}
                     {mode === 'signup' && 'Create Account'}
                     {mode === 'forgot' && 'Send Reset Link'}
                   </span>
@@ -522,7 +514,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           </form>
 
           {/* Card Footer Switcher */}
-          <div className="mt-5 pt-4 border-t border-slate-800 text-center text-xs text-slate-400">
+          <div className="mt-5 pt-4 border-t border-[#E4E6EB] text-center text-xs text-[#65676B]">
             {mode === 'login' ? (
               <p>
                 Don't have an account yet?{' '}
@@ -532,7 +524,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                     setMode('signup');
                     setErrorMsg('');
                   }}
-                  className="text-sky-400 font-bold hover:underline"
+                  className="text-[#0866FF] font-bold hover:underline"
                 >
                   Sign Up for Free
                 </button>
@@ -546,7 +538,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                     setMode('login');
                     setErrorMsg('');
                   }}
-                  className="text-sky-400 font-bold hover:underline"
+                  className="text-[#0866FF] font-bold hover:underline"
                 >
                   Sign In
                 </button>
@@ -560,7 +552,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                     setMode('login');
                     setErrorMsg('');
                   }}
-                  className="text-sky-400 font-bold hover:underline"
+                  className="text-[#0866FF] font-bold hover:underline"
                 >
                   Back to Sign In
                 </button>
@@ -571,8 +563,8 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="w-full max-w-md mx-auto text-center text-[11px] text-slate-500 z-10">
-        <p>© 2024 PeaceVerse24. All rights reserved.</p>
+      <footer className="w-full max-w-md mx-auto text-center text-[11px] text-[#65676B] z-10">
+        <p>© 2024 Peaceverse24.com — Halal Alternative. All rights reserved.</p>
         <p className="mt-0.5">Secure Firebase Authentication • Privacy Protected</p>
       </footer>
     </div>

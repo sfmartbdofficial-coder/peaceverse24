@@ -20,7 +20,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
   notificationsCount,
 }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white dark:bg-[#121212] border-t border-[#E4E6EB] dark:border-[#222222] px-1 py-1 shadow-md">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white border-t border-[#E4E6EB] px-1 py-1 shadow-md">
       <div className="max-w-[500px] mx-auto flex items-center justify-between">
         
         {/* 1. Home (🏠) */}
@@ -30,7 +30,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            currentTab === 'home' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
+            currentTab === 'home' ? 'text-[#0866FF]' : 'text-[#65676B]'
           }`}
           title="Home"
         >
@@ -44,7 +44,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            currentTab === 'reels' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
+            currentTab === 'reels' ? 'text-[#0866FF]' : 'text-[#65676B]'
           }`}
           title="Video"
         >
@@ -58,13 +58,13 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all relative cursor-pointer ${
-            currentTab === 'friends' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
+            currentTab === 'friends' ? 'text-[#0866FF]' : 'text-[#65676B]'
           }`}
           title="Friends"
         >
           <div className="relative">
             <Users className="w-6 h-6 stroke-[2]" />
-            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white dark:ring-[#121212]">
+            <span className="absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white">
               {friendRequestsCount || 2}
             </span>
           </div>
@@ -77,7 +77,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            currentTab === 'marketplace' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
+            currentTab === 'marketplace' ? 'text-[#0866FF]' : 'text-[#65676B]'
           }`}
           title="Market"
         >
@@ -91,14 +91,14 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all relative cursor-pointer ${
-            currentTab === 'notifications' ? 'text-[#0866FF]' : 'text-[#65676B] dark:text-[#b0b3b8]'
+            currentTab === 'notifications' ? 'text-[#0866FF]' : 'text-[#65676B]'
           }`}
           title="Notifications"
         >
           <div className="relative">
             <Bell className="w-6 h-6 stroke-[2]" />
             {notificationsCount > 0 && (
-              <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white dark:ring-[#121212]">
+              <span className="absolute -top-1.5 -right-2.5 min-w-[18px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white">
                 {notificationsCount > 99 ? '99+' : notificationsCount}
               </span>
             )}

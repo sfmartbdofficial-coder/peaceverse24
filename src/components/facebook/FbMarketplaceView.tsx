@@ -197,14 +197,14 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
   });
 
   return (
-    <div className="max-w-[740px] mx-auto min-h-screen bg-[#F0F2F5] dark:bg-[#121212] text-[#050505] dark:text-[#e4e6eb] pb-24 p-3 sm:p-4 space-y-3.5 font-sans">
+    <div className="max-w-[740px] mx-auto min-h-screen bg-white text-black pb-24 p-3 sm:p-4 space-y-3.5 font-sans">
       {/* Header: Peace Mart Global + Halal Certified Worldwide */}
-      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#E4E6EB] dark:border-[#393a3b]/60">
+      <div className="flex flex-wrap items-center justify-between gap-2 pb-2.5 border-b border-[#E4E6EB]">
         <div className="flex items-center gap-2.5">
           {onBack && (
             <button
               onClick={onBack}
-              className="p-1.5 rounded-full hover:bg-[#E4E6EB] dark:hover:bg-[#3a3b3c] text-[#050505] dark:text-white transition-colors cursor-pointer"
+              className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-black transition-colors cursor-pointer"
               title="Back"
             >
               <ArrowLeft className="w-6 h-6 stroke-[2.5]" />
@@ -212,10 +212,10 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
           )}
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="font-black text-xl sm:text-2xl text-[#050505] dark:text-white">
+              <h1 className="font-black text-xl sm:text-2xl text-black">
                 Peace Mart Global
               </h1>
-              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-600/15 border border-emerald-500/40 text-emerald-700 dark:text-emerald-400 text-[10px] font-bold">
+              <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-600/15 border border-emerald-500/40 text-emerald-700 text-[10px] font-bold">
                 <ShieldCheck className="w-3.5 h-3.5" />
                 <span>Halal Certified Worldwide</span>
               </span>
@@ -236,10 +236,10 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
       </div>
 
       {/* Global Currency Switcher & Payment Methods Strip */}
-      <div className="bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
+      <div className="bg-white border border-[#E4E6EB] rounded-xl p-2.5 flex flex-wrap items-center justify-between gap-2">
         <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
           <Globe className="w-4 h-4 text-[#0866FF] shrink-0" />
-          <span className="text-[11px] font-bold text-[#65676B] dark:text-[#b0b3b8] mr-1">Currency:</span>
+          <span className="text-[11px] font-bold text-[#65676B] mr-1">Currency:</span>
           {(['USD', 'SAR', 'BDT', 'MYR', 'TRY', 'EUR'] as GlobalCurrency[]).map((curr) => (
             <button
               key={curr}
@@ -248,7 +248,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
               className={`px-2.5 py-1 rounded-md text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap tabular-nums ${
                 currency === curr
                   ? 'bg-[#0866FF] text-white'
-                  : 'bg-[#F0F2F5] dark:bg-[#3a3b3c] text-[#050505] dark:text-[#e4e6eb] hover:bg-[#E4E6EB]'
+                  : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB]'
               }`}
             >
               {CURRENCY_CONFIG[curr].flag} {curr}
@@ -256,7 +256,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
           ))}
         </div>
 
-        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+        <div className="flex items-center gap-1.5 text-[10px] font-semibold text-emerald-700">
           <CreditCard className="w-3.5 h-3.5" />
           <span>PayPal • Stripe • bKash • Payoneer</span>
         </div>
@@ -271,7 +271,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
             className={`px-3.5 py-2 rounded-full text-xs font-bold whitespace-nowrap transition-colors cursor-pointer ${
               selectedCategory === cat
                 ? 'bg-[#0866FF] text-white shadow-xs'
-                : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] dark:bg-[#242526] dark:border dark:border-[#393a3b] dark:text-[#b0b3b8] dark:hover:text-white'
+                : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-black'
             }`}
           >
             {cat}
@@ -286,9 +286,9 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
           placeholder="Search Peace Mart Global (Oud, Honey, Prayer Mat, Abaya)..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="w-full bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] rounded-full pl-9 pr-4 py-2 text-xs text-[#050505] dark:text-[#e4e6eb] placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] shadow-xs"
+          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-full pl-9 pr-4 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] shadow-xs"
         />
-        <Search className="w-4 h-4 text-[#65676B] dark:text-[#b0b3b8] absolute left-3 top-2.5" />
+        <Search className="w-4 h-4 text-[#65676B] absolute left-3 top-2.5" />
       </div>
 
       {/* Grid */}
@@ -299,9 +299,9 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
             <div
               key={item.id}
               onClick={() => setSelectedProduct(item)}
-              className="bg-white dark:bg-[#242526] rounded-[8px] border border-[#E4E6EB] dark:border-[#393a3b] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.1)] hover:border-[#0866FF]/60 transition-all flex flex-col justify-between cursor-pointer group"
+              className="bg-white rounded-[8px] border border-[#E4E6EB] overflow-hidden shadow-[0_1px_2px_rgba(0,0,0,0.1)] hover:border-[#0866FF]/60 transition-all flex flex-col justify-between cursor-pointer group"
             >
-              <div className="aspect-square w-full overflow-hidden bg-neutral-100 dark:bg-neutral-800 relative">
+              <div className="aspect-square w-full overflow-hidden bg-neutral-100 relative">
                 <img
                   src={item.image}
                   alt={item.title}
@@ -317,13 +317,13 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
               </div>
 
               <div className="p-3 space-y-1">
-                <p className="font-black text-sm sm:text-base text-[#050505] dark:text-white tabular-nums">
+                <p className="font-black text-sm sm:text-base text-black tabular-nums">
                   {displayPrice}
                 </p>
-                <h3 className="text-xs font-semibold text-[#050505] dark:text-[#e4e6eb] line-clamp-2 leading-tight">
+                <h3 className="text-xs font-semibold text-black line-clamp-2 leading-tight">
                   {item.title}
                 </h3>
-                <p className="text-[10px] text-[#65676B] dark:text-[#b0b3b8] flex items-center gap-1 pt-0.5">
+                <p className="text-[10px] text-[#65676B] flex items-center gap-1 pt-0.5">
                   <MapPin className="w-3 h-3 text-rose-500 shrink-0" />
                   <span className="truncate">{item.location} • {item.sellerName}</span>
                 </p>
@@ -346,9 +346,9 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
 
       {/* PRODUCT DETAILS & GLOBAL CHECKOUT MODAL */}
       {selectedProduct && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-[#242526] w-full max-w-md rounded-2xl border border-[#393a3b] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="relative h-56 bg-neutral-900">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-[#E4E6EB] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 text-black">
+            <div className="relative h-56 bg-[#F0F2F5]">
               <img src={selectedProduct.image} alt={selectedProduct.title} className="w-full h-full object-cover" />
               <span className="absolute top-3 left-3 inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[10px] font-bold shadow">
                 <ShieldCheck className="w-3.5 h-3.5" />
@@ -356,7 +356,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
               </span>
               <button
                 onClick={() => setSelectedProduct(null)}
-                className="absolute top-3 right-3 p-2 rounded-full bg-black/60 text-white hover:bg-black cursor-pointer"
+                className="absolute top-3 right-3 p-2 rounded-full bg-white/90 text-black hover:bg-white shadow cursor-pointer"
               >
                 <X className="w-5 h-5" />
               </button>
@@ -364,23 +364,23 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
 
             <div className="p-4 space-y-3">
               <div className="flex items-baseline justify-between">
-                <h2 className="text-xl font-black text-emerald-400 tabular-nums">
+                <h2 className="text-xl font-black text-emerald-700 tabular-nums">
                   {convertPriceString(selectedProduct.price, currency)}{' '}
-                  <span className="text-xs font-semibold text-[#b0b3b8]">({currency})</span>
+                  <span className="text-xs font-semibold text-[#65676B]">({currency})</span>
                 </h2>
-                <span className="text-xs bg-[#3a3b3c] px-2.5 py-1 rounded-full text-white">
+                <span className="text-xs bg-[#F0F2F5] px-2.5 py-1 rounded-full text-black font-semibold">
                   {selectedProduct.category}
                 </span>
               </div>
 
-              <h1 className="text-base font-bold text-white">{selectedProduct.title}</h1>
+              <h1 className="text-base font-bold text-black">{selectedProduct.title}</h1>
 
-              <div className="text-xs text-[#b0b3b8] space-y-1">
+              <div className="text-xs text-[#65676B] space-y-1">
                 <p className="flex items-center gap-1.5">
                   <MapPin className="w-3.5 h-3.5 text-rose-500" />
                   <span>Ships from: {selectedProduct.location}</span>
                 </p>
-                <p className="flex items-center gap-1.5 text-emerald-400 font-semibold">
+                <p className="flex items-center gap-1.5 text-emerald-700 font-semibold">
                   <ShieldCheck className="w-3.5 h-3.5" />
                   <span>Seller: {selectedProduct.sellerName} (Halal Certified Worldwide)</span>
                 </p>
@@ -388,7 +388,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
 
               {/* Global Checkout Payment Selector */}
               <div className="space-y-1.5 pt-1">
-                <label className="text-[11px] font-bold text-white block">
+                <label className="text-[11px] font-bold text-black block">
                   Select Global Payment Method:
                 </label>
                 <div className="grid grid-cols-2 gap-2">
@@ -399,12 +399,12 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
                       onClick={() => setSelectedPayment(opt.id)}
                       className={`p-2 rounded-xl border text-left transition-all cursor-pointer ${
                         selectedPayment === opt.id
-                          ? 'border-[#0866FF] bg-[#0866FF]/15 text-white ring-1 ring-[#0866FF]'
-                          : 'border-[#393a3b] bg-[#18191a] text-[#b0b3b8] hover:text-white'
+                          ? 'border-[#0866FF] bg-[#E7F3FF] text-black ring-1 ring-[#0866FF]'
+                          : 'border-[#E4E6EB] bg-[#F0F2F5] text-black hover:bg-[#E4E6EB]'
                       }`}
                     >
-                      <p className="text-xs font-bold text-white">{opt.label}</p>
-                      <p className="text-[9px] text-[#b0b3b8] truncate">{opt.desc}</p>
+                      <p className="text-xs font-bold text-black">{opt.label}</p>
+                      <p className="text-[9px] text-[#65676B] truncate">{opt.desc}</p>
                     </button>
                   ))}
                 </div>
@@ -426,10 +426,10 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
 
                 <button
                   onClick={() => {
-                    showToast('Seller contacted via Peaceverse Messenger!');
+                    showToast('Seller contacted via Peaceverse24.com Messenger!');
                     setSelectedProduct(null);
                   }}
-                  className="p-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white cursor-pointer"
+                  className="p-2.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-black cursor-pointer"
                   title="Message Seller"
                 >
                   <MessageCircle className="w-5 h-5" />
@@ -442,21 +442,21 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
 
       {/* SELL PRODUCT MODAL */}
       {showSellModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-[#242526] w-full max-w-lg rounded-2xl border border-[#393a3b] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95">
-            <div className="px-4 py-3 border-b border-[#393a3b] flex items-center justify-between">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl border border-[#E4E6EB] shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 text-black">
+            <div className="px-4 py-3 border-b border-[#E4E6EB] flex items-center justify-between bg-white">
               <div className="flex items-center gap-2">
-                <Tag className="w-5 h-5 text-[#1877F2]" />
-                <h3 className="font-bold text-sm text-white">List Halal Product on Peace Mart Global</h3>
+                <Tag className="w-5 h-5 text-[#0866FF]" />
+                <h3 className="font-bold text-sm text-black">List Halal Product on Peace Mart Global</h3>
               </div>
-              <button onClick={() => setShowSellModal(false)} className="p-1 rounded-full text-[#b0b3b8] hover:text-white">
+              <button onClick={() => setShowSellModal(false)} className="p-1 rounded-full text-[#65676B] hover:bg-[#F0F2F5] hover:text-black">
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <form onSubmit={handleSellSubmit} className="p-4 space-y-3.5 max-h-[80vh] overflow-y-auto">
+            <form onSubmit={handleSellSubmit} className="p-4 space-y-3.5 max-h-[80vh] overflow-y-auto bg-white">
               <div>
-                <label className="block text-xs font-bold text-white mb-1">
+                <label className="block text-xs font-bold text-black mb-1">
                   Product Title <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -465,13 +465,13 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
                   placeholder="e.g. Royal Medjool Dates / Turkish Prayer Rug..."
                   value={newTitle}
                   onChange={(e) => setNewTitle(e.target.value)}
-                  className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                 />
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block text-xs font-bold text-white mb-1">
+                  <label className="block text-xs font-bold text-black mb-1">
                     Price (USD or ৳) <span className="text-rose-500">*</span>
                   </label>
                   <input
@@ -480,16 +480,16 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
                     placeholder="$24.00"
                     value={newPrice}
                     onChange={(e) => setNewPrice(e.target.value)}
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-white mb-1">Category</label>
+                  <label className="block text-xs font-bold text-black mb-1">Category</label>
                   <select
                     value={newCategory}
                     onChange={(e) => setNewCategory(e.target.value)}
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3 py-2 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                   >
                     <option value="খাবার ও মধু">খাবার ও মধু / Organic Food</option>
                     <option value="আতর ও সুগন্ধি">আতর ও সুগন্ধি / Oud</option>
@@ -501,19 +501,19 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-white mb-1">Location / Shipping Region</label>
+                <label className="block text-xs font-bold text-black mb-1">Location / Shipping Region</label>
                 <input
                   type="text"
                   value={newLocation}
                   onChange={(e) => setNewLocation(e.target.value)}
-                  className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl px-3.5 py-2 text-xs text-white focus:outline-none focus:border-[#1877F2]"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-xs text-black focus:outline-none focus:border-[#0866FF]"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-white mb-1.5">Product Photo</label>
+                <label className="block text-xs font-bold text-black mb-1.5">Product Photo</label>
                 <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                  <label className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-[#18191a] border border-dashed border-[#1877F2] text-[#1877F2] cursor-pointer hover:bg-[#1877F2]/10 shrink-0">
+                  <label className="flex flex-col items-center justify-center w-14 h-14 rounded-xl bg-[#F0F2F5] border border-dashed border-[#0866FF] text-[#0866FF] cursor-pointer hover:bg-[#E7F3FF] shrink-0">
                     <Camera className="w-5 h-5" />
                     <span className="text-[8px] font-bold mt-0.5">Upload</span>
                     <input type="file" accept="image/*" className="hidden" onChange={handleImageFile} />
@@ -525,7 +525,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
                       alt="Preset"
                       onClick={() => setNewImage(url)}
                       className={`w-14 h-14 rounded-xl object-cover cursor-pointer border-2 transition-all ${
-                        newImage === url ? 'border-[#1877F2] scale-105' : 'border-transparent opacity-70'
+                        newImage === url ? 'border-[#0866FF] scale-105' : 'border-transparent opacity-70'
                       }`}
                     />
                   ))}
@@ -536,13 +536,13 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowSellModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#3a3b3c] text-xs font-bold text-white cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-black cursor-pointer"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-xs font-bold text-white shadow-lg flex items-center gap-1.5 cursor-pointer"
+                  className="px-5 py-2 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] text-xs font-bold text-white shadow-lg flex items-center gap-1.5 cursor-pointer"
                 >
                   <Check className="w-4 h-4 stroke-[3]" />
                   <span>Publish Product</span>

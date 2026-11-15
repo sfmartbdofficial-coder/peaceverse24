@@ -37,60 +37,60 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="relative w-full max-w-md bg-[#242526] text-white rounded-2xl border border-[#393a3b] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/50 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="relative w-full max-w-md bg-white text-black rounded-2xl border border-[#E4E6EB] shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="relative p-5 pb-4 bg-gradient-to-br from-[#1877F2]/25 via-[#242526] to-[#242526] border-b border-[#393a3b]">
+        <div className="relative p-5 pb-4 bg-white border-b border-[#E4E6EB]">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#1877F2] to-[#0e4fbc] p-0.5 shadow-lg flex-shrink-0">
+            <div className="w-14 h-14 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-[#0e4fbc] p-0.5 shadow-sm flex-shrink-0">
               <img
                 src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
-                alt="Qalby"
+                alt="Peaceverse24.com"
                 className="w-full h-full object-cover rounded-[14px]"
               />
             </div>
             <div>
-              <div className="flex items-center gap-1.5">
-                <h2 className="text-lg font-bold text-white leading-tight">Peaceverse (পিসভার্স) অ্যাপ</h2>
-                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+              <div className="flex items-center gap-1.5 flex-wrap">
+                <h2 className="text-lg font-bold text-black leading-tight">Peaceverse24.com অ্যাপ</h2>
+                <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-50 text-emerald-700 border border-emerald-200">
                   PWA App
                 </span>
               </div>
-              <p className="text-xs text-[#b0b3b8] mt-0.5">
+              <p className="text-xs text-[#65676B] mt-0.5">
                 ১০০% ফ্রি ও সরাসরি ওয়েবসাইট থেকে ইন্সটল করুন
               </p>
             </div>
           </div>
 
           {/* Benefits pills */}
-          <div className="flex items-center gap-2 mt-3 text-[11px] text-[#e4e6eb]">
-            <span className="flex items-center gap-1 bg-[#3a3b3c]/60 px-2.5 py-1 rounded-full border border-[#393a3b]">
-              <Sparkles className="w-3 h-3 text-amber-400" />
+          <div className="flex items-center gap-2 mt-3 text-[11px] text-black flex-wrap">
+            <span className="flex items-center gap-1 bg-[#F0F2F5] px-2.5 py-1 rounded-full border border-[#E4E6EB]">
+              <Sparkles className="w-3 h-3 text-amber-500" />
               কোনো স্টোর ছাড়াই সরাসরি সেভ
             </span>
-            <span className="flex items-center gap-1 bg-[#3a3b3c]/60 px-2.5 py-1 rounded-full border border-[#393a3b]">
-              <ShieldCheck className="w-3 h-3 text-blue-400" />
+            <span className="flex items-center gap-1 bg-[#F0F2F5] px-2.5 py-1 rounded-full border border-[#E4E6EB]">
+              <ShieldCheck className="w-3 h-3 text-[#0866FF]" />
               দ্রুত ও হালকা (Lightweight)
             </span>
           </div>
         </div>
 
         {/* Tab selection */}
-        <div className="flex border-b border-[#393a3b] bg-[#18191a]">
+        <div className="flex border-b border-[#E4E6EB] bg-white">
           <button
             onClick={() => setActiveTab('android')}
-            className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'android'
-                ? 'border-[#1877F2] text-[#1877F2] bg-[#242526]'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF] bg-white'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             <Smartphone className="w-3.5 h-3.5" />
@@ -98,10 +98,10 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
           </button>
           <button
             onClick={() => setActiveTab('ios')}
-            className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'ios'
-                ? 'border-[#1877F2] text-[#1877F2] bg-[#242526]'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF] bg-white'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             <Share2 className="w-3.5 h-3.5" />
@@ -109,10 +109,10 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
           </button>
           <button
             onClick={() => setActiveTab('pc')}
-            className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors ${
+            className={`flex-1 py-2.5 text-xs font-bold flex items-center justify-center gap-1.5 border-b-2 transition-colors cursor-pointer ${
               activeTab === 'pc'
-                ? 'border-[#1877F2] text-[#1877F2] bg-[#242526]'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF] bg-white'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             <Monitor className="w-3.5 h-3.5" />
@@ -121,21 +121,21 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
         </div>
 
         {/* Content Body */}
-        <div className="p-5 overflow-y-auto space-y-4">
+        <div className="p-5 overflow-y-auto space-y-4 bg-white">
           
           {installSuccess ? (
-            <div className="p-5 rounded-2xl bg-emerald-500/10 border border-emerald-500/30 text-center space-y-2">
-              <CheckCircle2 className="w-12 h-12 text-emerald-400 mx-auto" />
-              <h3 className="text-base font-bold text-white">মাশাআল্লাহ! সফলভাবে ইন্সটল হয়েছে!</h3>
-              <p className="text-xs text-[#b0b3b8]">
-                এখন আপনার ফোনের হোম স্ক্রিন থেকে যেকোনো সময় সরাসরি Peaceverse অ্যাপ ওপেন করতে পারবেন।
+            <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2">
+              <CheckCircle2 className="w-12 h-12 text-emerald-600 mx-auto" />
+              <h3 className="text-base font-bold text-black">মাশাআল্লাহ! সফলভাবে ইন্সটল হয়েছে!</h3>
+              <p className="text-xs text-[#65676B]">
+                এখন আপনার ফোনের হোম স্ক্রিন থেকে যেকোনো সময় সরাসরি Peaceverse24.com অ্যাপ ওপেন করতে পারবেন।
               </p>
             </div>
           ) : isInstalled ? (
-            <div className="p-4 rounded-xl bg-blue-500/10 border border-blue-500/30 text-center space-y-1.5">
-              <CheckCircle2 className="w-8 h-8 text-blue-400 mx-auto" />
-              <p className="text-sm font-bold text-white">অ্যাপটি আপনার ডিভাইসে ইতিমধ্যে ইন্সটল করা আছে!</p>
-              <p className="text-xs text-[#b0b3b8]">আপনি সরাসরি অ্যাপ্লিকেশন মোডে এটি ব্যবহার করছেন।</p>
+            <div className="p-4 rounded-xl bg-[#E7F3FF] border border-[#0866FF]/20 text-center space-y-1.5">
+              <CheckCircle2 className="w-8 h-8 text-[#0866FF] mx-auto" />
+              <p className="text-sm font-bold text-black">অ্যাপটি আপনার ডিভাইসে ইতিমধ্যে ইন্সটল করা আছে!</p>
+              <p className="text-xs text-[#65676B]">আপনি সরাসরি অ্যাপ্লিকেশন মোডে এটি ব্যবহার করছেন।</p>
             </div>
           ) : (
             <>
@@ -144,12 +144,12 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
                 <div className="space-y-3">
                   <button
                     onClick={handleDirectInstall}
-                    className="w-full py-3.5 px-4 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-sm shadow-lg flex items-center justify-center gap-2 transition-all cursor-pointer"
+                    className="w-full py-3.5 px-4 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-sm shadow-sm flex items-center justify-center gap-2 transition-all cursor-pointer"
                   >
                     <Download className="w-5 h-5 stroke-[2.5]" />
                     <span>১ ক্লিকে এখনই ইন্সটল করুন</span>
                   </button>
-                  <div className="flex items-center gap-2 justify-center text-[11px] text-[#b0b3b8]">
+                  <div className="flex items-center gap-2 justify-center text-[11px] text-[#65676B]">
                     <span>বা নিচের সহজ ধাপগুলো অনুসরণ করুন:</span>
                   </div>
                 </div>
@@ -158,26 +158,26 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
               {/* Tab 1: Android steps */}
               {activeTab === 'android' && (
                 <div className="space-y-3">
-                  <div className="bg-[#18191a] p-3.5 rounded-xl border border-[#393a3b] space-y-3 text-xs leading-relaxed">
+                  <div className="bg-white p-3.5 rounded-xl border border-[#E4E6EB] space-y-3 text-xs leading-relaxed">
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#1877F2] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
                         ১
                       </div>
                       <div>
-                        <p className="font-semibold text-white">ব্রাউজারের ৩ ডট মেনু চাপুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
+                        <p className="font-semibold text-black">ব্রাউজারের ৩ ডট মেনু চাপুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
                           আপনার Chrome ব্রাউজারের উপরে ডান কোণে থাকা <strong>(⋮) ৩টি ডট</strong> আইকনে চাপ দিন।
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#1877F2] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
                         ২
                       </div>
                       <div>
-                        <p className="font-semibold text-white">‘Install app’ বা ‘হোম স্ক্রিনে যোগ করুন’ সিলেক্ট করুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
+                        <p className="font-semibold text-black">‘Install app’ বা ‘হোম স্ক্রিনে যোগ করুন’ সিলেক্ট করুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
                           মেনু লিস্ট থেকে <strong>&quot;Install app&quot;</strong> অথবা <strong>&quot;Add to Home screen&quot;</strong> অপশনে ট্যাপ করুন।
                         </p>
                       </div>
@@ -188,9 +188,9 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
                         ৩
                       </div>
                       <div>
-                        <p className="font-semibold text-emerald-400">‘ইন্সটল (Install)’ কনফার্ম করুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
-                          পপআপে <strong>Install</strong> চাপলেই আপনার ফোনের অ্যাপ গ্যালারিতে Peaceverse অ্যাপ যোগ হয়ে যাবে।
+                        <p className="font-semibold text-emerald-700">‘ইন্সটল (Install)’ কনফার্ম করুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
+                          পপআপে <strong>Install</strong> চাপলেই আপনার ফোনের অ্যাপ গ্যালারিতে Peaceverse24.com অ্যাপ যোগ হয়ে যাবে।
                         </p>
                       </div>
                     </div>
@@ -201,26 +201,26 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
               {/* Tab 2: iOS Safari steps */}
               {activeTab === 'ios' && (
                 <div className="space-y-3">
-                  <div className="bg-[#18191a] p-3.5 rounded-xl border border-[#393a3b] space-y-3 text-xs leading-relaxed">
+                  <div className="bg-white p-3.5 rounded-xl border border-[#E4E6EB] space-y-3 text-xs leading-relaxed">
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#1877F2] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
                         ১
                       </div>
                       <div>
-                        <p className="font-semibold text-white">সাফারি ব্রাউজারের শেয়ার বাটন চাপুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
+                        <p className="font-semibold text-black">সাফারি ব্রাউজারের শেয়ার বাটন চাপুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
                           সাফারির নিচের টুলবারে থাকা <strong>Share (শেয়ার) 📤</strong> আইকনে চাপ দিন।
                         </p>
                       </div>
                     </div>
 
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#1877F2] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
                         ২
                       </div>
                       <div>
-                        <p className="font-semibold text-white">‘Add to Home Screen’ এ ট্যাপ করুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
+                        <p className="font-semibold text-black">‘Add to Home Screen’ এ ট্যাপ করুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
                           মেনুটি একটু নিচে স্ক্রোল করে <strong>&quot;Add to Home Screen&quot; (➕)</strong> অপশন সিলেক্ট করুন।
                         </p>
                       </div>
@@ -231,9 +231,9 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
                         ৩
                       </div>
                       <div>
-                        <p className="font-semibold text-emerald-400">উপরে ‘Add’ চাপুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
-                          উপরের ডান কোণে থাকা <strong>Add</strong> বাটনে ক্লিক করলেই আপনার আইফোনে Peaceverse অ্যাপ ইন্সটল হয়ে যাবে!
+                        <p className="font-semibold text-emerald-700">উপরে ‘Add’ চাপুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
+                          উপরের ডান কোণে থাকা <strong>Add</strong> বাটনে ক্লিক করলেই আপনার আইফোনে Peaceverse24.com অ্যাপ ইন্সটল হয়ে যাবে!
                         </p>
                       </div>
                     </div>
@@ -244,14 +244,14 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
               {/* Tab 3: PC / Desktop steps */}
               {activeTab === 'pc' && (
                 <div className="space-y-3">
-                  <div className="bg-[#18191a] p-3.5 rounded-xl border border-[#393a3b] space-y-3 text-xs leading-relaxed">
+                  <div className="bg-white p-3.5 rounded-xl border border-[#E4E6EB] space-y-3 text-xs leading-relaxed">
                     <div className="flex items-start gap-3">
-                      <div className="w-6 h-6 rounded-full bg-[#1877F2] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
+                      <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white font-bold flex items-center justify-center text-xs flex-shrink-0">
                         ১
                       </div>
                       <div>
-                        <p className="font-semibold text-white">অ্যাড্রেস বার আইকন চাপুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
+                        <p className="font-semibold text-black">অ্যাড্রেস বার আইকন চাপুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
                           আপনার Chrome/Edge ব্রাউজারের ইউআরএল বারের ডান কোণে থাকা <strong>ইন্সটল আইকন (⊕ বা 💻)</strong> চাপুন।
                         </p>
                       </div>
@@ -262,8 +262,8 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
                         ২
                       </div>
                       <div>
-                        <p className="font-semibold text-emerald-400">‘Install’ এ ক্লিক করুন</p>
-                        <p className="text-[#b0b3b8] text-[11px] mt-0.5">
+                        <p className="font-semibold text-emerald-700">‘Install’ এ ক্লিক করুন</p>
+                        <p className="text-[#65676B] text-[11px] mt-0.5">
                           আপনার কম্পিউটার বা ল্যাপটপের ডেস্কটপে সরাসরি উইন্ডো অ্যাপ হিসেবে শর্টকাট তৈরি হবে।
                         </p>
                       </div>
@@ -275,14 +275,14 @@ export const PWAInstallModal: React.FC<PWAInstallModalProps> = ({ onClose }) => 
           )}
 
           {/* Guarantee Footer */}
-          <div className="pt-2 border-t border-[#393a3b] flex items-center justify-between text-[11px] text-[#b0b3b8]">
-            <span className="flex items-center gap-1 text-emerald-400">
+          <div className="pt-2 border-t border-[#E4E6EB] flex items-center justify-between text-[11px] text-[#65676B]">
+            <span className="flex items-center gap-1 text-emerald-700">
               <CheckCircle2 className="w-3.5 h-3.5" />
               ১০০% নিরাপদ ও মেমোরি সাশ্রয়ী
             </span>
             <button
               onClick={onClose}
-              className="text-[#1877F2] hover:underline font-semibold"
+              className="text-[#0866FF] hover:underline font-semibold cursor-pointer"
             >
               বন্ধ করুন (Close)
             </button>

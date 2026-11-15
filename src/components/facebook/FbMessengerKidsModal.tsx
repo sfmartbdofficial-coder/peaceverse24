@@ -53,40 +53,40 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-[#e4e6eb]">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
+      <div className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-black">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#393a3b] bg-gradient-to-r from-emerald-600/30 to-[#242526]">
+        <div className="flex items-center justify-between p-4 border-b border-[#E4E6EB] bg-white">
           <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-emerald-500 flex items-center justify-center text-white shadow">
+            <div className="w-9 h-9 rounded-full bg-emerald-600 flex items-center justify-center text-white shadow">
               <Shield className="w-5 h-5" />
             </div>
             <div>
               <div className="flex items-center gap-2">
-                <h2 className="font-bold text-base text-white">Messenger Kids</h2>
-                <span className="text-[10px] bg-emerald-500/20 text-emerald-300 border border-emerald-500/40 px-1.5 py-0.2 rounded-full font-bold">
+                <h2 className="font-bold text-base text-black">Messenger Kids</h2>
+                <span className="text-[10px] bg-emerald-50 text-emerald-700 border border-emerald-200 px-1.5 py-0.2 rounded-full font-bold">
                   প্যারেন্টাল সিকিউর
                 </span>
               </div>
-              <p className="text-[11px] text-[#b0b3b8]">শিশুদের জন্য ১০০% নিরাপদ ইসলামিক চ্যাট ও গল্প</p>
+              <p className="text-[11px] text-[#65676B]">শিশুদের জন্য ১০০% নিরাপদ ইসলামিক চ্যাট ও গল্প</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Tab switch */}
-        <div className="flex border-b border-[#393a3b] bg-[#18191a]">
+        <div className="flex border-b border-[#E4E6EB] bg-white">
           <button
             onClick={() => setSelectedKidTab('chat')}
             className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1.5 ${
               selectedKidTab === 'chat'
-                ? 'border-emerald-500 text-emerald-400'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF]'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             <MessageSquare className="w-3.5 h-3.5" />
@@ -96,8 +96,8 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
             onClick={() => setSelectedKidTab('stories')}
             className={`flex-1 py-2.5 text-xs font-bold text-center border-b-2 transition-colors flex items-center justify-center gap-1.5 ${
               selectedKidTab === 'stories'
-                ? 'border-emerald-500 text-emerald-400'
-                : 'border-transparent text-[#b0b3b8] hover:text-white'
+                ? 'border-[#0866FF] text-[#0866FF]'
+                : 'border-transparent text-[#65676B] hover:text-black'
             }`}
           >
             <BookOpen className="w-3.5 h-3.5" />
@@ -106,10 +106,10 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-3">
+        <div className="flex-1 overflow-y-auto p-4 space-y-3 bg-white">
           {selectedKidTab === 'chat' ? (
             <div className="space-y-3">
-              <div className="p-2.5 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-[11px] text-emerald-300 flex items-center gap-2">
+              <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-[11px] text-emerald-800 flex items-center gap-2">
                 <Lock className="w-4 h-4 shrink-0" />
                 <span>এই মোডে কোনো অপরিচিত বা অননুমোদিত ব্যক্তি যোগাযোগ করতে পারবে না।</span>
               </div>
@@ -121,17 +121,17 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
                     key={m.id}
                     className={`flex flex-col ${m.isMe ? 'items-end' : 'items-start'}`}
                   >
-                    <span className="text-[10px] text-[#b0b3b8] px-1 mb-0.5">{m.sender}</span>
+                    <span className="text-[10px] text-[#65676B] px-1 mb-0.5">{m.sender}</span>
                     <div
                       className={`p-3 rounded-2xl max-w-[85%] text-xs font-medium leading-relaxed ${
                         m.isMe
-                          ? 'bg-emerald-600 text-white rounded-tr-none'
-                          : 'bg-[#18191a] text-[#e4e6eb] border border-[#393a3b] rounded-tl-none'
+                          ? 'bg-[#0866FF] text-white rounded-tr-none'
+                          : 'bg-[#F0F2F5] text-black border border-[#E4E6EB] rounded-tl-none'
                       }`}
                     >
                       {m.text}
                     </div>
-                    <span className="text-[9px] text-[#8a8d91] px-1 mt-0.5">{m.time}</span>
+                    <span className="text-[9px] text-[#65676B] px-1 mt-0.5">{m.time}</span>
                   </div>
                 ))}
               </div>
@@ -143,11 +143,11 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
                   placeholder="বার্তা লিখুন..."
                   value={inputMsg}
                   onChange={(e) => setInputMsg(e.target.value)}
-                  className="flex-1 bg-[#18191a] border border-[#393a3b] rounded-xl px-3 py-2 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-emerald-500"
+                  className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                 />
                 <button
                   type="submit"
-                  className="p-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white shadow"
+                  className="p-2 rounded-xl bg-[#0866FF] hover:bg-[#0055D4] text-white shadow"
                 >
                   <Send className="w-4 h-4" />
                 </button>
@@ -158,12 +158,12 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
               {kidStories.map((story, i) => (
                 <div
                   key={i}
-                  className="p-3.5 rounded-2xl bg-[#18191a] border border-[#393a3b] space-y-2"
+                  className="p-3.5 rounded-2xl bg-white border border-[#E4E6EB] space-y-2"
                 >
-                  <h4 className="font-bold text-sm text-emerald-400">{story.title}</h4>
-                  <p className="text-xs text-[#b0b3b8] leading-relaxed">{story.desc}</p>
-                  <div className="p-2 rounded-lg bg-[#242526] text-[11px] text-amber-300 flex items-center gap-1.5">
-                    <Sparkles className="w-3.5 h-3.5" />
+                  <h4 className="font-bold text-sm text-emerald-700">{story.title}</h4>
+                  <p className="text-xs text-[#65676B] leading-relaxed">{story.desc}</p>
+                  <div className="p-2 rounded-lg bg-[#F0F2F5] text-[11px] text-amber-800 flex items-center gap-1.5">
+                    <Sparkles className="w-3.5 h-3.5 text-amber-600" />
                     <span>শিক্ষা: {story.moral}</span>
                   </div>
                 </div>
@@ -173,10 +173,10 @@ export const FbMessengerKidsModal: React.FC<FbMessengerKidsModalProps> = ({ isOp
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#393a3b] bg-[#18191a] text-center">
+        <div className="p-3 border-t border-[#E4E6EB] bg-white text-center">
           <button
             onClick={onClose}
-            className="w-full py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs"
+            className="w-full py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs"
           >
             বন্ধ করুন
           </button>

@@ -78,14 +78,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Mobile Backdrop overlay */}
       {isOpen && (
         <div
-          className="fixed inset-0 z-40 bg-black/70 backdrop-blur-sm lg:hidden transition-opacity"
+          className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden transition-opacity"
           onClick={onClose}
         />
       )}
 
       {/* Mini Sidebar for Desktop (when collapsed) */}
       <aside
-        className={`hidden lg:flex flex-col items-center py-2 bg-[#0f0f0f] border-r border-neutral-800/80 fixed left-0 top-[56px] bottom-0 z-30 transition-all duration-200 ${
+        className={`hidden lg:flex flex-col items-center py-2 bg-white border-r border-[#E4E6EB] fixed left-0 top-[56px] bottom-0 z-30 transition-all duration-200 ${
           isDesktopCollapsed ? 'w-18' : 'w-0 -translate-x-full overflow-hidden pointer-events-none'
         }`}
       >
@@ -98,8 +98,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onClick={() => onTabChange(item.id)}
                 className={`flex flex-col items-center justify-center w-full py-3.5 px-1 rounded-xl transition-colors ${
                   isActive
-                    ? 'text-white bg-neutral-800 font-medium'
-                    : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                    ? 'text-[#0866FF] bg-[#E7F3FF] font-semibold'
+                    : 'text-[#65676B] hover:text-black hover:bg-[#F0F2F5]'
                 }`}
                 title={item.label}
               >
@@ -115,8 +115,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
             onClick={() => onTabChange('library')}
             className={`flex flex-col items-center justify-center w-full py-3.5 px-1 rounded-xl transition-colors ${
               currentTab === 'library'
-                ? 'text-white bg-neutral-800 font-medium'
-                : 'text-neutral-400 hover:text-white hover:bg-neutral-900'
+                ? 'text-[#0866FF] bg-[#E7F3FF] font-semibold'
+                : 'text-[#65676B] hover:text-black hover:bg-[#F0F2F5]'
             }`}
             title="লাইব্রেরি"
           >
@@ -128,28 +128,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
       {/* Full Sidebar (Desktop expanded OR Mobile Drawer) */}
       <aside
-        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-[#0f0f0f] border-r border-neutral-800 flex flex-col transition-transform duration-200 ease-in-out ${
+        className={`fixed top-0 bottom-0 left-0 z-50 w-64 bg-white border-r border-[#E4E6EB] flex flex-col transition-transform duration-200 ease-in-out ${
           isOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'
         } ${isDesktopCollapsed ? 'lg:-translate-x-full' : 'lg:translate-x-0 lg:top-[56px]'}`}
       >
         {/* Mobile Header in Drawer */}
-        <div className="flex items-center gap-3 px-4 py-3 border-b border-neutral-800/80 lg:hidden">
+        <div className="flex items-center gap-3 px-4 py-3 border-b border-[#E4E6EB] lg:hidden">
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-neutral-800 text-neutral-300"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B]"
           >
             <Menu className="w-5 h-5" />
           </button>
           <div className="flex items-center gap-2">
-            <div className="w-7 h-7 rounded-lg overflow-hidden border border-emerald-500/40">
+            <div className="w-7 h-7 rounded-lg overflow-hidden border border-[#E4E6EB]">
               <img
                 src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
-                alt="Qalby"
+                alt="Peaceverse24.com"
                 className="w-full h-full object-cover"
               />
             </div>
-            <span className="font-extrabold text-lg text-white">
-              Qalby <span className="text-emerald-400 font-arabic text-sm">قلبي</span>
+            <span className="font-extrabold text-base text-[#0866FF]">
+              Peaceverse24.com
             </span>
           </div>
         </div>
@@ -169,11 +169,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   className={`w-full flex items-center gap-4 px-3 py-2.5 rounded-xl font-medium transition-colors text-left ${
                     isActive
-                      ? 'bg-neutral-800 text-white font-semibold'
-                      : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white'
+                      ? 'bg-[#E7F3FF] text-[#0866FF] font-semibold'
+                      : 'text-black hover:bg-[#F0F2F5]'
                   }`}
                 >
-                  <span className={isActive ? 'text-emerald-400' : 'text-neutral-400'}>
+                  <span className={isActive ? 'text-[#0866FF]' : 'text-[#65676B]'}>
                     {item.icon}
                   </span>
                   <span className="truncate">{item.label}</span>
@@ -182,11 +182,11 @@ export const Sidebar: React.FC<SidebarProps> = ({
             })}
           </div>
 
-          <div className="border-t border-neutral-800/80 pt-2" />
+          <div className="border-t border-[#E4E6EB] pt-2" />
 
           {/* Section: You (আপনি) */}
           <div className="space-y-0.5">
-            <div className="flex items-center justify-between px-3 py-1 text-neutral-400 font-bold uppercase tracking-wider text-[11px]">
+            <div className="flex items-center justify-between px-3 py-1 text-[#65676B] font-bold uppercase tracking-wider text-[11px]">
               <span>আপনি (You)</span>
               <ChevronRight className="w-3.5 h-3.5" />
             </div>
@@ -202,22 +202,22 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   }}
                   className={`w-full flex items-center gap-4 px-3 py-2.5 rounded-xl transition-colors text-left ${
                     isActive
-                      ? 'bg-neutral-800 text-white font-semibold'
-                      : 'text-neutral-300 hover:bg-neutral-800/60 hover:text-white'
+                      ? 'bg-[#E7F3FF] text-[#0866FF] font-semibold'
+                      : 'text-black hover:bg-[#F0F2F5]'
                   }`}
                 >
-                  <span className="text-neutral-400">{item.icon}</span>
+                  <span className={isActive ? 'text-[#0866FF]' : 'text-[#65676B]'}>{item.icon}</span>
                   <span className="truncate">{item.label}</span>
                 </button>
               );
             })}
           </div>
 
-          <div className="border-t border-neutral-800/80 pt-2" />
+          <div className="border-t border-[#E4E6EB] pt-2" />
 
           {/* Section: Subscriptions (সাবস্ক্রিপশন চ্যানেল) */}
           <div className="space-y-1">
-            <div className="px-3 py-1 text-neutral-400 font-bold uppercase tracking-wider text-[11px]">
+            <div className="px-3 py-1 text-[#65676B] font-bold uppercase tracking-wider text-[11px]">
               সাবস্ক্রিপশন (Channels)
             </div>
 
@@ -228,12 +228,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onSelectChannel(ch.name);
                   onClose();
                 }}
-                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-neutral-300 hover:bg-neutral-800/60 hover:text-white transition-colors group text-left"
+                className="w-full flex items-center gap-3 px-3 py-2 rounded-xl text-black hover:bg-[#F0F2F5] transition-colors group text-left"
               >
                 <img
                   src={ch.avatar}
                   alt={ch.name}
-                  className="w-6 h-6 rounded-full object-cover border border-neutral-700"
+                  className="w-6 h-6 rounded-full object-cover border border-[#E4E6EB]"
                 />
                 <span className="truncate flex-1 text-xs">{ch.name}</span>
                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0" />
@@ -245,18 +245,18 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 onTabChange('subscriptions');
                 onClose();
               }}
-              className="w-full text-left px-3 py-1.5 text-emerald-400 hover:text-emerald-300 font-medium text-xs flex items-center gap-1"
+              className="w-full text-left px-3 py-1.5 text-[#0866FF] hover:underline font-medium text-xs flex items-center gap-1"
             >
               <span>সকল চ্যানেল দেখুন</span>
               <ChevronRight className="w-3 h-3" />
             </button>
           </div>
 
-          <div className="border-t border-neutral-800/80 pt-2" />
+          <div className="border-t border-[#E4E6EB] pt-2" />
 
           {/* Section: Explore (এক্সপ্লোর / অন্বেষণ) */}
           <div className="space-y-1">
-            <div className="px-3 py-1 text-neutral-400 font-bold uppercase tracking-wider text-[11px]">
+            <div className="px-3 py-1 text-[#65676B] font-bold uppercase tracking-wider text-[11px]">
               অন্বেষণ (Explore)
             </div>
 
@@ -268,7 +268,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   onTabChange('home');
                   onClose();
                 }}
-                className="w-full flex items-center gap-3.5 px-3 py-2 rounded-xl text-neutral-300 hover:bg-neutral-800/60 hover:text-white transition-colors text-left"
+                className="w-full flex items-center gap-3.5 px-3 py-2 rounded-xl text-black hover:bg-[#F0F2F5] transition-colors text-left"
               >
                 {cat.icon}
                 <span className="truncate text-xs">{cat.label}</span>
@@ -276,23 +276,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
             ))}
           </div>
 
-          <div className="border-t border-neutral-800/80 pt-2" />
+          <div className="border-t border-[#E4E6EB] pt-2" />
 
           {/* Section: 100% Halal Guarantee Badge */}
-          <div className="p-3 rounded-xl bg-gradient-to-br from-emerald-950/70 via-neutral-900 to-black border border-emerald-500/40">
-            <div className="flex items-center gap-1.5 text-emerald-400 font-bold text-xs mb-1">
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200">
+            <div className="flex items-center gap-1.5 text-emerald-700 font-bold text-xs mb-1">
               <ShieldCheck className="w-4 h-4 flex-shrink-0" />
               <span>১০০% হালাল গ্যারান্টি</span>
             </div>
-            <p className="text-[11px] text-neutral-400 leading-relaxed font-bengali">
-              কলবী প্ল্যাটফর্ম সম্পূর্ণ বাদ্যযন্ত্র, অশ্লীলতা ও বিভ্রান্তিমুক্ত বিশুদ্ধ ইসলামিক কনটেন্টের প্রতিশ্রুতি দেয়।
+            <p className="text-[11px] text-[#65676B] leading-relaxed font-bengali">
+              Peaceverse24.com সম্পূর্ণ বাদ্যযন্ত্র, অশ্লীলতা ও বিভ্রান্তিমুক্ত বিশুদ্ধ ইসলামিক কনটেন্টের প্রতিশ্রুতি দেয়।
             </p>
             <button
               onClick={() => {
                 onOpenHalalPolicy();
                 onClose();
               }}
-              className="mt-2 text-[10px] text-emerald-300 hover:underline flex items-center gap-1 font-semibold"
+              className="mt-2 text-[10px] text-emerald-700 hover:underline flex items-center gap-1 font-semibold"
             >
               <span>হালাল নীতি ও সনদ পড়ুন</span>
               <ChevronRight className="w-3 h-3" />
@@ -300,9 +300,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
 
           {/* Footer Info */}
-          <div className="px-3 py-2 text-[10px] text-neutral-500 space-y-1">
-            <p>Qalby (قلبي) - The Halal Alternative to YouTube.</p>
-            <p>© 2026 Qalby Inc. শান্তি ও বরকতময় প্ল্যাটফর্ম।</p>
+          <div className="px-3 py-2 text-[10px] text-[#65676B] space-y-1">
+            <p>Peaceverse24.com — Halal Alternative.</p>
+            <p>© 2026 Peaceverse24.com. শান্তি ও বরকতময় প্ল্যাটফর্ম।</p>
           </div>
         </div>
       </aside>

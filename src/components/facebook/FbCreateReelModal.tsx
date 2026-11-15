@@ -131,7 +131,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-[#18191a] text-white flex flex-col animate-in fade-in">
+    <div className="fixed inset-0 z-50 bg-white text-black flex flex-col animate-in fade-in">
       
       {/* Hidden file input for videos */}
       <input
@@ -143,20 +143,20 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       />
 
       {/* 1. Header matching Screenshot 4 */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#393a3b] bg-[#242526]">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E6EB] bg-white">
         <button
           onClick={onClose}
-          className="p-1 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+          className="p-1 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
           title="বন্ধ করুন"
         >
           <X className="w-6 h-6 stroke-[2.5]" />
         </button>
 
-        <h1 className="text-base font-bold text-white">Create reel</h1>
+        <h1 className="text-base font-bold text-black">Create reel</h1>
 
         <button
           onClick={() => {}}
-          className="p-1.5 rounded-full text-white hover:bg-[#3a3b3c] transition-colors"
+          className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
           title="Settings"
         >
           <Settings className="w-5 h-5" />
@@ -164,17 +164,17 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       </div>
 
       {/* 2. Circular Action Buttons matching Screenshot 4: [ Camera ] [ Music ] [ Templates ] [ Drafts ] [ Green screen ] */}
-      <div className="px-3 py-4 bg-[#18191a] border-b border-[#393a3b]">
+      <div className="px-3 py-4 bg-white border-b border-[#E4E6EB]">
         <div className="flex items-center justify-around max-w-md mx-auto">
           {/* Camera */}
           <button
             onClick={() => fileInputRef.current?.click()}
             className="flex flex-col items-center gap-1.5 group"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#3a3b3c] group-hover:bg-[#4e4f50] flex items-center justify-center text-white transition-colors">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <Camera className="w-6 h-6 stroke-[2]" />
             </div>
-            <span className="text-xs font-semibold text-[#e4e6eb]">Camera</span>
+            <span className="text-xs font-semibold text-black">Camera</span>
           </button>
 
           {/* Music */}
@@ -182,10 +182,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
             onClick={() => {}}
             className="flex flex-col items-center gap-1.5 group"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#3a3b3c] group-hover:bg-[#4e4f50] flex items-center justify-center text-white transition-colors">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <Music className="w-6 h-6 stroke-[2]" />
             </div>
-            <span className="text-xs font-semibold text-[#e4e6eb]">Music</span>
+            <span className="text-xs font-semibold text-black">Music</span>
           </button>
 
           {/* Templates */}
@@ -193,10 +193,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
             onClick={() => {}}
             className="flex flex-col items-center gap-1.5 group"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#3a3b3c] group-hover:bg-[#4e4f50] flex items-center justify-center text-white transition-colors">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <PlusCircle className="w-6 h-6 stroke-[2]" />
             </div>
-            <span className="text-xs font-semibold text-[#e4e6eb]">Templates</span>
+            <span className="text-xs font-semibold text-black">Templates</span>
           </button>
 
           {/* Drafts */}
@@ -204,10 +204,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
             onClick={() => {}}
             className="flex flex-col items-center gap-1.5 group"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#3a3b3c] group-hover:bg-[#4e4f50] flex items-center justify-center text-white transition-colors">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <FileText className="w-6 h-6 stroke-[2]" />
             </div>
-            <span className="text-xs font-semibold text-[#e4e6eb]">Drafts</span>
+            <span className="text-xs font-semibold text-black">Drafts</span>
           </button>
 
           {/* Green screen */}
@@ -215,29 +215,29 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
             onClick={() => {}}
             className="flex flex-col items-center gap-1.5 group"
           >
-            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#3a3b3c] group-hover:bg-[#4e4f50] flex items-center justify-center text-white transition-colors">
+            <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <Scan className="w-6 h-6 stroke-[2]" />
             </div>
-            <span className="text-xs font-semibold text-[#e4e6eb]">Green screen</span>
+            <span className="text-xs font-semibold text-black">Green screen</span>
           </button>
         </div>
       </div>
 
       {/* 3. Subheader: "Gallery ⌄" + "Select multiple" */}
-      <div className="flex items-center justify-between px-4 py-3 bg-[#18191a] sticky top-0 z-20 border-b border-[#393a3b]">
+      <div className="flex items-center justify-between px-4 py-3 bg-white sticky top-0 z-20 border-b border-[#E4E6EB]">
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="flex items-center gap-1.5 cursor-pointer hover:text-white"
+          className="flex items-center gap-1.5 cursor-pointer hover:text-[#0866FF]"
           title="আপনার ফোনের ভিডিও গ্যালারি খুলুন"
         >
-          <span className="font-bold text-sm text-white">Gallery</span>
-          <ChevronDown className="w-4 h-4 text-[#b0b3b8]" />
+          <span className="font-bold text-sm text-black">Gallery</span>
+          <ChevronDown className="w-4 h-4 text-[#65676B]" />
         </button>
 
         <div className="flex items-center gap-2">
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 rounded-full bg-[#1877F2] hover:bg-[#166fe5] text-xs font-bold text-white flex items-center gap-1.5 transition-colors shadow-sm"
+            className="px-3 py-1.5 rounded-full bg-[#0866FF] hover:bg-[#166fe5] text-xs font-bold text-white flex items-center gap-1.5 transition-colors shadow-sm"
           >
             <Upload className="w-3.5 h-3.5" />
             <span>ফোনের ভিডিও খুলুন</span>
@@ -245,7 +245,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
           <button
             onClick={() => fileInputRef.current?.click()}
-            className="px-3 py-1.5 rounded-full bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-semibold text-white transition-colors"
+            className="px-3 py-1.5 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-semibold text-black transition-colors"
           >
             Select multiple
           </button>
@@ -253,35 +253,35 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       </div>
 
       {/* Prominent Device Video Banner */}
-      <div className="p-3 bg-[#242526] border-b border-[#393a3b] flex items-center justify-between">
+      <div className="p-3 bg-white border-b border-[#E4E6EB] flex items-center justify-between">
         <div className="flex items-center gap-2.5">
-          <div className="w-9 h-9 rounded-xl bg-purple-500/20 text-purple-400 flex items-center justify-center">
+          <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
             <Film className="w-5 h-5" />
           </div>
           <div>
-            <p className="text-xs font-bold text-white">আপনার মোবাইল বা পিসির ভিডিও</p>
-            <p className="text-[10px] text-[#b0b3b8]">নিজস্ব রিলস ভিডিও আপলোড করুন</p>
+            <p className="text-xs font-bold text-black">আপনার মোবাইল বা পিসির ভিডিও</p>
+            <p className="text-[10px] text-[#65676B]">নিজস্ব রিলস ভিডিও আপলোড করুন</p>
           </div>
         </div>
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="px-3 py-1.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs font-bold text-white border border-[#4e4f50]"
+          className="px-3 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-black border border-[#CCD0D5]"
         >
           ভিডিও বাছুন
         </button>
       </div>
 
       {/* 4. Video Gallery Grid matching Screenshot 4 */}
-      <div className="flex-1 overflow-y-auto no-scrollbar p-1 grid grid-cols-3 gap-1">
+      <div className="flex-1 overflow-y-auto no-scrollbar p-1 grid grid-cols-3 gap-1 bg-white">
         {/* Device Video Big Tile */}
         <button
           onClick={() => fileInputRef.current?.click()}
-          className="aspect-[9/16] bg-gradient-to-br from-purple-900/30 to-[#242526] hover:from-purple-900/50 flex flex-col items-center justify-center gap-2 transition-all border-2 border-dashed border-purple-500/60 p-2"
+          className="aspect-[9/16] bg-purple-50 hover:bg-purple-100 flex flex-col items-center justify-center gap-2 transition-all border-2 border-dashed border-purple-400 p-2"
         >
           <div className="w-10 h-10 rounded-full bg-purple-600 flex items-center justify-center text-white shadow-md">
             <Upload className="w-5 h-5 stroke-[2.5]" />
           </div>
-          <span className="text-[10px] font-bold text-white text-center leading-tight">
+          <span className="text-[10px] font-bold text-black text-center leading-tight">
             আপনার গ্যালারি<br />(Open Gallery)
           </span>
         </button>
@@ -291,9 +291,9 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           <div
             key={`up-vid-${idx}`}
             onClick={() => handlePublishReel(vid.url, vid.title)}
-            className="aspect-[9/16] relative overflow-hidden bg-neutral-900 group cursor-pointer border border-[#393a3b]"
+            className="aspect-[9/16] relative overflow-hidden bg-[#F0F2F5] group cursor-pointer border border-[#E4E6EB]"
           >
-            <div className="w-full h-full flex items-center justify-center bg-black/60">
+            <div className="w-full h-full flex items-center justify-center bg-black/50">
               <Play className="w-8 h-8 text-white fill-current" />
             </div>
             <span className="absolute top-1.5 right-1.5 bg-black/75 text-[10px] px-1.5 py-0.5 rounded text-white font-mono">
@@ -310,7 +310,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           <div
             key={item.id}
             onClick={() => handlePublishReel(item.videoUrl, item.title, item.arabic)}
-            className="aspect-[9/16] relative overflow-hidden bg-neutral-900 group cursor-pointer border border-[#2a2b2c]"
+            className="aspect-[9/16] relative overflow-hidden bg-[#F0F2F5] group cursor-pointer border border-[#E4E6EB]"
           >
             <img
               src={item.thumbnail}
@@ -318,7 +318,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
               className="w-full h-full object-cover group-hover:scale-105 transition-transform"
             />
             {/* Play icon overlay */}
-            <div className="absolute inset-0 bg-black/30 group-hover:bg-black/10 flex items-center justify-center transition-colors">
+            <div className="absolute inset-0 bg-black/25 group-hover:bg-black/10 flex items-center justify-center transition-colors">
               <div className="w-8 h-8 rounded-full bg-black/60 flex items-center justify-center text-white">
                 <Play className="w-4 h-4 fill-current ml-0.5" />
               </div>

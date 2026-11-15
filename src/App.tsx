@@ -37,7 +37,9 @@ import { FbMessengerModal } from './components/facebook/FbMessengerModal';
 import { FbSavedPostsView } from './components/facebook/FbSavedPostsView';
 import { FbGroupsView } from './components/facebook/FbGroupsView';
 import { FbPagesView } from './components/facebook/FbPagesView';
+import { FbFeedsView } from './components/facebook/FbFeedsView';
 import { FbMemoriesView } from './components/facebook/FbMemoriesView';
+import { FbSearchEmptyState } from './components/facebook/FbSearchEmptyState';
 import { PeaceThreadsView } from './components/facebook/PeaceThreadsView';
 import { PeaceInstaView } from './components/facebook/PeaceInstaView';
 import { PeaceBusinessSuiteView } from './components/facebook/PeaceBusinessSuiteView';
@@ -87,6 +89,7 @@ import {
   saveUserProfileToFirestore,
   fetchUserProfileFromFirestore,
   fetchUserProfileByNameFromFirestore,
+  logUserActivity,
 } from './lib/firebase';
 import {
   registerPushServiceWorker,
@@ -137,6 +140,13 @@ export default function App() {
     return null;
   });
   const [selectedPageIdToOpen, setSelectedPageIdToOpen] = useState<string | null>(null);
+  const [initialCreatePageName, setInitialCreatePageName] = useState<string | null>(null);
+
+  const handleCreatePageWithName = (name: string) => {
+    setInitialCreatePageName(name);
+    setSearchQuery('');
+    navigateToTab('pages');
+  };
 
   const handleSwitchToPage = (page: PageItem) => {
     setActiveSwitchedPage(page);
@@ -185,22 +195,14 @@ export default function App() {
   const [cashoutRequests, setCashoutRequests] = useState<GoldenCashoutRequest[]>(() => {
     try {
       const saved = localStorage.getItem('qalby_golden_cashouts');
-      if (saved) return JSON.parse(saved);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          return parsed.filter((r: GoldenCashoutRequest) => r.id !== 'cashout-sample-1');
+        }
+      }
     } catch {}
-    return [
-      {
-        id: 'cashout-sample-1',
-        userId: 'user-me',
-        userName: 'Siddik',
-        userAvatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
-        coinsAmount: 50,
-        moneyAmount: 50,
-        paymentMethod: 'bkash',
-        accountNumber: '01712345678',
-        status: 'pending',
-        requestedAt: new Date(Date.now() - 3600000 * 5).toISOString(),
-      },
-    ];
+    return [];
   });
 
   const persistCashouts = (reqs: GoldenCashoutRequest[]) => {
@@ -275,11 +277,11 @@ export default function App() {
           name: resolvedName,
           email: usr.email || prev.email,
           avatar: resolvedAvatar,
-          friendsCount: prev.friendsCount || 331,
-          location: prev.location || 'Dhaka, Bangladesh',
-          hometown: prev.hometown || 'Dhaka, Bangladesh',
-          birthDate: prev.birthDate || 'August 17, 1991',
-          relationship: prev.relationship || 'Married',
+          friendsCount: prev.friendsCount || 0,
+          location: prev.location || '',
+          hometown: prev.hometown || '',
+          birthDate: prev.birthDate || '',
+          relationship: prev.relationship || '',
         }));
 
         fetchUserProfileFromFirestore(usr.uid).then((remote) => {
@@ -394,9 +396,15 @@ export default function App() {
         return {
           ...USER_PROFILE,
           ...parsed,
-          friendsCount: parsed.friendsCount === 330 ? 0 : (parsed.friendsCount || 0),
+          name: parsed.name === 'Sharif Hasan' ? 'Member' : (parsed.name || 'Member'),
+          friendsCount: parsed.friendsCount === 330 || parsed.friendsCount === 331 ? 0 : (parsed.friendsCount || 0),
           bio: parsed.bio && parsed.bio.includes('আলহামদুলিল্লাহ আলা কুল্লি হাল') ? '' : (parsed.bio || ''),
           location: parsed.location && parsed.location === 'Dhaka, Bangladesh' ? '' : (parsed.location || ''),
+          hometown: parsed.hometown && parsed.hometown === 'Dhaka, Bangladesh' ? '' : (parsed.hometown || ''),
+          birthDate: parsed.birthDate && parsed.birthDate === 'August 17, 1991' ? '' : (parsed.birthDate || ''),
+          relationship: parsed.relationship && parsed.relationship === 'Married' ? '' : (parsed.relationship || ''),
+          goldenCoins: parsed.goldenCoins === 120 ? 0 : (parsed.goldenCoins ?? 0),
+          earnedCoins: parsed.earnedCoins === 65 ? 0 : (parsed.earnedCoins ?? 0),
         };
       }
       return USER_PROFILE;
@@ -446,29 +454,13 @@ export default function App() {
     return chatFriends.reduce((sum, f) => sum + (f.unreadCount || 0), 0);
   }, [chatFriends]);
 
-  // Theme State: Default is LIGHT/WHITE theme for international users
-  const [isDarkMode, setIsDarkMode] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('peaceverse_dark_mode') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
+  // Light Mode Only: ensure no dark class or cached dark flag remains
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.classList.add('dark');
-    } else {
-      document.documentElement.classList.remove('dark');
-    }
-  }, [isDarkMode]);
-
-  const handleToggleDarkMode = (val: boolean) => {
-    setIsDarkMode(val);
+    document.documentElement.classList.remove('dark');
     try {
-      localStorage.setItem('peaceverse_dark_mode', String(val));
+      localStorage.removeItem('peaceverse_dark_mode');
     } catch {}
-  };
+  }, []);
 
   // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
   const [stories, setStories] = useState<StoryItem[]>([]);
@@ -763,6 +755,13 @@ export default function App() {
 
     // Sync to Firestore
     toggleRealtimeReaction(postId, userProfile.name, userProfile.avatar, reaction, currentReaction);
+    if (currentReaction !== reaction) {
+      logUserActivity(
+        userProfile.id,
+        'Reaction',
+        `আপনি একটি পোস্টে ${reaction} রিঅ্যাকশন দিয়েছেন`
+      );
+    }
   };
 
   // Handle post save
@@ -791,11 +790,12 @@ export default function App() {
 
     const post = posts.find((p) => p.id === postId);
     addRealtimeComment(postId, newComment, post?.author.name);
+    logUserActivity(userProfile.id, 'Comment', `মন্তব্য করেছেন: "${text.slice(0, 60)}"`);
   };
 
   // Handle sending golden gift coins
   const handleSendGoldenGift = (postId: string, amount: number, message?: string) => {
-    const currentCoins = userProfile.goldenCoins ?? 120;
+    const currentCoins = userProfile.goldenCoins ?? 0;
     if (currentCoins < amount) {
       return false;
     }
@@ -803,7 +803,7 @@ export default function App() {
     // 1. Deduct coins from sender
     setUserProfile((prev) => ({
       ...prev,
-      goldenCoins: Math.max(0, (prev.goldenCoins ?? 120) - amount),
+      goldenCoins: Math.max(0, (prev.goldenCoins ?? 0) - amount),
     }));
 
     // 2. Update post golden gifts count
@@ -825,7 +825,7 @@ export default function App() {
     if (targetPost && (targetPost.author.name === userProfile.name || targetPost.authorId === userProfile.id)) {
       setUserProfile((prev) => ({
         ...prev,
-        earnedCoins: (prev.earnedCoins ?? 65) + amount,
+        earnedCoins: (prev.earnedCoins ?? 0) + amount,
       }));
     }
 
@@ -975,6 +975,11 @@ export default function App() {
     createRealtimePost(newPost);
     setShowCreatePost(false);
     navigateToTab('home');
+    logUserActivity(
+      userProfile.id,
+      'Post',
+      `নতুন পোস্ট শেয়ার করেছেন${newPost.contentBangla ? `: "${newPost.contentBangla.slice(0, 50)}"` : ''}`
+    );
 
     const prefs = loadPeaceSettings();
     if (prefs.creatorNotifyFollowersOnPost && (newPost.privacy || 'public') === 'public') {
@@ -1018,6 +1023,7 @@ export default function App() {
     createRealtimePost(newReel);
     setShowCreateReel(false);
     navigateToTab('reels');
+    logUserActivity(userProfile.id, 'Reel', 'নতুন ভিডিও রিল আপলোড করেছেন');
 
     const prefs = loadPeaceSettings();
     if (prefs.creatorNotifyFollowersOnPost) {
@@ -1207,11 +1213,11 @@ export default function App() {
   // 1. Loading screen during initial Firebase auth handshake
   if (isAuthChecking) {
     return (
-      <div className="min-h-screen bg-[#030712] flex flex-col items-center justify-center p-4 text-white">
+      <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 text-black">
         <PeaceDoveEmblem size={130} className="mb-4" />
-        <div className="flex items-center gap-2.5 text-sky-400 font-bold text-sm tracking-wide">
-          <span className="w-2.5 h-2.5 rounded-full bg-sky-400 animate-ping" />
-          <span>Connecting to PeaceVerse...</span>
+        <div className="flex items-center gap-2.5 text-[#0866FF] font-bold text-sm tracking-wide">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#0866FF] animate-ping" />
+          <span>Connecting to Peaceverse24.com...</span>
         </div>
       </div>
     );
@@ -1307,39 +1313,33 @@ export default function App() {
   // 5. Internal Peaceverse Mini-Apps (stay inside Peaceverse, no external redirect)
   if (currentPath === '/peace-threads') {
     return (
-      <div className={isDarkMode ? 'dark' : ''}>
-        <PeaceThreadsView
-          userProfile={effectiveProfile}
-          onBack={() => navigateToPath('/home')}
-        />
-      </div>
+      <PeaceThreadsView
+        userProfile={effectiveProfile}
+        onBack={() => navigateToPath('/home')}
+      />
     );
   }
 
   if (currentPath === '/peace-insta') {
     return (
-      <div className={isDarkMode ? 'dark' : ''}>
-        <PeaceInstaView
-          userProfile={effectiveProfile}
-          posts={posts}
-          onBack={() => navigateToPath('/home')}
-        />
-      </div>
+      <PeaceInstaView
+        userProfile={effectiveProfile}
+        posts={posts}
+        onBack={() => navigateToPath('/home')}
+      />
     );
   }
 
   if (currentPath === '/business-suite' || currentPath === '/peace-business') {
     return (
-      <div className={isDarkMode ? 'dark' : ''}>
-        <PeaceBusinessSuiteView
-          onBack={() => navigateToPath('/home')}
-          userProfile={effectiveProfile}
-          onSwitchToPage={(page) => {
-            handleSwitchToPage(page);
-            navigateToPath('/home');
-          }}
-        />
-      </div>
+      <PeaceBusinessSuiteView
+        onBack={() => navigateToPath('/home')}
+        userProfile={effectiveProfile}
+        onSwitchToPage={(page) => {
+          handleSwitchToPage(page);
+          navigateToPath('/home');
+        }}
+      />
     );
   }
 
@@ -1358,18 +1358,14 @@ export default function App() {
   }
 
   if (currentPath === '/qibla') {
-    return (
-      <div className={isDarkMode ? 'dark' : ''}>
-        <GlobalPrayerQiblaView onBack={() => navigateToPath('/home')} />
-      </div>
-    );
+    return <GlobalPrayerQiblaView onBack={() => navigateToPath('/home')} />;
   }
 
   return (
-    <div className={`min-h-screen font-sans ${isDarkMode ? 'dark bg-[#121212] text-[#e4e6eb]' : 'bg-[#F0F2F5] text-[#050505]'} selection:bg-[#0866FF] selection:text-white`}>
+    <div className="min-h-screen font-sans bg-white text-black selection:bg-[#0866FF] selection:text-white">
       
-      {/* 1. Facebook App Top Bar (shown on Home, Reels, Friends, Marketplace with back button if not on home) */}
-      {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && (
+      {/* 1. Facebook App Top Bar (shown on Home, Reels, Marketplace; Friends/Groups/Pages/Feeds/Profile/Notifications/Menu render their own exact FB headers) */}
+      {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && currentTab !== 'groups' && currentTab !== 'friends' && currentTab !== 'pages' && currentTab !== 'feeds' && (
         <FbHeader
           userProfile={userProfile}
           searchQuery={searchQuery}
@@ -1494,7 +1490,7 @@ export default function App() {
             />
 
             {/* Stories & Reels Bar */}
-            <div className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
+            <div className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
               <FbStories
                 stories={stories}
                 onOpenCreateStory={() => setShowCreateStory(true)}
@@ -1503,38 +1499,38 @@ export default function App() {
             </div>
 
             {/* Global Prayer Times, Daily Quran Verse & Qibla Compass Strip */}
-            <div className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
+            <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
               <div className="flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-7 h-7 rounded-lg bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                  <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
                     <Clock className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="text-xs font-bold text-[#050505] dark:text-white truncate">
+                    <p className="text-xs font-bold text-black truncate">
                       {globalCity.flag} {globalCity.city} •{' '}
                       {globalPrayerSchedule
                         ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${globalPrayerSchedule.nextPrayer.time})`
                         : 'Global Prayer Times'}
                     </p>
-                    <p className="text-[10px] text-[#65676B] dark:text-[#b0b3b8] truncate">
-                      Peace World — Halal Alternative to Facebook for 2 Billion Muslims
+                    <p className="text-[10px] text-[#65676B] truncate">
+                      Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims
                     </p>
                   </div>
                 </div>
                 <button
                   type="button"
                   onClick={() => navigateToPath('/qibla')}
-                  className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] dark:bg-[#0866FF]/20 text-[#0866FF] dark:text-sky-300 text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
+                  className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
                 >
                   <Compass className="w-3.5 h-3.5" />
                   <span>Qibla</span>
                 </button>
               </div>
 
-              <div className="p-2 rounded-lg bg-[#F0F2F5] dark:bg-[#242526] flex items-start gap-2 text-[11px]">
-                <BookOpen className="w-3.5 h-3.5 text-emerald-500 shrink-0 mt-0.5" />
-                <p className="text-[#050505] dark:text-[#e4e6eb] leading-snug">
-                  <span className="font-bold text-emerald-600 dark:text-emerald-400">
+              <div className="p-2 rounded-lg bg-[#F0F2F5] flex items-start gap-2 text-[11px]">
+                <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                <p className="text-black leading-snug">
+                  <span className="font-bold text-emerald-700">
                     {getDailyQuranVerse(currentLang).surahRef}:{' '}
                   </span>
                   {getDailyQuranVerse(currentLang).localized}
@@ -1543,13 +1539,13 @@ export default function App() {
             </div>
 
             {/* Filter Tabs matching exact Facebook style */}
-            <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
+            <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
               <button
                 onClick={() => setFeedPrivacyFilter('all')}
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'all'
                     ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
+                    : 'text-[#65676B] hover:text-black'
                 }`}
               >
                 সব পোস্ট
@@ -1559,7 +1555,7 @@ export default function App() {
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'public'
                     ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
+                    : 'text-[#65676B] hover:text-black'
                 }`}
               >
                 পাবলিক
@@ -1569,7 +1565,7 @@ export default function App() {
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'friends'
                     ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
+                    : 'text-[#65676B] hover:text-black'
                 }`}
               >
                 বন্ধুরা
@@ -1579,7 +1575,7 @@ export default function App() {
                 className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
                   feedPrivacyFilter === 'private'
                     ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] dark:text-[#aaaaaa] hover:text-[#050505] dark:hover:text-white'
+                    : 'text-[#65676B] hover:text-black'
                 }`}
               >
                 শুধুমাত্র আমি
@@ -1589,17 +1585,24 @@ export default function App() {
             {/* Posts Feed matching Screenshot 1 */}
             <div className="space-y-2.5">
               {filteredPosts.length === 0 ? (
-                <div className="bg-white dark:bg-[#242526] rounded-[8px] border border-[#E4E6EB] dark:border-[#393a3b] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
-                  <div className="w-14 h-14 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto shadow-sm">
-                    <Sparkles className="w-7 h-7" />
+                searchQuery.trim().length > 0 ? (
+                  <FbSearchEmptyState
+                    query={searchQuery}
+                    onCreatePageWithName={handleCreatePageWithName}
+                  />
+                ) : (
+                  <div className="bg-white rounded-[8px] border border-[#E4E6EB] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
+                    <div className="w-14 h-14 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto shadow-sm">
+                      <Sparkles className="w-7 h-7" />
+                    </div>
+                    <h3 className="text-base font-bold text-black">
+                      No posts yet - Your genuine posts will appear here
+                    </h3>
+                    <p className="text-xs text-[#65676B] max-w-sm mx-auto">
+                      Share your genuine videos, thoughts, and moments using the box above.
+                    </p>
                   </div>
-                  <h3 className="text-base font-bold text-neutral-900 dark:text-white">
-                    No posts yet - Your genuine posts will appear here
-                  </h3>
-                  <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] max-w-sm mx-auto">
-                    Share your genuine videos, thoughts, and moments using the box above.
-                  </p>
-                </div>
+                )
               ) : (
                 <>
                   {visiblePosts.map((post) => (
@@ -1676,16 +1679,23 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 3: Friends (ফ্রেন্ডস ও উম্মাহ - matching badge 6) */}
+        {/* TAB 3: Friends (ফ্রেন্ডস ও উম্মাহ - matching FB Friends) */}
         {currentTab === 'friends' && (
-          <FbFriendsView
-            onBack={goBack}
-            onConfirmRequest={handleConfirmRequest}
-            onDeleteRequest={handleDeleteRequest}
-            currentUserId={userProfile.id || 'user-me'}
-            currentUserName={userProfile.name}
-            currentUserAvatar={userProfile.avatar}
-          />
+          <div className="bg-white min-h-screen">
+            <FbFriendsView
+              onBack={goBack}
+              onConfirmRequest={handleConfirmRequest}
+              onDeleteRequest={handleDeleteRequest}
+              onCreatePageWithName={handleCreatePageWithName}
+              onOpenProfile={() => {
+                setViewedProfile(null);
+                navigateToTab('profile');
+              }}
+              currentUserId={userProfile.id || 'user-me'}
+              currentUserName={userProfile.name}
+              currentUserAvatar={userProfile.avatar}
+            />
+          </div>
         )}
 
         {/* TAB 4: Marketplace (মার্কেটপ্লেস ও হালাল শপ) */}
@@ -1782,8 +1792,6 @@ export default function App() {
               setActiveChatFriend(null);
             }}
             unreadMessagesCount={unreadMessagesCount}
-            isDarkMode={isDarkMode}
-            onToggleDarkMode={handleToggleDarkMode}
             onPublishReel={handleReelCreated}
             onNavigatePath={navigateToPath}
           />
@@ -1805,26 +1813,52 @@ export default function App() {
 
         {/* TAB 9: Groups */}
         {currentTab === 'groups' && (
-          <div className="pt-2 px-2 sm:px-0">
-            <FbGroupsView onBack={goBack} userProfile={userProfile} />
+          <div className="bg-white min-h-screen">
+            <FbGroupsView
+              onBack={goBack}
+              onOpenMenu={() => navigateToTab('menu')}
+              userProfile={userProfile}
+            />
           </div>
         )}
 
         {/* TAB 10: Pages */}
         {currentTab === 'pages' && (
-          <FbPagesView
-            onBack={() => {
-              setSelectedPageIdToOpen(null);
-              goBack();
-            }}
-            userProfile={userProfile}
-            onSwitchToPage={handleSwitchToPage}
-            onBroadcastNotification={addLocalBroadcastNotification}
-            initialSelectedPageId={selectedPageIdToOpen}
-          />
+          <div className="bg-white min-h-screen">
+            <FbPagesView
+              onBack={() => {
+                setSelectedPageIdToOpen(null);
+                setInitialCreatePageName(null);
+                goBack();
+              }}
+              userProfile={userProfile}
+              onSwitchToPage={handleSwitchToPage}
+              onBroadcastNotification={addLocalBroadcastNotification}
+              initialSelectedPageId={selectedPageIdToOpen}
+              initialCreatePageName={initialCreatePageName}
+              onClearInitialCreatePageName={() => setInitialCreatePageName(null)}
+            />
+          </div>
         )}
 
-        {/* TAB 11: Memories */}
+        {/* TAB 11: Feeds (Genuine Facebook White Full-Screen Feeds) */}
+        {currentTab === 'feeds' && (
+          <div className="bg-white min-h-screen">
+            <FbFeedsView
+              posts={posts}
+              userProfile={userProfile}
+              onBack={goBack}
+              onOpenProfile={() => {
+                setViewedProfile(null);
+                navigateToTab('profile');
+              }}
+              onToggleReaction={handleToggleReaction}
+              onAddComment={handleAddComment}
+            />
+          </div>
+        )}
+
+        {/* TAB 12: Memories */}
         {currentTab === 'memories' && (
           <FbMemoriesView onBack={goBack} posts={posts} />
         )}

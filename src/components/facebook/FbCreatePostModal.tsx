@@ -311,7 +311,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                       <Globe className="w-4 h-4 text-[#0866FF] mt-0.5" />
                       <div>
                         <p className="text-xs font-bold text-[#050505]">Public (পাবলিক)</p>
-                        <p className="text-[10px] text-[#65676B]">Peace World এর যেকোনো ব্যক্তি দেখতে পারবে</p>
+                        <p className="text-[10px] text-[#65676B]">Peaceverse24.com এর যেকোনো ব্যক্তি দেখতে পারবে</p>
                       </div>
                     </button>
 
@@ -374,7 +374,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         {isVerifyingHalal && (
           <div className="p-3 bg-[#E7F3FF] border border-[#0866FF]/30 rounded-xl flex items-center gap-2.5 text-xs font-semibold text-[#0866FF]">
             <Loader2 className="w-4 h-4 animate-spin text-[#0866FF]" />
-            <span>Peace World Halal AI কনটেন্ট ও হালাল নীতিমালা যাচাই করছে...</span>
+            <span>Peaceverse24.com Halal AI কনটেন্ট ও হালাল নীতিমালা যাচাই করছে...</span>
           </div>
         )}
 
@@ -704,8 +704,8 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             onClick={() => {
               if (navigator.share) {
                 navigator.share({
-                  title: 'Peace World',
-                  text: content || 'Join Peace World Community',
+                  title: 'Peaceverse24.com',
+                  text: content || 'Join Peaceverse24.com Community',
                   url: window.location.href,
                 }).catch(() => {});
               }

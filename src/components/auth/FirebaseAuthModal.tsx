@@ -112,52 +112,52 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/85 backdrop-blur-md flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl text-[#e4e6eb] flex flex-col">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
+      <div className="bg-white border border-[#E4E6EB] rounded-3xl w-full max-w-md overflow-hidden shadow-2xl text-black flex flex-col">
         
         {/* Header */}
-        <div className="p-5 border-b border-[#393a3b] bg-gradient-to-r from-[#1877F2]/25 via-emerald-600/20 to-[#242526] relative">
+        <div className="p-5 border-b border-[#E4E6EB] bg-white relative">
           <button
             onClick={onClose}
-            className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
 
           <div className="flex items-center gap-3">
-            <div className="w-11 h-11 rounded-2xl bg-[#1877F2] flex items-center justify-center text-white shadow-lg">
+            <div className="w-11 h-11 rounded-2xl bg-[#0866FF] flex items-center justify-center text-white shadow-sm">
               <ShieldCheck className="w-6 h-6 stroke-[2.5]" />
             </div>
             <div>
-              <h2 className="font-extrabold text-lg text-white">
-                {tab === 'login' ? 'Peaceverse-এ লগইন করুন' : tab === 'register' ? 'নতুন অ্যাকাউন্ট খুলুন' : 'পাসওয়ার্ড পুনরুদ্ধার'}
+              <h2 className="font-extrabold text-lg text-black">
+                {tab === 'login' ? 'Peaceverse24.com-এ লগইন করুন' : tab === 'register' ? 'নতুন অ্যাকাউন্ট খুলুন' : 'পাসওয়ার্ড পুনরুদ্ধার'}
               </h2>
-              <p className="text-xs text-[#b0b3b8]">১০০% সুরক্ষিত ফায়ারবেস অথেনটিকেশন</p>
+              <p className="text-xs text-[#65676B]">১০০% সুরক্ষিত ফায়ারবেস অথেনটিকেশন</p>
             </div>
           </div>
 
           {/* Tab Selector */}
-          <div className="flex items-center gap-1 mt-4 bg-[#18191a] p-1 rounded-xl border border-[#393a3b]">
+          <div className="flex items-center gap-1 mt-4 bg-[#F0F2F5] p-1 rounded-xl border border-[#E4E6EB]">
             <button
               onClick={() => { setTab('login'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                tab === 'login' ? 'bg-[#1877F2] text-white shadow' : 'text-[#b0b3b8] hover:text-white'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                tab === 'login' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
               }`}
             >
               লগইন (Sign In)
             </button>
             <button
               onClick={() => { setTab('register'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                tab === 'register' ? 'bg-[#1877F2] text-white shadow' : 'text-[#b0b3b8] hover:text-white'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                tab === 'register' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
               }`}
             >
               নিবন্ধন (Sign Up)
             </button>
             <button
               onClick={() => { setTab('forgot'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                tab === 'forgot' ? 'bg-[#1877F2] text-white shadow' : 'text-[#b0b3b8] hover:text-white'
+              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                tab === 'forgot' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
               }`}
             >
               পাসওয়ার্ড রিকভার
@@ -166,19 +166,19 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
         </div>
 
         {/* Form Body */}
-        <div className="p-5 space-y-4">
+        <div className="p-5 space-y-4 bg-white">
           
           {/* Notifications */}
           {errorMsg && (
-            <div className="p-3 rounded-xl bg-rose-500/15 border border-rose-500/40 text-rose-300 text-xs flex items-center gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 text-rose-400" />
+            <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-center gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
               <span>{errorMsg}</span>
             </div>
           )}
 
           {successMsg && (
-            <div className="p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/40 text-emerald-300 text-xs flex items-center gap-2">
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-400" />
+            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs flex items-center gap-2">
+              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
               <span>{successMsg}</span>
             </div>
           )}
@@ -190,7 +190,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 type="button"
                 onClick={handleGoogleSignIn}
                 disabled={loading}
-                className="w-full py-2.5 px-4 rounded-xl bg-white text-neutral-800 hover:bg-neutral-100 font-bold text-xs flex items-center justify-center gap-2.5 shadow transition-all cursor-pointer disabled:opacity-50"
+                className="w-full py-2.5 px-4 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-black hover:bg-[#E4E6EB] font-bold text-xs flex items-center justify-center gap-2.5 transition-all cursor-pointer disabled:opacity-50"
               >
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
@@ -213,10 +213,10 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 <span>Google একাউন্ট দিয়ে এক ক্লিকে প্রবেশ করুন</span>
               </button>
 
-              <div className="flex items-center gap-3 my-2 text-[11px] text-[#8a8d91]">
-                <div className="flex-1 h-[1px] bg-[#393a3b]" />
+              <div className="flex items-center gap-3 my-2 text-[11px] text-[#65676B]">
+                <div className="flex-1 h-[1px] bg-[#E4E6EB]" />
                 <span>অথবা ইমেইল ব্যবহার করুন</span>
-                <div className="flex-1 h-[1px] bg-[#393a3b]" />
+                <div className="flex-1 h-[1px] bg-[#E4E6EB]" />
               </div>
             </>
           )}
@@ -225,32 +225,32 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
           <form onSubmit={handleEmailAuth} className="space-y-3">
             {tab === 'register' && (
               <div>
-                <label className="text-[11px] font-bold text-[#b0b3b8] mb-1 block">আপনার নাম</label>
+                <label className="text-[11px] font-bold text-black mb-1 block">আপনার নাম</label>
                 <div className="relative flex items-center">
-                  <User className="w-4 h-4 text-[#8a8d91] absolute left-3" />
+                  <User className="w-4 h-4 text-[#65676B] absolute left-3" />
                   <input
                     type="text"
                     required
                     value={displayName}
                     onChange={(e) => setDisplayName(e.target.value)}
                     placeholder="যেমন: শরিফ হাসান"
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-[#65676b] focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                   />
                 </div>
               </div>
             )}
 
             <div>
-              <label className="text-[11px] font-bold text-[#b0b3b8] mb-1 block">ইমেইল ঠিকানা</label>
+              <label className="text-[11px] font-bold text-black mb-1 block">ইমেইল ঠিকানা</label>
               <div className="relative flex items-center">
-                <Mail className="w-4 h-4 text-[#8a8d91] absolute left-3" />
+                <Mail className="w-4 h-4 text-[#65676B] absolute left-3" />
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="name@example.com"
-                  className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl pl-9 pr-3 py-2 text-xs text-white placeholder-[#65676b] focus:outline-none focus:border-[#1877F2]"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                 />
               </div>
             </div>
@@ -258,31 +258,31 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
             {tab !== 'forgot' && (
               <div>
                 <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-bold text-[#b0b3b8]">পাসওয়ার্ড</label>
+                  <label className="text-[11px] font-bold text-black">পাসওয়ার্ড</label>
                   {tab === 'login' && (
                     <button
                       type="button"
                       onClick={() => setTab('forgot')}
-                      className="text-[10px] text-[#1877F2] hover:underline"
+                      className="text-[10px] text-[#0866FF] hover:underline font-semibold"
                     >
                       পাসওয়ার্ড ভুলে গেছেন?
                     </button>
                   )}
                 </div>
                 <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 text-[#8a8d91] absolute left-3" />
+                  <Lock className="w-4 h-4 text-[#65676B] absolute left-3" />
                   <input
                     type={showPassword ? 'text' : 'password'}
                     required
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="কমপক্ষে ৬ অক্ষর"
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl pl-9 pr-9 py-2 text-xs text-white placeholder-[#65676b] focus:outline-none focus:border-[#1877F2]"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-9 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                   />
                   <button
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 p-1 text-[#8a8d91] hover:text-white transition-colors cursor-pointer"
+                    className="absolute right-2.5 p-1 text-[#65676B] hover:text-black transition-colors cursor-pointer"
                     title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
                   >
                     {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
@@ -294,7 +294,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-xs shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+              className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
             >
               {loading ? (
                 <>
@@ -313,14 +313,14 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
           </form>
 
           {/* Bottom Switcher */}
-          <div className="pt-2 text-center text-xs text-[#b0b3b8]">
+          <div className="pt-2 text-center text-xs text-[#65676B]">
             {tab === 'login' ? (
               <p>
                 নতুন ব্যবহারকারী?{' '}
                 <button
                   type="button"
                   onClick={() => setTab('register')}
-                  className="text-[#1877F2] font-bold hover:underline"
+                  className="text-[#0866FF] font-bold hover:underline"
                 >
                   এখনই রেজিস্টার করুন
                 </button>
@@ -331,7 +331,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setTab('login')}
-                  className="text-[#1877F2] font-bold hover:underline"
+                  className="text-[#0866FF] font-bold hover:underline"
                 >
                   লগইন করুন
                 </button>
@@ -342,7 +342,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 <button
                   type="button"
                   onClick={() => setTab('login')}
-                  className="text-[#1877F2] font-bold hover:underline"
+                  className="text-[#0866FF] font-bold hover:underline"
                 >
                   লগইনে ফিরে যান
                 </button>

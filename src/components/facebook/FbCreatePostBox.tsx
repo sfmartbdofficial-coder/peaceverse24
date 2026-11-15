@@ -31,7 +31,7 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
   };
 
   return (
-    <div className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] flex items-center gap-2.5">
+    <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] flex items-center gap-2.5">
       {/* Hidden file input for direct device gallery access */}
       <input
         type="file"
@@ -45,7 +45,7 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       <button
         type="button"
         onClick={onOpenProfile}
-        className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] dark:border-[#222222] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer relative flex items-center justify-center"
+        className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer relative flex items-center justify-center"
         title={activeSwitchedPage ? `${activeSwitchedPage.name} পেজ প্রোফাইল` : "আপনার প্রোফাইল দেখুন (View Profile)"}
       >
         {(activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar) ? (
@@ -65,7 +65,7 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       {/* What's on your mind? Pill button */}
       <button
         onClick={() => onOpenCreateModal()}
-        className="flex-1 text-left bg-[#F0F2F5] hover:bg-[#E4E6EB] dark:bg-[#3A3B3C] dark:hover:bg-[#4E4F50] text-[#65676B] dark:text-[#aaaaaa] text-[15px] py-2.5 px-4 rounded-full transition-colors font-sans truncate cursor-pointer"
+        className="flex-1 text-left bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#65676B] text-[15px] py-2.5 px-4 rounded-full transition-colors font-sans truncate cursor-pointer"
       >
         What&apos;s on your mind?
       </button>
@@ -73,7 +73,7 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       {/* Green Photo Icon on the right */}
       <button
         onClick={() => fileInputRef.current?.click()}
-        className="p-2 text-[#45bd62] hover:bg-[#F0F2F5] dark:hover:bg-[#3A3B3C] rounded-full transition-colors flex-shrink-0 active:scale-95 cursor-pointer"
+        className="p-2 text-[#45bd62] hover:bg-[#F0F2F5] rounded-full transition-colors flex-shrink-0 active:scale-95 cursor-pointer"
         title="আপনার ফোন বা ডিভাইসের গ্যালারি খুলুন"
       >
         <ImageIcon className="w-6 h-6 stroke-[2]" />

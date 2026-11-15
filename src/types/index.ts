@@ -11,6 +11,7 @@ export type FacebookMainTab =
   | 'saved'
   | 'groups'
   | 'pages'
+  | 'feeds'
   | 'memories';
 
 export interface PostComment {

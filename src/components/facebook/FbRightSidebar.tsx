@@ -66,13 +66,13 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
       ];
 
   return (
-    <aside className="hidden xl:block w-80 sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto no-scrollbar p-3 space-y-4">
+    <aside className="hidden xl:block w-80 sticky top-[57px] h-[calc(100vh-57px)] overflow-y-auto no-scrollbar p-3 space-y-4 bg-white text-black">
       
       {/* 1. Global Prayer Times & Qibla Compass Widget */}
-      <div className="bg-[#242526] rounded-2xl border border-[#393a3b] p-3.5 space-y-2.5">
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-xs">
         <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-1.5 text-xs font-bold text-white">
-            <Clock className="w-4 h-4 text-emerald-400" />
+          <div className="flex items-center gap-1.5 text-xs font-bold text-black">
+            <Clock className="w-4 h-4 text-emerald-600" />
             <span>Global Prayer Times</span>
           </div>
           <select
@@ -82,23 +82,23 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
               if (found) setCity(found);
             }}
             aria-label="Select prayer city"
-            className="text-[10px] text-emerald-300 bg-emerald-950 px-2 py-0.5 rounded-full border border-emerald-500/30 outline-none cursor-pointer"
+            className="text-[10px] text-emerald-800 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-200 outline-none cursor-pointer"
           >
             {GLOBAL_CITIES.map((c) => (
-              <option key={c.id} value={c.id} className="bg-[#18191a] text-white">
+              <option key={c.id} value={c.id} className="bg-white text-black">
                 {c.flag} {c.city}
               </option>
             ))}
           </select>
         </div>
 
-        <div className="flex items-center justify-between text-[11px] text-[#b0b3b8]">
+        <div className="flex items-center justify-between text-[11px] text-[#65676B]">
           <span className="flex items-center gap-1">
-            <MapPin className="w-3 h-3 text-sky-400" />
+            <MapPin className="w-3 h-3 text-[#0866FF]" />
             <span>{city.city}, {city.country}</span>
           </span>
           {schedule && (
-            <span className="text-emerald-400 font-semibold tabular-nums">
+            <span className="text-emerald-700 font-semibold tabular-nums">
               Next: {schedule.nextPrayer.name} ({schedule.nextPrayer.time})
             </span>
           )}
@@ -112,8 +112,8 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
                 key={p.name}
                 className={`p-1.5 rounded-lg border text-xs ${
                   isNext
-                    ? 'bg-emerald-950/80 border-emerald-500 text-emerald-300 font-bold ring-1 ring-emerald-400'
-                    : 'bg-[#18191a] border-neutral-800 text-[#b0b3b8]'
+                    ? 'bg-emerald-50 border-emerald-500 text-emerald-800 font-bold ring-1 ring-emerald-400'
+                    : 'bg-[#F0F2F5] border-[#E4E6EB] text-black'
                 }`}
               >
                 <p className="text-[10px]">{p.name}</p>
@@ -127,7 +127,7 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
           <button
             type="button"
             onClick={onOpenQibla}
-            className="w-full py-2 rounded-xl bg-[#0866FF]/15 hover:bg-[#0866FF]/25 border border-[#0866FF]/35 text-[#4EA1FF] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+            className="w-full py-2 rounded-xl bg-[#0866FF]/10 hover:bg-[#0866FF]/20 border border-[#0866FF]/30 text-[#0866FF] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
           >
             <Compass className="w-4 h-4" />
             <span>Open Global Qibla Compass (/qibla)</span>
@@ -136,18 +136,18 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
       </div>
 
       {/* 1.5. Daily Quran Verse in User's Selected Language */}
-      <div className="bg-[#242526] rounded-2xl border border-emerald-500/30 p-3.5 space-y-2">
+      <div className="bg-white rounded-2xl border border-[#E4E6EB] p-3.5 space-y-2 shadow-xs">
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-emerald-400 flex items-center gap-1.5">
+          <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
             <BookOpen className="w-3.5 h-3.5" />
             <span>Daily Quran Verse</span>
           </span>
-          <span className="text-[10px] text-[#b0b3b8]">{dailyVerse.surahRef}</span>
+          <span className="text-[10px] text-[#65676B]">{dailyVerse.surahRef}</span>
         </div>
-        <p className="text-sm font-arabic text-right text-emerald-100 leading-relaxed" dir="rtl">
+        <p className="text-sm font-arabic text-right text-black leading-relaxed" dir="rtl">
           {dailyVerse.arabic}
         </p>
-        <p className="text-xs text-[#e4e6eb] leading-relaxed">
+        <p className="text-xs text-[#65676B] leading-relaxed">
           {dailyVerse.localized}
         </p>
       </div>
@@ -155,14 +155,14 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
       {/* 2. Makkah Live 24/7 Preview Card */}
       <div
         onClick={onOpenWatchLive}
-        className="bg-[#242526] rounded-2xl border border-[#393a3b] hover:border-emerald-500/50 p-3 cursor-pointer group transition-all space-y-2 shadow-sm"
+        className="bg-white rounded-2xl border border-[#E4E6EB] hover:border-emerald-500/50 p-3 cursor-pointer group transition-all space-y-2 shadow-xs"
       >
         <div className="flex items-center justify-between">
-          <span className="text-xs font-bold text-white flex items-center gap-1.5">
+          <span className="text-xs font-bold text-black flex items-center gap-1.5">
             <Radio className="w-4 h-4 text-rose-500 animate-pulse" />
             <span>২৪/৭ সরাসরি লাইভ হারামাইন</span>
           </span>
-          <span className="text-[10px] text-rose-400 font-bold px-1.5 py-0.5 rounded bg-rose-950/80 border border-rose-800">
+          <span className="text-[10px] text-rose-600 font-bold px-1.5 py-0.5 rounded bg-rose-50 border border-rose-200">
             LIVE
           </span>
         </div>
@@ -181,11 +181,11 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
         </div>
       </div>
 
-      <div className="border-t border-[#393a3b]" />
+      <div className="border-t border-[#E4E6EB]" />
 
       {/* 3. Facebook Contacts / Online Muslim Friends */}
       <div className="space-y-1">
-        <div className="flex items-center justify-between px-2 py-1 text-[#b0b3b8] font-bold text-xs uppercase tracking-wider">
+        <div className="flex items-center justify-between px-2 py-1 text-[#65676B] font-bold text-xs uppercase tracking-wider">
           <span>Global Ummah Contacts</span>
           <Users className="w-4 h-4" />
         </div>
@@ -194,27 +194,27 @@ export const FbRightSidebar: React.FC<FbRightSidebarProps> = ({
           <div
             key={friend.id}
             onClick={() => onOpenChatWithFriend(friend)}
-            className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#3a3b3c] cursor-pointer transition-colors"
+            className="flex items-center gap-3 p-2 rounded-xl hover:bg-[#F0F2F5] cursor-pointer transition-colors"
           >
             <div className="relative">
               <img
                 src={friend.avatar}
                 alt={friend.name}
-                className="w-8 h-8 rounded-full object-cover border border-[#393a3b]"
+                className="w-8 h-8 rounded-full object-cover border border-[#E4E6EB]"
               />
               {friend.online && (
-                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-[#242526] rounded-full" />
+                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 bg-emerald-500 border-2 border-white rounded-full" />
               )}
             </div>
 
             <div className="flex-1 min-w-0">
-              <p className="text-xs font-semibold text-[#e4e6eb] truncate">{friend.name}</p>
-              <p className="text-[10px] text-[#b0b3b8] truncate">
+              <p className="text-xs font-semibold text-black truncate">{friend.name}</p>
+              <p className="text-[10px] text-[#65676B] truncate">
                 {friend.online ? 'Active now' : friend.lastSeen}
               </p>
             </div>
 
-            <MessageCircle className="w-4 h-4 text-[#b0b3b8] hover:text-emerald-400" />
+            <MessageCircle className="w-4 h-4 text-[#65676B] hover:text-[#0866FF]" />
           </div>
         ))}
       </div>

@@ -1,212 +1,343 @@
 import React, { useState } from 'react';
-import { X, Gift, Send, Heart, Calendar, Sparkles, Check } from 'lucide-react';
+import { ChevronLeft, ChevronDown, Check, X } from 'lucide-react';
 
-interface BirthdayUser {
+interface RecentBirthdayPerson {
   id: string;
   name: string;
   avatar: string;
-  relation: string;
-  age?: number;
-  isToday: boolean;
-  dateStr: string;
+  dateLabel: string;
+}
+
+interface UpcomingBirthdayPerson {
+  id: string;
+  name: string;
+  avatar: string;
+  dateLabel: string;
 }
 
 interface FbBirthdaysModalProps {
   isOpen: boolean;
   onClose: () => void;
+  userAvatar?: string;
+  userName?: string;
+  onOpenMessenger?: () => void;
+  onOpenProfile?: () => void;
   onSendWish?: (userName: string, wishText: string) => void;
 }
+
+const MessengerGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5' }) => (
+  <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
+    <path d="M12 2C6.36 2 2 6.13 2 11.7c0 2.91 1.19 5.44 3.14 7.17.16.14.26.35.27.57l.05 1.78c.02.57.61.94 1.13.71l1.98-.87c.17-.08.36-.1.55-.06.91.25 1.88.39 2.88.39 5.64 0 10-4.13 10-9.7S17.64 2 12 2zm5.89 7.45-2.94 4.66c-.47.74-1.47.92-2.17.39l-2.34-1.75a.6.6 0 0 0-.72 0l-3.16 2.4c-.42.32-.97-.19-.68-.64l2.94-4.66c.47-.74 1.47-.92 2.17-.39l2.34 1.75c.21.16.51.16.72 0l3.16-2.4c.42-.32.97.19.68.64z" />
+  </svg>
+);
+
+const RECENT_BIRTHDAYS: RecentBirthdayPerson[] = [
+  {
+    id: 'rec-1',
+    name: 'Shohid Shikdae',
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=180&q=80',
+    dateLabel: '3 days ago, November 11',
+  },
+  {
+    id: 'rec-2',
+    name: 'Hm Mobaruk',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=180&q=80',
+    dateLabel: '3 days ago, November 11',
+  },
+];
+
+const UPCOMING_BIRTHDAYS: UpcomingBirthdayPerson[] = [
+  {
+    id: 'up-1',
+    name: 'Alve Mia',
+    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=180&q=80',
+    dateLabel: 'Tomorrow, November 15',
+  },
+  {
+    id: 'up-2',
+    name: 'মেঘলা আকাশ',
+    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=180&q=80',
+    dateLabel: 'Monday, November 16',
+  },
+  {
+    id: 'up-3',
+    name: 'Smart Agrotech',
+    avatar: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=180&q=80',
+    dateLabel: 'Monday, November 16',
+  },
+  {
+    id: 'up-4',
+    name: 'Times Fulbaria',
+    avatar: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=180&q=80',
+    dateLabel: 'Wednesday, November 25',
+  },
+];
+
+const BIRTHDAY_CARD_PRESETS = [
+  { id: 'c1', title: 'Happy Birthday!', bg: 'bg-[#E7F3FF] text-[#1877F2]' },
+  { id: 'c2', title: 'Wishing you joy & health!', bg: 'bg-[#FEF3C7] text-[#B45309]' },
+  { id: 'c3', title: 'Many happy returns of the day!', bg: 'bg-[#ECFDF5] text-[#047857]' },
+];
 
 export const FbBirthdaysModal: React.FC<FbBirthdaysModalProps> = ({
   isOpen,
   onClose,
+  userAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=160&q=80',
+  userName = 'Profile',
+  onOpenMessenger,
+  onOpenProfile,
   onSendWish,
 }) => {
-  const [sentWishes, setSentWishes] = useState<Record<string, boolean>>({});
-  const [customWish, setCustomWish] = useState<Record<string, string>>({});
+  const [drafts, setDrafts] = useState<Record<string, string>>({});
+  const [postedIds, setPostedIds] = useState<Record<string, string>>({});
+  const [cardTarget, setCardTarget] = useState<RecentBirthdayPerson | null>(null);
+  const [toastMsg, setToastMsg] = useState<string | null>(null);
 
   if (!isOpen) return null;
 
-  const birthdays: BirthdayUser[] = [
-    {
-      id: 'b1',
-      name: 'হাসান মাহমুদ (Hasan Mahmud)',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-      relation: 'স্কুলের বন্ধু • ঢাকা',
-      age: 26,
-      isToday: true,
-      dateStr: 'আজকের জন্মদিন',
-    },
-    {
-      id: 'b2',
-      name: 'তানভীর আহমেদ (Tanveer Ahmed)',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80',
-      relation: 'সহকর্মী • সখীপুর',
-      age: 29,
-      isToday: true,
-      dateStr: 'আজকের জন্মদিন',
-    },
-    {
-      id: 'b3',
-      name: 'মাওলানা কামরুল ইসলাম',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-      relation: 'উস্তাদজী • ৫ জন কমন ফ্রেন্ড',
-      isToday: false,
-      dateStr: 'আগামীকাল, ৪ নভেম্বর',
-    },
-    {
-      id: 'b4',
-      name: 'সাদিয়া বিনতে রফিক',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80',
-      relation: 'আত্মীয় • চট্টগ্রাম',
-      isToday: false,
-      dateStr: 'বৃহস্পতিবার, ৬ নভেম্বর',
-    },
-  ];
+  const showToast = (msg: string) => {
+    setToastMsg(msg);
+    setTimeout(() => setToastMsg(null), 2400);
+  };
 
-  const defaultDua = "আল্লাহ তা'আলা আপনার হায়াতে, ঈমানে ও রিযিকে অফুরন্ত বরকত দান করুন। সর্বদা নেক পথে অবিচল রাখুন — শুভ জন্মদিন ভাই! 🤲✨";
+  const handleWritePost = (person: RecentBirthdayPerson) => {
+    const text = (drafts[person.id] || '').trim() || `Happy Birthday, ${person.name}!`;
+    setPostedIds((prev) => ({ ...prev, [person.id]: text }));
+    setDrafts((prev) => ({ ...prev, [person.id]: '' }));
+    onSendWish?.(person.name, text);
+    showToast(`Posted on ${person.name}'s timeline`);
+  };
 
-  const handleSend = (user: BirthdayUser) => {
-    const text = customWish[user.id] || defaultDua;
-    setSentWishes((prev) => ({ ...prev, [user.id]: true }));
-    if (onSendWish) {
-      onSendWish(user.name, text);
+  const handleMessageClick = (name: string) => {
+    if (onOpenMessenger) {
+      onClose();
+      onOpenMessenger();
+    } else {
+      showToast(`Opening Messenger chat with ${name}`);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-[#e4e6eb]">
-        {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#393a3b]">
-          <div className="flex items-center gap-2.5">
-            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-pink-500 to-rose-400 flex items-center justify-center text-white shadow">
-              <Gift className="w-5 h-5" />
-            </div>
-            <div>
-              <h2 className="font-bold text-base text-white">Birthdays (জন্মদিন ও দোয়া)</h2>
-              <p className="text-[11px] text-[#b0b3b8]">বন্ধুদের জন্মদিনে ইসলামিক মোবারকবাদ ও নেক দোয়া পাঠান</p>
-            </div>
-          </div>
+    <div className="fixed inset-0 z-50 bg-white text-[#050505] overflow-y-auto font-sans">
+      <div className="max-w-[700px] mx-auto min-h-screen bg-white pb-12">
+        {/* 1. HEADER: Left "<" back arrow | Center "Birthdays" bold black | Right profile pic with dropdown */}
+        <header className="sticky top-0 z-20 bg-white h-[54px] px-3 flex items-center justify-between border-b border-[#E4E6EB]">
           <button
+            type="button"
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="w-10 h-10 -ml-1 rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
+            aria-label="Back"
+            title="Back"
           >
-            <X className="w-5 h-5" />
+            <ChevronLeft className="w-7 h-7 stroke-[2.2]" />
           </button>
-        </div>
 
-        {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
-          {/* Today's Birthdays Banner */}
-          <div className="p-3.5 rounded-2xl bg-gradient-to-r from-rose-500/20 via-pink-500/10 to-[#242526] border border-rose-500/30 flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl bg-rose-500 text-white flex items-center justify-center flex-shrink-0 shadow">
-              <Calendar className="w-5 h-5" />
-            </div>
-            <div>
-              <h3 className="font-bold text-sm text-white">আজ ২ জনের জন্মদিন! 🎉</h3>
-              <p className="text-xs text-[#b0b3b8]">তাদের টাইমলাইনে একটি দোয়াপূর্ণ শুভেচ্ছা পোস্ট করুন</p>
-            </div>
-          </div>
+          <h1 className="text-[19px] font-bold text-[#050505] tracking-tight">Birthdays</h1>
 
-          {/* Today's List */}
-          <div className="space-y-3">
-            <h4 className="text-xs font-bold text-[#b0b3b8] uppercase tracking-wider">আজকের জন্মদিন (Today)</h4>
-            {birthdays
-              .filter((b) => b.isToday)
-              .map((user) => {
-                const isSent = sentWishes[user.id];
-                return (
-                  <div
-                    key={user.id}
-                    className="p-3.5 rounded-2xl bg-[#18191a] border border-[#393a3b] space-y-3 shadow-sm"
-                  >
-                    <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              if (onOpenProfile) {
+                onClose();
+                onOpenProfile();
+              }
+            }}
+            className="relative w-9 h-9 rounded-full shrink-0 cursor-pointer"
+            aria-label={userName}
+            title={userName}
+          >
+            <img
+              src={userAvatar}
+              alt={userName}
+              className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB]"
+            />
+            <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-white border border-[#E4E6EB] flex items-center justify-center text-[#050505]">
+              <ChevronDown className="w-3 h-3 stroke-[2.8]" />
+            </span>
+          </button>
+        </header>
+
+        {/* 2. SECTION: Recent */}
+        <section className="px-4 pt-4 pb-5 bg-white">
+          <h2 className="text-[20px] font-bold text-[#050505] text-left mb-4">Recent</h2>
+
+          <div className="space-y-5">
+            {RECENT_BIRTHDAYS.map((person) => {
+              const postedText = postedIds[person.id];
+              return (
+                <div key={person.id} className="space-y-3 bg-white">
+                  {/* Row 1: 50px avatar | Bold Name + 14px gray date | Messenger button */}
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="flex items-center gap-3 min-w-0">
                       <img
-                        src={user.avatar}
-                        alt={user.name}
-                        className="w-12 h-12 rounded-full object-cover border border-[#393a3b]"
+                        src={person.avatar}
+                        alt={person.name}
+                        className="w-[50px] h-[50px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
                       />
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <h5 className="font-bold text-sm text-white truncate">{user.name}</h5>
-                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-rose-500/20 text-rose-300 border border-rose-500/30">
-                            আজকের দিন
-                          </span>
-                        </div>
-                        <p className="text-xs text-[#b0b3b8]">{user.relation}</p>
+                      <div className="min-w-0">
+                        <p className="text-[16px] font-bold text-[#050505] leading-snug truncate">
+                          {person.name}
+                        </p>
+                        <p className="text-[14px] text-[#65676B] leading-snug mt-0.5">
+                          {person.dateLabel}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Wish sender box */}
-                    {isSent ? (
-                      <div className="p-2.5 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-xs font-semibold flex items-center gap-2">
-                        <Check className="w-4 h-4 text-emerald-400" />
-                        <span>দোয়াপূর্ণ শুভেচ্ছা সফলভাবে তার টাইমলাইনে পাঠানো হয়েছে!</span>
-                      </div>
-                    ) : (
-                      <div className="space-y-2">
-                        <textarea
-                          rows={2}
-                          defaultValue={defaultDua}
-                          onChange={(e) =>
-                            setCustomWish((prev) => ({ ...prev, [user.id]: e.target.value }))
+                    <button
+                      type="button"
+                      onClick={() => handleMessageClick(person.name)}
+                      className="w-11 h-9 rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                      aria-label={`Message ${person.name}`}
+                      title={`Message ${person.name}`}
+                    >
+                      <MessengerGlyph className="w-[18px] h-[18px]" />
+                    </button>
+                  </div>
+
+                  {postedText ? (
+                    <div className="px-4 py-2.5 rounded-[12px] bg-[#F0F2F5] text-[#050505] text-[14px] flex items-center gap-2">
+                      <Check className="w-4 h-4 text-[#1877F2] shrink-0" />
+                      <span className="truncate">Shared: &ldquo;{postedText}&rdquo;</span>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Row 2: Input box rounded 24px full width */}
+                      <input
+                        type="text"
+                        value={drafts[person.id] || ''}
+                        onChange={(e) =>
+                          setDrafts((prev) => ({ ...prev, [person.id]: e.target.value }))
+                        }
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            e.preventDefault();
+                            handleWritePost(person);
                           }
-                          className="w-full bg-[#242526] border border-[#393a3b] rounded-xl p-2.5 text-xs text-[#e4e6eb] focus:outline-none focus:border-[#1877F2] resize-none"
-                        />
+                        }}
+                        placeholder="Write a birthday post..."
+                        className="w-full bg-[#F0F2F5] rounded-[24px] px-4 py-2.5 text-[15px] text-[#050505] placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#1877F2]"
+                      />
+
+                      {/* Row 3: Write post (blue) & Create card (light gray) */}
+                      <div className="grid grid-cols-2 gap-2.5">
                         <button
-                          onClick={() => handleSend(user)}
-                          className="w-full py-2 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white text-xs font-bold transition-all flex items-center justify-center gap-1.5 shadow"
+                          type="button"
+                          onClick={() => handleWritePost(person)}
+                          className="py-2.5 px-3 rounded-[8px] bg-[#1877F2] hover:bg-[#166FE5] text-white text-[15px] font-semibold text-center transition-colors cursor-pointer"
                         >
-                          <Send className="w-3.5 h-3.5" />
-                          <span>শুভেচ্ছা ও দোয়া পাঠান</span>
+                          Write post
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setCardTarget(person)}
+                          className="py-2.5 px-3 rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[15px] font-semibold text-center transition-colors cursor-pointer"
+                        >
+                          Create card
                         </button>
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
-
-          {/* Upcoming Birthdays */}
-          <div className="space-y-2.5 pt-2">
-            <h4 className="text-xs font-bold text-[#b0b3b8] uppercase tracking-wider">আসন্ন জন্মদিন (Upcoming)</h4>
-            {birthdays
-              .filter((b) => !b.isToday)
-              .map((user) => (
-                <div
-                  key={user.id}
-                  className="p-3 rounded-xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-3">
-                    <img
-                      src={user.avatar}
-                      alt={user.name}
-                      className="w-10 h-10 rounded-full object-cover border border-[#393a3b]"
-                    />
-                    <div>
-                      <h5 className="font-bold text-xs text-white">{user.name}</h5>
-                      <p className="text-[11px] text-[#b0b3b8]">{user.dateStr}</p>
-                    </div>
-                  </div>
-                  <span className="text-[10px] text-[#b0b3b8] bg-[#242526] px-2 py-1 rounded-lg border border-[#393a3b]">
-                    আসছে
-                  </span>
+                    </>
+                  )}
                 </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* Light Gray Divider */}
+        <div className="h-[1px] bg-[#E4E6EB] mx-4" />
+
+        {/* 3. SECTION: Upcoming */}
+        <section className="px-4 pt-4 pb-6 bg-white">
+          <h2 className="text-[20px] font-bold text-[#050505] text-left mb-4">Upcoming</h2>
+
+          <div className="space-y-4">
+            {UPCOMING_BIRTHDAYS.map((person) => (
+              <div
+                key={person.id}
+                className="flex items-center justify-between gap-3 bg-white"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <img
+                    src={person.avatar}
+                    alt={person.name}
+                    className="w-[50px] h-[50px] rounded-full object-cover shrink-0 bg-[#E4E6EB] border border-[#E4E6EB]"
+                  />
+                  <div className="min-w-0">
+                    <p className="text-[16px] font-bold text-[#050505] leading-snug truncate">
+                      {person.name}
+                    </p>
+                    <p className="text-[14px] text-[#65676B] leading-snug mt-0.5">
+                      {person.dateLabel}
+                    </p>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => handleMessageClick(person.name)}
+                  className="w-11 h-9 rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center shrink-0 transition-colors cursor-pointer"
+                  aria-label={`Message ${person.name}`}
+                  title={`Message ${person.name}`}
+                >
+                  <MessengerGlyph className="w-[18px] h-[18px]" />
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      </div>
+
+      {/* Create Birthday Card White Bottom Sheet */}
+      {cardTarget && (
+        <div
+          className="fixed inset-0 z-50 bg-black/30 flex items-end justify-center"
+          onClick={() => setCardTarget(null)}
+        >
+          <div
+            className="w-full max-w-md bg-white rounded-t-[20px] p-4 space-y-3 text-[#050505]"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between">
+              <h3 className="text-[16px] font-bold text-[#050505]">
+                Choose a card for {cardTarget.name}
+              </h3>
+              <button
+                type="button"
+                onClick={() => setCardTarget(null)}
+                className="w-8 h-8 rounded-full bg-[#F0F2F5] flex items-center justify-center text-[#050505] cursor-pointer"
+                aria-label="Close card picker"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="space-y-2">
+              {BIRTHDAY_CARD_PRESETS.map((preset) => (
+                <button
+                  key={preset.id}
+                  type="button"
+                  onClick={() => {
+                    setPostedIds((prev) => ({ ...prev, [cardTarget.id]: preset.title }));
+                    onSendWish?.(cardTarget.name, preset.title);
+                    showToast(`Card sent to ${cardTarget.name}`);
+                    setCardTarget(null);
+                  }}
+                  className={`w-full py-3.5 px-4 rounded-[12px] font-bold text-[15px] text-center transition-opacity hover:opacity-90 cursor-pointer ${preset.bg}`}
+                >
+                  {preset.title}
+                </button>
               ))}
+            </div>
           </div>
         </div>
+      )}
 
-        {/* Footer */}
-        <div className="p-3 border-t border-[#393a3b] bg-[#18191a] text-center">
-          <button
-            onClick={onClose}
-            className="w-full py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs"
-          >
-            বন্ধ করুন
-          </button>
+      {/* Subtle Toast */}
+      {toastMsg && (
+        <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 bg-[#050505] text-white px-4 py-2 rounded-full text-xs font-semibold">
+          {toastMsg}
         </div>
-      </div>
+      )}
     </div>
   );
 };

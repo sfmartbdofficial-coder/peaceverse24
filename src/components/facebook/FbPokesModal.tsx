@@ -84,36 +84,36 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-[#e4e6eb]">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
+      <div className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-md max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-black">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#393a3b]">
+        <div className="flex items-center justify-between p-4 border-b border-[#E4E6EB] bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-orange-500 to-amber-500 flex items-center justify-center text-white shadow">
               <Hand className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-base text-white">Pokes (পোক ফিচার)</h2>
-              <p className="text-[11px] text-[#b0b3b8]">বন্ধুদের পোক করুন ও পোক ব্যাক (Poke back) পাঠান</p>
+              <h2 className="font-bold text-base text-black">Pokes (পোক ফিচার)</h2>
+              <p className="text-[11px] text-[#65676B]">বন্ধুদের পোক করুন ও পোক ব্যাক (Poke back) পাঠান</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
           {/* Active Pokes to Poke Back */}
           <div className="space-y-2.5">
             <div className="flex items-center justify-between">
-              <h4 className="text-xs font-bold text-[#b0b3b8] uppercase tracking-wider">
+              <h4 className="text-xs font-bold text-[#65676B] uppercase tracking-wider">
                 আপনাকে পোক করেছে ({pokes.filter((p) => !p.hasPokedBack).length})
               </h4>
-              <span className="text-[11px] text-amber-400 font-bold flex items-center gap-1">
+              <span className="text-[11px] text-amber-600 font-bold flex items-center gap-1">
                 <Flame className="w-3.5 h-3.5 fill-current" /> লাইভ
               </span>
             </div>
@@ -122,17 +122,17 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
               {pokes.map((item) => (
                 <div
                   key={item.id}
-                  className="p-3.5 rounded-2xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between gap-3 shadow-sm"
+                  className="p-3.5 rounded-2xl bg-white border border-[#E4E6EB] flex items-center justify-between gap-3 shadow-xs"
                 >
                   <div className="flex items-center gap-3 min-w-0">
                     <img
                       src={item.avatar}
                       alt={item.name}
-                      className="w-12 h-12 rounded-full object-cover border border-[#393a3b] shrink-0"
+                      className="w-12 h-12 rounded-full object-cover border border-[#E4E6EB] shrink-0"
                     />
                     <div className="min-w-0">
-                      <p className="font-bold text-xs sm:text-sm text-white truncate">{item.name}</p>
-                      <p className="text-[11px] text-[#b0b3b8]">
+                      <p className="font-bold text-xs sm:text-sm text-black truncate">{item.name}</p>
+                      <p className="text-[11px] text-[#65676B]">
                         {item.timeAgo} • মোট {item.pokesCount} বার পোক বিনিময়
                       </p>
                     </div>
@@ -143,8 +143,8 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
                     disabled={item.hasPokedBack}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center gap-1.5 ${
                       item.hasPokedBack
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-[#1877F2] hover:bg-[#166fe5] text-white shadow active:scale-95'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-[#0866FF] hover:bg-[#0055D4] text-white shadow active:scale-95'
                     }`}
                   >
                     {item.hasPokedBack ? (
@@ -166,24 +166,24 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
 
           {/* Suggested Pokes */}
           <div className="space-y-2.5 pt-2">
-            <h4 className="text-xs font-bold text-[#b0b3b8] uppercase tracking-wider">
+            <h4 className="text-xs font-bold text-[#65676B] uppercase tracking-wider">
               কাউকে পোক করুন (Suggested Pokes)
             </h4>
             <div className="space-y-2.5">
               {suggestedFriends.map((sf) => (
                 <div
                   key={sf.id}
-                  className="p-3 rounded-xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between gap-3"
+                  className="p-3 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between gap-3"
                 >
                   <div className="flex items-center gap-3">
                     <img
                       src={sf.avatar}
                       alt={sf.name}
-                      className="w-10 h-10 rounded-full object-cover border border-[#393a3b]"
+                      className="w-10 h-10 rounded-full object-cover border border-[#E4E6EB]"
                     />
                     <div>
-                      <p className="font-bold text-xs text-white">{sf.name}</p>
-                      <p className="text-[10px] text-[#b0b3b8]">{sf.relation}</p>
+                      <p className="font-bold text-xs text-black">{sf.name}</p>
+                      <p className="text-[10px] text-[#65676B]">{sf.relation}</p>
                     </div>
                   </div>
 
@@ -192,8 +192,8 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
                     disabled={sf.poked}
                     className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all ${
                       sf.poked
-                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                        : 'bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb]'
+                        ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black'
                     }`}
                   >
                     {sf.poked ? 'পোক সম্পন্ন' : 'Poke'}
@@ -205,10 +205,10 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#393a3b] bg-[#18191a] text-center">
+        <div className="p-3 border-t border-[#E4E6EB] bg-white text-center">
           <button
             onClick={onClose}
-            className="w-full py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs"
+            className="w-full py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs"
           >
             বন্ধ করুন
           </button>

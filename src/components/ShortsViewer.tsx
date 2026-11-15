@@ -58,10 +58,10 @@ export const ShortsViewer: React.FC = () => {
     if (navigator.share) {
       navigator.share({
         title: short.titleBangla,
-        text: `${short.arabic}\n\n${short.titleBangla} (${short.surah}) — Qalby Shorts`,
+        text: `${short.arabic}\n\n${short.titleBangla} (${short.surah}) — Peaceverse24.com Shorts`,
         url: window.location.href,
       }).catch(() => {});
-      navigator.clipboard.writeText(`${short.arabic}\n${short.titleBangla} (${short.surah}) — Qalby`);
+      navigator.clipboard.writeText(`${short.arabic}\n${short.titleBangla} (${short.surah}) — Peaceverse24.com`);
     }
   };
 
@@ -86,14 +86,14 @@ export const ShortsViewer: React.FC = () => {
   };
 
   return (
-    <div className="max-w-md mx-auto px-2 py-3 pb-24 flex flex-col items-center">
+    <div className="max-w-md mx-auto px-2 py-3 pb-24 flex flex-col items-center bg-white text-black">
       {/* Navigation Top Indicators */}
-      <div className="w-full flex items-center justify-between px-3 mb-2 text-xs text-neutral-400">
-        <span className="font-bold text-white flex items-center gap-1.5">
-          <span className="w-2 h-2 rounded-full bg-rose-500 animate-ping" />
-          <span>Qalby Shorts (শান্তির রিলস)</span>
+      <div className="w-full flex items-center justify-between px-3 mb-2 text-xs text-[#65676B]">
+        <span className="font-bold text-black flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full bg-[#0866FF] animate-ping" />
+          <span>Peaceverse24.com Shorts (শান্তির রিলস)</span>
         </span>
-        <span className="font-mono text-neutral-400">
+        <span className="font-mono text-[#65676B]">
           {currentIndex + 1} / {INITIAL_SHORTS.length}
         </span>
       </div>
@@ -224,18 +224,18 @@ export const ShortsViewer: React.FC = () => {
 
         {/* Comments Drawer / Popover within Shorts */}
         {showComments && (
-          <div className="absolute inset-x-0 bottom-0 max-h-[60%] bg-[#121212] rounded-t-2xl border-t border-neutral-700 p-3 z-30 flex flex-col animate-in slide-in-from-bottom-4 duration-200">
-            <div className="flex items-center justify-between pb-2 border-b border-neutral-800">
-              <span className="text-xs font-bold text-white">মন্তব্যসমূহ</span>
-              <button onClick={() => setShowComments(false)} className="text-neutral-400 p-1">
+          <div className="absolute inset-x-0 bottom-0 max-h-[60%] bg-white text-black rounded-t-2xl border-t border-[#E4E6EB] p-3 z-30 flex flex-col animate-in slide-in-from-bottom-4 duration-200 shadow-2xl">
+            <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+              <span className="text-xs font-bold text-black">মন্তব্যসমূহ</span>
+              <button onClick={() => setShowComments(false)} className="text-[#65676B] hover:text-black p-1">
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             <div className="flex-1 overflow-y-auto no-scrollbar py-2 space-y-2 text-xs">
               {(commentsList[currentShort.id] || []).map((msg, i) => (
-                <div key={i} className="p-2 rounded-lg bg-neutral-900 border border-neutral-800">
-                  <p className="text-neutral-200 font-bengali">{msg}</p>
+                <div key={i} className="p-2 rounded-lg bg-[#F0F2F5] border border-[#E4E6EB]">
+                  <p className="text-black font-bengali">{msg}</p>
                 </div>
               ))}
             </div>
@@ -246,12 +246,12 @@ export const ShortsViewer: React.FC = () => {
                 placeholder="দোয়া বা মন্তব্য লিখুন..."
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
-                className="flex-1 bg-neutral-900 border border-neutral-700 rounded-full px-3 py-1.5 text-xs text-white focus:outline-none focus:border-emerald-500"
+                className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-full px-3 py-1.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
               />
               <button
                 type="submit"
                 disabled={!commentInput.trim()}
-                className="p-1.5 rounded-full bg-emerald-600 disabled:opacity-40 text-white"
+                className="p-1.5 rounded-full bg-[#0866FF] disabled:opacity-40 text-white"
               >
                 <Send className="w-3.5 h-3.5" />
               </button>
@@ -264,14 +264,14 @@ export const ShortsViewer: React.FC = () => {
       <div className="flex items-center gap-3 mt-3">
         <button
           onClick={prevShort}
-          className="p-2 rounded-full bg-neutral-900 border border-neutral-800 text-neutral-300 hover:text-white hover:bg-neutral-800 transition-colors"
+          className="p-2 rounded-full bg-[#F0F2F5] border border-[#E4E6EB] text-black hover:bg-[#E4E6EB] transition-colors"
           title="আগের শর্টস"
         >
           <ChevronUp className="w-5 h-5" />
         </button>
         <button
           onClick={nextShort}
-          className="p-2 rounded-full bg-emerald-600 text-white hover:bg-emerald-500 shadow-md shadow-emerald-950/40 transition-colors"
+          className="p-2 rounded-full bg-[#0866FF] text-white hover:bg-blue-600 shadow-xs transition-colors"
           title="পরের শর্টস"
         >
           <ChevronDown className="w-5 h-5" />

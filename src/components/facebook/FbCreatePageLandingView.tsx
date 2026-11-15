@@ -31,6 +31,7 @@ interface FbCreatePageLandingViewProps {
   onBack: () => void;
   onPageCreated: (newPage: PageItem) => void;
   onCreateFirstPost?: (newPage: PageItem) => void;
+  initialPageName?: string;
 }
 
 interface WebsiteEntry {
@@ -122,12 +123,13 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
   onBack,
   onPageCreated,
   onCreateFirstPost,
+  initialPageName = '',
 }) => {
   // Option selection matching Screenshot 4 ("Which option is best for you?")
   const [creationOption, setCreationOption] = useState<'page' | 'profile'>('page');
 
   // Core Page Information
-  const [pageName, setPageName] = useState('');
+  const [pageName, setPageName] = useState(initialPageName);
   const [category, setCategory] = useState(CATEGORIES_OPTIONS[0].name);
   const [customCategory, setCustomCategory] = useState('');
   const [bio, setBio] = useState('');
@@ -246,8 +248,8 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       role: 'Admin',
       isOwner: true,
       isLiked: true,
-      description: bio.trim() || `${pageName.trim()} - অফিসিয়াল Peaceverse24 পেজ।`,
-      bio: bio.trim() || 'Welcome to our official Peaceverse24 Page.',
+      description: bio.trim() || `${pageName.trim()} - অফিসিয়াল Peaceverse24.com পেজ।`,
+      bio: bio.trim() || 'Welcome to our official Peaceverse24.com Page.',
       phone: phone.trim() || undefined,
       whatsapp: whatsapp.trim() || phone.trim() || undefined,
       imo: imo.trim() || undefined,
@@ -278,30 +280,30 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
   };
 
   return (
-    <div className="min-h-screen bg-[#F0F2F5] dark:bg-[#18191a] text-neutral-900 dark:text-[#E4E6EB] pb-32 font-sans select-none">
+    <div className="min-h-screen bg-white text-black pb-32 font-sans select-none">
       {/* 1. TOP HEADER */}
-      <header className="sticky top-0 z-40 bg-white dark:bg-[#242526] border-b border-neutral-200 dark:border-[#393a3b] shadow-xs px-4 py-3 flex items-center justify-between">
+      <header className="sticky top-0 z-40 bg-white border-b border-[#E4E6EB] shadow-xs px-4 py-3 flex items-center justify-between">
         <div className="flex items-center gap-3">
           <button
             onClick={onBack}
-            className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-[#3a3b3c] text-neutral-700 dark:text-[#E4E6EB] transition-colors cursor-pointer"
+            className="p-2 rounded-full hover:bg-[#F0F2F5] text-black transition-colors cursor-pointer"
             title="ফিরে যান"
           >
             <ArrowLeft className="w-5 h-5 stroke-[2.4]" />
           </button>
           <div>
-            <h1 className="text-base sm:text-lg font-bold text-neutral-900 dark:text-white leading-tight">
-              Create Peaceverse24 Page
+            <h1 className="text-base sm:text-lg font-bold text-black leading-tight">
+              Create Peaceverse24.com Page
             </h1>
-            <p className="text-[11px] text-neutral-500 dark:text-[#B0B3B8]">
-              আপনার Peaceverse24 পেজ তৈরি করুন
+            <p className="text-[11px] text-[#65676B]">
+              আপনার Peaceverse24.com পেজ তৈরি করুন
             </p>
           </div>
         </div>
 
         <button
           onClick={onBack}
-          className="p-2 rounded-full hover:bg-neutral-100 dark:hover:bg-[#3a3b3c] text-neutral-500 hover:text-neutral-800 dark:text-[#B0B3B8] transition-colors cursor-pointer"
+          className="p-2 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
           title="বাতিল করুন"
         >
           <X className="w-5 h-5" />
@@ -310,34 +312,34 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
       <div className="max-w-2xl mx-auto px-3 sm:px-4 py-4 space-y-4">
         {/* 2. WHICH OPTION IS BEST FOR YOU? */}
-        <section className="bg-white dark:bg-[#242526] rounded-2xl border border-neutral-200 dark:border-[#393a3b] p-4 sm:p-5 shadow-xs space-y-3">
-          <h2 className="text-base sm:text-lg font-extrabold text-neutral-900 dark:text-white">
+        <section className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-3">
+          <h2 className="text-base sm:text-lg font-extrabold text-black">
             Which option is best for you?
           </h2>
-          <p className="text-xs text-neutral-500 dark:text-[#B0B3B8]">
+          <p className="text-xs text-[#65676B]">
             আপনার প্রয়োজন অনুযায়ী সঠিক অপশনটি বেছে নিন:
           </p>
 
           <div className="space-y-2.5 pt-1">
-            {/* Card 1: Create a new Peaceverse24 Page */}
+            {/* Card 1: Create a new Peaceverse24.com Page */}
             <div
               onClick={() => setCreationOption('page')}
               className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start justify-between gap-3 ${
                 creationOption === 'page'
-                  ? 'border-[#0866FF] bg-blue-50/60 dark:bg-blue-950/20 shadow-xs'
-                  : 'border-neutral-200 dark:border-[#393a3b] hover:border-neutral-300'
+                  ? 'border-[#0866FF] bg-blue-50/60 shadow-xs'
+                  : 'border-[#E4E6EB] hover:border-[#CED0D4]'
               }`}
             >
               <div className="flex items-start gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-full bg-neutral-200 dark:bg-[#3a3b3c] flex items-center justify-center text-neutral-800 dark:text-neutral-100 shrink-0 mt-0.5">
+                <div className="w-11 h-11 rounded-full bg-[#F0F2F5] flex items-center justify-center text-black shrink-0 mt-0.5">
                   <Flag className="w-5 h-5 fill-current" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white">
-                    Create a new Peaceverse24 Page
+                  <h3 className="font-bold text-sm sm:text-base text-black">
+                    Create a new Peaceverse24.com Page
                   </h3>
-                  <p className="text-xs text-neutral-600 dark:text-[#B0B3B8] leading-relaxed mt-0.5">
-                    Start fresh with a new name, separate audience and professional tools on Peaceverse24.
+                  <p className="text-xs text-[#65676B] leading-relaxed mt-0.5">
+                    Start fresh with a new name, separate audience and professional tools on Peaceverse24.com.
                   </p>
                   <span className="inline-block mt-2 px-2.5 py-0.5 rounded-full bg-[#0866FF]/10 text-[#0866FF] text-[11px] font-bold">
                     সুপারিশকৃত (Recommended)
@@ -349,7 +351,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 transition-all ${
                   creationOption === 'page'
                     ? 'border-[#0866FF] bg-[#0866FF]'
-                    : 'border-neutral-400 bg-white dark:bg-transparent'
+                    : 'border-neutral-400 bg-white'
                 }`}
               >
                 {creationOption === 'page' && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -361,19 +363,19 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
               onClick={() => setCreationOption('profile')}
               className={`p-4 rounded-2xl border-2 transition-all cursor-pointer flex items-start justify-between gap-3 ${
                 creationOption === 'profile'
-                  ? 'border-[#0866FF] bg-blue-50/60 dark:bg-blue-950/20 shadow-xs'
-                  : 'border-neutral-200 dark:border-[#393a3b] hover:border-neutral-300'
+                  ? 'border-[#0866FF] bg-blue-50/60 shadow-xs'
+                  : 'border-[#E4E6EB] hover:border-[#CED0D4]'
               }`}
             >
               <div className="flex items-start gap-3.5 min-w-0">
-                <div className="w-11 h-11 rounded-full bg-neutral-200 dark:bg-[#3a3b3c] flex items-center justify-center text-neutral-800 dark:text-neutral-100 shrink-0 mt-0.5">
+                <div className="w-11 h-11 rounded-full bg-[#F0F2F5] flex items-center justify-center text-black shrink-0 mt-0.5">
                   <User className="w-5 h-5 stroke-[2.2]" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm sm:text-base text-neutral-900 dark:text-white">
+                  <h3 className="font-bold text-sm sm:text-base text-black">
                     Use your existing profile
                   </h3>
-                  <p className="text-xs text-neutral-600 dark:text-[#B0B3B8] leading-relaxed mt-0.5">
+                  <p className="text-xs text-[#65676B] leading-relaxed mt-0.5">
                     Turn on professional mode to add tools to your main profile and continue growing your current audience.
                   </p>
                 </div>
@@ -383,7 +385,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 className={`w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0 mt-1 transition-all ${
                   creationOption === 'profile'
                     ? 'border-[#0866FF] bg-[#0866FF]'
-                    : 'border-neutral-400 bg-white dark:bg-transparent'
+                    : 'border-neutral-400 bg-white'
                 }`}
               >
                 {creationOption === 'profile' && <div className="w-2 h-2 rounded-full bg-white" />}
@@ -394,7 +396,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
         {/* Validation Error Banner */}
         {validationError && (
-          <div className="p-4 bg-rose-50 dark:bg-rose-950/40 border border-rose-300 dark:border-rose-800 rounded-2xl text-rose-700 dark:text-rose-300 text-xs sm:text-sm font-semibold flex items-center gap-2 animate-in fade-in">
+          <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl text-rose-700 text-xs sm:text-sm font-semibold flex items-center gap-2 animate-in fade-in">
             <Info className="w-5 h-5 shrink-0 text-rose-600" />
             <span>{validationError}</span>
           </div>
@@ -403,21 +405,21 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
         {/* 4. MAIN FORM: SINGLE LANDING PAGE WITH LARGE SPACIOUS INPUTS */}
         <form onSubmit={handleSavePage} className="space-y-4">
           {/* SECTION 1: GENERAL INFO */}
-          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-neutral-200 dark:border-[#393a3b] p-4 sm:p-5 shadow-xs space-y-4">
-            <div className="border-b border-neutral-100 dark:border-[#393a3b] pb-2">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="border-b border-[#E4E6EB] pb-2">
+              <h3 className="text-base font-bold text-black flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs">
                   ১
                 </span>
                 <span>সাধারণ তথ্য (General Info)</span>
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-[#B0B3B8] mt-0.5">
+              <p className="text-xs text-[#65676B] mt-0.5">
                 আপনার পেজের নাম ও মূল পরিচিতি দিন
               </p>
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-bold text-neutral-900 dark:text-white mb-1.5">
+              <label className="block text-xs sm:text-sm font-bold text-black mb-1.5">
                 পেজের নাম (Page Name) <span className="text-rose-500">*</span>
               </label>
               <input
@@ -426,16 +428,16 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 value={pageName}
                 onChange={(e) => setPageName(e.target.value)}
                 placeholder="যেমন: SF MART BD / Peace Mart Global / Halal Food Kitchen"
-                className="w-full text-sm sm:text-base px-4 py-3.5 rounded-2xl bg-neutral-50 dark:bg-[#18191a] border-2 border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] focus:bg-white dark:focus:bg-[#242526] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none transition-all shadow-inner"
+                className="w-full text-sm sm:text-base px-4 py-3.5 rounded-2xl bg-[#F0F2F5] border-2 border-[#E4E6EB] focus:border-[#0866FF] focus:bg-white text-black placeholder-[#65676B] outline-none transition-all shadow-inner"
               />
-              <p className="text-[11px] text-neutral-500 dark:text-[#B0B3B8] mt-1.5 flex items-center gap-1">
+              <p className="text-[11px] text-[#65676B] mt-1.5 flex items-center gap-1">
                 <Info className="w-3.5 h-3.5 text-[#0866FF] shrink-0" />
                 <span>আপনার ব্যবসা, ব্র্যান্ড, ব্যক্তিত্ব বা প্রতিষ্ঠানের আসল নাম ব্যবহার করুন।</span>
               </p>
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-bold text-neutral-900 dark:text-white mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-black mb-2">
                 ক্যাটাগরি নির্বাচন করুন (Category) <span className="text-rose-500">*</span>
               </label>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -450,7 +452,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                       className={`p-3 rounded-xl border text-left transition-all flex items-center justify-between gap-2.5 cursor-pointer ${
                         isSelected
                           ? 'border-[#0866FF] bg-[#0866FF]/10 text-[#0866FF] font-bold shadow-xs ring-1 ring-[#0866FF]'
-                          : 'border-neutral-200 dark:border-[#393a3b] hover:bg-neutral-50 dark:hover:bg-[#3a3b3c] text-neutral-800 dark:text-[#E4E6EB]'
+                          : 'border-[#E4E6EB] hover:bg-[#F0F2F5] text-black'
                       }`}
                     >
                       <div className="flex items-center gap-2.5 min-w-0">
@@ -477,17 +479,17 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                   value={customCategory}
                   onChange={(e) => setCustomCategory(e.target.value)}
                   placeholder="অন্য কোনো ক্যাটাগরি থাকলে এখানে লিখুন (ঐচ্ছিক)..."
-                  className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none focus:border-[#0866FF]"
+                  className="w-full text-xs px-3.5 py-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-black placeholder-[#65676B] outline-none focus:border-[#0866FF]"
                 />
               </div>
             </div>
 
             <div>
               <div className="flex items-center justify-between mb-1.5">
-                <label className="block text-xs sm:text-sm font-bold text-neutral-900 dark:text-white">
+                <label className="block text-xs sm:text-sm font-bold text-black">
                   বায়ো বা সংক্ষিপ্ত বিবরণ (Bio / Description)
                 </label>
-                <span className="text-[11px] text-neutral-400">{bio.length}/255</span>
+                <span className="text-[11px] text-[#65676B]">{bio.length}/255</span>
               </div>
               <textarea
                 rows={3}
@@ -495,32 +497,32 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 value={bio}
                 onChange={(e) => setBio(e.target.value)}
                 placeholder="পেজ সম্পর্কে কিছু লিখুন... যেমন আপনাদের সেবা, লক্ষ্য, সততা ও কার্যক্রম সম্পর্কে যা দেখে ফলোয়াররা আকৃষ্ট হবে।"
-                className="w-full text-xs sm:text-sm p-3.5 rounded-2xl bg-neutral-50 dark:bg-[#18191a] border-2 border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] focus:bg-white dark:focus:bg-[#242526] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none transition-all resize-none"
+                className="w-full text-xs sm:text-sm p-3.5 rounded-2xl bg-[#F0F2F5] border-2 border-[#E4E6EB] focus:border-[#0866FF] focus:bg-white text-black placeholder-[#65676B] outline-none transition-all resize-none"
               />
             </div>
           </div>
 
           {/* SECTION 2: CONTACT DETAILS */}
-          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-neutral-200 dark:border-[#393a3b] p-4 sm:p-5 shadow-xs space-y-4">
-            <div className="border-b border-neutral-100 dark:border-[#393a3b] pb-2">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="border-b border-[#E4E6EB] pb-2">
+              <h3 className="text-base font-bold text-black flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs">
                   ২
                 </span>
                 <span>যোগাযোগের তথ্য (Contact Information)</span>
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-[#B0B3B8] mt-0.5">
+              <p className="text-xs text-[#65676B] mt-0.5">
                 কাস্টমার ও ফলোয়ারদের সহজে যোগাযোগের মাধ্যম
               </p>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
               <div>
-                <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5">
+                <label className="block text-xs font-bold text-black mb-1.5">
                   ফোন নম্বর (Phone)
                 </label>
                 <div className="relative flex items-center">
-                  <div className="absolute left-3.5 text-neutral-400">
+                  <div className="absolute left-3.5 text-[#65676B]">
                     <Phone className="w-4 h-4" />
                   </div>
                   <input
@@ -528,17 +530,17 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
                     placeholder="+880 1711-234567"
-                    className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                    className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] text-black placeholder-[#65676B] outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5">
+                <label className="block text-xs font-bold text-black mb-1.5">
                   ইমেইল ঠিকানা (Email Address)
                 </label>
                 <div className="relative flex items-center">
-                  <div className="absolute left-3.5 text-neutral-400">
+                  <div className="absolute left-3.5 text-[#65676B]">
                     <Mail className="w-4 h-4" />
                   </div>
                   <input
@@ -546,7 +548,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="contact@yourbusiness.com"
-                    className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                    className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] text-black placeholder-[#65676B] outline-none"
                   />
                 </div>
               </div>
@@ -555,10 +557,10 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
             {/* Social Messaging Contacts: WhatsApp, IMO, Viber (Optional + Recommended for Global Business) */}
             <div className="pt-2 space-y-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="text-xs font-bold text-neutral-700 dark:text-[#E4E6EB]">
-                  ডিরেক্ট চ্যাট নম্বরসমূহ <span className="font-normal text-neutral-400">(Optional)</span>
+                <span className="text-xs font-bold text-black">
+                  ডিরেক্ট চ্যাট নম্বরসমূহ <span className="font-normal text-[#65676B]">(Optional)</span>
                 </span>
-                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold">
+                <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
                   <Check className="w-3 h-3 stroke-[3]" />
                   <span>Recommended for Global Business</span>
                 </span>
@@ -566,14 +568,14 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <div>
-                  <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5 flex items-center justify-between gap-1">
+                  <label className="block text-xs font-bold text-black mb-1.5 flex items-center justify-between gap-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-4 h-4 rounded bg-[#25D366]/20 text-[#25D366] flex items-center justify-center shrink-0">
                         <MessageCircle className="w-3 h-3" />
                       </span>
                       <span>WhatsApp</span>
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                       Global Ready
                     </span>
                   </label>
@@ -582,19 +584,19 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     value={whatsapp}
                     onChange={(e) => setWhatsapp(e.target.value)}
                     placeholder="+880 17XXXXXXXX (Optional)"
-                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#25D366] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#25D366] text-black placeholder-[#65676B] outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5 flex items-center justify-between gap-1">
+                  <label className="block text-xs font-bold text-black mb-1.5 flex items-center justify-between gap-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-4 h-4 rounded bg-[#0088CC]/20 text-[#0088CC] flex items-center justify-center shrink-0">
                         <Phone className="w-3 h-3" />
                       </span>
                       <span>IMO</span>
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                       Optional
                     </span>
                   </label>
@@ -603,19 +605,19 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     value={imo}
                     onChange={(e) => setImo(e.target.value)}
                     placeholder="+880 17XXXXXXXX (Optional)"
-                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0088CC] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0088CC] text-black placeholder-[#65676B] outline-none"
                   />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5 flex items-center justify-between gap-1">
+                  <label className="block text-xs font-bold text-black mb-1.5 flex items-center justify-between gap-1">
                     <span className="flex items-center gap-1.5">
                       <span className="w-4 h-4 rounded bg-[#7360F2]/20 text-[#7360F2] flex items-center justify-center shrink-0">
                         <Phone className="w-3 h-3" />
                       </span>
                       <span>Viber</span>
                     </span>
-                    <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/50 px-1.5 py-0.5 rounded">
+                    <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-1.5 py-0.5 rounded">
                       Optional
                     </span>
                   </label>
@@ -624,7 +626,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     value={viber}
                     onChange={(e) => setViber(e.target.value)}
                     placeholder="+880 17XXXXXXXX (Optional)"
-                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#7360F2] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                    className="w-full text-xs sm:text-sm px-3.5 py-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#7360F2] text-black placeholder-[#65676B] outline-none"
                   />
                 </div>
               </div>
@@ -632,11 +634,11 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
               <div className="sm:col-span-2">
-                <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5">
+                <label className="block text-xs font-bold text-black mb-1.5">
                   রাস্তা বা এলাকার ঠিকানা (Street Address)
                 </label>
                 <div className="relative flex items-center">
-                  <div className="absolute left-3.5 text-neutral-400">
+                  <div className="absolute left-3.5 text-[#65676B]">
                     <MapPin className="w-4 h-4" />
                   </div>
                   <input
@@ -644,13 +646,13 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     value={address}
                     onChange={(e) => setAddress(e.target.value)}
                     placeholder="হাউস নং, রোড নং, এলাকা (যেমন মিরপুর-১০)"
-                    className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                    className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] text-black placeholder-[#65676B] outline-none"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-bold text-neutral-900 dark:text-white mb-1.5">
+                <label className="block text-xs font-bold text-black mb-1.5">
                   শহর / জেলা (City)
                 </label>
                 <input
@@ -658,27 +660,27 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                   value={city}
                   onChange={(e) => setCity(e.target.value)}
                   placeholder="Dhaka, Bangladesh"
-                  className="w-full text-xs sm:text-sm px-3.5 py-3 rounded-xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                  className="w-full text-xs sm:text-sm px-3.5 py-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] text-black placeholder-[#65676B] outline-none"
                 />
               </div>
             </div>
           </div>
 
           {/* SECTION 3: MULTIPLE WEBSITES & SOCIAL LINKS (৪-৫টি ওয়েবসাইট ও লিংক) */}
-          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-neutral-200 dark:border-[#393a3b] p-4 sm:p-5 shadow-xs space-y-4">
-            <div className="flex items-center justify-between border-b border-neutral-100 dark:border-[#393a3b] pb-2">
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-2">
               <div>
-                <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+                <h3 className="text-base font-bold text-black flex items-center gap-2">
                   <span className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs">
                     ৩
                   </span>
                   <span>ওয়েবসাইট ও সোশ্যাল লিংকসমূহ (Websites & Links)</span>
                 </h3>
-                <p className="text-xs text-neutral-500 dark:text-[#B0B3B8] mt-0.5">
+                <p className="text-xs text-[#65676B] mt-0.5">
                   এখানে আপনি ৪-৫টি বা তার বেশি ওয়েবসাইট, ইউটিউব, শপ বা সোশ্যাল লিংক যুক্ত করতে পারবেন
                 </p>
               </div>
-              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950/40 text-[#0866FF]">
+              <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-[#E7F3FF] text-[#0866FF]">
                 {websites.length}টি লিংক
               </span>
             </div>
@@ -687,11 +689,11 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
               {websites.map((site, index) => (
                 <div
                   key={site.id}
-                  className="p-3.5 rounded-2xl bg-neutral-50 dark:bg-[#18191a] border border-neutral-200 dark:border-[#3a3b3c] space-y-2 transition-all"
+                  className="p-3.5 rounded-2xl bg-[#F0F2F5] border border-[#E4E6EB] space-y-2 transition-all"
                 >
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs font-bold text-neutral-700 dark:text-[#E4E6EB]">
+                      <span className="text-xs font-bold text-black">
                         লিংক #{index + 1}:
                       </span>
                       <select
@@ -699,7 +701,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                         onChange={(e) =>
                           handleUpdateWebsite(site.id, site.url, e.target.value as any)
                         }
-                        className="text-xs font-semibold bg-white dark:bg-[#242526] border border-neutral-200 dark:border-[#393a3b] rounded-lg px-2 py-1 text-neutral-800 dark:text-white outline-none cursor-pointer"
+                        className="text-xs font-semibold bg-white border border-[#E4E6EB] rounded-lg px-2 py-1 text-black outline-none cursor-pointer"
                       >
                         <option value="website">🌐 ওয়েবসাইট (Website)</option>
                         <option value="shop">🛍️ অনলাইন শপ (Shop / Store)</option>
@@ -714,7 +716,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     <button
                       type="button"
                       onClick={() => handleRemoveWebsite(site.id)}
-                      className="p-1.5 rounded-lg text-neutral-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/30 transition-colors cursor-pointer"
+                      className="p-1.5 rounded-lg text-[#65676B] hover:text-rose-600 hover:bg-rose-50 transition-colors cursor-pointer"
                       title="লিংকটি মুছুন"
                     >
                       <Trash2 className="w-4 h-4" />
@@ -722,7 +724,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                   </div>
 
                   <div className="relative flex items-center">
-                    <div className="absolute left-3.5 text-neutral-400">
+                    <div className="absolute left-3.5 text-[#65676B]">
                       <Globe className="w-4 h-4" />
                     </div>
                     <input
@@ -730,7 +732,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                       value={site.url}
                       onChange={(e) => handleUpdateWebsite(site.id, e.target.value)}
                       placeholder="https://www.yoursite.com বা আপনার পেজ লিংক..."
-                      className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-2.5 rounded-xl bg-white dark:bg-[#242526] border border-neutral-200 dark:border-[#3a3b3c] focus:border-[#0866FF] text-neutral-900 dark:text-white placeholder-neutral-400 outline-none"
+                      className="w-full text-xs sm:text-sm pl-10 pr-3.5 py-2.5 rounded-xl bg-white border border-[#E4E6EB] focus:border-[#0866FF] text-black placeholder-[#65676B] outline-none"
                     />
                   </div>
                 </div>
@@ -748,21 +750,21 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
           </div>
 
           {/* SECTION 4: VISUALS */}
-          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-neutral-200 dark:border-[#393a3b] p-4 sm:p-5 shadow-xs space-y-4">
-            <div className="border-b border-neutral-100 dark:border-[#393a3b] pb-2">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="border-b border-[#E4E6EB] pb-2">
+              <h3 className="text-base font-bold text-black flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs">
                   ৪
                 </span>
                 <span>ছবি ও ব্র্যান্ডিং (Photos & Branding)</span>
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-[#B0B3B8] mt-0.5">
+              <p className="text-xs text-[#65676B] mt-0.5">
                 আপনার পেজের লোগো ও আকর্ষনীয় কভার ফটো নির্ধারণ করুন
               </p>
             </div>
 
             <div>
-              <label className="block text-xs sm:text-sm font-bold text-neutral-900 dark:text-white mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-black mb-2">
                 প্রোফাইল ছবি / লোগো (Profile Picture / Logo)
               </label>
               <div className="flex items-center gap-3">
@@ -775,8 +777,8 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     />
                   ) : (
                     <>
-                      <Plus className="w-4 h-4 text-[#050505]" />
-                      <span className="text-[9px] font-bold text-[#050505] leading-tight text-center px-1">
+                      <Plus className="w-4 h-4 text-black" />
+                      <span className="text-[9px] font-bold text-black leading-tight text-center px-1">
                         লোগো
                       </span>
                     </>
@@ -790,7 +792,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 </label>
 
                 <div className="flex-1 space-y-1.5">
-                  <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-neutral-100 dark:bg-[#3a3b3c] hover:bg-neutral-200 text-xs font-bold text-neutral-800 dark:text-white cursor-pointer transition-colors shadow-xs">
+                  <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-xs font-bold text-black cursor-pointer transition-colors shadow-xs">
                     <Camera className="w-4 h-4 text-[#0866FF]" />
                     <span>+ লোগো যোগ করুন (Add Logo)</span>
                     <input
@@ -800,7 +802,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                       className="hidden"
                     />
                   </label>
-                  <p className="text-[11px] text-neutral-400">
+                  <p className="text-[11px] text-[#65676B]">
                     ঐচ্ছিক: এখনই আপলোড করুন অথবা পেজ তৈরির পরেও যোগ করতে পারবেন।
                   </p>
                 </div>
@@ -825,10 +827,10 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
             </div>
 
             <div className="pt-2">
-              <label className="block text-xs sm:text-sm font-bold text-neutral-900 dark:text-white mb-2">
+              <label className="block text-xs sm:text-sm font-bold text-black mb-2">
                 কভার ফটো (Cover Photo)
               </label>
-              <div className="relative h-32 w-full rounded-2xl overflow-hidden border border-neutral-300 dark:border-[#3a3b3c] bg-[#E4E6EB] shadow-xs flex items-center justify-center">
+              <div className="relative h-32 w-full rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#E4E6EB] shadow-xs flex items-center justify-center">
                 {selectedCover ? (
                   <>
                     <img
@@ -848,7 +850,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     </label>
                   </>
                 ) : (
-                  <label className="px-4 py-2.5 rounded-xl bg-white hover:bg-neutral-50 text-[#050505] text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-neutral-300 transition-all">
+                  <label className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#F0F2F5] text-black text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-[#E4E6EB] transition-all">
                     <Camera className="w-4 h-4 text-[#0866FF]" />
                     <span>+ কভার ফটো যোগ করুন (Add Cover Photo)</span>
                     <input
@@ -881,15 +883,15 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
           </div>
 
           {/* SECTION 5: ACTION BUTTON */}
-          <div className="bg-white dark:bg-[#242526] rounded-2xl border border-neutral-200 dark:border-[#393a3b] p-4 sm:p-5 shadow-xs space-y-4">
-            <div className="border-b border-neutral-100 dark:border-[#393a3b] pb-2">
-              <h3 className="text-base font-bold text-neutral-900 dark:text-white flex items-center gap-2">
+          <div className="bg-white rounded-2xl border border-[#E4E6EB] p-4 sm:p-5 shadow-xs space-y-4">
+            <div className="border-b border-[#E4E6EB] pb-2">
+              <h3 className="text-base font-bold text-black flex items-center gap-2">
                 <span className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs">
                   ৫
                 </span>
                 <span>অ্যাকশন বাটন নির্বাচন (Action Button)</span>
               </h3>
-              <p className="text-xs text-neutral-500 dark:text-[#B0B3B8] mt-0.5">
+              <p className="text-xs text-[#65676B] mt-0.5">
                 ভিজিটররা আপনার পেজে ঢুকেই কোন বাটনটি দেখতে পাবে (যেমন Peace Mart Global পেজে &quot;Start Order&quot;)
               </p>
             </div>
@@ -905,7 +907,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                     className={`p-3 rounded-2xl border text-center transition-all flex flex-col items-center justify-center gap-1.5 cursor-pointer ${
                       isSelected
                         ? 'border-[#0866FF] bg-[#0866FF]/10 text-[#0866FF] font-bold shadow-xs ring-1 ring-[#0866FF]'
-                        : 'border-neutral-200 dark:border-[#393a3b] hover:bg-neutral-50 dark:hover:bg-[#3a3b3c] text-neutral-800 dark:text-[#E4E6EB]'
+                        : 'border-[#E4E6EB] hover:bg-[#F0F2F5] text-black'
                     }`}
                   >
                     <span className="text-xl">{btn.icon}</span>
@@ -930,7 +932,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                   : 'Save & Create Page (পেজ তৈরি ও সংরক্ষণ করুন)'}
               </span>
             </button>
-            <p className="text-[11px] text-center text-neutral-500 dark:text-[#B0B3B8] mt-2">
+            <p className="text-[11px] text-center text-[#65676B] mt-2">
               পেজ তৈরি করার পর আপনি পেজের সকল অ্যাডমিন সুবিধা ও রিলস/পোস্ট করতে পারবেন।
             </p>
           </div>
@@ -939,7 +941,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
       {/* Facebook-style Confetti + Page Created Success Overlay */}
       {createdPageSuccess && (
-        <div className="fixed inset-0 z-50 bg-black/75 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 overflow-hidden">
           {/* Confetti Particles */}
           <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true">
             {Array.from({ length: 34 }).map((_, i) => {
@@ -972,7 +974,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
           </div>
 
           {/* Success Card */}
-          <div className="relative z-10 w-full max-w-md bg-white dark:bg-[#242526] border border-neutral-200 dark:border-[#393a3b] rounded-3xl p-6 text-center shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
+          <div className="relative z-10 w-full max-w-md bg-white border border-[#E4E6EB] rounded-3xl p-6 text-center shadow-2xl space-y-5 animate-in fade-in zoom-in-95">
             <div className="relative w-20 h-20 mx-auto">
               {createdPageSuccess.avatar ? (
                 <img
@@ -985,16 +987,16 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                   {createdPageSuccess.name.trim().charAt(0).toUpperCase() || <Flag className="w-8 h-8" />}
                 </div>
               )}
-              <span className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white dark:border-[#242526] shadow-md">
+              <span className="absolute -bottom-2 -right-2 w-8 h-8 rounded-full bg-emerald-500 text-white flex items-center justify-center border-2 border-white shadow-md">
                 <Check className="w-4 h-4 stroke-[3]" />
               </span>
             </div>
 
             <div className="space-y-1.5">
-              <h2 className="text-lg sm:text-xl font-extrabold text-neutral-900 dark:text-white leading-snug">
+              <h2 className="text-lg sm:text-xl font-extrabold text-black leading-snug">
                 🎉 অভিনন্দন! আপনার {createdPageSuccess.name} পেজ তৈরি হয়েছে!
               </h2>
-              <p className="text-xs text-neutral-500 dark:text-[#B0B3B8]">
+              <p className="text-xs text-[#65676B]">
                 আপনার নতুন পেজটি এখন সবার জন্য উন্মুক্ত। নিচের যেকোনো একটি অপশন বেছে নিন:
               </p>
             </div>
@@ -1019,7 +1021,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                       onPageCreated(createdPageSuccess);
                     }
                   }}
-                  className="w-full py-2.5 px-3 rounded-xl bg-neutral-100 hover:bg-neutral-200 dark:bg-[#3a3b3c] dark:hover:bg-[#4e4f50] text-neutral-900 dark:text-white font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                  className="w-full py-2.5 px-3 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                 >
                   <Edit3 className="w-4 h-4 text-[#0866FF]" />
                   <span>Create First Post</span>
@@ -1027,8 +1029,8 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
                 <a
                   href={`https://wa.me/?text=${encodeURIComponent(
-                    `🎉 অভিনন্দন! Peaceverse24-এ আমার নতুন পেজ "${createdPageSuccess.name}" তৈরি হয়েছে! আমাদের পেজে যুক্ত হোন: ${
-                      typeof window !== 'undefined' ? window.location.origin : 'https://peaceverse24.app'
+                    `🎉 অভিনন্দন! Peaceverse24.com-এ আমার নতুন পেজ "${createdPageSuccess.name}" তৈরি হয়েছে! আমাদের পেজে যুক্ত হোন: ${
+                      typeof window !== 'undefined' ? window.location.origin : 'https://peaceverse24.com'
                     }`
                   )}`}
                   target="_blank"

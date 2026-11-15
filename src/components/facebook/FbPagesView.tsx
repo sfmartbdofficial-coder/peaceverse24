@@ -65,6 +65,8 @@ interface FbPagesViewProps {
   embedded?: boolean;
   onBroadcastNotification?: (notif: NotificationItem) => void;
   initialSelectedPageId?: string | null;
+  initialCreatePageName?: string | null;
+  onClearInitialCreatePageName?: () => void;
 }
 
 const FOLLOWER_PREVIEW_AVATARS = [
@@ -79,6 +81,63 @@ const DEMO_PAGE_IDS = [
   'page-halal-bites',
   'page-angel-mahi',
   'page-noor-academy',
+];
+
+interface SuggestedIslamicPage {
+  id: string;
+  name: string;
+  category: string;
+  followers: number;
+  avatar: string;
+}
+
+const SUGGESTED_ISLAMIC_PAGES: SuggestedIslamicPage[] = [
+  {
+    id: 'sug-alquran-daily',
+    name: 'Al-Quran Daily',
+    category: 'Education & Quran Academy',
+    followers: 4651,
+    avatar: 'https://images.unsplash.com/photo-1584281722572-8815151591f8?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    id: 'sug-deen-time',
+    name: 'Deen Time',
+    category: 'Media & Islamic Reminders',
+    followers: 12840,
+    avatar: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    id: 'sug-islamic-vibes',
+    name: 'Islamic Vibes 1014',
+    category: 'Digital Creator',
+    followers: 8215,
+    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
+  },
+  {
+    id: 'sug-ummah-reflections',
+    name: 'Ummah Reflections',
+    category: 'Mosque & Community',
+    followers: 19320,
+    avatar: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=240&q=80',
+  },
+];
+
+const INITIAL_PAGE_INVITES: Array<{
+  id: string;
+  pageName: string;
+  invitedBy: string;
+  category: string;
+  avatar: string;
+  time: string;
+}> = [
+  {
+    id: 'inv-sunnah-circle',
+    pageName: 'Sunnah Study Circle',
+    invitedBy: 'Abdullah Al Mamun invited you to like this Page',
+    category: 'Education',
+    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
+    time: '2h',
+  },
 ];
 
 const WhatsAppBrandIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
@@ -130,72 +189,72 @@ const PAGE_CATEGORIES_CONFIG: PageCategoryConfig[] = [
     nameBangla: 'হালাল শপ / ব্যবসা প্রতিষ্ঠান',
     nameEnglish: 'Shopping & Retail (হালাল পণ্য)',
     icon: ShoppingBag,
-    iconBg: 'bg-amber-500/20 text-amber-400 border border-amber-500/30',
-    cardBg: 'bg-gradient-to-r from-[#1e293b] to-[#1e2330] hover:from-[#253347] hover:to-[#242b3b]',
-    borderClass: 'border-amber-500/30 hover:border-amber-400/50',
+    iconBg: 'bg-amber-100 text-amber-700 border border-amber-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-amber-400',
   },
   {
     value: 'Education (দ্বীনি ও কুরআন শিক্ষা)',
     nameBangla: 'দ্বীনি ও কুরআন শিক্ষা প্রতিষ্ঠান',
     nameEnglish: 'Education & Quran Academy',
     icon: BookOpen,
-    iconBg: 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/30',
-    cardBg: 'bg-gradient-to-r from-[#132e2b]/80 to-[#1e293b] hover:from-[#173a36] hover:to-[#253347]',
-    borderClass: 'border-emerald-500/30 hover:border-emerald-400/50',
+    iconBg: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-emerald-400',
   },
   {
     value: 'Public Figure (ইসলামিক বক্তা / আলোচক)',
     nameBangla: 'ইসলামিক আলোচক ও ব্যক্তিত্ব',
     nameEnglish: 'Public Figure & Speaker',
     icon: UserCheck,
-    iconBg: 'bg-sky-500/20 text-sky-400 border border-sky-500/30',
-    cardBg: 'bg-gradient-to-r from-[#172554]/70 to-[#1e293b] hover:from-[#1e3a8a]/60 hover:to-[#253347]',
-    borderClass: 'border-sky-500/30 hover:border-sky-400/50',
+    iconBg: 'bg-sky-100 text-sky-700 border border-sky-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-sky-400',
   },
   {
     value: 'Creator (কন্টেন্ট ক্রিয়েটর)',
     nameBangla: 'ডিজিটাল কনটেন্ট ক্রিয়েটর',
     nameEnglish: 'Video & Content Creator',
     icon: Sparkles,
-    iconBg: 'bg-purple-500/20 text-purple-400 border border-purple-500/30',
-    cardBg: 'bg-gradient-to-r from-[#3b0764]/50 to-[#1e293b] hover:from-[#581c87]/50 hover:to-[#253347]',
-    borderClass: 'border-purple-500/30 hover:border-purple-400/50',
+    iconBg: 'bg-purple-100 text-purple-700 border border-purple-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-purple-400',
   },
   {
     value: 'Nonprofit & Charity (চ্যারিটি ও সেবা)',
     nameBangla: 'চ্যারিটি ও সমাজসেবা সংগঠন',
     nameEnglish: 'Nonprofit & Charity Org',
     icon: HeartHandshake,
-    iconBg: 'bg-rose-500/20 text-rose-400 border border-rose-500/30',
-    cardBg: 'bg-gradient-to-r from-[#4c0519]/50 to-[#1e293b] hover:from-[#881337]/50 hover:to-[#253347]',
-    borderClass: 'border-rose-500/30 hover:border-rose-400/50',
+    iconBg: 'bg-rose-100 text-rose-700 border border-rose-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-rose-400',
   },
   {
     value: 'Mosque & Community (মসজিদ ও সমাজ)',
     nameBangla: 'মসজিদ ও ইসলামিক সমাজ',
     nameEnglish: 'Mosque & Islamic Center',
     icon: Building,
-    iconBg: 'bg-teal-500/20 text-teal-400 border border-teal-500/30',
-    cardBg: 'bg-gradient-to-r from-[#042f2e]/60 to-[#1e293b] hover:from-[#115e59]/50 hover:to-[#253347]',
-    borderClass: 'border-teal-500/30 hover:border-teal-400/50',
+    iconBg: 'bg-teal-100 text-teal-700 border border-teal-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-teal-400',
   },
   {
     value: 'Food & Restaurant (হালাল খাদ্য)',
     nameBangla: 'হালাল রেস্টুরেন্ট ও ফুড শপ',
     nameEnglish: 'Food & Halal Restaurant',
     icon: Utensils,
-    iconBg: 'bg-orange-500/20 text-orange-400 border border-orange-500/30',
-    cardBg: 'bg-gradient-to-r from-[#431407]/50 to-[#1e293b] hover:from-[#7c2d12]/50 hover:to-[#253347]',
-    borderClass: 'border-orange-500/30 hover:border-orange-400/50',
+    iconBg: 'bg-orange-100 text-orange-700 border border-orange-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-orange-400',
   },
   {
     value: 'Media & News (সংবাদ ও সংস্কৃতি)',
     nameBangla: 'মিডিয়া ও সংবাদ প্রকাশনা',
     nameEnglish: 'Media & News Publishing',
     icon: Radio,
-    iconBg: 'bg-blue-500/20 text-blue-400 border border-blue-500/30',
-    cardBg: 'bg-gradient-to-r from-[#1e1b4b]/60 to-[#1e293b] hover:from-[#312e81]/60 hover:to-[#253347]',
-    borderClass: 'border-blue-500/30 hover:border-blue-400/50',
+    iconBg: 'bg-blue-100 text-[#0866FF] border border-blue-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-[#0866FF]',
   },
 ];
 
@@ -216,6 +275,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   embedded = false,
   onBroadcastNotification,
   initialSelectedPageId,
+  initialCreatePageName,
+  onClearInitialCreatePageName,
 }) => {
   const [creatorPrefs, setCreatorPrefs] = useState<PeaceSettingsPrefs>(() => loadPeaceSettings());
   const updateCreatorPref = (patch: Partial<PeaceSettingsPrefs>) => {
@@ -251,9 +312,40 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     } catch {}
   }, [pages]);
 
-  // Tab filters (only user's pages: সব পেজ & আপনার পরিচালিত)
-  const [activeTab, setActiveTab] = useState<'all' | 'manage'>('all');
+  // Hub sub-views (main Pages view, Invites, Followed Pages) & header search toggle
+  const [hubSection, setHubSection] = useState<'home' | 'invites' | 'followed'>('home');
+  const [showHubSearch, setShowHubSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [followedSuggestedIds, setFollowedSuggestedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('peace_followed_suggested_pages');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [removedSuggestedIds, setRemovedSuggestedIds] = useState<string[]>(() => {
+    try {
+      const saved = localStorage.getItem('peace_removed_suggested_pages');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
+  const [pageInvites, setPageInvites] = useState(INITIAL_PAGE_INVITES);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peace_followed_suggested_pages', JSON.stringify(followedSuggestedIds));
+    } catch {}
+  }, [followedSuggestedIds]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peace_removed_suggested_pages', JSON.stringify(removedSuggestedIds));
+    } catch {}
+  }, [removedSuggestedIds]);
+
   const [selectedPage, setSelectedPage] = useState<PageItem | null>(() => {
     if (!initialSelectedPageId) return null;
     return pages.find((p) => p.id === initialSelectedPageId) || null;
@@ -270,8 +362,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [pageSearchQuery, setPageSearchQuery] = useState('');
 
   // Dedicated Landing Page Creation State
-  const [showCreatePageLanding, setShowCreatePageLanding] = useState(false);
+  const [showCreatePageLanding, setShowCreatePageLanding] = useState(Boolean(initialCreatePageName));
   const [sheetPage, setSheetPage] = useState<PageItem | null>(null);
+
+  useEffect(() => {
+    if (initialCreatePageName) {
+      setShowCreatePageLanding(true);
+    }
+  }, [initialCreatePageName]);
 
   // Create Page Wizard Modal
   const [showCreateModal, setShowCreateModal] = useState(false);
@@ -553,18 +651,29 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     showToast('💾 পেজের তথ্য সফলভাবে সেভ করা হয়েছে!');
   };
 
-  // Filtered pages (only user-created pages)
-  const filteredPages = pages.filter((p) => {
-    const matchSearch =
-      p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      p.category.toLowerCase().includes(searchQuery.toLowerCase());
-
-    if (!matchSearch) return false;
-    if (activeTab === 'manage') return Boolean(p.isOwner);
-    return true;
-  });
-
+  // Filtered user-managed pages & Islamic suggested pages
+  const normalizedHubQuery = searchQuery.trim().toLowerCase();
   const managedPages = pages.filter((p) => Boolean(p.isOwner));
+  const filteredManagedPages = managedPages.filter(
+    (p) =>
+      !normalizedHubQuery ||
+      p.name.toLowerCase().includes(normalizedHubQuery) ||
+      p.category.toLowerCase().includes(normalizedHubQuery)
+  );
+  const visibleSuggestedPages = SUGGESTED_ISLAMIC_PAGES.filter(
+    (sp) =>
+      !removedSuggestedIds.includes(sp.id) &&
+      (!normalizedHubQuery ||
+        sp.name.toLowerCase().includes(normalizedHubQuery) ||
+        sp.category.toLowerCase().includes(normalizedHubQuery))
+  );
+  const followedSuggestedPages = SUGGESTED_ISLAMIC_PAGES.filter(
+    (sp) =>
+      followedSuggestedIds.includes(sp.id) &&
+      (!normalizedHubQuery ||
+        sp.name.toLowerCase().includes(normalizedHubQuery) ||
+        sp.category.toLowerCase().includes(normalizedHubQuery))
+  );
 
   // -------------------------------------------------------------
   // DEDICATED FULL-SCREEN LANDING VIEW FOR CREATING A FACEBOOK PAGE
@@ -572,16 +681,22 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   if (showCreatePageLanding) {
     return (
       <FbCreatePageLandingView
-        onBack={() => setShowCreatePageLanding(false)}
+        initialPageName={initialCreatePageName || ''}
+        onBack={() => {
+          setShowCreatePageLanding(false);
+          onClearInitialCreatePageName?.();
+        }}
         onPageCreated={(newPage) => {
           setPages((prev) => [newPage, ...prev]);
           setShowCreatePageLanding(false);
+          onClearInitialCreatePageName?.();
           setSelectedPage(newPage);
           showToast(`🎉 "${newPage.name}" পেজটি সফলভাবে তৈরি ও সংরক্ষিত হয়েছে!`);
         }}
         onCreateFirstPost={(newPage) => {
           setPages((prev) => [newPage, ...prev]);
           setShowCreatePageLanding(false);
+          onClearInitialCreatePageName?.();
           setSelectedPage(newPage);
           setPageSubTab('posts');
           showToast(`✍️ "${newPage.name}" পেজের প্রথম পোস্ট লিখুন!`);
@@ -940,8 +1055,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           ))}
         </div>
 
-        {/* Light Facebook Content Feed Canvas */}
-        <div className="bg-[#F0F2F5] p-3 space-y-3 min-h-[360px]">
+        {/* White Content Feed Canvas */}
+        <div className="bg-white p-3 space-y-3 min-h-[360px]">
           {/* POSTS TAB CONTENT */}
           {pageSubTab === 'posts' && (
             <div className="space-y-3">
@@ -1453,201 +1568,438 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   }
 
   // -------------------------------------------------------------
-  // MAIN PAGES HUB (Genuine Clean White Facebook Style)
+  // MAIN PAGES HUB (100% Facebook Pages Mobile Reference - White UI)
   // -------------------------------------------------------------
   return (
     <div
       className={
         embedded
-          ? 'space-y-3.5 p-3.5 pb-12 rounded-2xl bg-white text-[#050505]'
-          : 'max-w-[700px] mx-auto min-h-screen bg-white text-[#050505] pb-24 px-3.5 py-3 space-y-3.5 font-sans'
+          ? 'space-y-3 p-3.5 pb-12 rounded-2xl bg-white text-[#050505]'
+          : 'max-w-[700px] mx-auto min-h-screen bg-white text-[#050505] pb-24 font-sans'
       }
     >
-      {/* 1. Simple White Header with Back button & Single "+ পেজ খুলুন (Create)" Button */}
+      {/* 1. HEADER: Left < Back | Center Pages (bold black) | Right Search icon */}
       {!embedded && (
-        <div className="flex items-center justify-between gap-2 pb-3 border-b border-[#E4E6EB]">
-          <div className="flex items-center gap-2.5 min-w-0">
+        <header className="sticky top-0 z-30 bg-white border-b border-[#E4E6EB]">
+          <div className="h-[54px] px-3 flex items-center justify-between">
             <button
               type="button"
-              onClick={onBack}
-              className="min-w-[40px] min-h-[40px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer shrink-0"
+              onClick={() => {
+                if (hubSection !== 'home') {
+                  setHubSection('home');
+                } else {
+                  onBack();
+                }
+              }}
+              className="w-10 h-10 -ml-1 rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
               title="Back"
               aria-label="Back"
             >
-              <ArrowLeft className="w-5 h-5 stroke-[2.2]" />
+              <ArrowLeft className="w-6 h-6 stroke-[2.2]" />
             </button>
-            <div className="min-w-0">
-              <h1 className="font-extrabold text-[20px] text-[#050505] leading-tight">Pages</h1>
-              <p className="text-[12px] text-[#65676B] truncate">
-                পেইজ ব্যবস্থাপনা ও ইসলামিক কমিউনিটি
-              </p>
-            </div>
+
+            <h1 className="text-[18px] font-bold text-[#050505] tracking-tight">
+              Pages
+            </h1>
+
+            <button
+              type="button"
+              onClick={() => setShowHubSearch((prev) => !prev)}
+              className="w-9 h-9 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
+              title="Search Pages"
+              aria-label="Search Pages"
+            >
+              <Search className="w-[18px] h-[18px] stroke-[2.3]" />
+            </button>
           </div>
 
-          {/* Single Create Page Button */}
-          <button
-            type="button"
-            onClick={() => setShowCreatePageLanding(true)}
-            className="px-3.5 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-xs font-bold text-white transition-all flex items-center gap-1.5 shrink-0 cursor-pointer"
-          >
-            <Plus className="w-4 h-4 stroke-[2.5]" />
-            <span>পেজ খুলুন (Create)</span>
-          </button>
+          {showHubSearch && (
+            <div className="px-4 pb-3 pt-1">
+              <div className="relative">
+                <Search className="w-4 h-4 text-[#65676B] absolute left-3.5 top-1/2 -translate-y-1/2" />
+                <input
+                  type="text"
+                  autoFocus
+                  placeholder="Search Pages..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  className="w-full bg-[#F0F2F5] rounded-full pl-9 pr-9 py-2 text-[14px] text-[#050505] placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#1877F2]"
+                />
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#65676B] hover:text-[#050505] cursor-pointer"
+                    aria-label="Clear search"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+        </header>
+      )}
+
+      {/* 2. TOP TABS (3 Light-Gray Pills matching Facebook Reference) */}
+      <div className="px-4 pt-3 pb-2 bg-white flex items-center gap-2 overflow-x-auto no-scrollbar">
+        <button
+          type="button"
+          onClick={() => setShowCreatePageLanding(true)}
+          className="px-4 py-2 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] active:scale-[0.98] text-[14px] font-semibold text-[#050505] whitespace-nowrap transition-all cursor-pointer shrink-0"
+        >
+          Create
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setHubSection((prev) => (prev === 'invites' ? 'home' : 'invites'))}
+          className={`relative px-4 py-2 rounded-full text-[14px] font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+            hubSection === 'invites'
+              ? 'bg-[#E7F3FF] text-[#1877F2]'
+              : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505]'
+          }`}
+        >
+          <span>Invites</span>
+          {pageInvites.length > 0 && (
+            <span
+              className="absolute top-1.5 right-2 w-2 h-2 rounded-full bg-[#1877F2]"
+              aria-label="Unread invites"
+            />
+          )}
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setHubSection((prev) => (prev === 'followed' ? 'home' : 'followed'))}
+          className={`px-4 py-2 rounded-full text-[14px] font-semibold whitespace-nowrap transition-all cursor-pointer shrink-0 ${
+            hubSection === 'followed'
+              ? 'bg-[#E7F3FF] text-[#1877F2]'
+              : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505]'
+          }`}
+        >
+          Followed Pages
+        </button>
+      </div>
+
+      {/* SUB-VIEW: INVITES */}
+      {hubSection === 'invites' && (
+        <div className="px-4 pt-2 pb-6 space-y-3 bg-white">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[18px] font-bold text-[#050505]">Page Invites</h2>
+            <button
+              type="button"
+              onClick={() => setHubSection('home')}
+              className="text-[13px] font-semibold text-[#1877F2] hover:underline cursor-pointer"
+            >
+              Back to Pages
+            </button>
+          </div>
+
+          {pageInvites.length === 0 ? (
+            <div className="py-10 text-center space-y-2">
+              <Flag className="w-10 h-10 text-[#65676B] mx-auto opacity-60" />
+              <p className="text-[15px] font-semibold text-[#050505]">No Page invites right now</p>
+              <p className="text-[13px] text-[#65676B]">
+                When friends invite you to follow a Page, it will appear here.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#E4E6EB]">
+              {pageInvites.map((invite) => (
+                <div key={invite.id} className="py-3 flex items-start gap-3">
+                  <img
+                    src={invite.avatar}
+                    alt={invite.pageName}
+                    className="w-[60px] h-[60px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[15px] font-bold text-[#050505] leading-snug">
+                      {invite.pageName}
+                    </p>
+                    <p className="text-[13px] text-[#65676B] mt-0.5">
+                      {invite.invitedBy} · {invite.time}
+                    </p>
+                    <div className="flex items-center gap-2 mt-2.5">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPageInvites((prev) => prev.filter((item) => item.id !== invite.id));
+                          showToast(`Accepted invite to ${invite.pageName}`);
+                        }}
+                        className="flex-1 py-2 px-3 rounded-lg bg-[#1877F2] hover:bg-[#166FE5] text-white text-[14px] font-semibold cursor-pointer"
+                      >
+                        Accept
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPageInvites((prev) => prev.filter((item) => item.id !== invite.id));
+                          showToast('Invite removed');
+                        }}
+                        className="flex-1 py-2 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-semibold cursor-pointer"
+                      >
+                        Decline
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
 
-      {/* 2. Simple Gray Search Box */}
-      <div className="relative">
-        <input
-          type="text"
-          placeholder="পেইজ খুঁজুন (নাম বা ক্যাটাগরি)..."
-          value={searchQuery}
-          onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full bg-[#F0F2F5] border border-transparent focus:border-[#0866FF]/40 focus:bg-white rounded-full pl-10 pr-9 py-2.5 text-[13px] text-[#050505] placeholder-[#65676B] focus:outline-none transition-colors"
-        />
-        <Search className="w-4 h-4 text-[#65676B] absolute left-3.5 top-1/2 -translate-y-1/2" />
-        {searchQuery && (
-          <button
-            type="button"
-            onClick={() => setSearchQuery('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-[#65676B] hover:text-[#050505] text-xs font-bold px-1 cursor-pointer"
-            aria-label="Clear search"
-          >
-            ✕
-          </button>
-        )}
-      </div>
-
-      {/* 3. Simple 2 Tabs Only: সব পেজ + আপনার পরিচালিত */}
-      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-        {[
-          { id: 'all', label: `সব পেজ (${pages.length})` },
-          { id: 'manage', label: `আপনার পরিচালিত (${managedPages.length})` },
-        ].map((tab) => {
-          const isActive = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              type="button"
-              onClick={() => setActiveTab(tab.id as 'all' | 'manage')}
-              className={`px-3.5 py-2 rounded-full text-[13px] whitespace-nowrap transition-colors cursor-pointer ${
-                isActive
-                  ? 'bg-[#E7F3FF] text-[#0866FF] font-bold'
-                  : 'bg-[#F0F2F5] text-[#050505] hover:bg-[#E4E6EB] font-semibold'
-              }`}
-            >
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
-
-      {/* 4. User Created Pages List Only (No Demo Pages, Clean White Facebook List) */}
-      <div className="space-y-2.5 pt-1">
-        <h2 className="text-[15px] font-bold text-[#050505]">
-          আপনার পরিচালিত পেইজসমূহ ({filteredPages.length})
-        </h2>
-
-        {filteredPages.length === 0 ? (
-          <div className="bg-[#F0F2F5] rounded-xl p-6 text-center space-y-2.5 border border-[#E4E6EB]">
-            <Flag className="w-8 h-8 text-[#65676B] mx-auto opacity-60" />
-            <p className="text-sm font-bold text-[#050505]">
-              {searchQuery ? 'কোনো পেইজ খুঁজে পাওয়া যায়নি' : 'আপনি এখনো কোনো পেইজ তৈরি করেননি'}
-            </p>
-            <p className="text-xs text-[#65676B]">
-              {searchQuery
-                ? 'অন্য নাম লিখে খুঁজে দেখুন অথবা নতুন পেইজ তৈরি করুন।'
-                : 'আপনার নিজস্ব ব্যবসা, ব্লগ বা কমিউনিটি পেইজ খুলতে নিচের বাটনে ক্লিক করুন।'}
-            </p>
+      {/* SUB-VIEW: FOLLOWED PAGES */}
+      {hubSection === 'followed' && (
+        <div className="px-4 pt-2 pb-6 space-y-3 bg-white">
+          <div className="flex items-center justify-between">
+            <h2 className="text-[18px] font-bold text-[#050505]">
+              Followed Pages ({followedSuggestedPages.length})
+            </h2>
             <button
               type="button"
-              onClick={() => setShowCreatePageLanding(true)}
-              className="px-4 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs cursor-pointer transition-colors"
+              onClick={() => setHubSection('home')}
+              className="text-[13px] font-semibold text-[#1877F2] hover:underline cursor-pointer"
             >
-              + পেজ খুলুন (Create)
+              Back to Pages
             </button>
           </div>
-        ) : (
-          <div className="space-y-2">
-            {filteredPages.map((page) => (
-              <div
-                key={page.id}
-                onClick={() => setSelectedPage(page)}
-                className="flex items-center justify-between gap-3 p-3 rounded-xl bg-white border border-[#E4E6EB] hover:bg-[#F7F8FA] transition-colors cursor-pointer"
-              >
-                <div className="flex items-center gap-3 min-w-0">
-                  {page.avatar ? (
-                    <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 border border-[#E4E6EB] bg-[#E4E6EB]">
-                      <img
-                        src={page.avatar}
-                        alt={page.name}
-                        className="w-full h-full object-cover"
-                      />
-                    </div>
-                  ) : (
-                    <div className="w-12 h-12 rounded-full shrink-0 border border-dashed border-[#0866FF]/60 bg-[#E4E6EB] text-[#050505] flex flex-col items-center justify-center">
-                      <Camera className="w-4 h-4 text-[#0866FF]" />
-                    </div>
-                  )}
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-1">
-                      <p className="font-bold text-[15px] text-[#050505] truncate">
-                        {page.name}
+          {followedSuggestedPages.length === 0 ? (
+            <div className="py-10 text-center space-y-2">
+              <ThumbsUp className="w-10 h-10 text-[#65676B] mx-auto opacity-60" />
+              <p className="text-[15px] font-semibold text-[#050505]">No followed Pages yet</p>
+              <p className="text-[13px] text-[#65676B]">
+                Tap + Follow on Suggested Pages to see them listed here.
+              </p>
+            </div>
+          ) : (
+            <div className="divide-y divide-[#E4E6EB]">
+              {followedSuggestedPages.map((sp) => (
+                <div key={sp.id} className="py-3 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-3 min-w-0">
+                    <img
+                      src={sp.avatar}
+                      alt={sp.name}
+                      className="w-[52px] h-[52px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
+                    />
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-bold text-[#050505] truncate">{sp.name}</p>
+                      <p className="text-[13px] text-[#65676B] truncate">
+                        {(sp.followers + 1).toLocaleString()} people follow this
                       </p>
-                      <ShieldCheck className="w-4 h-4 text-[#0866FF] shrink-0" />
                     </div>
-                    <p className="text-[12px] text-[#65676B] truncate">
-                      {page.category} · <span className="text-emerald-600 font-semibold">Active</span>
-                    </p>
                   </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setFollowedSuggestedIds((prev) => prev.filter((id) => id !== sp.id));
+                      showToast(`Unfollowed ${sp.name}`);
+                    }}
+                    className="px-3.5 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[13px] font-semibold shrink-0 cursor-pointer"
+                  >
+                    Following
+                  </button>
                 </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
+      {/* DEFAULT VIEW: SECTION 1 (Pages you manage) + SECTION 2 (Suggested Pages) */}
+      {hubSection === 'home' && (
+        <div className="bg-white">
+          {/* SECTION 1: Pages you manage */}
+          <section className="px-4 pt-3 pb-4">
+            <h2 className="text-[18px] font-bold text-[#050505] mb-3">
+              Pages you manage
+            </h2>
+
+            {filteredManagedPages.length === 0 ? (
+              <div className="py-4 text-center space-y-2.5">
+                <p className="text-[14px] text-[#65676B]">
+                  {searchQuery
+                    ? 'No managed Pages match your search.'
+                    : 'আপনি এখনো কোনো পেজ তৈরি করেননি।'}
+                </p>
                 <button
                   type="button"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    setSelectedPage(page);
-                  }}
-                  className="px-4 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-[13px] font-bold text-white transition-all shrink-0 cursor-pointer"
+                  onClick={() => setShowCreatePageLanding(true)}
+                  className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-[#1877F2] hover:bg-[#166FE5] text-white text-[14px] font-semibold cursor-pointer"
                 >
-                  সুইচ করুন
+                  <Plus className="w-4 h-4 stroke-[2.5]" />
+                  <span>Create Page</span>
                 </button>
               </div>
-            ))}
-          </div>
-        )}
-      </div>
+            ) : (
+              <div className="space-y-3">
+                {filteredManagedPages.map((page, index) => {
+                  const unreadNewCount = index === 0 ? 50 : 1;
+                  return (
+                    <div
+                      key={page.id}
+                      onClick={() => setSelectedPage(page)}
+                      className="flex items-center justify-between gap-3 py-1 bg-white hover:bg-[#F7F8FA] rounded-lg transition-colors cursor-pointer"
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        {page.avatar ? (
+                          <img
+                            src={page.avatar}
+                            alt={page.name}
+                            className="w-12 h-12 rounded-full object-cover shrink-0 bg-[#E4E6EB] border border-[#E4E6EB]"
+                          />
+                        ) : (
+                          <div className="w-12 h-12 rounded-full shrink-0 bg-[#E4E6EB] text-[#050505] flex items-center justify-center font-bold text-lg">
+                            {page.name.trim().charAt(0).toUpperCase() || <Camera className="w-5 h-5 text-[#65676B]" />}
+                          </div>
+                        )}
+
+                        <div className="min-w-0">
+                          <p className="text-[15px] font-bold text-[#050505] truncate leading-snug">
+                            {page.name}
+                          </p>
+                          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1877F2] mt-0.5">
+                            <span className="w-2 h-2 rounded-full bg-[#1877F2] inline-block shrink-0" />
+                            <span>{unreadNewCount} new</span>
+                          </div>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSheetPage(page);
+                        }}
+                        className="w-9 h-9 rounded-full hover:bg-[#F0F2F5] text-[#65676B] flex items-center justify-center shrink-0 cursor-pointer"
+                        title="Page options"
+                        aria-label={`Options for ${page.name}`}
+                      >
+                        <MoreHorizontal className="w-5 h-5" />
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+
+          <div className="h-[1px] bg-[#E4E6EB] mx-4" />
+
+          {/* SECTION 2: Suggested Pages */}
+          <section className="px-4 pt-4 pb-6">
+            <h2 className="text-[18px] font-bold text-[#050505] mb-3">
+              Suggested Pages
+            </h2>
+
+            {visibleSuggestedPages.length === 0 ? (
+              <p className="text-[14px] text-[#65676B] py-4">
+                No suggested Pages available right now.
+              </p>
+            ) : (
+              <div className="space-y-4">
+                {visibleSuggestedPages.map((sp) => {
+                  const isFollowed = followedSuggestedIds.includes(sp.id);
+                  const displayFollowers = isFollowed ? sp.followers + 1 : sp.followers;
+                  return (
+                    <div key={sp.id} className="flex items-start gap-3">
+                      <img
+                        src={sp.avatar}
+                        alt={sp.name}
+                        className="w-[60px] h-[60px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
+                      />
+
+                      <div className="flex-1 min-w-0">
+                        <p className="text-[15px] font-bold text-[#050505] leading-snug truncate">
+                          {sp.name}
+                        </p>
+                        <p className="text-[13px] text-[#65676B] mt-0.5">
+                          {displayFollowers.toLocaleString()} people follow this
+                        </p>
+
+                        <div className="flex items-center gap-2 mt-2.5">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setFollowedSuggestedIds((prev) =>
+                                prev.includes(sp.id)
+                                  ? prev.filter((id) => id !== sp.id)
+                                  : [...prev, sp.id]
+                              );
+                              showToast(
+                                isFollowed ? `Unfollowed ${sp.name}` : `Following ${sp.name}`
+                              );
+                            }}
+                            className={`flex-1 py-2 px-3 rounded-lg text-[14px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
+                              isFollowed
+                                ? 'bg-[#E7F3FF] text-[#1877F2]'
+                                : 'bg-[#1877F2] hover:bg-[#166FE5] text-white'
+                            }`}
+                          >
+                            {isFollowed ? (
+                              <>
+                                <Check className="w-4 h-4 stroke-[2.5]" />
+                                <span>Following</span>
+                              </>
+                            ) : (
+                              <>
+                                <Plus className="w-4 h-4 stroke-[2.5]" />
+                                <span>Follow</span>
+                              </>
+                            )}
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setRemovedSuggestedIds((prev) => [...prev, sp.id]);
+                            }}
+                            className="flex-1 py-2 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-semibold flex items-center justify-center transition-colors cursor-pointer"
+                          >
+                            Remove
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </section>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* FACEBOOK CREATE PAGE WIZARD MODAL */}
       {/* ------------------------------------------------------------- */}
       {showCreateModal && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-[#242526] w-full max-w-lg rounded-2xl border border-[#393a3b] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95">
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl border border-[#E4E6EB] shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-in fade-in zoom-in-95 text-black">
             {/* Modal Header */}
-            <div className="px-4 py-3 border-b border-[#393a3b] flex items-center justify-between bg-[#242526]">
+            <div className="px-4 py-3 border-b border-[#E4E6EB] flex items-center justify-between bg-white">
               <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-[#1877F2]/20 text-[#1877F2]">
+                <div className="p-1.5 rounded-lg bg-[#E7F3FF] text-[#0866FF]">
                   <Flag className="w-5 h-5 fill-current" />
                 </div>
                 <div>
-                  <h3 className="font-bold text-sm text-white">নতুন পেজ তৈরি করুন (Create Page)</h3>
-                  <p className="text-[10px] text-[#b0b3b8]">ধাপ {createStep} / ৩</p>
+                  <h3 className="font-bold text-sm text-black">নতুন পেজ তৈরি করুন (Create Page)</h3>
+                  <p className="text-[10px] text-[#65676B]">ধাপ {createStep} / ৩</p>
                 </div>
               </div>
               <button
                 onClick={() => setShowCreateModal(false)}
-                className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white"
+                className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
             {/* Step Progress Bar */}
-            <div className="w-full bg-[#18191a] h-1.5">
+            <div className="w-full bg-[#E4E6EB] h-1.5">
               <div
-                className="bg-[#1877F2] h-full transition-all duration-300"
+                className="bg-[#0866FF] h-full transition-all duration-300"
                 style={{ width: `${(createStep / 3) * 100}%` }}
               />
             </div>
@@ -1670,17 +2022,17 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   setCreateStep((prev) => (prev + 1) as any);
                 }
               }}
-              className="p-4 overflow-y-auto space-y-4 flex-1"
+              className="p-4 overflow-y-auto space-y-4 flex-1 bg-white"
             >
               {/* STEP 1: Basic Info */}
               {createStep === 1 && (
                 <div className="space-y-3.5">
-                  <div className="p-3 rounded-xl bg-blue-950/40 border border-blue-500/20 text-xs text-blue-200">
+                  <div className="p-3 rounded-xl bg-[#E7F3FF] border border-[#0866FF]/20 text-xs text-black">
                     💡 <span className="font-bold">পেজ কী?</span> পেজ হলো এমন একটি প্ল্যাটফর্ম যেখানে আপনার দ্বীনি প্রতিষ্ঠান, ব্যবসা, ইউটিউব চ্যানেল বা ব্যক্তিত্বের মাধ্যমে মানুষের সাথে প্রকাশ্যে যুক্ত হতে পারেন।
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1">
+                    <label className="block text-xs font-bold text-black mb-1">
                       পেজের নাম (Page Name) <span className="text-rose-500">*</span>
                     </label>
                     <input
@@ -1689,19 +2041,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       placeholder="যেমন: SF MART BD / Peace Mart Global / Halal Food Kitchen"
                       value={newName}
                       onChange={(e) => setNewName(e.target.value)}
-                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-3 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-3 text-xs sm:text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
                     />
-                    <p className="text-[11px] text-[#94a3b8] mt-1">
+                    <p className="text-[11px] text-[#65676B] mt-1">
                       আপনার প্রতিষ্ঠান বা উদ্যোগের নাম ব্যবহার করুন।
                     </p>
                   </div>
 
                   <div>
                     <div className="flex items-center justify-between mb-2">
-                      <label className="block text-xs font-bold text-white">
+                      <label className="block text-xs font-bold text-black">
                         ক্যাটাগরি নির্বাচন করুন <span className="text-rose-500">*</span>
                       </label>
-                      <span className="text-[11px] text-sky-400 font-semibold">
+                      <span className="text-[11px] text-[#0866FF] font-semibold">
                         যেকোনো একটি বেছে নিন
                       </span>
                     </div>
@@ -1714,15 +2066,15 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             key={item.value}
                             type="button"
                             onClick={() => setNewCategory(item.value)}
-                            className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border text-left transition-all active:scale-[0.98] cursor-pointer shadow-sm ${
+                            className={`w-full flex items-center justify-between p-3.5 sm:p-4 rounded-2xl border text-left transition-all active:scale-[0.98] cursor-pointer shadow-xs ${
                               isSelected
-                                ? 'bg-gradient-to-r from-[#1877F2] via-blue-600 to-sky-600 border-white/50 text-white shadow-lg shadow-blue-500/25 ring-2 ring-blue-400/50'
-                                : `${item.cardBg} ${item.borderClass} text-white`
+                                ? 'bg-gradient-to-r from-[#0866FF] via-blue-600 to-sky-600 border-[#0866FF] text-white shadow-md ring-2 ring-blue-300'
+                                : `${item.cardBg} ${item.borderClass} text-black`
                             }`}
                           >
                             <div className="flex items-center gap-3.5 min-w-0">
                               <div
-                                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-sm ${
+                                className={`w-11 h-11 rounded-xl flex items-center justify-center shrink-0 shadow-xs ${
                                   isSelected ? 'bg-white/20 text-white ring-1 ring-white/30' : item.iconBg
                                 }`}
                               >
@@ -1734,7 +2086,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 </p>
                                 <p
                                   className={`text-xs mt-0.5 truncate font-medium ${
-                                    isSelected ? 'text-blue-100' : 'text-slate-300'
+                                    isSelected ? 'text-blue-100' : 'text-[#65676B]'
                                   }`}
                                 >
                                   {item.nameEnglish}
@@ -1745,8 +2097,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             <div
                               className={`w-6 h-6 rounded-full flex items-center justify-center shrink-0 border transition-all ${
                                 isSelected
-                                  ? 'bg-white text-blue-600 border-white shadow-xs'
-                                  : 'border-slate-500 bg-slate-800/80 text-transparent'
+                                  ? 'bg-white text-[#0866FF] border-white shadow-xs'
+                                  : 'border-[#CCD0D5] bg-[#F0F2F5] text-transparent'
                               }`}
                             >
                               <Check className="w-3.5 h-3.5 stroke-[3]" />
@@ -1758,7 +2110,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1">
+                    <label className="block text-xs font-bold text-black mb-1">
                       বায়ো / সংক্ষিপ্ত পরিচিতি (Bio)
                     </label>
                     <textarea
@@ -1766,7 +2118,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       placeholder="আপনার পেজ বা উদ্যোগের মূল উদ্দেশ্য ও কার্যক্রম লিখুন..."
                       value={newBio}
                       onChange={(e) => setNewBio(e.target.value)}
-                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl p-3 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors resize-none"
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-xs sm:text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors resize-none"
                     />
                   </div>
                 </div>
@@ -1775,13 +2127,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               {/* STEP 2: Contact Details */}
               {createStep === 2 && (
                 <div className="space-y-3.5">
-                  <div className="p-3 rounded-xl bg-emerald-950/40 border border-emerald-500/20 text-xs text-emerald-200">
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
                     📞 <span className="font-bold">যোগাযোগের তথ্য:</span> ফলোয়াররা কীভাবে আপনার সাথে যোগাযোগ করবে তা উল্লেখ করুন (ঐচ্ছিক)।
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1 flex items-center gap-1.5">
-                      <Phone className="w-3.5 h-3.5 text-emerald-400" />
+                    <label className="block text-xs font-bold text-black mb-1 flex items-center gap-1.5">
+                      <Phone className="w-3.5 h-3.5 text-emerald-600" />
                       <span>মোবাইল নম্বর (Phone)</span>
                     </label>
                     <input
@@ -1789,14 +2141,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       placeholder="+880 17XXXXXXXX"
                       value={newPhone}
                       onChange={(e) => setNewPhone(e.target.value)}
-                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
                     />
                   </div>
 
                   <div className="space-y-2">
                     <div className="flex flex-wrap items-center justify-between gap-1.5">
-                      <span className="text-[11px] font-bold text-[#b0b3b8]">Direct Chat (Optional)</span>
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-500/40 text-emerald-300 text-[10px] font-bold">
+                      <span className="text-[11px] font-bold text-[#65676B]">Direct Chat (Optional)</span>
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-50 border border-emerald-200 text-emerald-700 text-[10px] font-bold">
                         <Check className="w-3 h-3 stroke-[3]" />
                         <span>Recommended for Global Business</span>
                       </span>
@@ -1809,35 +2161,35 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           placeholder="+880 17XXXXXXXX"
                           value={newWhatsapp}
                           onChange={(e) => setNewWhatsapp(e.target.value)}
-                          className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3 py-2 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#25D366]"
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#25D366]"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-sky-400 mb-1">IMO</label>
+                        <label className="block text-xs font-bold text-sky-600 mb-1">IMO</label>
                         <input
                           type="tel"
                           placeholder="+880 17XXXXXXXX"
                           value={newImo}
                           onChange={(e) => setNewImo(e.target.value)}
-                          className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3 py-2 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-sky-400"
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-sky-500"
                         />
                       </div>
                       <div>
-                        <label className="block text-xs font-bold text-purple-400 mb-1">Viber</label>
+                        <label className="block text-xs font-bold text-purple-600 mb-1">Viber</label>
                         <input
                           type="tel"
                           placeholder="+880 17XXXXXXXX"
                           value={newViber}
                           onChange={(e) => setNewViber(e.target.value)}
-                          className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3 py-2 text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-purple-400"
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-purple-500"
                         />
                       </div>
                     </div>
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1 flex items-center gap-1.5">
-                      <Globe className="w-3.5 h-3.5 text-blue-400" />
+                    <label className="block text-xs font-bold text-black mb-1 flex items-center gap-1.5">
+                      <Globe className="w-3.5 h-3.5 text-[#0866FF]" />
                       <span>ওয়েবসাইট লিংক</span>
                     </label>
                     <input
@@ -1845,13 +2197,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       placeholder="https://example.com"
                       value={newWebsite}
                       onChange={(e) => setNewWebsite(e.target.value)}
-                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1 flex items-center gap-1.5">
-                      <MapPin className="w-3.5 h-3.5 text-rose-400" />
+                    <label className="block text-xs font-bold text-black mb-1 flex items-center gap-1.5">
+                      <MapPin className="w-3.5 h-3.5 text-rose-500" />
                       <span>অবস্থান / শহর (City / Location)</span>
                     </label>
                     <input
@@ -1859,7 +2211,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       placeholder="Dhaka, Bangladesh"
                       value={newLocation}
                       onChange={(e) => setNewLocation(e.target.value)}
-                      className="w-full bg-[#1e293b] border border-[#334155] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2] transition-colors"
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
                     />
                   </div>
                 </div>
@@ -1868,20 +2220,20 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               {/* STEP 3: Images & Preview */}
               {createStep === 3 && (
                 <div className="space-y-4">
-                  <div className="p-3 rounded-xl bg-purple-950/40 border border-purple-500/20 text-xs text-purple-200">
+                  <div className="p-3 rounded-xl bg-purple-50 border border-purple-200 text-xs text-purple-900">
                     🎨 <span className="font-bold">প্রোফাইল ও কভার ফটো:</span> আপনার নিজস্ব ছবি আপলোড করুন অথবা নিচের ডিজাইন থেকে একটি বেছে নিন।
                   </div>
 
                   {/* Live Card Preview */}
-                  <div className="bg-[#18191a] rounded-xl border border-[#393a3b] overflow-hidden">
-                    <div className="h-24 w-full relative bg-[#242526] flex items-center justify-center">
+                  <div className="bg-white rounded-xl border border-[#E4E6EB] overflow-hidden">
+                    <div className="h-24 w-full relative bg-[#F0F2F5] flex items-center justify-center">
                       {newCover ? (
                         <>
                           <img src={newCover} alt="Cover" className="w-full h-full object-cover" />
-                          <div className="absolute inset-0 bg-gradient-to-t from-black/80 to-transparent" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
                         </>
                       ) : (
-                        <span className="text-xs text-[#b0b3b8] font-semibold">কভার ফটো (পরেও যোগ করা যাবে)</span>
+                        <span className="text-xs text-[#65676B] font-semibold">কভার ফটো (পরেও যোগ করা যাবে)</span>
                       )}
                     </div>
                     <div className="p-3 flex items-center gap-3">
@@ -1889,27 +2241,27 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                         <img
                           src={newAvatar}
                           alt="Avatar"
-                          className="w-12 h-12 rounded-xl object-cover border-2 border-[#242526] -mt-8 shadow-lg"
+                          className="w-12 h-12 rounded-xl object-cover border-2 border-white -mt-8 shadow-lg"
                         />
                       ) : (
-                        <div className="w-12 h-12 rounded-xl bg-[#3a3b3c] border-2 border-[#242526] -mt-8 shadow-lg flex items-center justify-center text-white font-bold text-sm">
+                        <div className="w-12 h-12 rounded-xl bg-[#E4E6EB] border-2 border-white -mt-8 shadow-lg flex items-center justify-center text-black font-bold text-sm">
                           <Camera className="w-5 h-5" />
                         </div>
                       )}
                       <div>
-                        <p className="font-bold text-xs text-white">{newName || 'আপনার পেজের নাম'}</p>
-                        <p className="text-[10px] text-[#b0b3b8]">{newCategory}</p>
+                        <p className="font-bold text-xs text-black">{newName || 'আপনার পেজের নাম'}</p>
+                        <p className="text-[10px] text-[#65676B]">{newCategory}</p>
                       </div>
                     </div>
                   </div>
 
                   {/* Avatar Picker & Device Upload */}
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1.5">
+                    <label className="block text-xs font-bold text-black mb-1.5">
                       প্রোফাইল লোগো / ছবি নির্বাচন করুন:
                     </label>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                      <label className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-[#18191a] border border-dashed border-[#1877F2] text-[#1877F2] cursor-pointer hover:bg-[#1877F2]/10 shrink-0">
+                      <label className="flex flex-col items-center justify-center w-12 h-12 rounded-xl bg-[#F0F2F5] border border-dashed border-[#0866FF] text-[#0866FF] cursor-pointer hover:bg-[#E7F3FF] shrink-0">
                         <Camera className="w-5 h-5" />
                         <span className="text-[8px] font-bold mt-0.5">আপলোড</span>
                         <input
@@ -1926,7 +2278,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           alt="Preset"
                           onClick={() => setNewAvatar(url)}
                           className={`w-12 h-12 rounded-xl object-cover cursor-pointer shrink-0 border-2 transition-all ${
-                            newAvatar === url ? 'border-[#1877F2] scale-105' : 'border-transparent opacity-70'
+                            newAvatar === url ? 'border-[#0866FF] scale-105' : 'border-transparent opacity-70'
                           }`}
                         />
                       ))}
@@ -1935,11 +2287,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
                   {/* Cover Photo Picker & Device Upload */}
                   <div>
-                    <label className="block text-xs font-bold text-white mb-1.5">
+                    <label className="block text-xs font-bold text-black mb-1.5">
                       কভার ফটো নির্বাচন করুন:
                     </label>
                     <div className="flex items-center gap-2 overflow-x-auto pb-1">
-                      <label className="flex flex-col items-center justify-center w-20 h-12 rounded-xl bg-[#18191a] border border-dashed border-[#1877F2] text-[#1877F2] cursor-pointer hover:bg-[#1877F2]/10 shrink-0">
+                      <label className="flex flex-col items-center justify-center w-20 h-12 rounded-xl bg-[#F0F2F5] border border-dashed border-[#0866FF] text-[#0866FF] cursor-pointer hover:bg-[#E7F3FF] shrink-0">
                         <ImageIcon className="w-5 h-5" />
                         <span className="text-[8px] font-bold mt-0.5">আপলোড</span>
                         <input
@@ -1956,7 +2308,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           alt="Cover preset"
                           onClick={() => setNewCover(url)}
                           className={`w-20 h-12 rounded-xl object-cover cursor-pointer shrink-0 border-2 transition-all ${
-                            newCover === url ? 'border-[#1877F2] scale-105' : 'border-transparent opacity-70'
+                            newCover === url ? 'border-[#0866FF] scale-105' : 'border-transparent opacity-70'
                           }`}
                         />
                       ))}
@@ -1966,12 +2318,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               )}
 
               {/* Modal Footer Controls */}
-              <div className="pt-3 border-t border-[#393a3b] flex items-center justify-between">
+              <div className="pt-3 border-t border-[#E4E6EB] flex items-center justify-between">
                 {createStep > 1 ? (
                   <button
                     type="button"
                     onClick={() => setCreateStep((prev) => (prev - 1) as any)}
-                    className="px-5 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs sm:text-sm font-bold text-white transition-colors cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs sm:text-sm font-bold text-black transition-colors cursor-pointer"
                   >
                     ← আগের ধাপ
                   </button>
@@ -1979,7 +2331,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   <button
                     type="button"
                     onClick={() => setShowCreateModal(false)}
-                    className="px-5 py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-xs sm:text-sm font-bold text-white transition-colors cursor-pointer"
+                    className="px-5 py-2.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs sm:text-sm font-bold text-black transition-colors cursor-pointer"
                   >
                     বাতিল
                   </button>
@@ -1995,7 +2347,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       }
                       setCreateStep((prev) => (prev + 1) as any);
                     }}
-                    className="px-6 py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] active:scale-[0.99] text-xs sm:text-sm font-bold text-white transition-all shadow-md shadow-blue-500/30 cursor-pointer"
+                    className="px-6 py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] active:scale-[0.99] text-xs sm:text-sm font-bold text-white transition-all shadow-md shadow-blue-500/30 cursor-pointer"
                   >
                     পরবর্তী ধাপ →
                   </button>

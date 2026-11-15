@@ -9,18 +9,18 @@ import {
 } from '../types';
 
 export const USER_PROFILE: UserProfile = {
-  name: 'Sharif Hasan',
-  avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
+  name: 'Member',
+  avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=Peaceverse&backgroundColor=1877f2,0ea5e9,3b82f6',
   coverPhoto: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-  friendsCount: 331,
-  location: 'Dhaka, Bangladesh',
-  birthDate: 'August 17, 1991',
+  friendsCount: 0,
+  location: '',
+  birthDate: '',
   thoughtBubble: 'Drop a thought...',
   bio: '',
   work: '',
   education: '',
-  hometown: 'Dhaka, Bangladesh',
-  relationship: 'Married',
+  hometown: '',
+  relationship: '',
   website: '',
   whatsapp: '',
   imo: '',
@@ -28,8 +28,8 @@ export const USER_PROFILE: UserProfile = {
   messengerLink: '',
   contactPrivacy: 'public',
   hobbies: [],
-  goldenCoins: 120,
-  earnedCoins: 65,
+  goldenCoins: 0,
+  earnedCoins: 0,
 };
 
 // 100% EMPTY by default per Part 1 instructions - Genuine posts & stories will load from Supabase / Firestore
@@ -79,7 +79,7 @@ export const INITIAL_POSTS: PostItem[] = [
     isPublic: true,
     privacy: 'public',
     status: 'approved',
-    contentBangla: 'আপনারা সবাই আমার পরিবারের সদস্য। আপনাদের দোয়া ও ভালোবাসায় এগিয়ে যেতে চাই।\n\n#PeaceWorld #PeaceVerse #HalalCommunity #Alhamdulillah',
+    contentBangla: 'আপনারা সবাই আমার পরিবারের সদস্য। আপনাদের দোয়া ও ভালোবাসায় এগিয়ে যেতে চাই।\n\n#Peaceverse24 #PeaceVerse #HalalCommunity #Alhamdulillah',
     mediaType: 'image',
     mediaUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
     category: 'Community',

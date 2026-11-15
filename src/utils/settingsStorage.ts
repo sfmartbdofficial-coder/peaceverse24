@@ -35,7 +35,7 @@ export interface PeaceSettingsPrefs {
   blockedUsers: string[];
   blockedKeywords: string[];
 
-  // Section 5: Creator Broadcast & User Notification Settings
+  // Section 5: Creator Broadcast & User Notification Settings (Default OFF for new users)
   creatorNotifyFollowersOnPost: boolean;
   creatorSendPushToAllUsers: boolean;
   notifyFavoriteCreator: boolean;
@@ -43,19 +43,20 @@ export interface PeaceSettingsPrefs {
   notifSound: boolean;
   notifVibration: boolean;
   fcmPushSubscribed: boolean;
+  settingsVersion?: number;
 }
 
 export const DEFAULT_PEACE_SETTINGS: PeaceSettingsPrefs = {
-  salahReminder: true,
-  quietModeSalah: true,
-  dailyReminderMins: 45,
-  twoFactorEnabled: true,
+  salahReminder: false,
+  quietModeSalah: false,
+  dailyReminderMins: 0,
+  twoFactorEnabled: false,
 
-  dataSaver: true,
-  autoplayWifiOnly: true,
+  dataSaver: false,
+  autoplayWifiOnly: false,
   selectedAppIcon: 'classic',
-  bkashNumber: '01711-234567',
-  nagadNumber: '01822-987654',
+  bkashNumber: '',
+  nagadNumber: '',
   defaultPaymentMethod: 'bkash',
 
   whoCanMessage: 'everyone',
@@ -63,28 +64,29 @@ export const DEFAULT_PEACE_SETTINGS: PeaceSettingsPrefs = {
   halalMessageFilter: true,
   editsDefaultQuality: '1080p',
   editsAutoHalalCheck: true,
-  editsWatermarkOff: true,
-  businessShopVerification: true,
-  businessOrderNotifications: true,
-  businessWhatsappOrderSync: true,
+  editsWatermarkOff: false,
+  businessShopVerification: false,
+  businessOrderNotifications: false,
+  businessWhatsappOrderSync: false,
 
   halalContentFilter: true,
-  blockHaramMusic: true,
-  prayerTimePause: true,
-  prayerPauseMinutes: 20,
+  blockHaramMusic: false,
+  prayerTimePause: false,
+  prayerPauseMinutes: 15,
   familyBlock18Plus: true,
   familySafeSearch: true,
-  kidsSafeReels: true,
-  blockedUsers: ['SpamBot24', 'FakePromoBD'],
-  blockedKeywords: ['casino', 'gambling', 'haram', '18+'],
+  kidsSafeReels: false,
+  blockedUsers: [],
+  blockedKeywords: [],
 
-  creatorNotifyFollowersOnPost: true,
-  creatorSendPushToAllUsers: true,
-  notifyFavoriteCreator: true,
-  notifyPriyoDada: true,
-  notifSound: true,
-  notifVibration: true,
+  creatorNotifyFollowersOnPost: false,
+  creatorSendPushToAllUsers: false,
+  notifyFavoriteCreator: false,
+  notifyPriyoDada: false,
+  notifSound: false,
+  notifVibration: false,
   fcmPushSubscribed: false,
+  settingsVersion: 2,
 };
 
 const STORAGE_KEY = 'peaceverse_halal_settings';
@@ -94,15 +96,53 @@ export function loadPeaceSettings(): PeaceSettingsPrefs {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (!raw) return DEFAULT_PEACE_SETTINGS;
     const parsed = JSON.parse(raw);
+
+    // Strip any legacy mock/demo values if upgrading from v1 storage
+    const cleanBkash =
+      parsed.bkashNumber === '01711-234567' || parsed.bkashNumber === '01712345678'
+        ? ''
+        : typeof parsed.bkashNumber === 'string'
+        ? parsed.bkashNumber
+        : '';
+    const cleanNagad =
+      parsed.nagadNumber === '01822-987654'
+        ? ''
+        : typeof parsed.nagadNumber === 'string'
+        ? parsed.nagadNumber
+        : '';
+
+    const isLegacyV1 = !parsed.settingsVersion || Number(parsed.settingsVersion) < 2;
+    const rawBlockedUsers = Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [];
+    const cleanBlockedUsers = isLegacyV1
+      ? rawBlockedUsers.filter((u: string) => u !== 'SpamBot24' && u !== 'FakePromoBD')
+      : rawBlockedUsers;
+
+    const rawBlockedKeywords = Array.isArray(parsed.blockedKeywords) ? parsed.blockedKeywords : [];
+    const isDefaultFakeKeywords =
+      isLegacyV1 &&
+      rawBlockedKeywords.length === 4 &&
+      rawBlockedKeywords.includes('SpamBot24') === false &&
+      ['casino', 'gambling', 'haram', '18+'].every((k) => rawBlockedKeywords.includes(k));
+    const cleanBlockedKeywords = isDefaultFakeKeywords ? [] : rawBlockedKeywords;
+
     return {
       ...DEFAULT_PEACE_SETTINGS,
       ...parsed,
-      blockedUsers: Array.isArray(parsed.blockedUsers)
-        ? parsed.blockedUsers
-        : DEFAULT_PEACE_SETTINGS.blockedUsers,
-      blockedKeywords: Array.isArray(parsed.blockedKeywords)
-        ? parsed.blockedKeywords
-        : DEFAULT_PEACE_SETTINGS.blockedKeywords,
+      bkashNumber: cleanBkash,
+      nagadNumber: cleanNagad,
+      blockedUsers: cleanBlockedUsers,
+      blockedKeywords: cleanBlockedKeywords,
+      ...(isLegacyV1
+        ? {
+            creatorNotifyFollowersOnPost: false,
+            creatorSendPushToAllUsers: false,
+            notifyFavoriteCreator: false,
+            notifyPriyoDada: false,
+            notifSound: false,
+            notifVibration: false,
+            settingsVersion: 2,
+          }
+        : {}),
     };
   } catch {
     return DEFAULT_PEACE_SETTINGS;
@@ -110,8 +150,12 @@ export function loadPeaceSettings(): PeaceSettingsPrefs {
 }
 
 export function savePeaceSettings(next: PeaceSettingsPrefs): PeaceSettingsPrefs {
+  const normalized: PeaceSettingsPrefs = {
+    ...next,
+    settingsVersion: 2,
+  };
   try {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(next));
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
   } catch {}
-  return next;
+  return normalized;
 }

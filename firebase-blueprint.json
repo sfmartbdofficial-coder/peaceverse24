@@ -135,12 +135,106 @@
         "createdAt": { "type": "string" }
       },
       "required": ["id", "followerId", "targetId"]
+    },
+    "LinkHistoryItem": {
+      "title": "LinkHistoryItem",
+      "description": "Real visited link saved for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "url": { "type": "string" },
+        "visitedAt": { "type": "string" },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "userId", "url"]
+    },
+    "ActivityLogItem": {
+      "title": "ActivityLogItem",
+      "description": "Real user action recorded in activity log",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "category": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "userId", "category", "text"]
+    },
+    "UserOrder": {
+      "title": "UserOrder",
+      "description": "Real marketplace order for a user",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "shopName": { "type": "string" },
+        "itemsSummary": { "type": "string" },
+        "amount": { "type": "number" },
+        "paymentMethod": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "createdAtMillis": { "type": "number" }
+      },
+      "required": ["id", "userId", "amount", "paymentMethod", "status"]
+    },
+    "UserSettings": {
+      "title": "UserSettings",
+      "description": "Per-user settings and payment numbers",
+      "type": "object",
+      "properties": {
+        "bkashNumber": { "type": "string" },
+        "nagadNumber": { "type": "string" },
+        "defaultPaymentMethod": { "type": "string" },
+        "notifyFavoriteCreator": { "type": "boolean" },
+        "notifyPriyoDada": { "type": "boolean" },
+        "notifSound": { "type": "boolean" },
+        "notifVibration": { "type": "boolean" },
+        "creatorNotifyFollowersOnPost": { "type": "boolean" },
+        "creatorSendPushToAllUsers": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      }
+    },
+    "MobileSimStatus": {
+      "title": "MobileSimStatus",
+      "description": "Real carrier/SIM data status linked by user",
+      "type": "object",
+      "properties": {
+        "operator": { "type": "string" },
+        "dataBalance": { "type": "string" },
+        "expiry": { "type": "string" },
+        "simDetected": { "type": "boolean" },
+        "updatedAt": { "type": "string" }
+      }
     }
   },
   "firestore": {
     "/users/{userId}": {
       "schema": "UserProfile",
       "description": "User profiles"
+    },
+    "/users/{userId}/link_history/{linkId}": {
+      "schema": "LinkHistoryItem",
+      "description": "User visited link history"
+    },
+    "/users/{userId}/activity_log/{activityId}": {
+      "schema": "ActivityLogItem",
+      "description": "User activity log entries"
+    },
+    "/users/{userId}/orders/{orderId}": {
+      "schema": "UserOrder",
+      "description": "User marketplace orders"
+    },
+    "/users/{userId}/settings/{settingId}": {
+      "schema": "UserSettings",
+      "description": "User settings and payment preferences"
+    },
+    "/users/{userId}/mobile_sim/{simId}": {
+      "schema": "MobileSimStatus",
+      "description": "User mobile carrier/SIM balance record"
     },
     "/posts/{postId}": {
       "schema": "Post",

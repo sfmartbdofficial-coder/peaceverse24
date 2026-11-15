@@ -41,10 +41,10 @@ interface HalalReactionMeta {
 const HALAL_REACTIONS: HalalReactionMeta[] = [
   { type: 'like', emoji: '🤲', label: 'Dua', textColor: 'text-[#1877F2]', bgTint: 'bg-[#1877F2]' },
   { type: 'love', emoji: '❤️', label: 'MashaAllah', textColor: 'text-[#FA3E3E]', bgTint: 'bg-[#FA3E3E]' },
-  { type: 'subhanallah', emoji: '🕋', label: 'SubhanAllah', textColor: 'text-emerald-600 dark:text-emerald-400', bgTint: 'bg-emerald-600' },
+  { type: 'subhanallah', emoji: '🕋', label: 'SubhanAllah', textColor: 'text-emerald-600', bgTint: 'bg-emerald-600' },
   { type: 'mashaallah', emoji: '🙏', label: 'Alhamdulillah', textColor: 'text-[#0866FF]', bgTint: 'bg-[#0866FF]' },
   { type: 'care', emoji: '🤝', label: 'InshaAllah', textColor: 'text-amber-500', bgTint: 'bg-amber-500' },
-  { type: 'sad', emoji: '😢', label: 'Astagfirullah', textColor: 'text-[#65676B] dark:text-[#b0b3b8]', bgTint: 'bg-[#65676B]' },
+  { type: 'sad', emoji: '😢', label: 'Astagfirullah', textColor: 'text-[#65676B]', bgTint: 'bg-[#65676B]' },
 ];
 
 interface FbPostCardProps {
@@ -208,25 +208,25 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   // BLOCK GUARD: If post violates guidelines, render blocked state with appeal option
   if (post.status === 'blocked') {
     return (
-      <article className="bg-[#242526] border border-amber-900/60 rounded-2xl p-4 space-y-3">
+      <article className="bg-white border border-amber-300 rounded-2xl p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2 text-amber-400 font-bold text-sm">
+          <div className="flex items-center gap-2 text-amber-700 font-bold text-sm">
             <ShieldAlert className="w-5 h-5 flex-shrink-0" />
-            <span>This post violates Peaceverse guidelines</span>
+            <span>This post violates Peaceverse24.com guidelines</span>
           </div>
-          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 text-amber-300 font-bold">
+          <span className="text-[10px] px-2 py-0.5 rounded-full bg-amber-50 text-amber-700 font-bold border border-amber-200">
             ব্লক করা হয়েছে
           </span>
         </div>
 
-        <p className="text-xs text-[#b0b3b8] leading-relaxed">
+        <p className="text-xs text-[#65676B] leading-relaxed">
           {post.moderationReason ||
-            'পোস্টটি Peaceverse ইসলামিক সোশ্যাল নেটওয়ার্কের শালীনতা ও গাইডলাইন লঙ্ঘনের কারণে প্রদর্শন স্থগিত রয়েছে।'}
+            'পোস্টটি Peaceverse24.com ইসলামিক সোশ্যাল নেটওয়ার্কের শালীনতা ও গাইডলাইন লঙ্ঘনের কারণে প্রদর্শন স্থগিত রয়েছে।'}
         </p>
 
         {post.appealStatus === 'pending' || appealSubmitted ? (
-          <div className="p-2.5 rounded-xl bg-blue-950/40 border border-blue-500/40 text-blue-300 text-xs flex items-center gap-2">
-            <Check className="w-4 h-4 text-blue-400" />
+          <div className="p-2.5 rounded-xl bg-blue-50 border border-blue-200 text-[#0866FF] text-xs flex items-center gap-2">
+            <Check className="w-4 h-4 text-[#0866FF]" />
             <span>আপনার আপিলটি সফলভাবে গৃহীত হয়েছে এবং অ্যাডমিন প্যানেলে পর্যালোচনাধীন রয়েছে।</span>
           </div>
         ) : (
@@ -237,30 +237,30 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             >
               আপিল করুন (Appeal)
             </button>
-            <span className="text-[11px] text-[#8a8d91]">আইডি: {post.id}</span>
+            <span className="text-[11px] text-[#65676B]">আইডি: {post.id}</span>
           </div>
         )}
 
         {/* Appeal Modal */}
         {showAppealModal && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="bg-[#242526] border border-[#393a3b] rounded-2xl p-4 w-full max-w-md space-y-3 animate-in fade-in zoom-in-95">
-              <div className="flex items-center justify-between border-b border-[#393a3b] pb-2">
-                <h3 className="font-bold text-white text-sm">পোস্ট আনব্লক করার আপিল</h3>
-                <button onClick={() => setShowAppealModal(false)} className="p-1 text-neutral-400 hover:text-white">
+          <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+            <div className="bg-white border border-[#E4E6EB] rounded-2xl p-4 w-full max-w-md space-y-3 animate-in fade-in zoom-in-95 text-black">
+              <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-2">
+                <h3 className="font-bold text-black text-sm">পোস্ট আনব্লক করার আপিল</h3>
+                <button onClick={() => setShowAppealModal(false)} className="p-1 text-[#65676B] hover:text-black">
                   <X className="w-5 h-5" />
                 </button>
               </div>
 
               {appealSubmitted ? (
                 <div className="py-6 text-center space-y-2">
-                  <CheckCircle2 className="w-10 h-10 text-emerald-400 mx-auto" />
-                  <p className="text-sm font-bold text-white">আপিল সফলভাবে জমা হয়েছে</p>
-                  <p className="text-xs text-[#b0b3b8]">অ্যাডমিন টিম দ্রুত এটি রিভিউ করে সিদ্ধান্ত জানাবে।</p>
+                  <CheckCircle2 className="w-10 h-10 text-emerald-600 mx-auto" />
+                  <p className="text-sm font-bold text-black">আপিল সফলভাবে জমা হয়েছে</p>
+                  <p className="text-xs text-[#65676B]">অ্যাডমিন টিম দ্রুত এটি রিভিউ করে সিদ্ধান্ত জানাবে।</p>
                 </div>
               ) : (
                 <form onSubmit={handleAppealSubmit} className="space-y-3">
-                  <p className="text-xs text-[#b0b3b8]">
+                  <p className="text-xs text-[#65676B]">
                     আপনার পোস্টটি কেন ভুলবশত ব্লক হয়েছে বলে মনে করেন তা সংক্ষেপে লিখুন:
                   </p>
                   <textarea
@@ -268,21 +268,21 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                     value={appealReason}
                     onChange={(e) => setAppealReason(e.target.value)}
                     placeholder="আপনার আপিলের বিবরণ লিখুন..."
-                    className="w-full bg-[#18191a] border border-[#393a3b] rounded-xl p-3 text-xs text-white outline-none focus:border-[#1877F2] resize-none"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-xs text-black outline-none focus:border-[#0866FF] resize-none"
                     required
                   />
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setShowAppealModal(false)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#b0b3b8] hover:bg-[#3a3b3c]"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#65676B] hover:bg-[#F0F2F5]"
                     >
                       বাতিল
                     </button>
                     <button
                       type="submit"
                       disabled={isSubmittingAppeal || !appealReason.trim()}
-                      className="px-4 py-1.5 rounded-lg bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5"
+                      className="px-4 py-1.5 rounded-lg bg-[#0866FF] text-white font-bold text-xs flex items-center gap-1.5"
                     >
                       {isSubmittingAppeal ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : null}
                       <span>আপিল জমা দিন</span>
@@ -300,7 +300,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const handleCopyAyah = () => {
     if (post.arabicVerse) {
       navigator.clipboard.writeText(
-        `${post.arabicVerse}\n\n${post.translation || ''}\n\n— ${post.reference || ''} via Qalby`
+        `${post.arabicVerse}\n\n${post.translation || ''}\n\n— ${post.reference || ''} via Peaceverse24.com`
       );
       setCopiedToast(true);
       setTimeout(() => setCopiedToast(false), 2000);
@@ -311,11 +311,11 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     if (navigator.share) {
       navigator.share({
         title: post.author.name,
-        text: `${post.contentBangla} — Qalby`,
+        text: `${post.contentBangla} — Peaceverse24.com`,
         url: window.location.href,
       }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(`${post.contentBangla}\n\n— ${post.author.name} via Qalby`);
+      navigator.clipboard.writeText(`${post.contentBangla}\n\n— ${post.author.name} via Peaceverse24.com`);
       setCopiedToast(true);
       setTimeout(() => setCopiedToast(false), 2500);
     }
@@ -364,9 +364,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
       : [{ ...HALAL_REACTIONS[0], count: post.reactions.total || 0 }];
 
   return (
-    <article className="bg-white dark:bg-[#1C1C1D] border border-[#E4E6EB] dark:border-[#222222] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden space-y-2.5 transition-all">
+    <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] overflow-hidden space-y-2.5 transition-all text-black">
       {copiedToast && (
-        <div className="mx-3 mt-2 py-1.5 px-3 bg-emerald-50 dark:bg-emerald-950/90 border border-emerald-500/50 rounded-xl text-center text-xs font-bold text-emerald-700 dark:text-emerald-300 flex items-center justify-center gap-1.5 animate-in fade-in">
+        <div className="mx-3 mt-2 py-1.5 px-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-emerald-700 flex items-center justify-center gap-1.5 animate-in fade-in">
           <Check className="w-4 h-4" />
           <span>✓ পোস্ট লিঙ্ক ও তথ্য কপি করা হয়েছে!</span>
         </div>
@@ -382,13 +382,13 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             <img
               src={post.author.avatar}
               alt={post.author.name}
-              className="w-10 h-10 rounded-full object-cover border border-[#E4E6EB] dark:border-[#393a3b] group-hover:ring-2 group-hover:ring-[#0866FF] transition-all"
+              className="w-10 h-10 rounded-full object-cover border border-[#E4E6EB] group-hover:ring-2 group-hover:ring-[#0866FF] transition-all"
             />
           </div>
 
           <div>
             <div className="flex items-center gap-1.5 leading-snug">
-              <span className="font-bold text-[15px] text-[#050505] dark:text-white group-hover:underline">
+              <span className="font-bold text-[15px] text-black group-hover:underline">
                 {post.author.name}
               </span>
               {post.author.verified && (
@@ -403,7 +403,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   }}
                   className={`text-[11px] font-bold px-2 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer ml-1 shadow-xs ${
                     isFollowingAuthor
-                      ? 'bg-neutral-100 dark:bg-emerald-600/20 text-neutral-700 dark:text-emerald-400 border border-neutral-300 dark:border-emerald-500/30'
+                      ? 'bg-[#F0F2F5] text-black border border-[#E4E6EB]'
                       : 'bg-[#E7F3FF] hover:bg-[#0866FF] text-[#0866FF] hover:text-white border border-[#0866FF]/20'
                   }`}
                   title={isFollowingAuthor ? 'Unfollow this creator' : 'Follow this creator'}
@@ -413,7 +413,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-1 text-[13px] text-[#65676B] dark:text-[#b0b3b8]">
+            <div className="flex items-center gap-1 text-[13px] text-[#65676B]">
               {post.author.subtitle && (
                 <span>{post.author.subtitle}</span>
               )}
@@ -432,7 +432,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                       <span className="text-[11px]">Friends</span>
                     </span>
                   ) : (
-                    <span title="Public" className="flex items-center gap-1 text-[#65676B] dark:text-[#b0b3b8]">
+                    <span title="Public" className="flex items-center gap-1 text-[#65676B]">
                       <Globe className="w-3 h-3" />
                       <span className="text-[11px]">Public</span>
                     </span>
@@ -444,17 +444,17 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
 
         {/* Top Right: ••• and ✕ buttons matching Screenshot 1 & 2 */}
-        <div className="flex items-center gap-0.5 text-[#65676B] dark:text-[#b0b3b8]">
+        <div className="flex items-center gap-0.5 text-[#65676B]">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
-            className="p-1.5 rounded-full hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] text-[#65676B] dark:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] transition-colors cursor-pointer"
           >
             <MoreHorizontal className="w-5 h-5" />
           </button>
           
           <button
             onClick={() => setHidden(true)}
-            className="p-1.5 rounded-full hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] text-[#65676B] dark:text-white transition-colors cursor-pointer"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] transition-colors cursor-pointer"
             title="Hide post"
           >
             <X className="w-5 h-5" />
@@ -463,7 +463,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-4 top-10 z-40 w-52 py-1.5 bg-[#242526] border border-[#393a3b] rounded-xl shadow-2xl text-xs text-[#e4e6eb] animate-in fade-in zoom-in-95">
+              <div className="absolute right-4 top-10 z-40 w-52 py-1.5 bg-white border border-[#E4E6EB] rounded-xl shadow-2xl text-xs text-black animate-in fade-in zoom-in-95">
                 
                 {/* Edit Post */}
                 <button
@@ -471,9 +471,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                     setMenuOpen(false);
                     setIsEditing(true);
                   }}
-                  className="w-full px-3 py-2 text-left hover:bg-[#3a3b3c] flex items-center gap-2.5 transition-colors"
+                  className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
-                  <Edit3 className="w-4 h-4 text-blue-400" />
+                  <Edit3 className="w-4 h-4 text-[#0866FF]" />
                   <span>Edit post (পোস্ট এডিট করুন)</span>
                 </button>
 
@@ -483,16 +483,16 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                     onToggleSave(post.id);
                     setMenuOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-left hover:bg-[#3a3b3c] flex items-center gap-2.5 transition-colors"
+                  className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
                   {post.isSaved ? (
                     <>
-                      <BookmarkCheck className="w-4 h-4 text-emerald-400" />
+                      <BookmarkCheck className="w-4 h-4 text-emerald-600" />
                       <span>সংরক্ষিত তালিকা থেকে মুছুন</span>
                     </>
                   ) : (
                     <>
-                      <Bookmark className="w-4 h-4 text-[#b0b3b8]" />
+                      <Bookmark className="w-4 h-4 text-[#65676B]" />
                       <span>Save post (সংরক্ষণ করুন)</span>
                     </>
                   )}
@@ -506,23 +506,23 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                     setTimeout(() => setCopiedToast(false), 2000);
                     setMenuOpen(false);
                   }}
-                  className="w-full px-3 py-2 text-left hover:bg-[#3a3b3c] flex items-center gap-2.5 transition-colors"
+                  className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
-                  <Copy className="w-4 h-4 text-[#b0b3b8]" />
+                  <Copy className="w-4 h-4 text-[#65676B]" />
                   <span>Copy text (লেখা কপি করুন)</span>
                 </button>
 
                 {/* Share link */}
                 <button
                   onClick={handleShare}
-                  className="w-full px-3 py-2 text-left hover:bg-[#3a3b3c] flex items-center gap-2.5 transition-colors"
+                  className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
-                  <Share2 className="w-4 h-4 text-[#b0b3b8]" />
+                  <Share2 className="w-4 h-4 text-[#65676B]" />
                   <span>Share (শেয়ার করুন)</span>
                 </button>
 
                 {/* Delete / Hide */}
-                <div className="border-t border-[#393a3b] my-1" />
+                <div className="border-t border-[#E4E6EB] my-1" />
                 <button
                   onClick={() => {
                     setMenuOpen(false);
@@ -532,9 +532,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                       setHidden(true);
                     }
                   }}
-                  className="w-full px-3 py-2 text-left hover:bg-red-950/60 text-red-400 flex items-center gap-2.5 transition-colors"
+                  className="w-full px-3 py-2 text-left hover:bg-red-50 text-red-600 flex items-center gap-2.5 transition-colors"
                 >
-                  <Trash2 className="w-4 h-4 text-red-400" />
+                  <Trash2 className="w-4 h-4 text-red-600" />
                   <span>Delete post (পোস্টটি মুছুন)</span>
                 </button>
               </div>
@@ -561,10 +561,10 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
       ) : (
         <div className="px-3 sm:px-4 space-y-1.5">
-          <div className="text-[15px] text-[#050505] dark:text-[#e4e6eb] font-bengali leading-relaxed whitespace-pre-line">
+          <div className="text-[15px] text-black font-bengali leading-relaxed whitespace-pre-line">
             <p>{!showOriginalText && translatedBody ? translatedBody : post.contentBangla}</p>
           </div>
-          <div className="flex items-center gap-2 text-[11px] text-[#65676B] dark:text-[#b0b3b8]">
+          <div className="flex items-center gap-2 text-[11px] text-[#65676B]">
             {isTranslating && (
               <span className="flex items-center gap-1 text-[#0866FF]">
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -601,24 +601,24 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* 3. Highlighted Arabic Verse Box if any */}
       {post.arabicVerse && (
-        <div className="mx-3 sm:mx-4 p-3.5 rounded-xl bg-gradient-to-br from-emerald-50 via-white to-neutral-50 dark:from-emerald-950/40 dark:via-[#18191a] dark:to-black border border-emerald-500/30">
+        <div className="mx-3 sm:mx-4 p-3.5 rounded-xl bg-emerald-50/60 border border-emerald-200">
           <div className="flex items-center justify-between mb-1.5">
-            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 flex items-center gap-1.5">
+            <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
               <BookOpen className="w-3.5 h-3.5" />
               <span>{post.reference || 'Holy Verse'}</span>
             </span>
             <button
               onClick={handleCopyAyah}
-              className="px-2 py-0.5 rounded bg-neutral-100 dark:bg-[#3a3b3c] text-[10px] text-neutral-800 dark:text-[#e4e6eb] hover:bg-neutral-200 cursor-pointer"
+              className="px-2 py-0.5 rounded bg-white border border-[#E4E6EB] text-[10px] text-black hover:bg-[#F0F2F5] cursor-pointer"
             >
               {copiedToast ? 'Copied ✓' : 'Copy Verse'}
             </button>
           </div>
-          <p className="text-base sm:text-lg font-arabic text-right text-emerald-900 dark:text-emerald-100 leading-loose py-1" dir="rtl">
+          <p className="text-base sm:text-lg font-arabic text-right text-emerald-950 leading-loose py-1" dir="rtl">
             {post.arabicVerse}
           </p>
           {(translatedVerse || post.translation) && (
-            <p className="text-xs text-[#65676B] dark:text-[#b0b3b8] mt-1 font-bengali border-t border-neutral-200 dark:border-[#393a3b] pt-1">
+            <p className="text-xs text-[#65676B] mt-1 font-bengali border-t border-emerald-200 pt-1">
               {!showOriginalText && translatedVerse ? translatedVerse : post.translation}
             </p>
           )}
@@ -643,7 +643,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* Video: YouTube Embed */}
       {post.youtubeId && (
-        <div className="relative aspect-video w-full bg-black border-y border-[#E4E6EB] dark:border-[#393a3b]">
+        <div className="relative aspect-video w-full bg-black border-y border-[#E4E6EB]">
           <iframe
             src={`https://www.youtube-nocookie.com/embed/${post.youtubeId}?rel=0&modestbranding=1`}
             title={post.contentBangla}
@@ -671,7 +671,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         )}
 
       {/* 5. Halal Reactions Summary Bar */}
-      <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B] dark:text-[#b0b3b8]">
+      <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B]">
         <div className="flex items-center justify-between gap-2">
           {/* Left: Overlapping Reaction Emojis + Counts [🤲15 ❤️3 🕋1] */}
           <div className="flex items-center gap-1.5 min-w-0">
@@ -679,23 +679,23 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               {visibleSummaryItems.map((item) => (
                 <span
                   key={item.type}
-                  className="inline-flex items-center gap-0.5 text-xs font-medium text-[#050505] dark:text-[#e4e6eb]"
+                  className="inline-flex items-center gap-0.5 text-xs font-medium text-black"
                   title={item.label}
                 >
                   <span className="text-sm">{item.emoji}</span>
-                  <span className="text-[#65676B] dark:text-[#b0b3b8]">{item.count}</span>
+                  <span className="text-[#65676B]">{item.count}</span>
                 </span>
               ))}
             </div>
             {post.reactions.total > 0 && (
-              <span className="text-xs text-[#65676B] dark:text-[#b0b3b8] tabular-nums hidden sm:inline">
+              <span className="text-xs text-[#65676B] tabular-nums hidden sm:inline">
                 · {post.reactions.total} total
               </span>
             )}
           </div>
 
           {/* Right: Comments & Shares */}
-          <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] dark:text-[#b0b3b8] shrink-0 tabular-nums">
+          <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] shrink-0 tabular-nums">
             <button
               onClick={() => setShowComments(!showComments)}
               className="hover:underline cursor-pointer"
@@ -711,14 +711,14 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
         {/* Personalized attribution line when user reacted */}
         {activeReactionMeta && (
-          <p className="text-[11px] text-[#65676B] dark:text-[#b0b3b8] truncate">
+          <p className="text-[11px] text-[#65676B] truncate">
             You{post.reactions.total > 1 ? ` and ${post.reactions.total - 1} others` : ''} reacted with {activeReactionMeta.emoji} {activeReactionMeta.label}
           </p>
         )}
       </div>
 
       {/* 6. Facebook Action Bar: Dua/Like (with 6 Halal Reactions popup), Comment, Share, Hadiya */}
-      <div className="border-t border-[#E4E6EB] dark:border-[#393a3b] mx-3 py-1 flex items-center justify-between relative">
+      <div className="border-t border-[#E4E6EB] mx-3 py-1 flex items-center justify-between relative">
         {/* Column 1: Halal Reaction Button (Tap = Dua, Hover/Long-Press = 6 Reactions Bar) */}
         <div
           className="relative flex-1"
@@ -749,7 +749,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
           {/* 6 Halal Reactions Popup Bar [ 🤲 ❤️ 🕋 🙏 🤝 😢 ] */}
           {showReactionsMenu && (
-            <div className="absolute -top-14 left-0 z-40 bg-white dark:bg-[#242526] border border-[#E4E6EB] dark:border-[#393a3b] rounded-full px-2.5 py-1.5 shadow-2xl flex items-center gap-1.5 sm:gap-2">
+            <div className="absolute -top-14 left-0 z-40 bg-white border border-[#E4E6EB] rounded-full px-2.5 py-1.5 shadow-2xl flex items-center gap-1.5 sm:gap-2">
               {HALAL_REACTIONS.map((item, idx) => (
                 <button
                   key={item.type}
@@ -765,7 +765,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   title={item.label}
                 >
                   {hoveredReaction === item.type && (
-                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-neutral-900 text-white text-[10px] font-bold whitespace-nowrap shadow-md pointer-events-none">
+                    <span className="absolute -top-7 left-1/2 -translate-x-1/2 px-2 py-0.5 rounded-full bg-black text-white text-[10px] font-bold whitespace-nowrap shadow-md pointer-events-none">
                       {item.label}
                     </span>
                   )}
@@ -801,10 +801,10 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               }
               triggerReactionWithAnimation(post.userReaction || 'like');
             }}
-            className={`w-full py-1.5 rounded-md hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] flex items-center justify-center gap-1.5 transition-colors cursor-pointer select-none ${
+            className={`w-full py-1.5 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-1.5 transition-colors cursor-pointer select-none ${
               activeReactionMeta
                 ? `${activeReactionMeta.textColor} font-bold`
-                : 'text-[#65676B] dark:text-[#b0b3b8] font-medium'
+                : 'text-[#65676B] font-medium'
             }`}
           >
             {activeReactionMeta ? (
@@ -821,25 +821,25 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         {/* Column 2: Comment (bubble 20px, text 15px medium) */}
         <button
           onClick={() => setShowComments(!showComments)}
-          className="flex-1 py-1.5 rounded-md hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] flex items-center justify-center gap-2 text-[#65676B] dark:text-[#b0b3b8] font-medium transition-colors cursor-pointer"
+          className="flex-1 py-1.5 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-2 text-[#65676B] font-medium transition-colors cursor-pointer"
         >
-          <MessageCircle className="w-5 h-5 text-[#65676B] dark:text-[#b0b3b8]" />
+          <MessageCircle className="w-5 h-5 text-[#65676B]" />
           <span className="text-[15px]">Comment</span>
         </button>
 
         {/* Column 3: Share (arrow 20px, text 15px medium) */}
         <button
           onClick={handleShare}
-          className="flex-1 py-1.5 rounded-md hover:bg-[#F2F2F2] dark:hover:bg-[#3a3b3c] flex items-center justify-center gap-2 text-[#65676B] dark:text-[#b0b3b8] font-medium transition-colors cursor-pointer"
+          className="flex-1 py-1.5 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-2 text-[#65676B] font-medium transition-colors cursor-pointer"
         >
-          <Share2 className="w-5 h-5 text-[#65676B] dark:text-[#b0b3b8]" />
+          <Share2 className="w-5 h-5 text-[#65676B]" />
           <span className="text-[15px]">Share</span>
         </button>
 
         {/* Column 4: Golden Hadia Gift */}
         <button
           onClick={() => onOpenGiftModal?.(post)}
-          className="flex-1 py-1.5 rounded-md hover:bg-amber-500/10 dark:hover:bg-amber-500/15 flex items-center justify-center gap-1.5 text-amber-600 dark:text-amber-400 font-bold transition-colors cursor-pointer"
+          className="flex-1 py-1.5 rounded-md hover:bg-amber-50 flex items-center justify-center gap-1.5 text-amber-600 font-bold transition-colors cursor-pointer"
           title="গোল্ডেন হাদিয়া পাঠান (Gift Gold Coins)"
         >
           <Gift className="w-4 h-4 text-amber-500" />
@@ -851,14 +851,14 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* 7. Comments Drawer */}
       {showComments && (
-        <div className="px-3 sm:px-4 pb-3 space-y-2.5 border-t border-[#E4E6EB] dark:border-[#393a3b]/60 pt-2 animate-in fade-in">
+        <div className="px-3 sm:px-4 pb-3 space-y-2.5 border-t border-[#E4E6EB] pt-2 animate-in fade-in">
           {/* Quick Islamic Reactions */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {['আমিন 🤲', 'মাশাআল্লাহ ❤️', 'সুবহানাল্লাহ 🌸', 'আলহামদুলিল্লাহ ✨'].map((r) => (
               <button
                 key={r}
                 onClick={() => addQuickPraise(r)}
-                className="px-2.5 py-0.5 rounded-full bg-[#F0F2F5] dark:bg-[#3a3b3c] hover:bg-[#E4E6EB] dark:hover:bg-[#4e4f50] text-[#050505] dark:text-[#e4e6eb] text-[11px] font-medium flex-shrink-0 cursor-pointer"
+                className="px-2.5 py-0.5 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black text-[11px] font-medium flex-shrink-0 cursor-pointer"
               >
                 {r}
               </button>
@@ -872,7 +872,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               placeholder="Write a comment..."
               value={commentInput}
               onChange={handleCommentInputChange}
-              className="flex-1 bg-[#F0F2F5] dark:bg-[#3a3b3c] rounded-full px-4 py-2 text-xs text-[#050505] dark:text-[#e4e6eb] placeholder-[#65676B] dark:placeholder-[#b0b3b8] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
+              className="flex-1 bg-[#F0F2F5] rounded-full px-4 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
             />
             <button
               type="submit"
@@ -899,9 +899,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 alt={c.author}
                 className="w-7 h-7 rounded-full object-cover mt-0.5"
               />
-              <div className="bg-[#F0F2F5] dark:bg-[#3a3b3c] px-3 py-2 rounded-2xl max-w-[90%]">
-                <p className="font-bold text-[#050505] dark:text-white text-[11px]">{c.author}</p>
-                <p className="text-[#050505] dark:text-[#e4e6eb] text-xs font-bengali">{c.text}</p>
+              <div className="bg-[#F0F2F5] px-3 py-2 rounded-2xl max-w-[90%]">
+                <p className="font-bold text-black text-[11px]">{c.author}</p>
+                <p className="text-black text-xs font-bengali">{c.text}</p>
               </div>
             </div>
           ))}
@@ -910,19 +910,19 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* 8. Edit Post Modal */}
       {isEditing && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
-          <div className="bg-[#242526] w-full max-w-lg rounded-2xl border border-[#393a3b] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95">
-            <div className="flex items-center justify-between px-4 py-3 border-b border-[#393a3b]">
-              <h3 className="font-bold text-white text-sm">Edit post</h3>
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 sm:p-4">
+          <div className="bg-white w-full max-w-lg rounded-2xl border border-[#E4E6EB] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in zoom-in-95 text-black">
+            <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E6EB] bg-white">
+              <h3 className="font-bold text-black text-sm">Edit post</h3>
               <button
                 onClick={() => setIsEditing(false)}
-                className="p-1 rounded-full text-neutral-400 hover:text-white hover:bg-[#3a3b3c]"
+                className="p-1 rounded-full text-[#65676B] hover:text-black hover:bg-[#F0F2F5]"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            <div className="p-4 space-y-3 flex-1 overflow-y-auto no-scrollbar">
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto no-scrollbar bg-white">
               <div className="flex items-center gap-2.5">
                 <img
                   src={post.author.avatar}
@@ -930,46 +930,46 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   className="w-10 h-10 rounded-full object-cover"
                 />
                 <div>
-                  <p className="font-bold text-white text-xs">{post.author.name}</p>
-                  <span className="text-[10px] text-[#b0b3b8]">Public • 🌐</span>
+                  <p className="font-bold text-black text-xs">{post.author.name}</p>
+                  <span className="text-[10px] text-[#65676B]">Public • 🌐</span>
                 </div>
               </div>
 
               <div className="space-y-1">
-                <label className="text-xs font-semibold text-[#b0b3b8]">পোস্টের মূল লেখা:</label>
+                <label className="text-xs font-semibold text-[#65676B]">পোস্টের মূল লেখা:</label>
                 <textarea
                   rows={4}
                   value={editContent}
                   onChange={(e) => setEditContent(e.target.value)}
-                  className="w-full bg-[#18191a] border border-[#393a3b] focus:border-[#1877F2] rounded-xl p-3 text-sm text-[#e4e6eb] outline-none resize-none font-bengali"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] rounded-xl p-3 text-sm text-black outline-none resize-none font-bengali"
                   placeholder="মনের কথা বা দ্বীনি উপদেশ..."
                 />
               </div>
 
               {post.arabicVerse && (
                 <div className="space-y-1">
-                  <label className="text-xs font-semibold text-emerald-400">আরবি আয়াত / হাদিস:</label>
+                  <label className="text-xs font-semibold text-emerald-700">আরবি আয়াত / হাদিস:</label>
                   <textarea
                     rows={2}
                     value={editArabic}
                     onChange={(e) => setEditArabic(e.target.value)}
-                    className="w-full bg-[#18191a] border border-[#393a3b] focus:border-emerald-500 rounded-xl p-2.5 text-right font-arabic text-sm text-emerald-100 outline-none"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-emerald-500 rounded-xl p-2.5 text-right font-arabic text-sm text-black outline-none"
                   />
                   <input
                     type="text"
                     value={editTranslation}
                     onChange={(e) => setEditTranslation(e.target.value)}
                     placeholder="বাংলা অনুবাদ..."
-                    className="w-full bg-[#18191a] border border-[#393a3b] focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs text-[#e4e6eb] outline-none"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-emerald-500 rounded-xl px-3 py-1.5 text-xs text-black outline-none"
                   />
                 </div>
               )}
             </div>
 
-            <div className="p-3 bg-[#18191a] border-t border-[#393a3b] flex items-center justify-end gap-2">
+            <div className="p-3 bg-white border-t border-[#E4E6EB] flex items-center justify-end gap-2">
               <button
                 onClick={() => setIsEditing(false)}
-                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#b0b3b8] hover:bg-[#3a3b3c]"
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#65676B] hover:bg-[#F0F2F5]"
               >
                 বাতিল
               </button>

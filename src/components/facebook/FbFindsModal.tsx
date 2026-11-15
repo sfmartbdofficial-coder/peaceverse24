@@ -52,46 +52,46 @@ export const FbFindsModal: React.FC<FbFindsModalProps> = ({ isOpen, onClose }) =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-[#e4e6eb]">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
+      <div className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-black">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#393a3b]">
+        <div className="flex items-center justify-between p-4 border-b border-[#E4E6EB] bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-purple-500 to-indigo-500 flex items-center justify-center text-white shadow">
               <Compass className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-base text-white">Finds (নতুন আবিষ্কার)</h2>
-              <p className="text-[11px] text-[#b0b3b8]">জনপ্রিয় ইসলামিক কনটেন্ট ও ট্রেন্ডিং বিষয় আবিষ্কার করুন</p>
+              <h2 className="font-bold text-base text-black">Finds (নতুন আবিষ্কার)</h2>
+              <p className="text-[11px] text-[#65676B]">জনপ্রিয় ইসলামিক কনটেন্ট ও ট্রেন্ডিং বিষয় আবিষ্কার করুন</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Search */}
-        <div className="p-3 border-b border-[#393a3b] bg-[#18191a]">
+        <div className="p-3 border-b border-[#E4E6EB] bg-white">
           <div className="relative">
-            <Search className="w-4 h-4 text-[#b0b3b8] absolute left-3 top-3" />
+            <Search className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
             <input
               type="text"
               placeholder="ট্রেন্ডিং বিষয়, স্কলার বা হ্যাশট্যাগ খুঁজুন..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-9 pr-3 py-2 bg-[#242526] border border-[#393a3b] rounded-xl text-xs text-white placeholder-[#8a8d91] focus:outline-none focus:border-[#1877F2]"
+              className="w-full pl-9 pr-3 py-2 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
             />
           </div>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+        <div className="flex-1 overflow-y-auto p-4 space-y-5 bg-white">
           {/* Trending Topics */}
           <div className="space-y-2.5">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-400">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-amber-700">
               <TrendingUp className="w-4 h-4" />
               <span>বাংলাদেশে ট্রেন্ডিং হ্যাশট্যাগ</span>
             </div>
@@ -99,18 +99,18 @@ export const FbFindsModal: React.FC<FbFindsModalProps> = ({ isOpen, onClose }) =
               {trendingTopics.map((item, i) => (
                 <div
                   key={i}
-                  className="p-3 rounded-xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between hover:bg-[#2e2f30] transition-colors cursor-pointer"
+                  className="p-3 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between hover:bg-[#F0F2F5] transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-[#242526] text-[#1877F2] flex items-center justify-center font-bold text-sm">
+                    <div className="w-8 h-8 rounded-lg bg-[#F0F2F5] text-[#0866FF] flex items-center justify-center font-bold text-sm">
                       <Hash className="w-4 h-4" />
                     </div>
                     <div>
-                      <p className="font-bold text-xs text-white">{item.tag}</p>
-                      <p className="text-[10px] text-[#b0b3b8]">{item.category} • {item.posts}</p>
+                      <p className="font-bold text-xs text-black">{item.tag}</p>
+                      <p className="text-[10px] text-[#65676B]">{item.category} • {item.posts}</p>
                     </div>
                   </div>
-                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-400">
+                  <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700">
                     ট্রেন্ডিং #{i + 1}
                   </span>
                 </div>
@@ -120,7 +120,7 @@ export const FbFindsModal: React.FC<FbFindsModalProps> = ({ isOpen, onClose }) =
 
           {/* Suggested Islamic Creators */}
           <div className="space-y-2.5 pt-2">
-            <div className="flex items-center gap-1.5 text-xs font-bold text-sky-400">
+            <div className="flex items-center gap-1.5 text-xs font-bold text-[#0866FF]">
               <Sparkles className="w-4 h-4" />
               <span>জনপ্রিয় ইসলামিক ক্রিয়েটর ও স্কলার</span>
             </div>
@@ -130,25 +130,25 @@ export const FbFindsModal: React.FC<FbFindsModalProps> = ({ isOpen, onClose }) =
                 return (
                   <div
                     key={cr.id}
-                    className="p-3 rounded-xl bg-[#18191a] border border-[#393a3b] flex items-center justify-between"
+                    className="p-3 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between"
                   >
                     <div className="flex items-center gap-3">
                       <img
                         src={cr.avatar}
                         alt={cr.name}
-                        className="w-11 h-11 rounded-full object-cover border border-[#393a3b]"
+                        className="w-11 h-11 rounded-full object-cover border border-[#E4E6EB]"
                       />
                       <div>
-                        <h4 className="font-bold text-xs text-white">{cr.name}</h4>
-                        <p className="text-[10px] text-[#b0b3b8]">{cr.followers} • {cr.tag}</p>
+                        <h4 className="font-bold text-xs text-black">{cr.name}</h4>
+                        <p className="text-[10px] text-[#65676B]">{cr.followers} • {cr.tag}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => handleFollow(cr.id)}
                       className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all flex items-center gap-1 ${
                         isF
-                          ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/40'
-                          : 'bg-[#1877F2] hover:bg-[#166fe5] text-white shadow'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-[#0866FF] hover:bg-[#0055D4] text-white shadow'
                       }`}
                     >
                       {isF ? (
@@ -171,10 +171,10 @@ export const FbFindsModal: React.FC<FbFindsModalProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#393a3b] bg-[#18191a] text-center">
+        <div className="p-3 border-t border-[#E4E6EB] bg-white text-center">
           <button
             onClick={onClose}
-            className="w-full py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs"
+            className="w-full py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs"
           >
             বন্ধ করুন
           </button>

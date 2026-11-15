@@ -26,19 +26,19 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
   if (videos.length === 0) {
     return (
-      <div className="flex flex-col items-center justify-center py-20 px-4 text-center">
-        <div className="w-16 h-16 rounded-full bg-neutral-900 border border-neutral-800 flex items-center justify-center text-emerald-400 mb-4">
+      <div className="flex flex-col items-center justify-center py-20 px-4 text-center bg-white text-black">
+        <div className="w-16 h-16 rounded-full bg-[#F0F2F5] border border-[#E4E6EB] flex items-center justify-center text-[#0866FF] mb-4">
           <AlertCircle className="w-8 h-8" />
         </div>
-        <h3 className="text-base font-semibold text-neutral-200">
+        <h3 className="text-base font-semibold text-black">
           কোনো হালাল ভিডিও বা তিলাওয়াত পাওয়া যায়নি
         </h3>
-        <p className="text-xs sm:text-sm text-neutral-500 max-w-sm mt-1 font-bengali">
+        <p className="text-xs sm:text-sm text-[#65676B] max-w-sm mt-1 font-bengali">
           &quot;{searchQuery || selectedCategory}&quot; এর জন্য কোনো ফলাফল নেই। অন্য কোনো সূরা, দোয়া বা হাদিসের নাম দিয়ে অনুসন্ধান করুন।
         </p>
         <button
           onClick={onClearFilters}
-          className="mt-4 px-5 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-full text-xs font-semibold transition-colors shadow-lg"
+          className="mt-4 px-5 py-2 bg-[#0866FF] hover:bg-blue-600 text-white rounded-full text-xs font-semibold transition-colors shadow-xs"
         >
           ফিল্টার রিসেট করুন (Show All)
         </button>
@@ -47,26 +47,24 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
   }
 
   return (
-    <div className="max-w-[1920px] mx-auto px-2.5 sm:px-4 py-4 pb-24">
+    <div className="max-w-[1920px] mx-auto px-2.5 sm:px-4 py-4 pb-24 bg-white text-black">
       {/* Featured Spiritual Verse Banner (Shown when on Home with no search) */}
       {!searchQuery && selectedCategory === 'All' && (
-        <div className="mb-5 p-4 sm:p-5 rounded-2xl bg-gradient-to-r from-emerald-950/80 via-neutral-900 to-black border border-emerald-500/30 shadow-lg relative overflow-hidden">
-          <div className="absolute -right-10 -bottom-10 w-48 h-48 rounded-full bg-emerald-500/10 blur-2xl pointer-events-none" />
-          
+        <div className="mb-5 p-4 sm:p-5 rounded-2xl bg-white border border-[#E4E6EB] shadow-xs relative overflow-hidden">
           <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2 text-emerald-400 text-xs font-semibold">
+            <div className="flex items-center gap-2 text-[#0866FF] text-xs font-semibold">
               <Sparkles className="w-4 h-4" />
-              <span>Qalby আজকের রূহানি বাণী (Ayah of the Day)</span>
+              <span>Peaceverse24.com আজকের রূহানি বাণী (Ayah of the Day)</span>
             </div>
-            <span className="text-[10px] bg-emerald-900/60 border border-emerald-500/30 text-emerald-300 px-2 py-0.5 rounded-full font-mono">
+            <span className="text-[10px] bg-[#E7F3FF] border border-blue-200 text-[#0866FF] px-2 py-0.5 rounded-full font-mono font-semibold">
               ১০০% হালাল ফিড
             </span>
           </div>
 
-          <p className="text-sm sm:text-base font-arabic text-emerald-100 font-bold tracking-wide">
+          <p className="text-sm sm:text-base font-arabic text-black font-bold tracking-wide">
             فَاذْكُرُونِي أَذْكُرْكُمْ وَاشْكُرُوا لِي وَلَا تَكْفُرُونِ
           </p>
-          <p className="text-xs sm:text-sm text-neutral-300 mt-1.5 font-bengali leading-relaxed">
+          <p className="text-xs sm:text-sm text-[#65676B] mt-1.5 font-bengali leading-relaxed">
             &quot;অতএব তোমরা আমাকে স্মরণ কর, আমিও তোমাদের স্মরণ করব। আর আমার প্রতি কৃতজ্ঞতা জ্ঞাপন কর এবং অকৃতজ্ঞ হয়ো না।&quot; — সূরা আল-বাক্বারাহ [২:১৫২]
           </p>
         </div>
@@ -74,45 +72,45 @@ export const VideoGrid: React.FC<VideoGridProps> = ({
 
       {/* Grid Header Info + 2-Column Mode Indicator */}
       <div className="flex items-center justify-between mb-3.5 px-1">
-        <h2 className="text-xs sm:text-sm font-bold text-neutral-200 flex items-center gap-2">
+        <h2 className="text-xs sm:text-sm font-bold text-black flex items-center gap-2">
           <span>
             {searchQuery
               ? `অনুসন্ধান: "${searchQuery}"`
               : selectedCategory === 'All'
-              ? 'Qalby ফিড (সবগুলো তিলাওয়াত ও কন্টেন্ট)'
+              ? 'Peaceverse24.com ফিড (সবগুলো তিলাওয়াত ও কন্টেন্ট)'
               : `${selectedCategory} ক্যাটাগরি`}
           </span>
-          <span className="text-[11px] font-normal text-neutral-500 font-mono">
+          <span className="text-[11px] font-normal text-[#65676B] font-mono">
             ({videos.length} টি ভিডিও)
           </span>
         </h2>
 
         {/* Column toggle */}
-        <div className="hidden sm:flex items-center gap-1 bg-neutral-900 p-1 rounded-lg border border-neutral-800 text-xs text-neutral-400">
+        <div className="hidden sm:flex items-center gap-1 bg-[#F0F2F5] p-1 rounded-lg border border-[#E4E6EB] text-xs text-[#65676B]">
           <button
             onClick={() => setColumnsMode('two')}
             className={`px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors ${
-              columnsMode === 'two' ? 'bg-neutral-800 text-white font-bold' : 'hover:text-white'
+              columnsMode === 'two' ? 'bg-white text-black font-bold shadow-xs' : 'hover:text-black'
             }`}
             title="২ কলাম ভিউ"
           >
-            <Columns2 className="w-3.5 h-3.5 text-emerald-400" />
+            <Columns2 className="w-3.5 h-3.5 text-[#0866FF]" />
             <span>২ কলাম</span>
           </button>
           <button
             onClick={() => setColumnsMode('responsive')}
             className={`px-2.5 py-1 rounded-md flex items-center gap-1 transition-colors ${
-              columnsMode === 'responsive' ? 'bg-neutral-800 text-white font-bold' : 'hover:text-white'
+              columnsMode === 'responsive' ? 'bg-white text-black font-bold shadow-xs' : 'hover:text-black'
             }`}
             title="ওয়াইড ভিউ"
           >
-            <LayoutGrid className="w-3.5 h-3.5 text-emerald-400" />
+            <LayoutGrid className="w-3.5 h-3.5 text-[#0866FF]" />
             <span>৩-৪ কলাম</span>
           </button>
         </div>
       </div>
 
-      {/* YouTube Video Grid (Default 2 Columns as requested by user) */}
+      {/* Video Grid */}
       <div
         className={`grid gap-2.5 sm:gap-4 ${
           columnsMode === 'two'

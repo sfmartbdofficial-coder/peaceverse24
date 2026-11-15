@@ -627,31 +627,31 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
         {/* ========================================================= */}
         {showCommentDrawer && (
           <div
-            className="absolute inset-x-0 bottom-0 z-40 bg-[#1c1e21] rounded-t-3xl border-t border-white/15 max-h-[65%] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-200"
+            className="absolute inset-x-0 bottom-0 z-40 bg-white text-black rounded-t-3xl border-t border-[#E4E6EB] max-h-[65%] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-200"
             onClick={(e) => e.stopPropagation()}
           >
             {/* Drawer Header */}
-            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
+            <div className="px-4 py-3 border-b border-[#E4E6EB] flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-white">মন্তব্যসমূহ</h3>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 text-[11px] font-bold text-slate-300">
+                <h3 className="font-bold text-sm text-black">মন্তব্যসমূহ</h3>
+                <span className="px-2 py-0.5 rounded-full bg-[#F0F2F5] text-[11px] font-bold text-[#65676B]">
                   {currentPost.comments.length}
                 </span>
               </div>
               <button
                 onClick={() => setShowCommentDrawer(false)}
-                className="p-1.5 rounded-full hover:bg-white/10 text-slate-400 hover:text-white transition-colors cursor-pointer"
+                className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
               >
                 <X className="w-4 h-4" />
               </button>
             </div>
 
             {/* Comments List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5">
+            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-white">
               {currentPost.comments.length === 0 ? (
-                <div className="text-center py-8 text-slate-400 text-xs">
+                <div className="text-center py-8 text-[#65676B] text-xs">
                   <p>এখনো কোনো মন্তব্য নেই।</p>
-                  <p className="text-[11px] text-slate-500 mt-1">প্রথম মন্তব্যটি আপনিই করুন!</p>
+                  <p className="text-[11px] text-[#65676B] mt-1">প্রথম মন্তব্যটি আপনিই করুন!</p>
                 </div>
               ) : (
                 currentPost.comments.map((c) => (
@@ -659,14 +659,14 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
                     <img
                       src={c.avatar}
                       alt={c.author}
-                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/10"
+                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-[#E4E6EB]"
                     />
-                    <div className="flex-1 min-w-0 bg-[#2d3035] rounded-2xl p-2.5 text-xs text-white">
+                    <div className="flex-1 min-w-0 bg-[#F0F2F5] rounded-2xl p-2.5 text-xs text-black">
                       <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-bold text-white text-xs">{c.author}</span>
-                        <span className="text-[10px] text-slate-400">{c.timeAgo}</span>
+                        <span className="font-bold text-black text-xs">{c.author}</span>
+                        <span className="text-[10px] text-[#65676B]">{c.timeAgo}</span>
                       </div>
-                      <p className="text-slate-200 leading-relaxed break-words">{c.text}</p>
+                      <p className="text-black leading-relaxed break-words">{c.text}</p>
                     </div>
                   </div>
                 ))
@@ -676,13 +676,13 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
             {/* Comment Input Bar */}
             <form
               onSubmit={handleCommentSubmit}
-              className="p-3 border-t border-white/10 bg-[#18191a] flex items-center gap-2"
+              className="p-3 border-t border-[#E4E6EB] bg-white flex items-center gap-2"
             >
               {currentUserAvatar && (
                 <img
                   src={currentUserAvatar}
                   alt={currentUserName}
-                  className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/15"
+                  className="w-8 h-8 rounded-full object-cover shrink-0 border border-[#E4E6EB]"
                 />
               )}
               <input
@@ -690,12 +690,12 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
                 placeholder="একটি সুন্দর মন্তব্য লিখুন..."
                 value={commentInput}
                 onChange={(e) => setCommentInput(e.target.value)}
-                className="flex-1 bg-[#242526] border border-white/10 rounded-full px-4 py-2 text-xs text-white placeholder-slate-400 focus:outline-none focus:border-[#1877F2] transition-colors"
+                className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-full px-4 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
               />
               <button
                 type="submit"
                 disabled={!commentInput.trim()}
-                className="p-2 rounded-full bg-[#1877F2] hover:bg-blue-600 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-md"
+                className="p-2 rounded-full bg-[#0866FF] hover:bg-blue-600 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-xs"
               >
                 <Send className="w-4 h-4" />
               </button>

@@ -91,40 +91,40 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
-      <div className="bg-[#242526] border border-[#393a3b] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-[#e4e6eb]">
+    <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-3 animate-in fade-in">
+      <div className="bg-white border border-[#E4E6EB] rounded-2xl w-full max-w-lg max-h-[92vh] flex flex-col overflow-hidden shadow-2xl text-black">
         {/* Header */}
-        <div className="flex items-center justify-between p-4 border-b border-[#393a3b]">
+        <div className="flex items-center justify-between p-4 border-b border-[#E4E6EB] bg-white">
           <div className="flex items-center gap-2.5">
             <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-emerald-500 flex items-center justify-center text-white shadow">
               <Gamepad2 className="w-5 h-5" />
             </div>
             <div>
-              <h2 className="font-bold text-base text-white">Instant Games (হালাল গেমস)</h2>
-              <p className="text-[11px] text-[#b0b3b8]">ইসলামিক কুইজ, ব্রেইন ট্রেইনার ও শিক্ষণীয় গেমস</p>
+              <h2 className="font-bold text-base text-black">Instant Games (হালাল গেমস)</h2>
+              <p className="text-[11px] text-[#65676B]">ইসলামিক কুইজ, ব্রেইন ট্রেইনার ও শিক্ষণীয় গেমস</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="p-1.5 rounded-full hover:bg-[#3a3b3c] text-[#b0b3b8] hover:text-white transition-colors"
+            className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors"
           >
             <X className="w-5 h-5" />
           </button>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4">
+        <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-white">
           {selectedGame === 'hub' && (
             <div className="space-y-4">
-              <div className="p-3.5 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-blue-500/10 to-[#242526] border border-emerald-500/30 flex items-center justify-between">
+              <div className="p-3.5 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
                 <div>
                   <div className="flex items-center gap-1.5">
-                    <Trophy className="w-4 h-4 text-amber-400" />
-                    <h3 className="font-bold text-sm text-white">দৈনিক ইসলামিক কুইজ লীগ</h3>
+                    <Trophy className="w-4 h-4 text-amber-600" />
+                    <h3 className="font-bold text-sm text-black">দৈনিক ইসলামিক কুইজ লীগ</h3>
                   </div>
-                  <p className="text-xs text-[#b0b3b8]">১০০% ইসলামিক ও কোনো সময় অপচয় নয়</p>
+                  <p className="text-xs text-[#65676B]">১০০% ইসলামিক ও কোনো সময় অপচয় নয়</p>
                 </div>
-                <span className="text-xs font-black text-emerald-400 bg-emerald-500/20 px-2.5 py-1 rounded-full border border-emerald-500/30">
+                <span className="text-xs font-black text-emerald-700 bg-white px-2.5 py-1 rounded-full border border-emerald-200">
                   স্কোর: {score} XP
                 </span>
               </div>
@@ -134,38 +134,38 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
                 {/* 1. Islamic Quiz */}
                 <div
                   onClick={() => setSelectedGame('quiz')}
-                  className="p-4 rounded-2xl bg-[#18191a] border border-[#393a3b] hover:border-[#1877F2] transition-colors cursor-pointer group flex items-center gap-3.5"
+                  className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-[#0866FF] transition-colors cursor-pointer group flex items-center gap-3.5"
                 >
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 flex items-center justify-center text-white text-xl shadow flex-shrink-0 group-hover:scale-110 transition-transform">
                     <Brain className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-sm text-white">কুরআন ও হাদিস কুইজ চ্যালেঞ্জ</h4>
-                      <span className="text-[10px] bg-indigo-500/20 text-indigo-300 px-2 py-0.5 rounded font-bold">
+                      <h4 className="font-bold text-sm text-black">কুরআন ও হাদিস কুইজ চ্যালেঞ্জ</h4>
+                      <span className="text-[10px] bg-indigo-50 text-indigo-700 px-2 py-0.5 rounded font-bold">
                         ৫ প্রশ্ন
                       </span>
                     </div>
-                    <p className="text-xs text-[#b0b3b8]">আপনার দ্বীনি জ্ঞান পরীক্ষা করুন এবং XP অর্জন করুন</p>
+                    <p className="text-xs text-[#65676B]">আপনার দ্বীনি জ্ঞান পরীক্ষা করুন এবং XP অর্জন করুন</p>
                   </div>
                 </div>
 
                 {/* 2. Arabic Vocabulary match */}
                 <div
                   onClick={() => setSelectedGame('quiz')}
-                  className="p-4 rounded-2xl bg-[#18191a] border border-[#393a3b] hover:border-emerald-500 transition-colors cursor-pointer group flex items-center gap-3.5"
+                  className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-emerald-500 transition-colors cursor-pointer group flex items-center gap-3.5"
                 >
                   <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center text-white text-xl shadow flex-shrink-0 group-hover:scale-110 transition-transform">
                     <Sparkles className="w-6 h-6" />
                   </div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between">
-                      <h4 className="font-bold text-sm text-white">আল্লাহর ৯৯ নাম ও অর্থ ম্যাচ</h4>
-                      <span className="text-[10px] bg-emerald-500/20 text-emerald-300 px-2 py-0.5 rounded font-bold">
+                      <h4 className="font-bold text-sm text-black">আল্লাহর ৯৯ নাম ও অর্থ ম্যাচ</h4>
+                      <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded font-bold">
                         মেমোরি গেম
                       </span>
                     </div>
-                    <p className="text-xs text-[#b0b3b8]">আসমাউল হুসনা মুখস্থ করার ইন্টারেক্টিভ খেলা</p>
+                    <p className="text-xs text-[#65676B]">আসমাউল হুসনা মুখস্থ করার ইন্টারেক্টিভ খেলা</p>
                   </div>
                 </div>
               </div>
@@ -175,37 +175,37 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
           {selectedGame === 'quiz' && (
             <div className="space-y-4">
               {/* Quiz Header */}
-              <div className="flex items-center justify-between bg-[#18191a] p-3 rounded-xl border border-[#393a3b]">
+              <div className="flex items-center justify-between bg-[#F0F2F5] p-3 rounded-xl border border-[#E4E6EB]">
                 <button
                   onClick={() => setSelectedGame('hub')}
-                  className="text-xs text-[#b0b3b8] hover:text-white font-bold"
+                  className="text-xs text-[#65676B] hover:text-black font-bold"
                 >
                   ← গেম মেনু
                 </button>
                 <div className="flex items-center gap-2">
                   {streak > 1 && (
-                    <span className="flex items-center gap-1 text-[11px] font-bold text-amber-400 bg-amber-400/20 px-2 py-0.5 rounded-full border border-amber-400/30">
+                    <span className="flex items-center gap-1 text-[11px] font-bold text-amber-700 bg-amber-50 px-2 py-0.5 rounded-full border border-amber-200">
                       <Flame className="w-3.5 h-3.5 fill-current" /> {streak} স্ট্রিক!
                     </span>
                   )}
-                  <span className="text-xs font-bold text-emerald-400">স্কোর: {score} XP</span>
+                  <span className="text-xs font-bold text-emerald-700">স্কোর: {score} XP</span>
                 </div>
               </div>
 
               {/* Progress */}
-              <div className="w-full bg-[#393a3b] h-1.5 rounded-full overflow-hidden">
+              <div className="w-full bg-[#E4E6EB] h-1.5 rounded-full overflow-hidden">
                 <div
-                  className="bg-[#1877F2] h-full transition-all"
+                  className="bg-[#0866FF] h-full transition-all"
                   style={{ width: `${((currentQIndex + 1) / quizQuestions.length) * 100}%` }}
                 />
               </div>
 
               {/* Question */}
               <div className="space-y-3">
-                <span className="text-xs text-[#b0b3b8] font-bold">
+                <span className="text-xs text-[#65676B] font-bold">
                   প্রশ্ন {currentQIndex + 1} / {quizQuestions.length}
                 </span>
-                <h3 className="text-sm sm:text-base font-bold text-white leading-relaxed">
+                <h3 className="text-sm sm:text-base font-bold text-black leading-relaxed">
                   {quizQuestions[currentQIndex].question}
                 </h3>
 
@@ -213,13 +213,13 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
                   {quizQuestions[currentQIndex].options.map((opt, idx) => {
                     const isSelected = selectedOption === idx;
                     const isCorrect = idx === quizQuestions[currentQIndex].correct;
-                    let btnStyle = 'bg-[#18191a] border-[#393a3b] text-[#e4e6eb] hover:bg-[#2e2f30]';
+                    let btnStyle = 'bg-white border-[#E4E6EB] text-black hover:bg-[#F0F2F5]';
 
                     if (isAnswered) {
                       if (isCorrect) {
-                        btnStyle = 'bg-emerald-500/20 border-emerald-500 text-emerald-300 font-bold';
+                        btnStyle = 'bg-emerald-50 border-emerald-500 text-emerald-800 font-bold';
                       } else if (isSelected) {
-                        btnStyle = 'bg-rose-500/20 border-rose-500 text-rose-300 line-through';
+                        btnStyle = 'bg-rose-50 border-rose-500 text-rose-800 line-through';
                       }
                     }
 
@@ -231,15 +231,15 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
                         className={`w-full p-3 rounded-xl border text-left text-xs sm:text-sm font-medium transition-all flex items-center justify-between ${btnStyle}`}
                       >
                         <span>{opt}</span>
-                        {isAnswered && isCorrect && <Check className="w-4 h-4 text-emerald-400 shrink-0" />}
+                        {isAnswered && isCorrect && <Check className="w-4 h-4 text-emerald-600 shrink-0" />}
                       </button>
                     );
                   })}
                 </div>
 
                 {isAnswered && (
-                  <div className="p-3 rounded-xl bg-blue-950/30 border border-blue-500/30 text-xs text-blue-200 animate-in fade-in space-y-1">
-                    <p className="font-bold flex items-center gap-1 text-blue-400">
+                  <div className="p-3 rounded-xl bg-blue-50 border border-blue-200 text-xs text-black animate-in fade-in space-y-1">
+                    <p className="font-bold flex items-center gap-1 text-[#0866FF]">
                       <Sparkles className="w-3.5 h-3.5" />
                       <span>বিশ্লেষণ:</span>
                     </p>
@@ -253,20 +253,20 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
                   {currentQIndex < quizQuestions.length - 1 ? (
                     <button
                       onClick={handleNextQuestion}
-                      className="w-full py-2.5 rounded-xl bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow"
+                      className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#0055D4] text-white font-bold text-xs shadow"
                     >
                       পরবর্তী প্রশ্ন →
                     </button>
                   ) : (
                     <div className="space-y-2">
-                      <div className="p-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-center space-y-1">
-                        <Trophy className="w-8 h-8 text-amber-400 mx-auto" />
-                        <h4 className="font-bold text-white text-sm">মাশাআল্লাহ! কুইজ সম্পন্ন</h4>
-                        <p className="text-xs text-emerald-300">আপনি {score} / 100 XP অর্জন করেছেন!</p>
+                      <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-center space-y-1">
+                        <Trophy className="w-8 h-8 text-amber-500 mx-auto" />
+                        <h4 className="font-bold text-black text-sm">মাশাআল্লাহ! কুইজ সম্পন্ন</h4>
+                        <p className="text-xs text-emerald-700">আপনি {score} / 100 XP অর্জন করেছেন!</p>
                       </div>
                       <button
                         onClick={handleRestartQuiz}
-                        className="w-full py-2.5 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-white font-bold text-xs flex items-center justify-center gap-2"
+                        className="w-full py-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs flex items-center justify-center gap-2"
                       >
                         <RotateCcw className="w-3.5 h-3.5" />
                         <span>আবার খেলুন</span>
@@ -280,10 +280,10 @@ export const FbGamesModal: React.FC<FbGamesModalProps> = ({ isOpen, onClose }) =
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#393a3b] bg-[#18191a] text-center">
+        <div className="p-3 border-t border-[#E4E6EB] bg-white text-center">
           <button
             onClick={onClose}
-            className="w-full py-2 rounded-xl bg-[#3a3b3c] hover:bg-[#4e4f50] text-[#e4e6eb] font-bold text-xs"
+            className="w-full py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs"
           >
             বন্ধ করুন
           </button>
