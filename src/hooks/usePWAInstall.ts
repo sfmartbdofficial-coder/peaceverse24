@@ -5,81 +5,171 @@ export interface BeforeInstallPromptEvent extends Event {
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
 }
 
+declare global {
+  interface Window {
+    __peaceverseDeferredPrompt?: BeforeInstallPromptEvent | null;
+    installApp?: (onFallbackOpenModal?: () => void) => Promise<'accepted' | 'dismissed' | 'modal'>;
+  }
+}
+
+let deferredPrompt: BeforeInstallPromptEvent | null =
+  typeof window !== 'undefined' ? window.__peaceverseDeferredPrompt || null : null;
+let sharedIsInstalled = false;
+const subscribers = new Set<() => void>();
+
+function notifySubscribers() {
+  subscribers.forEach((cb) => cb());
+}
+
+function getSharedDeferredPrompt(): BeforeInstallPromptEvent | null {
+  if (typeof window !== 'undefined' && window.__peaceverseDeferredPrompt && !deferredPrompt) {
+    deferredPrompt = window.__peaceverseDeferredPrompt;
+  }
+  return deferredPrompt;
+}
+
+function setSharedDeferredPrompt(event: BeforeInstallPromptEvent | null) {
+  deferredPrompt = event;
+  if (typeof window !== 'undefined') {
+    window.__peaceverseDeferredPrompt = event;
+  }
+  notifySubscribers();
+}
+
+function markSharedInstalled() {
+  sharedIsInstalled = true;
+  setSharedDeferredPrompt(null);
+  try {
+    localStorage.setItem('qalby_pwa_installed', 'true');
+  } catch {}
+}
+
+export async function installApp(
+  onFallbackOpenModal?: () => void
+): Promise<'accepted' | 'dismissed' | 'modal'> {
+  const promptEvent = getSharedDeferredPrompt();
+  if (promptEvent) {
+    try {
+      await promptEvent.prompt();
+      const choice = await promptEvent.userChoice;
+      setSharedDeferredPrompt(null);
+      if (choice.outcome === 'accepted') {
+        markSharedInstalled();
+        return 'accepted';
+      }
+      return 'dismissed';
+    } catch (err) {
+      console.warn('Install prompt error:', err);
+      setSharedDeferredPrompt(null);
+    }
+  }
+
+  if (onFallbackOpenModal) {
+    onFallbackOpenModal();
+  } else if (typeof window !== 'undefined') {
+    window.dispatchEvent(new CustomEvent('peaceverse:open-install-modal'));
+    const modalEl = document.getElementById('installModal');
+    if (modalEl) {
+      modalEl.style.display = 'flex';
+    }
+  }
+  return 'modal';
+}
+
+// Register global listeners once at module initialization
+if (typeof window !== 'undefined') {
+  window.installApp = installApp;
+
+  const isStandaloneInit =
+    window.matchMedia('(display-mode: standalone)').matches ||
+    (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
+    document.referrer.includes('android-app://');
+  if (isStandaloneInit) {
+    sharedIsInstalled = true;
+  }
+
+  window.addEventListener('beforeinstallprompt', (e: Event) => {
+    e.preventDefault();
+    setSharedDeferredPrompt(e as BeforeInstallPromptEvent);
+  });
+
+  window.addEventListener('peaceverse:beforeinstallprompt', () => {
+    if (window.__peaceverseDeferredPrompt) {
+      setSharedDeferredPrompt(window.__peaceverseDeferredPrompt);
+    }
+  });
+
+  window.addEventListener('appinstalled', () => {
+    markSharedInstalled();
+  });
+
+  window.addEventListener('peaceverse:appinstalled', () => {
+    markSharedInstalled();
+  });
+}
+
 export function usePWAInstall() {
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isInstalled, setIsInstalled] = useState(false);
+  const [, forceUpdate] = useState(0);
   const [isIOS, setIsIOS] = useState(false);
   const [isAndroid, setIsAndroid] = useState(false);
-  const [canPromptDirectly, setCanPromptDirectly] = useState(false);
 
   useEffect(() => {
-    // Check if running in standalone display mode (already installed as PWA)
+    const sync = () => forceUpdate((n) => n + 1);
+    subscribers.add(sync);
+
     const isStandalone =
       window.matchMedia('(display-mode: standalone)').matches ||
       (window.navigator as unknown as { standalone?: boolean }).standalone === true ||
       document.referrer.includes('android-app://');
-    
-    setIsInstalled(isStandalone);
 
-    // Platform detection
+    if (isStandalone && !sharedIsInstalled) {
+      sharedIsInstalled = true;
+      sync();
+    } else if (window.__peaceverseDeferredPrompt && !deferredPrompt) {
+      deferredPrompt = window.__peaceverseDeferredPrompt;
+      sync();
+    }
+
     const ua = window.navigator.userAgent.toLowerCase();
-    const isIOSDevice = /iphone|ipad|ipod/.test(ua);
-    const isAndroidDevice = /android/.test(ua);
-    setIsIOS(isIOSDevice);
-    setIsAndroid(isAndroidDevice);
-
-    const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent the mini-infobar from appearing on mobile
-      e.preventDefault();
-      // Stash the event so it can be triggered later
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-      setCanPromptDirectly(true);
-    };
-
-    const handleAppInstalled = () => {
-      setIsInstalled(true);
-      setDeferredPrompt(null);
-      setCanPromptDirectly(false);
-      try {
-        localStorage.setItem('qalby_pwa_installed', 'true');
-      } catch {}
-    };
-
-    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-    window.addEventListener('appinstalled', handleAppInstalled);
+    setIsIOS(/iphone|ipad|ipod/.test(ua));
+    setIsAndroid(/android/.test(ua));
 
     return () => {
-      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
-      window.removeEventListener('appinstalled', handleAppInstalled);
+      subscribers.delete(sync);
     };
   }, []);
 
   const promptInstall = useCallback(async (): Promise<'accepted' | 'dismissed' | 'manual'> => {
-    if (deferredPrompt) {
+    const promptEvent = getSharedDeferredPrompt();
+    if (promptEvent) {
       try {
-        await deferredPrompt.prompt();
-        const choice = await deferredPrompt.userChoice;
+        await promptEvent.prompt();
+        const choice = await promptEvent.userChoice;
+        setSharedDeferredPrompt(null);
         if (choice.outcome === 'accepted') {
-          setIsInstalled(true);
-          setDeferredPrompt(null);
-          setCanPromptDirectly(false);
+          markSharedInstalled();
           return 'accepted';
         }
         return 'dismissed';
       } catch (err) {
         console.warn('Install prompt error:', err);
+        setSharedDeferredPrompt(null);
         return 'manual';
       }
     }
     return 'manual';
-  }, [deferredPrompt]);
+  }, []);
+
+  const activePrompt = getSharedDeferredPrompt();
+  const canPromptDirectly = Boolean(activePrompt);
 
   return {
-    isInstallable: canPromptDirectly || isIOS || !isInstalled,
+    isInstallable: canPromptDirectly || isIOS || !sharedIsInstalled,
     canPromptDirectly,
-    isInstalled,
+    isInstalled: sharedIsInstalled,
     isIOS,
     isAndroid,
     promptInstall,
+    installApp,
   };
 }

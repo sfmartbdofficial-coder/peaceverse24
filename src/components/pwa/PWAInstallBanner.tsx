@@ -11,7 +11,7 @@ const HIDE_BANNER_AT_KEY = 'hideInstallBannerAt';
 const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide }) => {
-  const { isInstalled, canPromptDirectly, promptInstall } = usePWAInstall();
+  const { isInstalled, installApp } = usePWAInstall();
   const [isVisible, setIsVisible] = useState(false);
   const [isClosing, setIsClosing] = useState(false);
   const [installedSuccessfully, setInstalledSuccessfully] = useState(false);
@@ -57,23 +57,17 @@ export const PWAInstallBanner: React.FC<PWAInstallBannerProps> = ({ onOpenGuide 
   };
 
   const handleInstallClick = async () => {
-    if (canPromptDirectly) {
-      const result = await promptInstall();
-      if (result === 'accepted') {
-        setInstalledSuccessfully(true);
-        try {
-          localStorage.setItem(HIDE_BANNER_KEY, 'true');
-          localStorage.setItem(HIDE_BANNER_AT_KEY, String(Date.now()));
-        } catch {}
-        setTimeout(() => {
-          setIsClosing(true);
-          setTimeout(() => setIsVisible(false), 260);
-        }, 1800);
-      } else if (result === 'manual') {
-        onOpenGuide();
-      }
-    } else {
-      onOpenGuide();
+    const result = await installApp(onOpenGuide);
+    if (result === 'accepted') {
+      setInstalledSuccessfully(true);
+      try {
+        localStorage.setItem(HIDE_BANNER_KEY, 'true');
+        localStorage.setItem(HIDE_BANNER_AT_KEY, String(Date.now()));
+      } catch {}
+      setTimeout(() => {
+        setIsClosing(true);
+        setTimeout(() => setIsVisible(false), 260);
+      }, 1800);
     }
   };
 

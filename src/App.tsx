@@ -50,6 +50,7 @@ import { LegalModal, LegalTabType } from './components/legal/LegalModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
 import { OfflineIndicator } from './components/pwa/OfflineIndicator';
+import { installApp } from './hooks/usePWAInstall';
 import { CreatorMonetizationModal } from './components/monetization/CreatorMonetizationModal';
 import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
 import { FbGoldenGiftModal } from './components/golden/FbGoldenGiftModal';
@@ -545,8 +546,13 @@ export default function App() {
         setShowAdminPortal(false);
       }
     };
+    const handleOpenInstallModalEvent = () => setShowInstallModal(true);
     window.addEventListener('hashchange', handleHashChange);
-    return () => window.removeEventListener('hashchange', handleHashChange);
+    window.addEventListener('peaceverse:open-install-modal', handleOpenInstallModalEvent);
+    return () => {
+      window.removeEventListener('hashchange', handleHashChange);
+      window.removeEventListener('peaceverse:open-install-modal', handleOpenInstallModalEvent);
+    };
   }, []);
 
   // Email verification state and handlers
@@ -1453,7 +1459,9 @@ export default function App() {
       <>
         <PeaceVerseLanding
           onNavigateTo={navigateToPath}
-          onOpenDownloadModal={() => setShowInstallModal(true)}
+          onOpenDownloadModal={() => {
+            void installApp(() => setShowInstallModal(true));
+          }}
           onOpenLegalTab={(tab) => {
             setLegalModalTab(tab as LegalTabType);
             window.location.hash = `#${tab}`;
@@ -2002,7 +2010,9 @@ export default function App() {
               setLegalModalTab(tab);
               window.location.hash = `#${tab}`;
             }}
-            onOpenInstallModal={() => setShowInstallModal(true)}
+            onOpenInstallModal={() => {
+              void installApp(() => setShowInstallModal(true));
+            }}
             onOpenAuth={() => setShowAuthModal(true)}
             onLogout={handleLogout}
             onBack={goBack}
