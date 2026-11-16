@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.peaceverse24.twa",
+      "sha256_cert_fingerprints": [
+        "21:B5:82:7A:83:CF:C3:80:52:34:EC:AD:D6:8B:5F:4D:83:6D:D4:B0:01:12:3E:73:E7:02:DD:97:62:DF:D7:AD"
+      ]
+    }
+  }
+]

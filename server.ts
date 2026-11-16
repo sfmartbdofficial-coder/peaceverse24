@@ -521,7 +521,7 @@ app.post('/api/translate', async (req, res) => {
 async function startServer() {
   const httpServer = http.createServer(app);
 
-  // Ensure service-worker.js and manifest.json are served with PWA-compliant headers
+  // Ensure service-worker.js, manifest.json, and /.well-known/assetlinks.json are served with compliant headers
   app.use((req, res, next) => {
     if (req.path === '/service-worker.js') {
       res.setHeader('Service-Worker-Allowed', '/');
@@ -529,12 +529,16 @@ async function startServer() {
     } else if (req.path === '/manifest.json') {
       res.setHeader('Content-Type', 'application/manifest+json; charset=utf-8');
       res.setHeader('Cache-Control', 'public, max-age=3600');
+    } else if (req.path === '/.well-known/assetlinks.json') {
+      res.setHeader('Content-Type', 'application/json; charset=utf-8');
+      res.setHeader('Access-Control-Allow-Origin', '*');
+      res.setHeader('Cache-Control', 'public, max-age=0, must-revalidate');
     }
     next();
   });
 
   if (process.env.NODE_ENV === 'production') {
-    app.use(express.static(path.resolve(__dirname, 'dist')));
+    app.use(express.static(path.resolve(__dirname, 'dist'), { dotfiles: 'allow' }));
     app.get('*', (_req, res) => {
       res.sendFile(path.resolve(__dirname, 'dist', 'index.html'));
     });
