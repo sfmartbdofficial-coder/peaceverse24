@@ -1,2 +1,0 @@
-# Static assets (/icon-*.png, /manifest.json, /service-worker.js) are served directly before SPA fallback.
-/* /index.html 200
