@@ -198,6 +198,7 @@ export interface UserProfile {
   id?: string;
   email?: string;
   name: string;
+  username?: string;
   avatar: string;
   coverPhoto: string;
   friendsCount: number;
@@ -222,6 +223,18 @@ export interface UserProfile {
   hobbies?: string[];
   goldenCoins?: number;
   earnedCoins?: number;
+}
+
+export interface SearchedUserProfile {
+  id: string;
+  uid: string;
+  displayName: string;
+  username?: string;
+  avatar: string;
+  coverPhoto?: string;
+  bio?: string;
+  location?: string;
+  verified?: boolean;
 }
 
 export interface GoldenGiftTransaction {

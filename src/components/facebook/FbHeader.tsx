@@ -21,6 +21,7 @@ interface FbHeaderProps {
   userProfile: UserProfile;
   searchQuery: string;
   onSearchChange: (query: string) => void;
+  onSearchSubmit?: (query: string) => void;
   onOpenCreatePost: () => void;
   onOpenCreateStory?: () => void;
   onOpenCreateReel?: () => void;
@@ -37,6 +38,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   userProfile: _userProfile,
   searchQuery,
   onSearchChange,
+  onSearchSubmit,
   onOpenCreatePost,
   onOpenCreateStory,
   onOpenCreateReel,
@@ -76,18 +78,34 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
             <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
           </button>
 
-          <div className="flex-1 relative flex items-center">
+          <form
+            className="flex-1 relative flex items-center"
+            onSubmit={(e) => {
+              e.preventDefault();
+              inputRef.current?.blur();
+              onSearchSubmit?.(searchQuery);
+            }}
+          >
             <Search className="w-4 h-4 text-[#65676B] absolute left-3 pointer-events-none" />
             <input
               ref={inputRef}
-              type="text"
-              placeholder={t.searchPlaceholder || 'Search Peaceverse24.com (people, pages, posts)...'}
+              type="search"
+              enterKeyHint="search"
+              placeholder="Search people by name or username..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  inputRef.current?.blur();
+                  onSearchSubmit?.(searchQuery);
+                }
+              }}
               className="w-full bg-[#F0F2F5] text-black text-xs sm:text-sm pl-9 pr-9 py-2 rounded-full placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
             />
             {searchQuery && (
               <button
+                type="button"
                 onClick={() => {
                   setIsSearching(true);
                   onSearchChange('');
@@ -99,7 +117,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
                 <X className="w-3.5 h-3.5" />
               </button>
             )}
-          </div>
+          </form>
         </div>
       </header>
     );

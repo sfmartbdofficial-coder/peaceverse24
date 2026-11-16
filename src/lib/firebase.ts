@@ -31,7 +31,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile } from '../types';
+import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile } from '../types';
 
 const defaultFirebaseConfig = {
   projectId: 'gen-lang-client-0936405543',
@@ -916,17 +916,27 @@ export async function registerWithEmail(
 
     try {
       const userRef = doc(db, 'users', res.user.uid);
+      const generatedUsername =
+        cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '') ||
+        (res.user.email ? res.user.email.split('@')[0].toLowerCase() : `user${res.user.uid.slice(0, 6)}`);
       await setDoc(
         userRef,
         {
           uid: res.user.uid,
+          id: res.user.uid,
+          name: cleanName,
           displayName: cleanName,
+          username: generatedUsername,
           email: res.user.email,
+          avatar:
+            res.user.photoURL ||
+            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=1877f2,0ea5e9,3b82f6`,
           createdAt: new Date().toISOString(),
           createdAtMillis: Date.now(),
         },
         { merge: true }
       );
+      cachedDirectoryUsers = null;
     } catch (err) {
       console.warn('Saving user doc notice:', err);
     }
@@ -953,6 +963,9 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
   if (!targetId) return false;
   try {
     const userRef = doc(db, 'users', targetId);
+    const resolvedUsername =
+      (profile.username && profile.username.trim()) ||
+      (profile.name ? profile.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') : '');
     await setDoc(
       userRef,
       {
@@ -960,6 +973,7 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
         uid: targetId,
         name: profile.name,
         displayName: profile.name,
+        ...(resolvedUsername ? { username: resolvedUsername } : {}),
         email: profile.email || auth.currentUser?.email || '',
         avatar: profile.avatar || '',
         coverPhoto: profile.coverPhoto || '',
@@ -982,6 +996,7 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
       },
       { merge: true }
     );
+    cachedDirectoryUsers = null;
     return true;
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
@@ -1364,3 +1379,227 @@ export async function fetchUserPublicPresenceStats(
     return { followersCount: 0, postsCount: 0 };
   }
 }
+
+// ==========================================
+// FACEBOOK-STYLE USER SEARCH & FRIEND REQUESTS
+// ==========================================
+
+let cachedDirectoryUsers: { users: SearchedUserProfile[]; fetchedAt: number } | null = null;
+const USER_DIRECTORY_CACHE_TTL_MS = 20 * 1000;
+
+export async function syncUserDirectoryProfile(
+  uid: string,
+  displayName: string,
+  email: string,
+  avatar: string
+): Promise<void> {
+  if (!uid || !displayName.trim()) return;
+  const userRef = doc(db, 'users', uid);
+  try {
+    const existingSnap = await getDocSafe(userRef);
+    const existingData = existingSnap && existingSnap.exists() ? existingSnap.data() : null;
+    const derivedUsername =
+      (existingData?.username && String(existingData.username).trim()) ||
+      (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '') ||
+      displayName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+
+    await setDoc(
+      userRef,
+      {
+        id: uid,
+        uid,
+        displayName: existingData?.displayName || existingData?.name || displayName.trim(),
+        name: existingData?.name || existingData?.displayName || displayName.trim(),
+        username: derivedUsername,
+        avatar: existingData?.avatar || existingData?.photoURL || avatar,
+        ...(email && !existingData?.email ? { email } : {}),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    cachedDirectoryUsers = null;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `users/${uid}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice syncing user directory profile:', err);
+    }
+  }
+}
+
+export async function searchUsersFromFirestore(
+  searchTerm: string,
+  forceRefresh = false
+): Promise<SearchedUserProfile[]> {
+  const q = searchTerm.trim().toLowerCase();
+  if (!q) return [];
+
+  try {
+    const now = Date.now();
+    let directoryUsers: SearchedUserProfile[] = [];
+
+    if (
+      !forceRefresh &&
+      cachedDirectoryUsers &&
+      now - cachedDirectoryUsers.fetchedAt < USER_DIRECTORY_CACHE_TTL_MS
+    ) {
+      directoryUsers = cachedDirectoryUsers.users;
+    } else {
+      const usersQuery = query(collection(db, 'users'), limit(500));
+      const snap = await getDocs(usersQuery);
+      directoryUsers = snap.docs.map((docSnap) => {
+        const data = docSnap.data();
+        const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
+        const username = String(data.username || data.handle || '').trim();
+        const avatar =
+          String(data.avatar || data.photoURL || '').trim() ||
+          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+            displayName
+          )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
+        return {
+          id: docSnap.id,
+          uid: String(data.uid || docSnap.id),
+          displayName,
+          username,
+          avatar,
+          coverPhoto: data.coverPhoto ? String(data.coverPhoto) : undefined,
+          bio: data.bio ? String(data.bio) : undefined,
+          location: data.location ? String(data.location) : undefined,
+          verified: Boolean(data.verified || data.isVerified),
+        };
+      });
+      cachedDirectoryUsers = { users: directoryUsers, fetchedAt: now };
+    }
+
+    const matched = directoryUsers.filter((u) => {
+      const displayMatch = u.displayName.toLowerCase().includes(q);
+      const usernameMatch = (u.username || '').toLowerCase().includes(q);
+      return displayMatch || usernameMatch;
+    });
+
+    // Prioritize exact and prefix matches
+    matched.sort((a, b) => {
+      const aName = a.displayName.toLowerCase();
+      const bName = b.displayName.toLowerCase();
+      const aExact = aName === q || (a.username || '').toLowerCase() === q ? 0 : 1;
+      const bExact = bName === q || (b.username || '').toLowerCase() === q ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+
+      const aStarts = aName.startsWith(q) ? 0 : 1;
+      const bStarts = bName.startsWith(q) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+
+      return aName.localeCompare(bName);
+    });
+
+    return matched;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, 'users');
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice searching users collection:', err);
+    }
+    return [];
+  }
+}
+
+export async function fetchSentFriendRequestIds(senderId: string): Promise<string[]> {
+  if (!senderId) return [];
+  try {
+    const q = query(collection(db, 'follows'), where('followerId', '==', senderId));
+    const snap = await getDocs(q);
+    return snap.docs.map((d) => String(d.data().targetId || '')).filter(Boolean);
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, 'follows');
+    }
+    return [];
+  }
+}
+
+export async function sendFriendRequestToUser(
+  senderId: string,
+  senderName: string,
+  senderAvatar: string,
+  targetUser: SearchedUserProfile
+): Promise<boolean> {
+  if (!senderId || !targetUser.id || senderId === targetUser.id) return false;
+  const followDocId = `${senderId}_${targetUser.id}`;
+  const notifDocId = `fr-${senderId}-${targetUser.id}`;
+
+  try {
+    await setDoc(doc(db, 'follows', followDocId), {
+      id: followDocId,
+      type: 'friend_request',
+      status: 'pending',
+      followerId: senderId,
+      followerName: senderName,
+      followerAvatar: senderAvatar,
+      targetId: targetUser.id,
+      targetName: targetUser.displayName,
+      targetAvatar: targetUser.avatar,
+      createdAt: new Date().toISOString(),
+      createdAtMillis: Date.now(),
+    });
+
+    await setDoc(doc(db, 'notifications', notifDocId), {
+      id: notifDocId,
+      type: 'friend_request',
+      from: senderId,
+      to: targetUser.id,
+      recipientId: targetUser.id,
+      senderId,
+      senderName,
+      senderAvatar,
+      avatar: senderAvatar,
+      title: `${senderName} sent you a friend request`,
+      subtitle: 'Tap to accept or view profile',
+      timeAgo: 'Just now',
+      isUnread: true,
+      read: false,
+      badgeType: 'friend',
+      requestData: {
+        id: followDocId,
+        name: senderName,
+        avatar: senderAvatar,
+        timeAgo: 'Just now',
+        status: 'pending',
+      },
+      createdAt: new Date().toISOString(),
+      createdAtMillis: Date.now(),
+    });
+
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `follows/${followDocId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice sending friend request:', err);
+    }
+    return false;
+  }
+}
+
+export async function cancelFriendRequestToUser(
+  senderId: string,
+  targetUserId: string
+): Promise<boolean> {
+  if (!senderId || !targetUserId) return false;
+  const followDocId = `${senderId}_${targetUserId}`;
+  const notifDocId = `fr-${senderId}-${targetUserId}`;
+
+  try {
+    await Promise.all([
+      deleteDoc(doc(db, 'follows', followDocId)).catch(() => {}),
+      deleteDoc(doc(db, 'notifications', notifDocId)).catch(() => {}),
+    ]);
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.DELETE, `follows/${followDocId}`);
+    }
+    return false;
+  }
+}
+

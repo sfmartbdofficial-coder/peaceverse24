@@ -39,7 +39,7 @@ import { FbGroupsView } from './components/facebook/FbGroupsView';
 import { FbPagesView } from './components/facebook/FbPagesView';
 import { FbFeedsView } from './components/facebook/FbFeedsView';
 import { FbMemoriesView } from './components/facebook/FbMemoriesView';
-import { FbSearchEmptyState } from './components/facebook/FbSearchEmptyState';
+import { FbUserSearchResults } from './components/facebook/FbUserSearchResults';
 import { PeaceThreadsView } from './components/facebook/PeaceThreadsView';
 import { PeaceInstaView } from './components/facebook/PeaceInstaView';
 import { PeaceBusinessSuiteView } from './components/facebook/PeaceBusinessSuiteView';
@@ -93,8 +93,14 @@ import {
   saveUserProfileToFirestore,
   fetchUserProfileFromFirestore,
   fetchUserProfileByNameFromFirestore,
+  syncUserDirectoryProfile,
+  searchUsersFromFirestore,
+  fetchSentFriendRequestIds,
+  sendFriendRequestToUser,
+  cancelFriendRequestToUser,
   logUserActivity,
 } from './lib/firebase';
+import { SearchedUserProfile } from './types';
 import {
   registerPushServiceWorker,
   subscribeToForegroundFcm,
@@ -106,6 +112,9 @@ export default function App() {
   const [currentTab, setCurrentTab] = useState<FacebookMainTab>('home');
   const [tabHistory, setTabHistory] = useState<FacebookMainTab[]>(['home']);
   const [searchQuery, setSearchQuery] = useState('');
+  const [userSearchResults, setUserSearchResults] = useState<SearchedUserProfile[]>([]);
+  const [isSearchingUsers, setIsSearchingUsers] = useState(false);
+  const [sentFriendRequests, setSentFriendRequests] = useState<Record<string, boolean>>({});
   const [viewedProfile, setViewedProfile] = useState<UserProfile | null>(null);
 
   // Modals state
@@ -483,6 +492,18 @@ export default function App() {
           birthDate: prev.birthDate || '',
           relationship: prev.relationship || '',
         }));
+
+        syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar);
+        fetchSentFriendRequestIds(usr.uid).then((ids) => {
+          if (ids.length === 0) return;
+          setSentFriendRequests((prev) => {
+            const next = { ...prev };
+            ids.forEach((id) => {
+              next[id] = true;
+            });
+            return next;
+          });
+        });
 
         fetchUserProfileFromFirestore(usr.uid).then((remote) => {
           if (!remote) return;
@@ -1347,18 +1368,77 @@ export default function App() {
     }, 1000);
   };
 
-  // Privacy and search filtered posts for Feed
+  // Debounced Facebook-style Firestore user search
+  const runUserSearch = React.useCallback(async (rawQuery: string, forceRefresh = false) => {
+    const trimmed = rawQuery.trim();
+    if (!trimmed) {
+      setUserSearchResults([]);
+      setIsSearchingUsers(false);
+      return;
+    }
+
+    setIsSearchingUsers(true);
+    const matched = await searchUsersFromFirestore(trimmed, forceRefresh);
+    setUserSearchResults(matched);
+    setIsSearchingUsers(false);
+  }, []);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    if (!trimmed) {
+      setUserSearchResults([]);
+      setIsSearchingUsers(false);
+      return;
+    }
+
+    setIsSearchingUsers(true);
+    const timer = window.setTimeout(() => {
+      void runUserSearch(trimmed, false);
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery, runUserSearch]);
+
+  const handleUserSearchSubmit = React.useCallback(
+    (submittedQuery: string) => {
+      if (currentTab !== 'home') {
+        navigateToTab('home');
+      }
+      if (submittedQuery.trim()) {
+        void runUserSearch(submittedQuery, true);
+      }
+    },
+    [currentTab, runUserSearch]
+  );
+
+  const handleToggleFriendRequest = React.useCallback(
+    async (targetUser: SearchedUserProfile) => {
+      const senderId = firebaseUser?.uid || userProfile.id || '';
+      if (!senderId || senderId === targetUser.id) return;
+
+      const currentlySent = Boolean(sentFriendRequests[targetUser.id]);
+      setSentFriendRequests((prev) => ({
+        ...prev,
+        [targetUser.id]: !currentlySent,
+      }));
+
+      if (currentlySent) {
+        await cancelFriendRequestToUser(senderId, targetUser.id);
+      } else {
+        await sendFriendRequestToUser(
+          senderId,
+          userProfile.name,
+          userProfile.avatar,
+          targetUser
+        );
+      }
+    },
+    [firebaseUser?.uid, userProfile.id, userProfile.name, userProfile.avatar, sentFriendRequests]
+  );
+
+  // Privacy filtered posts for Feed (Search bar now performs Facebook-style user search)
   const filteredPosts = useMemo(() => {
     return posts.filter((p) => {
-      // Search filter
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matchBangla = p.contentBangla?.toLowerCase().includes(q);
-        const matchAuthor = p.author?.name?.toLowerCase().includes(q);
-        const matchArabic = p.arabicVerse && p.arabicVerse.includes(q);
-        if (!matchBangla && !matchAuthor && !matchArabic) return false;
-      }
-
       const privacy = p.privacy || (p.isPublic ? 'public' : 'friends');
       const isAuthor = p.author.name === userProfile.name;
 
@@ -1379,7 +1459,7 @@ export default function App() {
 
       return true;
     });
-  }, [posts, searchQuery, feedPrivacyFilter, userProfile.name]);
+  }, [posts, feedPrivacyFilter, userProfile.name]);
 
   // Infinite scroll visible posts slice (loads 10 at a time, scroll down loads next 10)
   const visiblePosts = useMemo(() => {
@@ -1576,7 +1656,13 @@ export default function App() {
         <FbHeader
           userProfile={userProfile}
           searchQuery={searchQuery}
-          onSearchChange={setSearchQuery}
+          onSearchChange={(q) => {
+            setSearchQuery(q);
+            if (q.trim() && currentTab !== 'home') {
+              navigateToTab('home');
+            }
+          }}
+          onSearchSubmit={handleUserSearchSubmit}
           onOpenCreatePost={() => setShowCreatePost(true)}
           onOpenCreateStory={() => setShowCreateStory(true)}
           onOpenCreateReel={() => setShowCreateReel(true)}
@@ -1677,162 +1763,206 @@ export default function App() {
               </div>
             )}
 
-            {/* What's on your mind? Box (using effectiveProfile & activeSwitchedPage) */}
-            <FbCreatePostBox
-              userProfile={effectiveProfile}
-              activeSwitchedPage={activeSwitchedPage}
-              onOpenCreateModal={(photo?: string) => {
-                setInitialPostPhoto(photo || null);
-                setShowCreatePost(true);
-              }}
-              onOpenProfile={() => {
-                if (activeSwitchedPage) {
-                  setSelectedPageIdToOpen(activeSwitchedPage.id);
-                  navigateToTab('pages');
-                } else {
-                  setViewedProfile(null);
+            {searchQuery.trim().length > 0 ? (
+              <FbUserSearchResults
+                query={searchQuery}
+                results={userSearchResults}
+                isLoading={isSearchingUsers}
+                currentUserId={firebaseUser?.uid || userProfile.id}
+                sentRequestIds={sentFriendRequests}
+                onToggleFriendRequest={handleToggleFriendRequest}
+                onOpenUserProfile={async (targetUser) => {
+                  const currentUid = firebaseUser?.uid || userProfile.id;
+                  if (currentUid && targetUser.id === currentUid) {
+                    setViewedProfile(null);
+                    setSearchQuery('');
+                    navigateToTab('profile');
+                    return;
+                  }
+                  const baseProfile: UserProfile = {
+                    id: targetUser.id,
+                    name: targetUser.displayName,
+                    username: targetUser.username,
+                    avatar: targetUser.avatar,
+                    coverPhoto:
+                      targetUser.coverPhoto ||
+                      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                    friendsCount: 0,
+                    location: targetUser.location || '',
+                    birthDate: '',
+                    bio: targetUser.bio || '',
+                    contactPrivacy: 'public',
+                  };
+                  setViewedProfile(baseProfile);
+                  setSearchQuery('');
                   navigateToTab('profile');
-                }
-              }}
-            />
-
-            {/* Stories & Reels Bar */}
-            <div className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
-              <FbStories
-                stories={stories}
-                onOpenCreateStory={() => setShowCreateStory(true)}
-                onOpenCreateReel={() => setShowCreateReel(true)}
+                  const remote = await fetchUserProfileFromFirestore(targetUser.id);
+                  if (remote) {
+                    setViewedProfile((prev) =>
+                      prev && prev.id === targetUser.id
+                        ? {
+                            ...prev,
+                            ...remote,
+                            name: remote.name || targetUser.displayName,
+                            avatar: remote.avatar || targetUser.avatar,
+                          }
+                        : prev
+                    );
+                  }
+                }}
+                onClearSearch={() => setSearchQuery('')}
               />
-            </div>
+            ) : (
+              <>
+                {/* What's on your mind? Box (using effectiveProfile & activeSwitchedPage) */}
+                <FbCreatePostBox
+                  userProfile={effectiveProfile}
+                  activeSwitchedPage={activeSwitchedPage}
+                  onOpenCreateModal={(photo?: string) => {
+                    setInitialPostPhoto(photo || null);
+                    setShowCreatePost(true);
+                  }}
+                  onOpenProfile={() => {
+                    if (activeSwitchedPage) {
+                      setSelectedPageIdToOpen(activeSwitchedPage.id);
+                      navigateToTab('pages');
+                    } else {
+                      setViewedProfile(null);
+                      navigateToTab('profile');
+                    }
+                  }}
+                />
 
-            {/* Global Prayer Times, Daily Quran Verse & Qibla Compass Strip */}
-            <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex items-center gap-2 min-w-0">
-                  <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                    <Clock className="w-4 h-4" />
-                  </span>
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-black truncate">
-                      {globalCity.flag} {globalCity.city} •{' '}
-                      {globalPrayerSchedule
-                        ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${globalPrayerSchedule.nextPrayer.time})`
-                        : 'Global Prayer Times'}
-                    </p>
-                    <p className="text-[10px] text-[#65676B] truncate">
-                      Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims
+                {/* Stories & Reels Bar */}
+                <div className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
+                  <FbStories
+                    stories={stories}
+                    onOpenCreateStory={() => setShowCreateStory(true)}
+                    onOpenCreateReel={() => setShowCreateReel(true)}
+                  />
+                </div>
+
+                {/* Global Prayer Times, Daily Quran Verse & Qibla Compass Strip */}
+                <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                        <Clock className="w-4 h-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-black truncate">
+                          {globalCity.flag} {globalCity.city} •{' '}
+                          {globalPrayerSchedule
+                            ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${globalPrayerSchedule.nextPrayer.time})`
+                            : 'Global Prayer Times'}
+                        </p>
+                        <p className="text-[10px] text-[#65676B] truncate">
+                          Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <button
+                        type="button"
+                        onClick={handleToggleAdhan}
+                        aria-label={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
+                        title={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
+                        className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border ${
+                          adhanEnabled
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
+                            : 'bg-[#F0F2F5] text-[#65676B] border-[#E4E6EB] hover:bg-[#E4E6EB] hover:text-black'
+                        }`}
+                      >
+                        {adhanEnabled ? (
+                          <Bell className="w-3.5 h-3.5 text-emerald-600" />
+                        ) : (
+                          <BellOff className="w-3.5 h-3.5 text-[#65676B]" />
+                        )}
+                        <span>{adhanEnabled ? 'ON' : 'OFF'}</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => navigateToPath('/qibla')}
+                        className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
+                      >
+                        <Compass className="w-3.5 h-3.5" />
+                        <span>Qibla</span>
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className="p-2 rounded-lg bg-[#F0F2F5] flex items-start gap-2 text-[11px]">
+                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
+                    <p className="text-black leading-snug">
+                      <span className="font-bold text-emerald-700">
+                        {getDailyQuranVerse(currentLang).surahRef}:{' '}
+                      </span>
+                      {getDailyQuranVerse(currentLang).localized}
                     </p>
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 shrink-0">
+
+                {/* Filter Tabs matching exact Facebook style */}
+                <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
                   <button
-                    type="button"
-                    onClick={handleToggleAdhan}
-                    aria-label={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
-                    title={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
-                    className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border ${
-                      adhanEnabled
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                        : 'bg-[#F0F2F5] text-[#65676B] border-[#E4E6EB] hover:bg-[#E4E6EB] hover:text-black'
+                    onClick={() => setFeedPrivacyFilter('all')}
+                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                      feedPrivacyFilter === 'all'
+                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                        : 'text-[#65676B] hover:text-black'
                     }`}
                   >
-                    {adhanEnabled ? (
-                      <Bell className="w-3.5 h-3.5 text-emerald-600" />
-                    ) : (
-                      <BellOff className="w-3.5 h-3.5 text-[#65676B]" />
-                    )}
-                    <span>{adhanEnabled ? 'ON' : 'OFF'}</span>
+                    সব পোস্ট
                   </button>
-
                   <button
-                    type="button"
-                    onClick={() => navigateToPath('/qibla')}
-                    className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
+                    onClick={() => setFeedPrivacyFilter('public')}
+                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                      feedPrivacyFilter === 'public'
+                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                        : 'text-[#65676B] hover:text-black'
+                    }`}
                   >
-                    <Compass className="w-3.5 h-3.5" />
-                    <span>Qibla</span>
+                    পাবলিক
+                  </button>
+                  <button
+                    onClick={() => setFeedPrivacyFilter('friends')}
+                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                      feedPrivacyFilter === 'friends'
+                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                        : 'text-[#65676B] hover:text-black'
+                    }`}
+                  >
+                    বন্ধুরা
+                  </button>
+                  <button
+                    onClick={() => setFeedPrivacyFilter('private')}
+                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                      feedPrivacyFilter === 'private'
+                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                        : 'text-[#65676B] hover:text-black'
+                    }`}
+                  >
+                    শুধুমাত্র আমি
                   </button>
                 </div>
-              </div>
 
-              <div className="p-2 rounded-lg bg-[#F0F2F5] flex items-start gap-2 text-[11px]">
-                <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                <p className="text-black leading-snug">
-                  <span className="font-bold text-emerald-700">
-                    {getDailyQuranVerse(currentLang).surahRef}:{' '}
-                  </span>
-                  {getDailyQuranVerse(currentLang).localized}
-                </p>
-              </div>
-            </div>
-
-            {/* Filter Tabs matching exact Facebook style */}
-            <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
-              <button
-                onClick={() => setFeedPrivacyFilter('all')}
-                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                  feedPrivacyFilter === 'all'
-                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] hover:text-black'
-                }`}
-              >
-                সব পোস্ট
-              </button>
-              <button
-                onClick={() => setFeedPrivacyFilter('public')}
-                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                  feedPrivacyFilter === 'public'
-                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] hover:text-black'
-                }`}
-              >
-                পাবলিক
-              </button>
-              <button
-                onClick={() => setFeedPrivacyFilter('friends')}
-                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                  feedPrivacyFilter === 'friends'
-                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] hover:text-black'
-                }`}
-              >
-                বন্ধুরা
-              </button>
-              <button
-                onClick={() => setFeedPrivacyFilter('private')}
-                className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                  feedPrivacyFilter === 'private'
-                    ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                    : 'text-[#65676B] hover:text-black'
-                }`}
-              >
-                শুধুমাত্র আমি
-              </button>
-            </div>
-
-            {/* Posts Feed matching Screenshot 1 */}
-            <div className="space-y-2.5">
-              {filteredPosts.length === 0 ? (
-                searchQuery.trim().length > 0 ? (
-                  <FbSearchEmptyState
-                    query={searchQuery}
-                    onCreatePageWithName={handleCreatePageWithName}
-                  />
-                ) : (
-                  <div className="bg-white rounded-[8px] border border-[#E4E6EB] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
-                    <div className="w-14 h-14 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto shadow-sm">
-                      <Sparkles className="w-7 h-7" />
+                {/* Posts Feed matching Screenshot 1 */}
+                <div className="space-y-2.5">
+                  {filteredPosts.length === 0 ? (
+                    <div className="bg-white rounded-[8px] border border-[#E4E6EB] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
+                      <div className="w-14 h-14 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto shadow-sm">
+                        <Sparkles className="w-7 h-7" />
+                      </div>
+                      <h3 className="text-base font-bold text-black">
+                        No posts yet - Your genuine posts will appear here
+                      </h3>
+                      <p className="text-xs text-[#65676B] max-w-sm mx-auto">
+                        Share your genuine videos, thoughts, and moments using the box above.
+                      </p>
                     </div>
-                    <h3 className="text-base font-bold text-black">
-                      No posts yet - Your genuine posts will appear here
-                    </h3>
-                    <p className="text-xs text-[#65676B] max-w-sm mx-auto">
-                      Share your genuine videos, thoughts, and moments using the box above.
-                    </p>
-                  </div>
-                )
-              ) : (
-                <>
+                  ) : (
+                    <>
                   {visiblePosts.map((post) => (
                     <div key={post.id} id={`post-${post.id}`}>
                     <FbPostCard
@@ -1889,6 +2019,8 @@ export default function App() {
                 </>
               )}
             </div>
+              </>
+            )}
           </div>
         )}
 
