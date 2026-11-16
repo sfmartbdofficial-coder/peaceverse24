@@ -31,10 +31,19 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import defaultFirebaseConfig from '../../firebase-applet-config.json';
 import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile } from '../types';
 
-// Support both Cloudflare/Vite environment variables (VITE_FIREBASE_*) and fallback to firebase-applet-config.json
+const defaultFirebaseConfig = {
+  projectId: 'gen-lang-client-0936405543',
+  appId: '1:499589609756:web:6b0e982f903121c07562d9',
+  apiKey: 'AIzaSyDqvbDypsSdmuIiu70qxPHo3103cNwLk54',
+  authDomain: 'gen-lang-client-0936405543.firebaseapp.com',
+  firestoreDatabaseId: 'ai-studio-peaceverse-d7a086ee-044c-4934-8539-89a03de39673',
+  storageBucket: 'gen-lang-client-0936405543.firebasestorage.app',
+  messagingSenderId: '499589609756',
+};
+
+// Support both Cloudflare/Vite environment variables (VITE_FIREBASE_*) and inline fallback config
 const resolvedFirebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY || defaultFirebaseConfig.apiKey,
   authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || defaultFirebaseConfig.authDomain,
