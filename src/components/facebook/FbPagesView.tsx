@@ -57,6 +57,7 @@ import {
   savePeaceSettings,
   PeaceSettingsPrefs,
 } from '../../utils/settingsStorage';
+import { getPageMonetizationById } from '../../utils/adminControlStorage';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -1324,44 +1325,74 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           )}
 
           {/* MONETIZATION & CREATOR STUDIO TAB */}
-          {pageSubTab === 'monetization' && (
-            <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3.5 shadow-2xs">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-200">
-                    ৳
-                  </div>
-                  <div>
-                    <h3 className="text-sm font-bold text-[#050505]">ক্রিয়েটর ইন-স্ট্রিম মনিটাইজেশন</h3>
-                    <p className="text-[11px] text-emerald-700">শরিয়াহ সম্মত ৫৫% ক্রিয়েটর রেভিনিউ শেয়ার</p>
-                  </div>
-                </div>
-                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-200">
-                  {selectedPage.followersCount >= 5000 ? 'Active' : 'Eligible'}
-                </span>
-              </div>
+          {pageSubTab === 'monetization' && (() => {
+            const adminControl = getPageMonetizationById(selectedPage.id);
+            const status = adminControl?.status || (selectedPage.followersCount >= 5000 ? 'approved' : 'pending');
+            const sharePct = adminControl?.revenueShareCreatorPct || 55;
+            const totalEarned = adminControl?.totalEarnings ?? 0;
+            const pendingEarned = adminControl?.pendingBalance ?? 0;
 
-              <div className="grid grid-cols-2 gap-2.5">
-                <div className="bg-[#F0F2F5] p-3 rounded-xl">
-                  <span className="text-[10px] text-[#65676B] block">উত্তোলনযোগ্য ব্যালেন্স</span>
-                  <span className="text-base font-bold text-emerald-700 tabular-nums">৳৯,৫০০</span>
+            return (
+              <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3.5 shadow-2xs">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-200">
+                      ৳
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-[#050505]">পেইজ মনিটাইজেশন ও ক্রিয়েটর স্টুডিও</h3>
+                      <p className="text-[11px] text-emerald-700">
+                        শরিয়াহ সম্মত {sharePct}% ক্রিয়েটর রেভিনিউ শেয়ার
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                      status === 'approved'
+                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                        : status === 'paused'
+                        ? 'bg-amber-50 text-amber-800 border-amber-200'
+                        : status === 'rejected'
+                        ? 'bg-rose-50 text-rose-700 border-rose-200'
+                        : 'bg-blue-50 text-[#0866FF] border-blue-200'
+                    }`}
+                  >
+                    {status === 'approved'
+                      ? 'Active ✓'
+                      : status === 'paused'
+                      ? 'Paused'
+                      : status === 'rejected'
+                      ? 'Rejected'
+                      : 'Pending Review'}
+                  </span>
                 </div>
-                <div className="bg-[#F0F2F5] p-3 rounded-xl">
-                  <span className="text-[10px] text-[#65676B] block">মোট অর্জিত আয়</span>
-                  <span className="text-base font-bold text-[#050505] tabular-nums">৳২৪,৫০০</span>
-                </div>
-              </div>
 
-              <button
-                type="button"
-                onClick={() => setShowMonetizationModal(true)}
-                className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
-              >
-                <DollarSign className="w-4 h-4" />
-                <span>Payout Studio (PayPal / bKash / Bank)</span>
-              </button>
-            </div>
-          )}
+                <div className="grid grid-cols-2 gap-2.5">
+                  <div className="bg-[#F0F2F5] p-3 rounded-xl">
+                    <span className="text-[10px] text-[#65676B] block">উত্তোলনযোগ্য ব্যালেন্স</span>
+                    <span className="text-base font-bold text-emerald-700 tabular-nums">
+                      ৳{pendingEarned.toLocaleString()}
+                    </span>
+                  </div>
+                  <div className="bg-[#F0F2F5] p-3 rounded-xl">
+                    <span className="text-[10px] text-[#65676B] block">মোট অর্জিত আয়</span>
+                    <span className="text-base font-bold text-[#050505] tabular-nums">
+                      ৳{totalEarned.toLocaleString()}
+                    </span>
+                  </div>
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => setShowMonetizationModal(true)}
+                  className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <DollarSign className="w-4 h-4" />
+                  <span>Payout Studio (PayPal / bKash / Bank)</span>
+                </button>
+              </div>
+            );
+          })()}
 
           {/* REVIEWS TAB */}
           {pageSubTab === 'reviews' && (

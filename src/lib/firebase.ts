@@ -1603,3 +1603,118 @@ export async function cancelFriendRequestToUser(
   }
 }
 
+export interface AdminPlatformUser {
+  id: string;
+  uid: string;
+  displayName: string;
+  username: string;
+  email: string;
+  avatar: string;
+  location: string;
+  updatedAt: string;
+  updatedAtMillis: number;
+  isActive24h: boolean;
+  isActive7d: boolean;
+  verified: boolean;
+}
+
+export interface AdminPlatformStats {
+  totalUsers: number;
+  activeUsers24h: number;
+  activeUsers7d: number;
+  totalPosts: number;
+  totalFollows: number;
+  totalNotifications: number;
+  users: AdminPlatformUser[];
+}
+
+export async function fetchAdminPlatformData(): Promise<AdminPlatformStats> {
+  const empty: AdminPlatformStats = {
+    totalUsers: 0,
+    activeUsers24h: 0,
+    activeUsers7d: 0,
+    totalPosts: 0,
+    totalFollows: 0,
+    totalNotifications: 0,
+    users: [],
+  };
+
+  try {
+    const [usersSnap, postsSnap, followsSnap, notifsSnap] = await Promise.all([
+      getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
+        if (err?.code === 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'users');
+        }
+        return null;
+      }),
+      getDocs(query(collection(db, 'posts'), limit(500))).catch((err) => {
+        if (err?.code === 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'posts');
+        }
+        return null;
+      }),
+      getDocs(query(collection(db, 'follows'), limit(1000))).catch((err) => {
+        if (err?.code === 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'follows');
+        }
+        return null;
+      }),
+      getDocs(query(collection(db, 'notifications'), limit(500))).catch((err) => {
+        if (err?.code === 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'notifications');
+        }
+        return null;
+      }),
+    ]);
+
+    const now = Date.now();
+    const dayMs = 24 * 60 * 60 * 1000;
+    const weekMs = 7 * dayMs;
+
+    const users: AdminPlatformUser[] = (usersSnap?.docs || []).map((docSnap) => {
+      const data = docSnap.data();
+      const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
+      const username = String(data.username || data.handle || '').trim();
+      const email = String(data.email || '').trim();
+      const avatar =
+        String(data.avatar || data.photoURL || '').trim() ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(displayName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+      const updatedAt = String(data.updatedAt || '');
+      const parsedTime = updatedAt ? Date.parse(updatedAt) : 0;
+      const updatedAtMillis = Number.isFinite(parsedTime) && parsedTime > 0 ? parsedTime : 0;
+      const ageMs = updatedAtMillis > 0 ? now - updatedAtMillis : Number.MAX_SAFE_INTEGER;
+
+      return {
+        id: docSnap.id,
+        uid: String(data.uid || docSnap.id),
+        displayName,
+        username,
+        email,
+        avatar,
+        location: String(data.location || ''),
+        updatedAt,
+        updatedAtMillis,
+        isActive24h: ageMs <= dayMs,
+        isActive7d: ageMs <= weekMs,
+        verified: Boolean(data.verified || data.isVerified),
+      };
+    });
+
+    users.sort((a, b) => b.updatedAtMillis - a.updatedAtMillis);
+
+    return {
+      totalUsers: users.length,
+      activeUsers24h: users.filter((u) => u.isActive24h).length,
+      activeUsers7d: users.filter((u) => u.isActive7d).length,
+      totalPosts: postsSnap?.size || 0,
+      totalFollows: followsSnap?.size || 0,
+      totalNotifications: notifsSnap?.size || 0,
+      users,
+    };
+  } catch (err) {
+    console.warn('Notice fetching admin platform stats:', err);
+    return empty;
+  }
+}
+
+

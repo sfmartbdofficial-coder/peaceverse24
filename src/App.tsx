@@ -46,6 +46,7 @@ import { PeaceBusinessSuiteView } from './components/facebook/PeaceBusinessSuite
 import { PeaceEditsModal } from './components/facebook/PeaceEditsModal';
 import { HalalGuaranteeModal } from './components/HalalGuaranteeModal';
 import { AdminPortal } from './components/admin/AdminPortal';
+import { SponsoredAdCard } from './components/ads/SponsoredAdCard';
 import { LegalModal, LegalTabType } from './components/legal/LegalModal';
 import { PWAInstallBanner } from './components/pwa/PWAInstallBanner';
 import { PWAInstallModal } from './components/pwa/PWAInstallModal';
@@ -56,8 +57,14 @@ import { FirebaseAuthModal } from './components/auth/FirebaseAuthModal';
 import { FbGoldenGiftModal } from './components/golden/FbGoldenGiftModal';
 import { GoldenWalletModal } from './components/wallet/GoldenWalletModal';
 import { useLanguage } from './context/LanguageContext';
-import { INITIAL_ADS } from './data/adminData';
 import { AdSlot } from './types/admin';
+import {
+  ADMIN_SYNC_EVENT,
+  AdPlacementConfig,
+  loadAdPlacementConfig,
+  loadAdminAds,
+  trackAdClick,
+} from './utils/adminControlStorage';
 import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
@@ -421,14 +428,16 @@ export default function App() {
     } catch {}
   };
 
-  // Admin Portal state with direct #admin or #asol-admin-secret or /asol-admin-secret URL support
+  // Standalone Admin Portal state with /admin, #admin, #asol-admin-secret, /asol-admin-secret, or ?panel=admin
   const checkIsAdmin = () => {
-    const hash = window.location.hash.replace('#', '');
-    const path = window.location.pathname;
+    const hash = window.location.hash.replace('#', '').toLowerCase();
+    const path = window.location.pathname.toLowerCase();
     return (
+      path === '/admin' ||
+      path.startsWith('/admin/') ||
+      path.includes('asol-admin-secret') ||
       hash === 'admin' ||
       hash === 'asol-admin-secret' ||
-      path.includes('asol-admin-secret') ||
       window.location.search.includes('panel=admin')
     );
   };
@@ -436,7 +445,7 @@ export default function App() {
   const [showAdminPortal, setShowAdminPortal] = useState(() => checkIsAdmin());
   const [feedPrivacyFilter, setFeedPrivacyFilter] = useState<'all' | 'public' | 'friends' | 'private'>('all');
 
-  // Path-based routing for Landing (/), Login (/login), Signup (/signup), and Home (/home)
+  // Path-based routing for Landing (/), Login (/login), Signup (/signup), Home (/home), and Standalone Admin (/admin)
   const [currentPath, setCurrentPath] = useState<string>(() => {
     return window.location.pathname || '/';
   });
@@ -448,12 +457,14 @@ export default function App() {
       window.history.pushState({}, '', path);
     }
     setCurrentPath(path);
+    setShowAdminPortal(checkIsAdmin());
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
   useEffect(() => {
     const handlePopState = () => {
       setCurrentPath(window.location.pathname || '/');
+      setShowAdminPortal(checkIsAdmin());
     };
     window.addEventListener('popstate', handlePopState);
     return () => window.removeEventListener('popstate', handlePopState);
@@ -604,14 +615,38 @@ export default function App() {
     }
   };
 
-  const [activeAds] = useState<AdSlot[]>(() => {
-    try {
-      const stored = localStorage.getItem('qalby_admin_ads');
-      return stored ? JSON.parse(stored) : INITIAL_ADS;
-    } catch {
-      return INITIAL_ADS;
-    }
-  });
+  const [activeAds, setActiveAds] = useState<AdSlot[]>(() => loadAdminAds());
+  const [adPlacementConfig, setAdPlacementConfig] = useState<AdPlacementConfig>(() => loadAdPlacementConfig());
+
+  useEffect(() => {
+    const syncAdminSettings = () => {
+      setActiveAds(loadAdminAds());
+      setAdPlacementConfig(loadAdPlacementConfig());
+    };
+    window.addEventListener(ADMIN_SYNC_EVENT, syncAdminSettings);
+    window.addEventListener('storage', syncAdminSettings);
+    return () => {
+      window.removeEventListener(ADMIN_SYNC_EVENT, syncAdminSettings);
+      window.removeEventListener('storage', syncAdminSettings);
+    };
+  }, []);
+
+  const homeFeedAds = useMemo(
+    () => activeAds.filter((a) => a.isActive && a.placement === 'home_feed'),
+    [activeAds]
+  );
+  const reelsAds = useMemo(
+    () => activeAds.filter((a) => a.isActive && a.placement === 'reels_preroll'),
+    [activeAds]
+  );
+  const marketplaceAds = useMemo(
+    () => activeAds.filter((a) => a.isActive && a.placement === 'marketplace_top'),
+    [activeAds]
+  );
+  const storyAds = useMemo(
+    () => activeAds.filter((a) => a.isActive && a.placement === 'story_ad'),
+    [activeAds]
+  );
 
   // User Profile with localStorage persistence
   const [userProfile, setUserProfile] = useState<UserProfile>(() => {
@@ -1495,7 +1530,31 @@ export default function App() {
     navigateToPath('/');
   };
 
-  // 1. Loading screen during initial Firebase auth handshake
+  // 1. Standalone Master Admin Panel (/admin, #admin, #asol-admin-secret, ?panel=admin)
+  // Accessible independently without requiring normal Firebase user login
+  if (showAdminPortal) {
+    return (
+      <AdminPortal
+        onBackToApp={() => {
+          setShowAdminPortal(false);
+          const targetPath = firebaseUser ? '/home' : '/';
+          window.history.pushState({}, '', targetPath);
+          setCurrentPath(targetPath);
+        }}
+        posts={posts}
+        onAddPostToFeed={handlePostCreated}
+        onDeletePostFromFeed={handleDeletePost}
+        onModeratePost={handleModeratePost}
+        goldenCashoutRequests={cashoutRequests}
+        onApproveGoldenCashout={handleApproveGoldenCashout}
+        onRejectGoldenCashout={handleRejectGoldenCashout}
+        userProfile={effectiveProfile}
+        onBroadcastNotification={addLocalBroadcastNotification}
+      />
+    );
+  }
+
+  // 2. Loading screen during initial Firebase auth handshake
   if (isAuthChecking) {
     return (
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 text-black">
@@ -1508,7 +1567,7 @@ export default function App() {
     );
   }
 
-  // 2. Dedicated Auth Pages: /login and /signup
+  // 3. Dedicated Auth Pages: /login and /signup
   if (currentPath === '/login') {
     return (
       <PeaceVerseAuthPage
@@ -1533,7 +1592,7 @@ export default function App() {
     );
   }
 
-  // 3. Protected Route Gate: If visitor is NOT logged in with Firebase, show Landing Page
+  // 4. Protected Route Gate: If visitor is NOT logged in with Firebase, show Landing Page
   if (!firebaseUser) {
     return (
       <>
@@ -1573,27 +1632,6 @@ export default function App() {
           />
         )}
       </>
-    );
-  }
-
-  // 4. Admin Portal (via #admin, #asol-admin-secret, or Menu click)
-  if (showAdminPortal) {
-    return (
-      <AdminPortal
-        onBackToApp={() => {
-          setShowAdminPortal(false);
-          window.location.hash = '';
-        }}
-        posts={posts}
-        onAddPostToFeed={handlePostCreated}
-        onDeletePostFromFeed={handleDeletePost}
-        onModeratePost={handleModeratePost}
-        goldenCashoutRequests={cashoutRequests}
-        onApproveGoldenCashout={handleApproveGoldenCashout}
-        onRejectGoldenCashout={handleRejectGoldenCashout}
-        userProfile={effectiveProfile}
-        onBroadcastNotification={addLocalBroadcastNotification}
-      />
     );
   }
 
@@ -1842,6 +1880,15 @@ export default function App() {
                   />
                 </div>
 
+                {/* Admin-Controlled Story Banner Ad */}
+                {adPlacementConfig.story_ad_enabled && storyAds.length > 0 && (
+                  <SponsoredAdCard
+                    ad={storyAds[0]}
+                    variant="banner"
+                    onAdClick={(ad) => trackAdClick(ad.id)}
+                  />
+                )}
+
                 {/* Global Prayer Times, Daily Quran Verse & Qibla Compass Strip */}
                 <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
                   <div className="flex items-center justify-between gap-2">
@@ -1963,49 +2010,69 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                  {visiblePosts.map((post) => (
-                    <div key={post.id} id={`post-${post.id}`}>
-                    <FbPostCard
-                      post={post}
-                      onToggleReaction={handleToggleReaction}
-                      onToggleSave={handleToggleSave}
-                      onAddComment={handleAddComment}
-                      onEditPost={handleEditPost}
-                      onDeletePost={handleDeletePost}
-                      onOpenProfile={async (authorName) => {
-                        if (!authorName || authorName === userProfile.name) {
-                          setViewedProfile(null);
-                          navigateToTab('profile');
-                          return;
-                        }
-                        const baseAuthorProfile: UserProfile = {
-                          id: post.authorId || `author-${authorName}`,
-                          name: authorName,
-                          avatar: post.author.avatar,
-                          coverPhoto: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                          friendsCount: 245,
-                          location: 'Dhaka, Bangladesh',
-                          hometown: 'Bangladesh',
-                          birthDate: '1994',
-                          contactPrivacy: 'public',
-                        };
-                        setViewedProfile(baseAuthorProfile);
-                        navigateToTab('profile');
-                        const remote = await fetchUserProfileByNameFromFirestore(authorName);
-                        if (remote) {
-                          setViewedProfile((prev) =>
-                            prev && prev.name === authorName ? { ...prev, ...remote } : prev
-                          );
-                        }
-                      }}
-                      onTypingChange={handleTypingChange}
-                      currentUserId={userProfile.id || 'user-me'}
-                      currentUserName={userProfile.name}
-                      onOpenReel={(p) => setActiveReelPostId(p.id)}
-                      onOpenGiftModal={(p) => setSelectedGiftPost(p)}
-                    />
-                    </div>
-                  ))}
+                  {visiblePosts.map((post, postIndex) => {
+                    const adFreq = Math.max(1, adPlacementConfig.home_feed_frequency || 3);
+                    const shouldShowFeedAd =
+                      adPlacementConfig.home_feed_enabled &&
+                      homeFeedAds.length > 0 &&
+                      (postIndex + 1) % adFreq === 0;
+                    const feedAd = shouldShowFeedAd
+                      ? homeFeedAds[Math.floor(postIndex / adFreq) % homeFeedAds.length]
+                      : null;
+
+                    return (
+                      <React.Fragment key={post.id}>
+                        <div id={`post-${post.id}`}>
+                          <FbPostCard
+                            post={post}
+                            onToggleReaction={handleToggleReaction}
+                            onToggleSave={handleToggleSave}
+                            onAddComment={handleAddComment}
+                            onEditPost={handleEditPost}
+                            onDeletePost={handleDeletePost}
+                            onOpenProfile={async (authorName) => {
+                              if (!authorName || authorName === userProfile.name) {
+                                setViewedProfile(null);
+                                navigateToTab('profile');
+                                return;
+                              }
+                              const baseAuthorProfile: UserProfile = {
+                                id: post.authorId || `author-${authorName}`,
+                                name: authorName,
+                                avatar: post.author.avatar,
+                                coverPhoto: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                                friendsCount: 245,
+                                location: 'Dhaka, Bangladesh',
+                                hometown: 'Bangladesh',
+                                birthDate: '1994',
+                                contactPrivacy: 'public',
+                              };
+                              setViewedProfile(baseAuthorProfile);
+                              navigateToTab('profile');
+                              const remote = await fetchUserProfileByNameFromFirestore(authorName);
+                              if (remote) {
+                                setViewedProfile((prev) =>
+                                  prev && prev.name === authorName ? { ...prev, ...remote } : prev
+                                );
+                              }
+                            }}
+                            onTypingChange={handleTypingChange}
+                            currentUserId={userProfile.id || 'user-me'}
+                            currentUserName={userProfile.name}
+                            onOpenReel={(p) => setActiveReelPostId(p.id)}
+                            onOpenGiftModal={(p) => setSelectedGiftPost(p)}
+                          />
+                        </div>
+                        {feedAd && (
+                          <SponsoredAdCard
+                            ad={feedAd}
+                            variant="feed"
+                            onAdClick={(ad) => trackAdClick(ad.id)}
+                          />
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
 
                   {/* Infinite Scroll Sentinel: loads next 10 videos as user scrolls */}
                   <div ref={bottomSentinelRef} className="py-4 flex items-center justify-center">
@@ -2026,7 +2093,14 @@ export default function App() {
 
         {/* TAB 2: Reels / Watch (ভিডিও) */}
         {currentTab === 'reels' && (
-          <div className="pt-2">
+          <div className="pt-2 space-y-2">
+            {adPlacementConfig.reels_preroll_enabled && reelsAds.length > 0 && (
+              <SponsoredAdCard
+                ad={reelsAds[0]}
+                variant="banner"
+                onAdClick={(ad) => trackAdClick(ad.id)}
+              />
+            )}
             <FbWatchView
               posts={posts}
               onToggleReaction={handleToggleReaction}
@@ -2060,11 +2134,22 @@ export default function App() {
 
         {/* TAB 4: Marketplace (মার্কেটপ্লেস ও হালাল শপ) */}
         {currentTab === 'marketplace' && (
-          <FbMarketplaceView
-            onBack={goBack}
-            userProfile={effectiveProfile}
-            onBroadcastNotification={addLocalBroadcastNotification}
-          />
+          <div>
+            {adPlacementConfig.marketplace_top_enabled && marketplaceAds.length > 0 && (
+              <div className="px-2 pt-2">
+                <SponsoredAdCard
+                  ad={marketplaceAds[0]}
+                  variant="banner"
+                  onAdClick={(ad) => trackAdClick(ad.id)}
+                />
+              </div>
+            )}
+            <FbMarketplaceView
+              onBack={goBack}
+              userProfile={effectiveProfile}
+              onBroadcastNotification={addLocalBroadcastNotification}
+            />
+          </div>
         )}
 
         {/* TAB 5: Notifications (নোটিফিকেশন - Screenshot 2) */}
@@ -2134,7 +2219,8 @@ export default function App() {
             onOpenHalalPolicy={() => setShowHalalPolicy(true)}
             onOpenAdminPortal={() => {
               setShowAdminPortal(true);
-              window.location.hash = '#admin';
+              window.history.pushState({}, '', '/admin');
+              setCurrentPath('/admin');
             }}
             onOpenMonetization={() => setShowMonetizationModal(true)}
             onOpenGoldenWallet={() => setShowGoldenWallet(true)}

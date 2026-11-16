@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import {
   ShieldCheck,
   Lock,
@@ -9,33 +9,33 @@ import {
   DollarSign,
   TrendingUp,
   Users,
-  Eye,
   MousePointer,
   Sparkles,
   Bot,
   Send,
   Plus,
-  CheckCircle,
-  XCircle,
-  AlertTriangle,
-  Play,
   Settings,
-  Layers,
-  Store,
   Tag,
   CreditCard,
   Check,
   RefreshCw,
   ExternalLink,
-  Sliders,
   Trash2,
-  FileText,
   Megaphone,
   Bell,
   Image as ImageIcon,
+  Flag,
+  Eye,
+  EyeOff,
+  Search,
+  CheckCircle2,
+  PauseCircle,
+  Ban,
+  Sliders,
+  Globe,
 } from 'lucide-react';
 import { AdSlot, MonetizedCreator, PayoutRequest } from '../../types/admin';
-import { INITIAL_ADS, INITIAL_CREATORS, INITIAL_PAYOUTS } from '../../data/adminData';
+import { INITIAL_CREATORS, INITIAL_PAYOUTS } from '../../data/adminData';
 import { PostItem, GoldenCashoutRequest, NotificationItem, UserProfile } from '../../types';
 import { broadcastCreatorNotification } from '../../lib/fcm';
 import {
@@ -43,6 +43,26 @@ import {
   savePeaceSettings,
   PeaceSettingsPrefs,
 } from '../../utils/settingsStorage';
+import {
+  fetchAdminPlatformData,
+  AdminPlatformStats,
+} from '../../lib/firebase';
+import {
+  verifyAdminCredentials,
+  loadAdminCredentials,
+  updateAdminCredentials,
+  loadAdPlacementConfig,
+  saveAdPlacementConfig,
+  AdPlacementConfig,
+  loadAdminAds,
+  saveAdminAds,
+  loadPageMonetizationList,
+  savePageMonetizationList,
+  PageMonetizationControl,
+  loadAdminUserOverrides,
+  saveAdminUserOverrides,
+  AdminUserOverride,
+} from '../../utils/adminControlStorage';
 
 interface AdminPortalProps {
   onBackToApp: () => void;
@@ -56,6 +76,18 @@ interface AdminPortalProps {
   userProfile?: UserProfile;
   onBroadcastNotification?: (notif: NotificationItem) => void;
 }
+
+type AdminTab =
+  | 'dashboard'
+  | 'users'
+  | 'pages'
+  | 'ads'
+  | 'monetization'
+  | 'payouts'
+  | 'moderation'
+  | 'broadcast'
+  | 'ai'
+  | 'settings';
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   onBackToApp,
@@ -80,43 +112,64 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   const [usernameInput, setUsernameInput] = useState('');
   const [passwordInput, setPasswordInput] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
 
   // Admin Active Tab
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'broadcast' | 'ai' | 'ads' | 'monetization' | 'payouts' | 'moderation'>('dashboard');
+  const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
   const [moderationFilter, setModerationFilter] = useState<'all' | 'blocked' | 'rejected' | 'appeals'>('all');
   const [moderatingPost, setModeratingPost] = useState<{ id: string; action: 'blocked' | 'rejected'; author: string } | null>(null);
   const [moderationReasonInput, setModerationReasonInput] = useState('');
 
+  // Live Firestore Platform Data (Users, Active counts, Posts, Follows)
+  const [platformStats, setPlatformStats] = useState<AdminPlatformStats>({
+    totalUsers: 0,
+    activeUsers24h: 0,
+    activeUsers7d: 0,
+    totalPosts: posts.length,
+    totalFollows: 0,
+    totalNotifications: 0,
+    users: [],
+  });
+  const [loadingStats, setLoadingStats] = useState(false);
+  const [userSearchQuery, setUserSearchQuery] = useState('');
+  const [userFilter, setUserFilter] = useState<'all' | 'active24h' | 'active7d' | 'verified' | 'suspended'>('all');
+  const [userOverrides, setUserOverrides] = useState<Record<string, AdminUserOverride>>(() => loadAdminUserOverrides());
+
+  // Pages & Page Monetization Registry
+  const [pageControls, setPageControls] = useState<PageMonetizationControl[]>(() => loadPageMonetizationList());
+  const [pageSearchQuery, setPageSearchQuery] = useState('');
+  const [pageStatusFilter, setPageStatusFilter] = useState<'all' | 'approved' | 'pending' | 'paused' | 'rejected'>('all');
+  const [showAddPageModal, setShowAddPageModal] = useState(false);
+  const [newPageName, setNewPageName] = useState('');
+  const [newPageCategory, setNewPageCategory] = useState('Education & Quran Academy');
+  const [newPageFollowers, setNewPageFollowers] = useState('5000');
+
+  // Ad Placement Config ("কোথায় অ্যাড বসাবো") + Ads List
+  const [placementConfig, setPlacementConfig] = useState<AdPlacementConfig>(() => loadAdPlacementConfig());
+  const [ads, setAds] = useState<AdSlot[]>(() => loadAdminAds());
+
   // Creator Broadcast State
-  const [broadcastCreatorName, setBroadcastCreatorName] = useState('প্রিয় দাদা');
-  const [broadcastTitle, setBroadcastTitle] = useState('প্রিয় দাদা নতুন ভিডিও আপলোড করেছেন');
-  const [broadcastMessage, setBroadcastMessage] = useState('১০০% হালাল পণ্যের নতুন কালেকশন দেখুন');
+  const [broadcastCreatorName, setBroadcastCreatorName] = useState('Peaceverse24 Official');
+  const [broadcastTitle, setBroadcastTitle] = useState('Peaceverse24.com নতুন আপডেট ও বিশেষ বার্তা');
+  const [broadcastMessage, setBroadcastMessage] = useState('১০০% হালাল কমিউনিটি ও ক্রিয়েটর মনিটাইজেশন চালু হয়েছে।');
   const [broadcastImage, setBroadcastImage] = useState(
     'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=600&q=80'
   );
-  const [broadcastLink, setBroadcastLink] = useState('/?tab=reels');
+  const [broadcastLink, setBroadcastLink] = useState('/home');
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastProgress, setBroadcastProgress] = useState<{ sent: number; total: number } | null>(null);
-  const [broadcastHistory, setBroadcastHistory] = useState<Array<{
-    id: string;
-    title: string;
-    message: string;
-    sent: number;
-    total: number;
-    time: string;
-  }>>([]);
+  const [broadcastHistory, setBroadcastHistory] = useState<
+    Array<{
+      id: string;
+      title: string;
+      message: string;
+      sent: number;
+      total: number;
+      time: string;
+    }>
+  >([]);
   const [creatorPrefs, setCreatorPrefs] = useState<PeaceSettingsPrefs>(() => loadPeaceSettings());
-
-  // Ads state with localStorage persistence
-  const [ads, setAds] = useState<AdSlot[]>(() => {
-    try {
-      const stored = localStorage.getItem('qalby_admin_ads');
-      return stored ? JSON.parse(stored) : INITIAL_ADS;
-    } catch {
-      return INITIAL_ADS;
-    }
-  });
 
   // Creators monetization state
   const [creators, setCreators] = useState<MonetizedCreator[]>(() => {
@@ -138,23 +191,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   });
 
-  useEffect(() => {
-    try {
-      localStorage.setItem('qalby_admin_ads', JSON.stringify(ads));
-    } catch {}
-  }, [ads]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('qalby_admin_creators', JSON.stringify(creators));
-    } catch {}
-  }, [creators]);
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('qalby_admin_payouts', JSON.stringify(payouts));
-    } catch {}
-  }, [payouts]);
+  // Admin Credentials Update State
+  const [settingsUsername, setSettingsUsername] = useState(() => loadAdminCredentials().username);
+  const [settingsPassword, setSettingsPassword] = useState('');
+  const [settingsConfirmPassword, setSettingsConfirmPassword] = useState('');
 
   // AI Assistant State
   const [aiPrompt, setAiPrompt] = useState('');
@@ -169,6 +209,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [newAdDesc, setNewAdDesc] = useState('');
   const [newAdPlacement, setNewAdPlacement] = useState<'home_feed' | 'reels_preroll' | 'marketplace_top' | 'story_ad'>('home_feed');
   const [newAdImage, setNewAdImage] = useState('https://images.unsplash.com/photo-1594035910387-fea47794261f?auto=format&fit=crop&w=800&q=80');
+  const [newAdTargetUrl, setNewAdTargetUrl] = useState('https://peaceverse24.com');
   const [newAdCpm, setNewAdCpm] = useState('150');
   const [newAdCpc, setNewAdCpc] = useState('6.0');
 
@@ -180,6 +221,191 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setTimeout(() => setToast(null), 3000);
   };
 
+  const refreshLiveStats = useCallback(async () => {
+    setLoadingStats(true);
+    try {
+      const stats = await fetchAdminPlatformData();
+      setPlatformStats(stats);
+      setPageControls(loadPageMonetizationList());
+    } finally {
+      setLoadingStats(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      refreshLiveStats();
+    }
+  }, [isAuthenticated, refreshLiveStats]);
+
+  // Persist Ads, Placements, Pages, Creators, Payouts, User Overrides
+  useEffect(() => {
+    saveAdminAds(ads);
+  }, [ads]);
+
+  useEffect(() => {
+    saveAdPlacementConfig(placementConfig);
+  }, [placementConfig]);
+
+  useEffect(() => {
+    savePageMonetizationList(pageControls);
+  }, [pageControls]);
+
+  useEffect(() => {
+    saveAdminUserOverrides(userOverrides);
+  }, [userOverrides]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('qalby_admin_creators', JSON.stringify(creators));
+    } catch {}
+  }, [creators]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('qalby_admin_payouts', JSON.stringify(payouts));
+    } catch {}
+  }, [payouts]);
+
+  // Handle Login
+  const handleLogin = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (verifyAdminCredentials(usernameInput, passwordInput)) {
+      setIsAuthenticated(true);
+      setLoginError(null);
+      try {
+        localStorage.setItem('qalby_admin_authenticated', 'true');
+      } catch {}
+      showToast('Peaceverse24.com অ্যাডমিন প্যানেলে স্বাগতম!');
+    } else {
+      setLoginError('ইউজারনেম অথবা পাসওয়ার্ড সঠিক নয়। অনুগ্রহ করে সঠিক তথ্য দিন।');
+    }
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+    setUsernameInput('');
+    setPasswordInput('');
+    try {
+      localStorage.removeItem('qalby_admin_authenticated');
+    } catch {}
+    showToast('অ্যাডমিন সেশন লগআউট হয়েছে');
+  };
+
+  // Update Admin Credentials
+  const handleUpdateCredentials = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!settingsUsername.trim()) {
+      showToast('অ্যাডমিন ইউজারনেম খালি রাখা যাবে না');
+      return;
+    }
+    if (!settingsPassword.trim() || settingsPassword.trim().length < 6) {
+      showToast('নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
+      return;
+    }
+    if (settingsPassword !== settingsConfirmPassword) {
+      showToast('পাসওয়ার্ড দুটি মিলছে না');
+      return;
+    }
+    updateAdminCredentials(settingsUsername.trim(), settingsPassword.trim());
+    setSettingsPassword('');
+    setSettingsConfirmPassword('');
+    showToast('✅ অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড আপডেট হয়েছে!');
+  };
+
+  // User Controls (Verify / Suspend)
+  const toggleUserOverride = (uid: string, field: 'verifiedOverride' | 'suspended') => {
+    setUserOverrides((prev) => {
+      const current = prev[uid] || { uid };
+      return {
+        ...prev,
+        [uid]: {
+          ...current,
+          [field]: !current[field],
+          updatedAt: new Date().toISOString(),
+        },
+      };
+    });
+    showToast('ইউজারের স্ট্যাটাস আপডেট করা হয়েছে ✓');
+  };
+
+  // Page Monetization Controls
+  const updatePageMonetizationStatus = (
+    pageId: string,
+    status: 'approved' | 'pending' | 'paused' | 'rejected'
+  ) => {
+    setPageControls((prev) =>
+      prev.map((p) =>
+        p.pageId === pageId
+          ? { ...p, status, updatedAt: new Date().toISOString() }
+          : p
+      )
+    );
+    showToast(
+      status === 'approved'
+        ? '✅ পেজের মনিটাইজেশন অনুমোদন ও চালু করা হয়েছে!'
+        : status === 'paused'
+        ? '⏸️ পেজের মনিটাইজেশন সাময়িকভাবে স্থগিত করা হয়েছে'
+        : '❌ পেজের মনিটাইজেশন বাতিল করা হয়েছে'
+    );
+  };
+
+  const togglePageAdFormat = (
+    pageId: string,
+    field: 'inStreamAdsEnabled' | 'reelsAdsEnabled' | 'starsEnabled'
+  ) => {
+    setPageControls((prev) =>
+      prev.map((p) =>
+        p.pageId === pageId
+          ? { ...p, [field]: !p[field], updatedAt: new Date().toISOString() }
+          : p
+      )
+    );
+    showToast('পেজের বিজ্ঞাপন সেটিংস আপডেট হয়েছে ✓');
+  };
+
+  const updatePageRevenueShare = (pageId: string, pct: number) => {
+    const safePct = Math.min(90, Math.max(10, pct));
+    setPageControls((prev) =>
+      prev.map((p) =>
+        p.pageId === pageId
+          ? { ...p, revenueShareCreatorPct: safePct, updatedAt: new Date().toISOString() }
+          : p
+      )
+    );
+  };
+
+  const handleCreateAdminPage = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPageName.trim()) {
+      showToast('পেজের নাম লিখুন');
+      return;
+    }
+    const pageId = `page-admin-${Date.now()}`;
+    const followers = Math.max(0, Number(newPageFollowers) || 0);
+    const newEntry: PageMonetizationControl = {
+      pageId,
+      pageName: newPageName.trim(),
+      category: newPageCategory,
+      avatar: `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(newPageName.trim())}&backgroundColor=0866ff,10b981`,
+      followersCount: followers,
+      status: 'approved',
+      inStreamAdsEnabled: true,
+      reelsAdsEnabled: true,
+      starsEnabled: true,
+      revenueShareCreatorPct: 55,
+      totalEarnings: 0,
+      pendingBalance: 0,
+      updatedAt: new Date().toISOString(),
+    };
+    setPageControls((prev) => [newEntry, ...prev]);
+    setNewPageName('');
+    setNewPageFollowers('5000');
+    setShowAddPageModal(false);
+    showToast(`✅ "${newEntry.pageName}" পেজ যুক্ত ও মনিটাইজেশন চালু হয়েছে!`);
+  };
+
+  // Broadcast Handler
   const handleSendBroadcastNow = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!broadcastTitle.trim() || !broadcastMessage.trim()) {
@@ -188,89 +414,42 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
 
     setBroadcastSending(true);
-    const totalUsers = 10000;
-    setBroadcastProgress({ sent: 1200, total: totalUsers });
-
-    const steps = [2850, 5400, 7900, 9850];
-    let stepIdx = 0;
-    const timer = window.setInterval(() => {
-      if (stepIdx < steps.length) {
-        setBroadcastProgress({ sent: steps[stepIdx], total: totalUsers });
-        stepIdx += 1;
-      }
-    }, 240);
+    const totalUsers = Math.max(platformStats.totalUsers, 1);
+    setBroadcastProgress({ sent: 0, total: totalUsers });
 
     try {
       const result = await broadcastCreatorNotification({
-        creatorId: userProfile?.id || 'creator-priyo-dada',
-        creatorName: broadcastCreatorName.trim() || 'প্রিয় দাদা',
+        creatorId: userProfile?.id || 'peaceverse-admin',
+        creatorName: broadcastCreatorName.trim() || 'Peaceverse24 Official',
         creatorAvatar: userProfile?.avatar || '/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg',
         contentType: 'broadcast',
         title: broadcastTitle.trim(),
         body: broadcastMessage.trim(),
         thumbnail: broadcastImage.trim() || undefined,
         postId: posts[0]?.id,
-        link: broadcastLink.trim() || '/',
+        link: broadcastLink.trim() || '/home',
         broadcastToAll: true,
         onLocalNotify: onBroadcastNotification,
       });
 
-      window.setTimeout(() => {
-        window.clearInterval(timer);
-        setBroadcastProgress({ sent: totalUsers, total: totalUsers });
-        setBroadcastSending(false);
-        setBroadcastHistory((prev) => [
-          {
-            id: result.notification.id,
-            title: broadcastTitle.trim(),
-            message: broadcastMessage.trim(),
-            sent: result.sentCount,
-            total: result.totalTargeted,
-            time: 'Just now',
-          },
-          ...prev,
-        ]);
-        showToast('📢 সফলভাবে ১০,০০০ ব্যবহারকারীর কাছে পুশ ব্রডকাস্ট পাঠানো হয়েছে!');
-      }, 1150);
+      setBroadcastProgress({ sent: totalUsers, total: totalUsers });
+      setBroadcastSending(false);
+      setBroadcastHistory((prev) => [
+        {
+          id: result.notification.id,
+          title: broadcastTitle.trim(),
+          message: broadcastMessage.trim(),
+          sent: totalUsers,
+          total: totalUsers,
+          time: 'Just now',
+        },
+        ...prev,
+      ]);
+      showToast('📢 সফলভাবে সকল ব্যবহারকারীর কাছে ব্রডকাস্ট পাঠানো হয়েছে!');
     } catch {
-      window.clearInterval(timer);
       setBroadcastSending(false);
       showToast('ব্রডকাস্ট পাঠানো হয়েছে');
     }
-  };
-
-  // Handle Login
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    const validUsers = ['admin', 'masterlive', 'peaceworld', 'asol-admin'];
-    const validPass = ['qalby123', 'peace123', 'admin123', 'asol123'];
-    if (
-      validUsers.includes(usernameInput.trim().toLowerCase()) &&
-      validPass.includes(passwordInput.trim())
-    ) {
-      setIsAuthenticated(true);
-      setLoginError(null);
-      try {
-        localStorage.setItem('qalby_admin_authenticated', 'true');
-      } catch {}
-      showToast('অ্যাডমিন প্যানেলে স্বাগতম!');
-    } else {
-      setLoginError('ইউজারনেম বা পাসওয়ার্ড সঠিক নয়। (Username: admin, Password: admin123 বা peace123)');
-    }
-  };
-
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    try {
-      localStorage.removeItem('qalby_admin_authenticated');
-    } catch {}
-    showToast('লগআউট সম্পন্ন হয়েছে');
-  };
-
-  const fillDemoCredentials = () => {
-    setUsernameInput('admin');
-    setPasswordInput('qalby123');
-    setLoginError(null);
   };
 
   // AI Assistant Call
@@ -293,24 +472,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       const data = await res.json();
       setAiResponse(data.text || 'কোনো উত্তর পাওয়া যায়নি');
 
-      // Check if it looks like a post announcement
       if (promptToSend.includes('পোস্ট') || promptToSend.includes('জুমার') || promptToSend.includes('নোটিশ')) {
         setAiGeneratedPostDraft({
           title: 'অ্যাডমিন অফিসিয়াল বার্তা',
           content: data.text,
         });
       }
-    } catch (err: any) {
-      // Graceful fallback with high-quality Islamic admin response
+    } catch {
       const fallbackReplies: Record<string, string> = {
-        জুমার: `আলহামদুলিল্লাহ! জুমার দিনের বিশেষ আমলসমূহ:\n\n১. বেশি বেশি দরুদ শরিফ পাঠ করুন।\n২. সূরা আল-কাহাফ তিলাওয়াত করুন।\n৩. উত্তম পোশাক পরিধান ও আতর ব্যবহার করুন।\n৪. খুতবা মনোযোগ সহকারে শ্রবণ করুন।\n\n— Peaceverse24.com এডমিন প্যানেল বার্তা 🕌`,
-        বিজ্ঞাপন: `💡 Peaceverse24.com বিজ্ঞাপন আয় বৃদ্ধির জন্য ৫টি ইসলামিক স্ট্র্যাটেজি:\n\n১. হোম ফিডে প্রতি ৪টি পোস্ট পর পর ১টি ভেরিফাইড হালাল স্পন্সর প্রদর্শন।\n২. রিলসের শুরুতে ৩-সেকেন্ডের সংক্ষিপ্ত স্কিপেবল ইসলামিক স্পন্সরশিপ ব্যানার।\n৩. মার্কেটপ্লেসের শীর্ষ ক্যাটাগরিতে স্পন্সরড প্রোডাক্ট বুস্টিং।\n৪. অনুমোদিত হালাল উদ্যোক্তাদের কাছ থেকে সরাসরি মাসিক স্পন্সরশিপ প্যাকেজ।\n৫. ইসলামিক অরিজিনাল অডিও ও তিলাওয়াত কনটেন্টে হাই-সিপিএম অডিও অ্যাড।`,
+        জুমার: `আলহামদুলিল্লাহ! জুমার দিনের বিশেষ আমলসমূহ:\n\n১. বেশি বেশি দরুদ শরিফ পাঠ করুন।\n২. সূরা আল-কাহাফ তিলাওয়াত করুন।\n৩. উত্তম পোশাক পরিধান ও আতর ব্যবহার করুন।\n৪. খুতবা মনোযোগ সহকারে শ্রবণ করুন।\n\n— Peaceverse24.com এডমিন বার্তা 🕌`,
+        বিজ্ঞাপন: `💡 Peaceverse24.com বিজ্ঞাপন আয় বৃদ্ধির জন্য ৫টি কৌশল:\n\n১. হোম ফিডে প্রতি ৩টি পোস্ট পর পর ১টি ভেরিফাইড হালাল স্পন্সর প্রদর্শন।\n২. রিলস ও ওয়াচ ট্যাবে স্পন্সরশিপ ব্যানার চালু রাখা।\n৩. মার্কেটপ্লেস টপ ব্যানারে হালাল শপগুলোর প্রিমিয়াম স্লট বরাদ্দ।\n৪. স্টোরি বারের নিচে স্পন্সরড হাইলাইট চালু রাখা।\n৫. ক্রিয়েটরদের জন্য ৫৫% স্বচ্ছ রেভিনিউ শেয়ার বজায় রাখা।`,
       };
 
       const matched = Object.keys(fallbackReplies).find((k) => promptToSend.includes(k));
       const fallbackText = matched
         ? fallbackReplies[matched]
-        : `আলহামদুলিল্লাহ! আপনার অনুরোধটি প্রসেস করা হয়েছে। Peaceverse24.com প্ল্যাটফর্ম ১০০% হালাল গাইডলাইন বজায় রেখে পরিচালিত হচ্ছে। বিজ্ঞাপনের রাজস্ব সুষ্ঠুভাবে মনিটাইজড ক্রিয়েটরদের মধ্যে ৫৫% অনুপাতে বণ্টন করা হচ্ছে।`;
+        : `আলহামদুলিল্লাহ! আপনার অনুরোধটি প্রসেস করা হয়েছে। Peaceverse24.com প্ল্যাটফর্ম ১০০% হালাল গাইডলাইন বজায় রেখে পরিচালিত হচ্ছে।`;
 
       setAiResponse(fallbackText);
       if (promptToSend.includes('পোস্ট') || promptToSend.includes('জুমার')) {
@@ -342,20 +519,20 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       category: 'Community',
       mediaType: 'none',
       reactions: {
-        total: 5,
-        likeCount: 5,
+        total: 1,
+        likeCount: 1,
         loveCount: 0,
         subhanallahCount: 0,
         mashaallahCount: 0,
       },
       userReaction: 'like',
       comments: [],
-      sharesCount: 1,
+      sharesCount: 0,
     };
 
     onAddPostToFeed(newPost);
     setAiGeneratedPostDraft(null);
-    showToast('🎉 পোস্টটি মূল ফেসবুক ফিডে সফলভাবে প্রকাশিত হয়েছে!');
+    showToast('🎉 পোস্টটি মূল ফিডে সফলভাবে প্রকাশিত হয়েছে!');
   };
 
   // Toggle Ad Slot Active
@@ -364,6 +541,12 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       prev.map((a) => (a.id === adId ? { ...a, isActive: !a.isActive } : a))
     );
     showToast('বিজ্ঞাপন স্ট্যাটাস পরিবর্তন করা হয়েছে');
+  };
+
+  // Delete Ad Slot
+  const handleDeleteAd = (adId: string) => {
+    setAds((prev) => prev.filter((a) => a.id !== adId));
+    showToast('বিজ্ঞাপন স্লট ডিলিট করা হয়েছে');
   };
 
   // Create New Ad Campaign
@@ -378,18 +561,18 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       id: `ad-slot-${Date.now()}`,
       slotName: `${newSponsor} (${newAdPlacement})`,
       placement: newAdPlacement,
-      sponsorName: newSponsor,
-      adTitle: newAdTitle,
-      adDescription: newAdDesc || '১০০% হালাল ভেরিফাইড ক্যাম্পেইন',
-      imageUrl: newAdImage,
-      targetUrl: 'https://peaceverse24.com',
+      sponsorName: newSponsor.trim(),
+      adTitle: newAdTitle.trim(),
+      adDescription: newAdDesc.trim() || '১০০% হালাল ভেরিফাইড ক্যাম্পেইন',
+      imageUrl: newAdImage.trim(),
+      targetUrl: newAdTargetUrl.trim() || 'https://peaceverse24.com',
       cpmRate: Number(newAdCpm) || 150,
       cpcRate: Number(newAdCpc) || 6.0,
-      impressions: 1200,
-      clicks: 45,
-      totalEarnings: 450,
+      impressions: 0,
+      clicks: 0,
+      totalEarnings: 0,
       isActive: true,
-      category: 'কাস্টম ক্যাম্পেইন',
+      category: 'স্পন্সরড ক্যাম্পেইন',
     };
 
     setAds((prev) => [created, ...prev]);
@@ -397,7 +580,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     setNewSponsor('');
     setNewAdTitle('');
     setNewAdDesc('');
-    showToast(`🎉 "${created.adTitle}" বিজ্ঞাপন ক্যাম্পেইন যুক্ত হয়েছে!`);
+    setNewAdTargetUrl('https://peaceverse24.com');
+    showToast(`🎉 "${created.adTitle}" বিজ্ঞাপনটি লাইভ প্লেসমেন্টে যুক্ত হয়েছে!`);
   };
 
   // Approve / Reject Creator Monetization
@@ -428,80 +612,96 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const totalImpressions = ads.reduce((sum, a) => sum + a.impressions, 0);
   const totalClicks = ads.reduce((sum, a) => sum + a.clicks, 0);
 
+  const filteredUsers = platformStats.users.filter((u) => {
+    const ov = userOverrides[u.uid];
+    const isVerified = ov?.verifiedOverride !== undefined ? ov.verifiedOverride : u.verified;
+    const isSuspended = Boolean(ov?.suspended);
+
+    if (userFilter === 'active24h' && !u.isActive24h) return false;
+    if (userFilter === 'active7d' && !u.isActive7d) return false;
+    if (userFilter === 'verified' && !isVerified) return false;
+    if (userFilter === 'suspended' && !isSuspended) return false;
+
+    const q = userSearchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      u.displayName.toLowerCase().includes(q) ||
+      u.username.toLowerCase().includes(q) ||
+      u.email.toLowerCase().includes(q)
+    );
+  });
+
+  const filteredPages = pageControls.filter((p) => {
+    if (pageStatusFilter !== 'all' && p.status !== pageStatusFilter) return false;
+    const q = pageSearchQuery.trim().toLowerCase();
+    if (!q) return true;
+    return (
+      p.pageName.toLowerCase().includes(q) ||
+      p.category.toLowerCase().includes(q)
+    );
+  });
+
+  const approvedPagesCount = pageControls.filter((p) => p.status === 'approved').length;
+  const pendingPagesCount = pageControls.filter((p) => p.status === 'pending').length;
+
   // -------------------------------------------------------------
-  // LOGIN SCREEN (if not authenticated)
+  // LOGIN SCREEN (Standalone Security Gate - NO public credentials hint)
   // -------------------------------------------------------------
   if (!isAuthenticated) {
     return (
-      <div className="min-h-screen bg-white text-black flex items-center justify-center p-4">
+      <div className="min-h-screen bg-[#F0F2F5] text-black flex items-center justify-center p-4">
         <div className="w-full max-w-md bg-white rounded-3xl border border-[#E4E6EB] shadow-xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95">
-          {/* Header */}
           <div className="text-center space-y-2">
             <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/20">
               <ShieldCheck className="w-9 h-9 text-white stroke-[2.5]" />
             </div>
-            <h1 className="text-2xl font-black text-black tracking-tight">Peaceverse24.com Admin Portal</h1>
+            <h1 className="text-2xl font-black text-black tracking-tight">Peaceverse24.com</h1>
+            <p className="text-xs font-bold uppercase tracking-wider text-[#0866FF]">
+              Standalone Master Admin Panel
+            </p>
             <p className="text-xs text-[#65676B]">
-              বিজ্ঞাপন, মনিটাইজেশন হিসাব ও এআই কন্ট্রোল প্যানেল
+              ইউজার, পেজ, মনিটাইজেশন ও বিজ্ঞাপন প্লেসমেন্ট কন্ট্রোল সেন্টার
             </p>
           </div>
 
-          {/* Credentials Info Box */}
-          <div className="p-3.5 rounded-2xl bg-[#F0F2F5] border border-[#E4E6EB] space-y-2">
-            <div className="flex items-center justify-between text-xs text-[#65676B]">
-              <span className="font-bold text-black flex items-center gap-1.5">
-                <Key className="w-3.5 h-3.5 text-amber-600" />
-                <span>লগইন তথ্য (Credentials):</span>
-              </span>
-              <button
-                type="button"
-                onClick={fillDemoCredentials}
-                className="text-[11px] font-bold text-[#0866FF] hover:underline"
-              >
-                অটো-ফিল করুন
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 text-xs font-mono">
-              <div className="bg-white p-2 rounded-xl border border-[#E4E6EB]">
-                <span className="text-[10px] text-[#65676B] block">Username:</span>
-                <span className="text-emerald-700 font-bold">admin</span>
-              </div>
-              <div className="bg-white p-2 rounded-xl border border-[#E4E6EB]">
-                <span className="text-[10px] text-[#65676B] block">Password:</span>
-                <span className="text-[#0866FF] font-bold">qalby123</span>
-              </div>
-            </div>
-          </div>
-
-          {/* Login Form */}
           <form onSubmit={handleLogin} className="space-y-4">
             <div>
-              <label className="block text-xs font-bold text-black mb-1">অ্যাডমিন ইউজারনেম</label>
+              <label className="block text-xs font-bold text-black mb-1">অ্যাডমিন ইউজারনেম (Admin Username)</label>
               <div className="relative">
                 <input
                   type="text"
                   required
-                  placeholder="admin"
+                  autoComplete="username"
+                  placeholder="Enter admin username"
                   value={usernameInput}
                   onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-4 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-4 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
                 />
                 <User className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
               </div>
             </div>
 
             <div>
-              <label className="block text-xs font-bold text-black mb-1">পাসওয়ার্ড</label>
+              <label className="block text-xs font-bold text-black mb-1">অ্যাডমিন পাসওয়ার্ড (Password)</label>
               <div className="relative">
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="••••••••"
+                  autoComplete="current-password"
+                  placeholder="Enter admin password"
                   value={passwordInput}
                   onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-4 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-10 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
                 />
                 <Lock className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute right-3 top-2.5 text-[#65676B] hover:text-black cursor-pointer"
+                  aria-label="Toggle password visibility"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
               </div>
             </div>
 
@@ -513,20 +713,19 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
             <button
               type="submit"
-              className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm shadow-md active:scale-98 transition-all"
+              className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm shadow-md active:scale-98 transition-all cursor-pointer"
             >
-              লগইন করুন (Secure Sign In)
+              অ্যাডমিন প্যানেলে প্রবেশ করুন (Sign In)
             </button>
           </form>
 
-          {/* Back to App */}
-          <div className="pt-2 text-center">
+          <div className="pt-2 text-center border-t border-[#E4E6EB]">
             <button
               onClick={onBackToApp}
-              className="text-xs font-bold text-[#65676B] hover:text-black flex items-center justify-center gap-1.5 mx-auto transition-colors"
+              className="text-xs font-bold text-[#65676B] hover:text-black flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer"
             >
               <ArrowLeft className="w-4 h-4" />
-              <span>মূল অ্যাপে ফিরে যান</span>
+              <span>Peaceverse24.com মূল সাইটে ফিরে যান</span>
             </button>
           </div>
         </div>
@@ -535,49 +734,61 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   }
 
   // -------------------------------------------------------------
-  // AUTHENTICATED ADMIN DASHBOARD
+  // AUTHENTICATED STANDALONE MASTER ADMIN DASHBOARD
   // -------------------------------------------------------------
   return (
-    <div className="min-h-screen bg-white text-black font-sans pb-24">
+    <div className="min-h-screen bg-[#F0F2F5] text-black font-sans pb-24">
       {/* Top Admin Navigation Header */}
       <header className="sticky top-0 z-40 bg-white/95 backdrop-blur-md border-b border-[#E4E6EB] px-4 py-3 shadow-xs">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
+        <div className="max-w-7xl mx-auto flex items-center justify-between gap-2">
+          <div className="flex items-center gap-3 min-w-0">
             <button
               onClick={onBackToApp}
-              className="p-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black transition-colors"
+              className="p-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black transition-colors cursor-pointer shrink-0"
               title="মূল অ্যাপে ফিরে যান"
             >
               <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
             </button>
-            <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-xl bg-[#0866FF] flex items-center justify-center text-white shadow">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 flex items-center justify-center text-white shadow shrink-0">
                 <ShieldCheck className="w-5 h-5" />
               </div>
-              <div>
-                <h1 className="text-base font-black text-black flex items-center gap-2">
-                  <span>Peaceverse24.com Admin Portal</span>
-                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                    AI Active 🟢
+              <div className="min-w-0">
+                <h1 className="text-sm sm:text-base font-black text-black flex items-center gap-2 truncate">
+                  <span>Peaceverse24.com Admin</span>
+                  <span className="text-[10px] font-bold bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200 shrink-0">
+                    Live Control
                   </span>
                 </h1>
-                <p className="text-[10px] text-[#65676B]">Master Admin • Ads & Monetization Control</p>
+                <p className="text-[10px] text-[#65676B] truncate">
+                  Users · Pages · Monetization · Ad Placements · Moderation
+                </p>
               </div>
             </div>
           </div>
 
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              onClick={refreshLiveStats}
+              disabled={loadingStats}
+              className="px-3 py-1.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              title="রিফ্রেশ করুন"
+            >
+              <RefreshCw className={`w-3.5 h-3.5 ${loadingStats ? 'animate-spin' : ''}`} />
+              <span className="hidden sm:inline">রিফ্রেশ</span>
+            </button>
+
             <button
               onClick={onBackToApp}
-              className="px-3.5 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-xs font-bold text-black flex items-center gap-1.5 transition-colors"
+              className="px-3 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-xs font-bold text-black flex items-center gap-1.5 transition-colors cursor-pointer"
             >
               <ExternalLink className="w-3.5 h-3.5" />
-              <span>মূল অ্যাপ দেখুন</span>
+              <span className="hidden sm:inline">মূল সাইট</span>
             </button>
 
             <button
               onClick={handleLogout}
-              className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors"
+              className="p-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-600 border border-rose-200 transition-colors cursor-pointer"
               title="লগআউট"
             >
               <LogOut className="w-4 h-4" />
@@ -588,21 +799,24 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         {/* Navigation Tabs Bar */}
         <div className="max-w-7xl mx-auto flex items-center gap-2 overflow-x-auto no-scrollbar pt-3 border-t border-[#E4E6EB] mt-2">
           {[
-            { id: 'dashboard', label: '📊 ওভারভিউ (Dashboard)' },
-            { id: 'broadcast', label: '📢 Send Broadcast (১০,০০০ ইউজার)' },
-            { id: 'ai', label: '🤖 এআই সহকারী (Gemini AI)' },
-            { id: 'ads', label: '📢 বিজ্ঞাপন ও আয়-ব্যয় (Ads & Ledger)' },
-            { id: 'monetization', label: '💰 ক্রিয়েটর মনিটাইজেশন (Earnings)' },
+            { id: 'dashboard', label: '📊 ওভারভিউ' },
+            { id: 'users', label: `👥 ইউজার (${platformStats.totalUsers})` },
+            { id: 'pages', label: `📄 পেইজ ও মনিটাইজেশন (${pageControls.length})` },
+            { id: 'ads', label: `📢 অ্যাড প্লেসমেন্ট (${ads.filter((a) => a.isActive).length})` },
+            { id: 'monetization', label: '💰 ক্রিয়েটর আয়' },
             {
               id: 'payouts',
-              label: `💸 Payout Requests (${goldenCashoutRequests.filter((r) => r.status === 'pending').length})`,
+              label: `💸 পেআউট (${goldenCashoutRequests.filter((r) => r.status === 'pending').length})`,
             },
-            { id: 'moderation', label: `📝 পোস্ট মডারেশন (${posts.length})` },
+            { id: 'moderation', label: `📝 মডারেশন (${posts.length})` },
+            { id: 'broadcast', label: '📣 ব্রডকাস্ট' },
+            { id: 'ai', label: '🤖 এআই সহকারী' },
+            { id: 'settings', label: '⚙️ পাসওয়ার্ড ও সেটিংস' },
           ].map((tab) => (
             <button
               key={tab.id}
-              onClick={() => setActiveTab(tab.id as any)}
-              className={`px-4 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
+              onClick={() => setActiveTab(tab.id as AdminTab)}
+              className={`px-3.5 py-2 rounded-xl text-xs font-bold whitespace-nowrap transition-all cursor-pointer ${
                 activeTab === tab.id
                   ? 'bg-[#0866FF] text-white shadow-sm'
                   : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
@@ -622,62 +836,137 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         {/* ------------------------------------------------------------- */}
         {activeTab === 'dashboard' && (
           <div className="space-y-6">
-            {/* Top 4 Financial & Performance Cards */}
+            {/* Top Real-Time Platform Health Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-              {/* Card 1: Total Ad Revenue */}
-              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-2">
+              <div
+                onClick={() => setActiveTab('users')}
+                className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-1.5 cursor-pointer hover:border-[#0866FF] transition-colors"
+              >
+                <div className="flex items-center justify-between text-xs text-[#65676B]">
+                  <span>মোট ও অ্যাক্টিভ ইউজার (Live Firestore)</span>
+                  <Users className="w-4 h-4 text-[#0866FF]" />
+                </div>
+                <div className="text-2xl font-black text-black">
+                  {platformStats.totalUsers.toLocaleString()} জন
+                </div>
+                <p className="text-[11px] text-emerald-600 font-bold">
+                  🟢 আজ অ্যাক্টিভ (24h): {platformStats.activeUsers24h} • 7d: {platformStats.activeUsers7d}
+                </p>
+              </div>
+
+              <div
+                onClick={() => setActiveTab('pages')}
+                className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-1.5 cursor-pointer hover:border-emerald-500 transition-colors"
+              >
+                <div className="flex items-center justify-between text-xs text-[#65676B]">
+                  <span>মোট পেইজ ও মনিটাইজেশন</span>
+                  <Flag className="w-4 h-4 text-emerald-600" />
+                </div>
+                <div className="text-2xl font-black text-black">
+                  {pageControls.length} টি পেইজ
+                </div>
+                <p className="text-[11px] text-emerald-700 font-bold">
+                  ✓ মনিটাইজড: {approvedPagesCount} • ⏳ পেন্ডিং: {pendingPagesCount}
+                </p>
+              </div>
+
+              <div
+                onClick={() => setActiveTab('ads')}
+                className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-1.5 cursor-pointer hover:border-amber-500 transition-colors"
+              >
                 <div className="flex items-center justify-between text-xs text-[#65676B]">
                   <span>মোট বিজ্ঞাপন আয় (Ad Revenue)</span>
                   <DollarSign className="w-4 h-4 text-emerald-600" />
                 </div>
                 <div className="text-2xl font-black text-black">৳ {totalAdRevenue.toLocaleString()}</div>
-                <p className="text-[11px] text-emerald-600 font-medium">+১২.৫% বৃদ্ধি এই মাসে</p>
+                <p className="text-[11px] text-[#0866FF] font-bold">
+                  সক্রিয় অ্যাড: {ads.filter((a) => a.isActive).length}টি • {totalClicks.toLocaleString()} ক্লিক
+                </p>
               </div>
 
-              {/* Card 2: Creator Payouts */}
-              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-2">
+              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-1.5">
                 <div className="flex items-center justify-between text-xs text-[#65676B]">
-                  <span>ক্রিয়েটরদের পরিশোধ (Creator Payouts)</span>
-                  <CreditCard className="w-4 h-4 text-[#0866FF]" />
-                </div>
-                <div className="text-2xl font-black text-black">৳ {totalCreatorPaid.toLocaleString()}</div>
-                <p className="text-[11px] text-amber-600 font-medium">পেন্ডিং ক্যাশআউট: ৳ {totalPendingPayouts.toLocaleString()}</p>
-              </div>
-
-              {/* Card 3: Platform Net Profit */}
-              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-2">
-                <div className="flex items-center justify-between text-xs text-[#65676B]">
-                  <span>প্ল্যাটফর্ম নেট প্রফিট (Net Profit)</span>
+                  <span>নেট প্রফিট ও পোস্ট (Posts & Profit)</span>
                   <TrendingUp className="w-4 h-4 text-purple-600" />
                 </div>
                 <div className="text-2xl font-black text-black">৳ {netPlatformProfit.toLocaleString()}</div>
-                <p className="text-[11px] text-purple-600 font-medium">৪৫% অ্যাডমিন রেভিনিউ শেয়ার</p>
-              </div>
-
-              {/* Card 4: Total Impressions & CTR */}
-              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] shadow-2xs space-y-2">
-                <div className="flex items-center justify-between text-xs text-[#65676B]">
-                  <span>মোট ভিউ ও ক্লিক (Views & CTR)</span>
-                  <MousePointer className="w-4 h-4 text-amber-600" />
-                </div>
-                <div className="text-2xl font-black text-black">{(totalImpressions / 1000).toFixed(1)}K ভিউ</div>
-                <p className="text-[11px] text-[#65676B]">
-                  {totalClicks.toLocaleString()} ক্লিক • গড় CTR: {((totalClicks / totalImpressions) * 100).toFixed(1)}%
+                <p className="text-[11px] text-[#65676B] font-semibold">
+                  মোট পোস্ট: {Math.max(platformStats.totalPosts, posts.length)} • ফলো/ফ্রেন্ড: {platformStats.totalFollows}
                 </p>
               </div>
             </div>
 
-            {/* Quick Actions Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <button
-                onClick={() => setActiveTab('broadcast')}
-                className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-left space-y-2 group transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Megaphone className="w-5 h-5 stroke-[2.5]" />
+            {/* Ad Placement Quick Overview Banner */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-bold text-sm text-black">কোথায় কোথায় বিজ্ঞাপন চালু আছে (Active Ad Placements)</h3>
+                  <p className="text-xs text-[#65676B]">যেকোনো জায়গার বিজ্ঞাপন এক ক্লিকে অন/অফ করুন</p>
                 </div>
-                <h3 className="font-bold text-sm text-black">📢 Send Broadcast</h3>
-                <p className="text-xs text-[#65676B]">সকল ১০,০০০ ব্যবহারকারীর কাছে তাৎক্ষণিক পুশ ও বেল নোটিফিকেশন পাঠান</p>
+                <button
+                  onClick={() => setActiveTab('ads')}
+                  className="text-xs font-bold text-[#0866FF] hover:underline cursor-pointer"
+                >
+                  বিস্তারিত কন্ট্রোল →
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                {[
+                  { key: 'home_feed_enabled' as const, title: 'হোম ফিড (Home Feed)' },
+                  { key: 'reels_preroll_enabled' as const, title: 'রিলস ও ওয়াচ (Reels)' },
+                  { key: 'marketplace_top_enabled' as const, title: 'মার্কেটপ্লেস (Marketplace)' },
+                  { key: 'story_ad_enabled' as const, title: 'স্টোরি ব্যানার (Story Bar)' },
+                ].map((slot) => {
+                  const enabled = placementConfig[slot.key];
+                  return (
+                    <button
+                      key={slot.key}
+                      type="button"
+                      onClick={() => {
+                        setPlacementConfig((prev) => ({ ...prev, [slot.key]: !prev[slot.key] }));
+                        showToast(`${slot.title} ${enabled ? 'বন্ধ' : 'চালু'} করা হয়েছে`);
+                      }}
+                      className={`p-3 rounded-xl border text-left transition-all cursor-pointer ${
+                        enabled
+                          ? 'bg-emerald-50 border-emerald-200 text-emerald-900'
+                          : 'bg-[#F0F2F5] border-[#E4E6EB] text-[#65676B]'
+                      }`}
+                    >
+                      <div className="flex items-center justify-between font-bold">
+                        <span>{slot.title}</span>
+                        <span className={`px-2 py-0.5 rounded-full text-[10px] ${enabled ? 'bg-emerald-600 text-white' : 'bg-[#D8DADF] text-black'}`}>
+                          {enabled ? 'ON' : 'OFF'}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Quick Actions Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
+              <button
+                onClick={() => setActiveTab('users')}
+                className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-[#0866FF] text-left space-y-2 transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center">
+                  <Users className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-sm text-black">ইউজার লিস্ট ও অ্যাক্টিভ স্ট্যাটাস</h3>
+                <p className="text-xs text-[#65676B]">সকল রেজিস্টার্ড ইউজার দেখুন, ভেরিফাই বা সাসপেন্ড করুন</p>
+              </button>
+
+              <button
+                onClick={() => setActiveTab('pages')}
+                className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-emerald-500 text-left space-y-2 transition-all cursor-pointer"
+              >
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+                  <Flag className="w-5 h-5" />
+                </div>
+                <h3 className="font-bold text-sm text-black">পেইজ ও পেইজ মনিটাইজেশন</h3>
+                <p className="text-xs text-[#65676B]">পেইজের মনিটাইজেশন অনুমোদন, পজ ও রেভিনিউ শেয়ার নিয়ন্ত্রণ</p>
               </button>
 
               <button
@@ -685,410 +974,185 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   setActiveTab('ads');
                   setShowNewAdModal(true);
                 }}
-                className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-[#0866FF] text-left space-y-2 group transition-all cursor-pointer"
+                className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-[#0866FF] text-left space-y-2 transition-all cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-xl bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center group-hover:scale-105 transition-transform">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center">
                   <Plus className="w-5 h-5 stroke-[2.5]" />
                 </div>
-                <h3 className="font-bold text-sm text-black">নতুন বিজ্ঞাপন স্লট চালু করুন</h3>
-                <p className="text-xs text-[#65676B]">হোম ফিড, রিলস বা মার্কেটপ্লেসে স্পন্সর ক্যাম্পেইন যুক্ত করুন</p>
+                <h3 className="font-bold text-sm text-black">নতুন বিজ্ঞাপন বসান</h3>
+                <p className="text-xs text-[#65676B]">হোম ফিড, রিলস, মার্কেটপ্লেস বা স্টোরিতে নতুন অ্যাড সেট করুন</p>
               </button>
 
               <button
-                onClick={() => setActiveTab('ai')}
-                className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-emerald-500 text-left space-y-2 group transition-all cursor-pointer"
+                onClick={() => setActiveTab('broadcast')}
+                className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 hover:border-emerald-400 text-left space-y-2 transition-all cursor-pointer"
               >
-                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <Bot className="w-5 h-5 stroke-[2.5]" />
+                <div className="w-10 h-10 rounded-xl bg-emerald-100 text-emerald-700 flex items-center justify-center">
+                  <Megaphone className="w-5 h-5" />
                 </div>
-                <h3 className="font-bold text-sm text-black">এআই দিয়ে নতুন কনটেন্ট ও নোটিশ তৈরি</h3>
-                <p className="text-xs text-[#65676B]">জুমার বার্তা বা প্ল্যাটফর্ম আপডেট এক ক্লিকে লিখুন ও প্রকাশ করুন</p>
-              </button>
-
-              <button
-                onClick={() => setActiveTab('monetization')}
-                className="p-4 rounded-2xl bg-white border border-[#E4E6EB] hover:border-amber-500 text-left space-y-2 group transition-all cursor-pointer"
-              >
-                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center group-hover:scale-105 transition-transform">
-                  <CreditCard className="w-5 h-5 stroke-[2.5]" />
-                </div>
-                <h3 className="font-bold text-sm text-black">ক্রিয়েটর ক্যাশআউট অনুমোদন</h3>
-                <p className="text-xs text-[#65676B]">বিকাশ / নগদ পেমেন্ট রিকোয়েস্ট যাচাই ও অনুমোদন করুন</p>
+                <h3 className="font-bold text-sm text-black">সকল ইউজারকে ব্রডকাস্ট</h3>
+                <p className="text-xs text-[#65676B]">এক ক্লিকে সকল ইউজারের নোটিফিকেশন বেল ও পুশে বার্তা পাঠান</p>
               </button>
             </div>
+          </div>
+        )}
 
-            {/* Active Ads Snapshot */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
-              <div className="flex items-center justify-between">
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 2: USERS & ACTIVE USERS DIRECTORY */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'users' && (
+          <div className="space-y-4">
+            {/* Summary Metrics */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB]">
+                <span className="text-xs text-[#65676B]">মোট রেজিস্টার্ড ইউজার</span>
+                <p className="text-2xl font-black text-black mt-1">{platformStats.totalUsers}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-emerald-200">
+                <span className="text-xs text-emerald-700 font-bold">গত ২৪ ঘণ্টায় অ্যাক্টিভ</span>
+                <p className="text-2xl font-black text-emerald-700 mt-1">{platformStats.activeUsers24h}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB]">
+                <span className="text-xs text-[#0866FF] font-bold">গত ৭ দিনে অ্যাক্টিভ</span>
+                <p className="text-2xl font-black text-[#0866FF] mt-1">{platformStats.activeUsers7d}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB]">
+                <span className="text-xs text-[#65676B]">মোট ফ্রেন্ড / ফলো কানেকশন</span>
+                <p className="text-2xl font-black text-black mt-1">{platformStats.totalFollows}</p>
+              </div>
+            </div>
+
+            {/* Search & Filter */}
+            <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h3 className="font-bold text-sm text-black">সক্রিয় বিজ্ঞাপন স্লটসমূহ ({ads.filter((a) => a.isActive).length})</h3>
-                  <p className="text-xs text-[#65676B]">প্ল্যাটফর্মে প্রদর্শিত বিজ্ঞাপন ও লাইভ উপার্জনের হিসাব</p>
+                  <h2 className="text-base font-bold text-black">ইউজার ডিরেক্টরি ও কন্ট্রোল (Firestore Live Users)</h2>
+                  <p className="text-xs text-[#65676B]">
+                    যেকোনো ইউজার খুঁজুন, অ্যাক্টিভ সময় দেখুন এবং ভেরিফাই বা সাসপেন্ড করুন
+                  </p>
                 </div>
-                <button
-                  onClick={() => setActiveTab('ads')}
-                  className="text-xs font-bold text-[#0866FF] hover:underline"
-                >
-                  সব বিজ্ঞাপন দেখুন →
-                </button>
+                <div className="relative w-full sm:w-72">
+                  <Search className="w-4 h-4 text-[#65676B] absolute left-3 top-2.5" />
+                  <input
+                    type="search"
+                    value={userSearchQuery}
+                    onChange={(e) => setUserSearchQuery(e.target.value)}
+                    placeholder="নাম, @username বা ইমেইল লিখুন..."
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-3 py-2 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
               </div>
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {ads.map((ad) => (
-                  <div key={ad.id} className="p-3 bg-[#F0F2F5] rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-3">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <img src={ad.imageUrl} alt={ad.adTitle} className="w-12 h-12 rounded-xl object-cover shrink-0" />
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-black truncate">{ad.adTitle}</p>
-                        <p className="text-[10px] text-[#65676B]">{ad.sponsorName} • {ad.placement}</p>
-                        <p className="text-[10px] text-emerald-700 font-mono font-bold">আয়: ৳ {ad.totalEarnings.toLocaleString()}</p>
-                      </div>
-                    </div>
-                    <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${ad.isActive ? 'bg-emerald-100 text-emerald-700' : 'bg-[#E4E6EB] text-[#65676B]'}`}>
-                      {ad.isActive ? 'সক্রিয়' : 'পজ'}
-                    </span>
-                  </div>
+              <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
+                {[
+                  { id: 'all', label: `সকল ইউজার (${platformStats.totalUsers})` },
+                  { id: 'active24h', label: `🟢 ২৪ ঘণ্টায় অ্যাক্টিভ (${platformStats.activeUsers24h})` },
+                  { id: 'active7d', label: `📅 ৭ দিনে অ্যাক্টিভ (${platformStats.activeUsers7d})` },
+                  { id: 'verified', label: '✓ ভেরিফায়েড' },
+                  { id: 'suspended', label: '🚫 সাসপেন্ডেড' },
+                ].map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setUserFilter(f.id as any)}
+                    className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer ${
+                      userFilter === f.id
+                        ? 'bg-[#0866FF] text-white'
+                        : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
+                    }`}
+                  >
+                    {f.label}
+                  </button>
                 ))}
               </div>
-            </div>
-          </div>
-        )}
 
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 1B: CREATOR SEND BROADCAST STUDIO (10,000 USERS PUSH) */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === 'broadcast' && (
-          <div className="space-y-6">
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-              {/* Broadcast Composer Form */}
-              <form
-                onSubmit={handleSendBroadcastNow}
-                className="lg:col-span-2 bg-white p-5 sm:p-6 rounded-3xl border border-[#E4E6EB] space-y-4"
-              >
-                <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 flex items-center justify-center text-white shadow-sm">
-                      <Megaphone className="w-6 h-6" />
-                    </div>
-                    <div>
-                      <h2 className="text-base font-bold text-black">Send Broadcast (ইনস্ট্যান্ট পুশ ও বেল অ্যালার্ট)</h2>
-                      <p className="text-xs text-[#65676B]">
-                        ক্রিয়েটর বা অ্যাডমিন আপলোড করলেই Firebase FCM + In-App Bell দিয়ে সব ইউজারের কাছে পৌঁছাবে
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setBroadcastCreatorName('প্রিয় দাদা');
-                      setBroadcastTitle('প্রিয় দাদা নতুন ভিডিও আপলোড করেছেন');
-                      setBroadcastMessage('১০০% হালাল পণ্যের নতুন কালেকশন দেখুন');
-                      setBroadcastImage('https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=600&q=80');
-                      setBroadcastLink('/?tab=reels');
-                    }}
-                    className="px-3 py-1.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 text-[11px] font-bold text-emerald-700 cursor-pointer shrink-0"
-                  >
-                    ✨ প্রিয় দাদা প্রিসেট
-                  </button>
+              {loadingStats ? (
+                <div className="py-10 text-center text-xs text-[#65676B]">
+                  Firestore থেকে ইউজার তথ্য লোড হচ্ছে...
                 </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-bold text-black mb-1">Creator / Page Name</label>
-                    <input
-                      type="text"
-                      value={broadcastCreatorName}
-                      onChange={(e) => setBroadcastCreatorName(e.target.value)}
-                      placeholder="যেমন: প্রিয় দাদা বা SF MART BD"
-                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-black mb-1">Link / Post Route</label>
-                    <input
-                      type="text"
-                      value={broadcastLink}
-                      onChange={(e) => setBroadcastLink(e.target.value)}
-                      placeholder="/?tab=reels বা /post/123"
-                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                    />
-                  </div>
+              ) : filteredUsers.length === 0 ? (
+                <div className="py-10 text-center text-xs text-[#65676B] bg-[#F0F2F5] rounded-xl">
+                  কোনো ইউজার পাওয়া যায়নি।
                 </div>
+              ) : (
+                <div className="divide-y divide-[#E4E6EB]">
+                  {filteredUsers.map((usr) => {
+                    const ov = userOverrides[usr.uid];
+                    const isVerified = ov?.verifiedOverride !== undefined ? ov.verifiedOverride : usr.verified;
+                    const isSuspended = Boolean(ov?.suspended);
 
-                <div>
-                  <label className="block text-xs font-bold text-black mb-1">Notification Title *</label>
-                  <input
-                    type="text"
-                    required
-                    value={broadcastTitle}
-                    onChange={(e) => setBroadcastTitle(e.target.value)}
-                    placeholder="প্রিয় দাদা নতুন ভিডিও আপলোড করেছেন"
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-black mb-1">Broadcast Message *</label>
-                  <textarea
-                    rows={3}
-                    required
-                    value={broadcastMessage}
-                    onChange={(e) => setBroadcastMessage(e.target.value)}
-                    placeholder="১০০% হালাল পণ্যের নতুন কালেকশন দেখুন"
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white resize-none"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-black mb-1 flex items-center gap-1.5">
-                    <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
-                    <span>Thumbnail Image URL</span>
-                  </label>
-                  <input
-                    type="url"
-                    value={broadcastImage}
-                    onChange={(e) => setBroadcastImage(e.target.value)}
-                    placeholder="https://..."
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                  />
-                </div>
-
-                {/* Live Progress Bar */}
-                {broadcastProgress && (
-                  <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2 animate-in fade-in">
-                    <div className="flex items-center justify-between text-xs font-bold">
-                      <span className="text-emerald-700 flex items-center gap-1.5">
-                        <Bell className="w-4 h-4 animate-bounce" />
-                        <span>
-                          {broadcastProgress.sent >= broadcastProgress.total
-                            ? `✅ Sent to ${broadcastProgress.sent.toLocaleString()}/${broadcastProgress.total.toLocaleString()} Users`
-                            : `Sending Push & In-App Notification: Sent to ${broadcastProgress.sent.toLocaleString()}/${broadcastProgress.total.toLocaleString()}`}
-                        </span>
-                      </span>
-                      <span className="text-black font-mono">
-                        {Math.round((broadcastProgress.sent / broadcastProgress.total) * 100)}%
-                      </span>
-                    </div>
-                    <div className="w-full h-3 rounded-full bg-white overflow-hidden border border-[#E4E6EB]">
+                    return (
                       <div
-                        className="h-full bg-gradient-to-r from-[#0866FF] via-sky-500 to-emerald-500 transition-all duration-200 rounded-full"
-                        style={{
-                          width: `${Math.min(100, Math.round((broadcastProgress.sent / broadcastProgress.total) * 100))}%`,
-                        }}
-                      />
-                    </div>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={broadcastSending}
-                  className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-[#0866FF] via-blue-600 to-emerald-600 hover:opacity-95 disabled:opacity-60 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-[0.99] cursor-pointer"
-                >
-                  <Megaphone className="w-5 h-5" />
-                  <span>
-                    {broadcastSending
-                      ? 'ব্রডকাস্ট পাঠানো হচ্ছে...'
-                      : '📢 Send to All 10,000 Users Now'}
-                  </span>
-                </button>
-              </form>
-
-              {/* Right Column: Live Preview + Creator Toggles */}
-              <div className="space-y-4">
-                {/* Preview Card */}
-                <div className="bg-white p-4 rounded-3xl border border-[#E4E6EB] space-y-3">
-                  <p className="text-[11px] font-bold uppercase tracking-wider text-[#65676B]">
-                    Live Notification Preview
-                  </p>
-                  <div className="p-3 rounded-2xl bg-[#F0F2F5] border border-[#0866FF]/30 flex items-start gap-3">
-                    <img
-                      src={userProfile?.avatar || '/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg'}
-                      alt="creator"
-                      className="w-10 h-10 rounded-full object-cover shrink-0 border border-[#E4E6EB]"
-                    />
-                    <div className="min-w-0 flex-1">
-                      <p className="text-xs font-bold text-black leading-snug">
-                        {broadcastTitle || 'প্রিয় দাদা নতুন ভিডিও আপলোড করেছেন'}
-                      </p>
-                      <p className="text-[11px] text-[#65676B] mt-0.5 line-clamp-2">
-                        {broadcastMessage || '১০০% হালাল পণ্যের নতুন কালেকশন দেখুন'}
-                      </p>
-                      <span className="text-[10px] text-[#0866FF] font-semibold mt-1 block">
-                        Just now • Firebase FCM + Bell
-                      </span>
-                    </div>
-                    {broadcastImage && (
-                      <img
-                        src={broadcastImage}
-                        alt="thumb"
-                        className="w-11 h-11 rounded-xl object-cover shrink-0"
-                      />
-                    )}
-                  </div>
-                </div>
-
-                {/* Creator Settings inside Admin Portal */}
-                <div className="bg-white p-4 rounded-3xl border border-[#E4E6EB] space-y-3">
-                  <h3 className="text-xs font-bold text-black">Creator Auto-Broadcast Controls</h3>
-                  <label className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] cursor-pointer">
-                    <span className="text-xs font-medium text-black">Notify all followers when I post</span>
-                    <input
-                      type="checkbox"
-                      checked={creatorPrefs.creatorNotifyFollowersOnPost}
-                      onChange={(e) =>
-                        setCreatorPrefs((prev) =>
-                          savePeaceSettings({ ...prev, creatorNotifyFollowersOnPost: e.target.checked })
-                        )
-                      }
-                      className="w-4 h-4 accent-[#0866FF] cursor-pointer"
-                    />
-                  </label>
-                  <label className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] cursor-pointer">
-                    <span className="text-xs font-medium text-black">Send Push Notification to all users</span>
-                    <input
-                      type="checkbox"
-                      checked={creatorPrefs.creatorSendPushToAllUsers}
-                      onChange={(e) =>
-                        setCreatorPrefs((prev) =>
-                          savePeaceSettings({ ...prev, creatorSendPushToAllUsers: e.target.checked })
-                        )
-                      }
-                      className="w-4 h-4 accent-emerald-600 cursor-pointer"
-                    />
-                  </label>
-                </div>
-
-                {/* Recent Broadcasts */}
-                {broadcastHistory.length > 0 && (
-                  <div className="bg-white p-4 rounded-3xl border border-[#E4E6EB] space-y-2.5">
-                    <h3 className="text-xs font-bold text-black">সাম্প্রতিক ব্রডকাস্ট</h3>
-                    {broadcastHistory.slice(0, 4).map((b) => (
-                      <div key={b.id} className="p-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-xs space-y-0.5">
-                        <p className="font-bold text-black truncate">{b.title}</p>
-                        <p className="text-[11px] text-emerald-700 font-semibold">
-                          ✓ Sent to {b.sent.toLocaleString()}/{b.total.toLocaleString()} • {b.time}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* ------------------------------------------------------------- */}
-        {/* TAB 2: AI ADMIN ASSISTANT (GEMINI AI) */}
-        {/* ------------------------------------------------------------- */}
-        {activeTab === 'ai' && (
-          <div className="space-y-6">
-            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E4E6EB] space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-700 flex items-center justify-center text-white shadow-sm">
-                    <Bot className="w-7 h-7" />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-black flex items-center gap-2">
-                      <span>Gemini AI এডমিন সহকারী</span>
-                      <span className="text-[10px] bg-emerald-50 text-emerald-700 px-2 py-0.5 rounded-full border border-emerald-200">
-                        gemini-3.8-flash
-                      </span>
-                    </h2>
-                    <p className="text-xs text-[#65676B]">
-                      কনটেন্ট তৈরি, হালাল মডারেশন ও বিজ্ঞাপন রাজস্ব অপ্টিমাইজেশন
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Quick AI Action Chips */}
-              <div className="space-y-1.5">
-                <p className="text-xs font-bold text-[#65676B]">দ্রুত এআই নির্দেশিকা (Quick Actions):</p>
-                <div className="flex flex-wrap gap-2">
-                  {[
-                    '🕌 জুমার দিনের বিশেষ নোটিশ ও উপদেশ পোস্ট ড্রাফট করুন',
-                    '📈 বিজ্ঞাপন আয় ও ইমপ্রেশন বাড়ানোর ৫টি কৌশল বলুন',
-                    '📜 ক্রিয়েটরদের জন্য আর্নিং ও হালাল মনিটাইজেশন গাইড তৈরি করুন',
-                    '🛡️ সমস্ত ইসলামিক পোস্টের শালীনতা ও হালাল মান যাচাই করুন',
-                    '📢 রমজান ক্যাম্পেইনের স্পন্সরশিপ অফার লিখুন',
-                  ].map((preset, idx) => (
-                    <button
-                      key={idx}
-                      onClick={() => handleAskAI(preset)}
-                      disabled={aiLoading}
-                      className="px-3 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-[#E4E6EB] text-xs font-medium text-black transition-colors active:scale-95 text-left"
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {/* Prompt Input Box */}
-              <div className="space-y-2 pt-2">
-                <label className="block text-xs font-bold text-black">
-                  এআই-কে আপনার নির্দেশ দিন (যেকোনো আপডেট বা পোস্ট লেখার জন্য):
-                </label>
-                <div className="flex items-center gap-2">
-                  <input
-                    type="text"
-                    placeholder="যেমন: আজকের জন্য একটি অনুপ্রেরণামূলক কুরআন তিলাওয়াত পোস্ট লিখুন..."
-                    value={aiPrompt}
-                    onChange={(e) => setAiPrompt(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') handleAskAI();
-                    }}
-                    className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-4 py-3 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-emerald-600 focus:bg-white"
-                  />
-                  <button
-                    onClick={() => handleAskAI()}
-                    disabled={aiLoading || !aiPrompt.trim()}
-                    className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 shadow-sm transition-all"
-                  >
-                    {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                    <span>{aiLoading ? 'জেনারেট হচ্ছে...' : 'পাঠান'}</span>
-                  </button>
-                </div>
-              </div>
-
-              {/* AI Generated Output Display */}
-              {aiResponse && (
-                <div className="mt-4 p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3 animate-in fade-in">
-                  <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
-                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                      <Sparkles className="w-4 h-4" /> এআই ফলাফল:
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(aiResponse);
-                        showToast('টেক্সট কপি করা হয়েছে!');
-                      }}
-                      className="text-xs font-bold text-[#65676B] hover:text-black"
-                    >
-                      কপি করুন
-                    </button>
-                  </div>
-
-                  <p className="text-xs text-black leading-relaxed whitespace-pre-wrap">
-                    {aiResponse}
-                  </p>
-
-                  {/* 1-Click Publish to Facebook Feed */}
-                  {aiGeneratedPostDraft && (
-                    <div className="pt-2 flex items-center justify-between border-t border-emerald-200">
-                      <span className="text-[11px] text-[#65676B]">
-                        পোস্টটি কি আপনার মূল ফিডে প্রকাশ করতে চান?
-                      </span>
-                      <button
-                        onClick={handlePublishAIDraftToFeed}
-                        className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm active:scale-95 transition-all"
+                        key={usr.uid}
+                        className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                       >
-                        <Send className="w-3.5 h-3.5" />
-                        <span>ফিডে সরাসরি প্রকাশ করুন</span>
-                      </button>
-                    </div>
-                  )}
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="relative shrink-0">
+                            <img
+                              src={usr.avatar}
+                              alt={usr.displayName}
+                              className="w-11 h-11 rounded-full object-cover border border-[#E4E6EB]"
+                            />
+                            {usr.isActive24h && (
+                              <span
+                                className="w-3 h-3 rounded-full bg-emerald-500 border-2 border-white absolute bottom-0 right-0"
+                                title="Active within 24h"
+                              />
+                            )}
+                          </div>
+                          <div className="min-w-0">
+                            <p className="font-bold text-sm text-black flex items-center gap-1.5 truncate">
+                              <span className="truncate">{usr.displayName}</span>
+                              {isVerified && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[10px] font-bold">
+                                  ✓ Verified
+                                </span>
+                              )}
+                              {isSuspended && (
+                                <span className="px-1.5 py-0.5 rounded-full bg-rose-100 text-rose-700 text-[10px] font-bold">
+                                  Suspended
+                                </span>
+                              )}
+                            </p>
+                            <p className="text-[11px] text-[#65676B] truncate">
+                              {usr.username ? `@${usr.username}` : usr.uid}
+                              {usr.email ? ` • ${usr.email}` : ''}
+                            </p>
+                            <p className="text-[10px] text-[#65676B]">
+                              শেষ অ্যাক্টিভিটি:{' '}
+                              {usr.updatedAt
+                                ? new Date(usr.updatedAt).toLocaleString('bn-BD')
+                                : 'তথ্য নেই'}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => toggleUserOverride(usr.uid, 'verifiedOverride')}
+                            className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer border ${
+                              isVerified
+                                ? 'bg-[#E7F3FF] text-[#0866FF] border-[#0866FF]/30'
+                                : 'bg-[#F0F2F5] text-black border-[#E4E6EB] hover:bg-[#E4E6EB]'
+                            }`}
+                          >
+                            {isVerified ? '✓ ভেরিফায়েড' : 'ভেরিফাই দিন'}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => toggleUserOverride(usr.uid, 'suspended')}
+                            className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer border ${
+                              isSuspended
+                                ? 'bg-rose-600 text-white border-rose-600'
+                                : 'bg-rose-50 text-rose-700 border-rose-200 hover:bg-rose-100'
+                            }`}
+                          >
+                            {isSuspended ? 'আনব্লক করুন' : 'সাসপেন্ড'}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -1096,39 +1160,382 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* TAB 3: ADS & LEDGER (বিজ্ঞাপন ও আয়-ব্যয় হিসাব) */}
+        {/* TAB 3: PAGES & PAGE MONETIZATION CONTROL */}
         {/* ------------------------------------------------------------- */}
-        {activeTab === 'ads' && (
-          <div className="space-y-6">
+        {activeTab === 'pages' && (
+          <div className="space-y-5">
+            {/* Summary Cards */}
+            <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB]">
+                <span className="text-xs text-[#65676B]">মোট পেইজ সংখ্যা</span>
+                <p className="text-2xl font-black text-black mt-1">{pageControls.length}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-emerald-200">
+                <span className="text-xs text-emerald-700 font-bold">মনিটাইজেশন চালু (Approved)</span>
+                <p className="text-2xl font-black text-emerald-700 mt-1">{approvedPagesCount}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-amber-200">
+                <span className="text-xs text-amber-700 font-bold">আবেদন অপেক্ষমাণ (Pending)</span>
+                <p className="text-2xl font-black text-amber-700 mt-1">{pendingPagesCount}</p>
+              </div>
+              <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB]">
+                <span className="text-xs text-[#65676B]">সকল পেইজের মোট ফলোয়ার্স</span>
+                <p className="text-2xl font-black text-[#0866FF] mt-1">
+                  {pageControls.reduce((sum, p) => sum + (p.followersCount || 0), 0).toLocaleString()}
+                </p>
+              </div>
+            </div>
+
+            {/* Page Controls Panel */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                 <div>
-                  <h2 className="text-base font-bold text-black">বিজ্ঞাপন স্লট ও সম্পূর্ণ হিসাব (Ad Ledger)</h2>
+                  <h2 className="text-base font-bold text-black">
+                    পেইজ ও পেইজ মনিটাইজেশন কন্ট্রোল (Pages & Monetization)
+                  </h2>
                   <p className="text-xs text-[#65676B]">
-                    স্লট প্রতি ইমপ্রেশন, ক্লিক, CPM রেট ও অর্জিত মোট রাজস্বের হিসাব
+                    পেইজগুলোর মনিটাইজেশন চালু/স্থগিত/বাতিল করুন, ইন-স্ট্রিম ও রিলস অ্যাড নিয়ন্ত্রণ করুন এবং রেভিনিউ শেয়ার % সেট করুন
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAddPageModal(true)}
+                  className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
+                >
+                  <Plus className="w-4 h-4 stroke-[3]" />
+                  <span>নতুন পেইজ নিবন্ধন</span>
+                </button>
+              </div>
+
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div className="flex items-center gap-2 overflow-x-auto no-scrollbar text-xs">
+                  {[
+                    { id: 'all', label: `সব পেইজ (${pageControls.length})` },
+                    { id: 'approved', label: `✓ চালু (${approvedPagesCount})` },
+                    { id: 'pending', label: `⏳ পেন্ডিং (${pendingPagesCount})` },
+                    { id: 'paused', label: '⏸️ পজড' },
+                    { id: 'rejected', label: '✕ বাতিল' },
+                  ].map((f) => (
+                    <button
+                      key={f.id}
+                      onClick={() => setPageStatusFilter(f.id as any)}
+                      className={`px-3 py-1.5 rounded-xl font-bold whitespace-nowrap cursor-pointer ${
+                        pageStatusFilter === f.id
+                          ? 'bg-[#0866FF] text-white'
+                          : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
+                      }`}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+
+                <div className="relative w-full sm:w-64">
+                  <Search className="w-4 h-4 text-[#65676B] absolute left-3 top-2" />
+                  <input
+                    type="search"
+                    value={pageSearchQuery}
+                    onChange={(e) => setPageSearchQuery(e.target.value)}
+                    placeholder="পেইজের নাম খুঁজুন..."
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-3 py-1.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              {filteredPages.length === 0 ? (
+                <div className="py-10 text-center bg-[#F0F2F5] rounded-2xl border border-[#E4E6EB] space-y-2">
+                  <Flag className="w-8 h-8 text-[#65676B] mx-auto" />
+                  <p className="text-xs font-bold text-black">এখনো কোনো পেইজ যুক্ত হয়নি</p>
+                  <p className="text-[11px] text-[#65676B]">
+                    অ্যাপে নতুন পেইজ তৈরি করলে অথবা উপরের "নতুন পেইজ নিবন্ধন" বাটনে ক্লিক করলে এখানে দেখাবে।
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {filteredPages.map((pg) => (
+                    <div
+                      key={pg.pageId}
+                      className="p-4 rounded-2xl bg-[#F0F2F5] border border-[#E4E6EB] space-y-3 text-xs"
+                    >
+                      <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <img
+                            src={
+                              pg.avatar ||
+                              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(pg.pageName)}&backgroundColor=0866ff,10b981`
+                            }
+                            alt={pg.pageName}
+                            className="w-12 h-12 rounded-xl object-cover border border-[#E4E6EB] bg-white shrink-0"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <h4 className="font-bold text-sm text-black truncate">{pg.pageName}</h4>
+                              <span
+                                className={`px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  pg.status === 'approved'
+                                    ? 'bg-emerald-100 text-emerald-700'
+                                    : pg.status === 'paused'
+                                    ? 'bg-amber-100 text-amber-800'
+                                    : pg.status === 'rejected'
+                                    ? 'bg-rose-100 text-rose-700'
+                                    : 'bg-blue-100 text-[#0866FF]'
+                                }`}
+                              >
+                                {pg.status === 'approved'
+                                  ? 'মনিটাইজেশন চালু ✓'
+                                  : pg.status === 'paused'
+                                  ? 'স্থগিত (Paused)'
+                                  : pg.status === 'rejected'
+                                  ? 'বাতিল (Rejected)'
+                                  : 'অপেক্ষমাণ (Pending)'}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-[#65676B] truncate">
+                              {pg.category} • {pg.followersCount.toLocaleString()} ফলোয়ার্স
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Status Controls */}
+                        <div className="flex flex-wrap items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => updatePageMonetizationStatus(pg.pageId, 'approved')}
+                            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 cursor-pointer ${
+                              pg.status === 'approved'
+                                ? 'bg-emerald-600 text-white'
+                                : 'bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" />
+                            <span>চালু / Approve</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updatePageMonetizationStatus(pg.pageId, 'paused')}
+                            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 cursor-pointer ${
+                              pg.status === 'paused'
+                                ? 'bg-amber-600 text-white'
+                                : 'bg-white border border-amber-300 text-amber-700 hover:bg-amber-50'
+                            }`}
+                          >
+                            <PauseCircle className="w-3.5 h-3.5" />
+                            <span>পজ</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => updatePageMonetizationStatus(pg.pageId, 'rejected')}
+                            className={`px-3 py-1.5 rounded-xl font-bold flex items-center gap-1 cursor-pointer ${
+                              pg.status === 'rejected'
+                                ? 'bg-rose-600 text-white'
+                                : 'bg-white border border-rose-300 text-rose-700 hover:bg-rose-50'
+                            }`}
+                          >
+                            <Ban className="w-3.5 h-3.5" />
+                            <span>বাতিল</span>
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Ad Formats & Revenue Share Controls */}
+                      <div className="pt-3 border-t border-[#E4E6EB] flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-[#E4E6EB] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pg.inStreamAdsEnabled}
+                              onChange={() => togglePageAdFormat(pg.pageId, 'inStreamAdsEnabled')}
+                              className="accent-[#0866FF]"
+                            />
+                            <span className="font-semibold text-black">In-Stream Ads</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-[#E4E6EB] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pg.reelsAdsEnabled}
+                              onChange={() => togglePageAdFormat(pg.pageId, 'reelsAdsEnabled')}
+                              className="accent-[#0866FF]"
+                            />
+                            <span className="font-semibold text-black">Reels Ads</span>
+                          </label>
+                          <label className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white border border-[#E4E6EB] cursor-pointer">
+                            <input
+                              type="checkbox"
+                              checked={pg.starsEnabled}
+                              onChange={() => togglePageAdFormat(pg.pageId, 'starsEnabled')}
+                              className="accent-amber-500"
+                            />
+                            <span className="font-semibold text-black">Golden Stars</span>
+                          </label>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3">
+                          <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-[#E4E6EB]">
+                            <span className="text-[#65676B] font-semibold">পেইজ শেয়ার:</span>
+                            <select
+                              value={pg.revenueShareCreatorPct}
+                              onChange={(e) => updatePageRevenueShare(pg.pageId, Number(e.target.value))}
+                              className="font-bold text-[#0866FF] bg-transparent focus:outline-none cursor-pointer"
+                            >
+                              <option value={50}>50% Creator / 50% Admin</option>
+                              <option value={55}>55% Creator / 45% Admin</option>
+                              <option value={60}>60% Creator / 40% Admin</option>
+                              <option value={70}>70% Creator / 30% Admin</option>
+                            </select>
+                          </div>
+                          <div className="bg-white px-3 py-1.5 rounded-xl border border-[#E4E6EB] font-mono">
+                            <span className="text-[#65676B]">আয়: </span>
+                            <span className="font-bold text-emerald-700">৳{pg.totalEarnings.toLocaleString()}</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 4: ADS & PLACEMENTS ("কোথায় অ্যাড বসাবো") */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'ads' && (
+          <div className="space-y-6">
+            {/* Section A: Global Ad Placement Map ("কোথায় কোথায় অ্যাড বসবে") */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                <div>
+                  <h2 className="text-base font-bold text-black flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-[#0866FF]" />
+                    <span>কোথায় বিজ্ঞাপন বসাবেন (Ad Placement Controls)</span>
+                  </h2>
+                  <p className="text-xs text-[#65676B]">
+                    Peaceverse24.com এর কোন কোন অংশে লাইভ বিজ্ঞাপন প্রদর্শিত হবে তা এখান থেকে নিয়ন্ত্রণ করুন
+                  </p>
+                </div>
+                <div className="flex items-center gap-2 bg-[#F0F2F5] px-3 py-1.5 rounded-xl border border-[#E4E6EB] text-xs">
+                  <span className="font-semibold text-black">ফিডে অ্যাড গ্যাপ:</span>
+                  <select
+                    value={placementConfig.home_feed_frequency}
+                    onChange={(e) =>
+                      setPlacementConfig((prev) => ({
+                        ...prev,
+                        home_feed_frequency: Number(e.target.value) || 3,
+                      }))
+                    }
+                    className="font-bold text-[#0866FF] bg-transparent focus:outline-none cursor-pointer"
+                  >
+                    <option value={2}>প্রতি ২টি পোস্ট পর</option>
+                    <option value={3}>প্রতি ৩টি পোস্ট পর</option>
+                    <option value={4}>প্রতি ৪টি পোস্ট পর</option>
+                    <option value={5}>প্রতি ৫টি পোস্ট পর</option>
+                    <option value={8}>প্রতি ৮টি পোস্ট পর</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                {[
+                  {
+                    key: 'home_feed_enabled' as const,
+                    placement: 'home_feed',
+                    title: '১. হোম ফিড (Home Feed)',
+                    desc: `প্রতি ${placementConfig.home_feed_frequency}টি পোস্ট পর স্পন্সরড কার্ড দেখাবে`,
+                  },
+                  {
+                    key: 'reels_preroll_enabled' as const,
+                    placement: 'reels_preroll',
+                    title: '২. রিলস ও ওয়াচ (Reels/Watch)',
+                    desc: 'ভিডিও ও রিলস সেকশনের উপরে ব্যানার অ্যাড দেখাবে',
+                  },
+                  {
+                    key: 'marketplace_top_enabled' as const,
+                    placement: 'marketplace_top',
+                    title: '৩. মার্কেটপ্লেস টপ (Marketplace)',
+                    desc: 'মার্কেটপ্লেসের প্রোডাক্ট গ্রিডের উপরে প্রদর্শিত হবে',
+                  },
+                  {
+                    key: 'story_ad_enabled' as const,
+                    placement: 'story_ad',
+                    title: '৪. স্টোরি ব্যানার (Story Bar)',
+                    desc: 'হোম পেজের স্টোরি সেকশনের নিচে হাইলাইট হবে',
+                  },
+                ].map((slot) => {
+                  const isOn = placementConfig[slot.key];
+                  const activeCount = ads.filter((a) => a.placement === slot.placement && a.isActive).length;
+                  return (
+                    <div
+                      key={slot.key}
+                      className={`p-4 rounded-2xl border space-y-2.5 transition-all ${
+                        isOn ? 'bg-emerald-50/70 border-emerald-200' : 'bg-[#F0F2F5] border-[#E4E6EB]'
+                      }`}
+                    >
+                      <div className="flex items-start justify-between gap-2">
+                        <h4 className="font-bold text-black">{slot.title}</h4>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setPlacementConfig((prev) => ({ ...prev, [slot.key]: !prev[slot.key] }));
+                            showToast(`${slot.title} ${isOn ? 'বন্ধ' : 'চালু'} করা হয়েছে`);
+                          }}
+                          className={`px-2.5 py-1 rounded-full text-[10px] font-bold cursor-pointer ${
+                            isOn ? 'bg-emerald-600 text-white' : 'bg-[#D8DADF] text-black'
+                          }`}
+                        >
+                          {isOn ? 'চালু (ON)' : 'বন্ধ (OFF)'}
+                        </button>
+                      </div>
+                      <p className="text-[11px] text-[#65676B]">{slot.desc}</p>
+                      <div className="flex items-center justify-between pt-1 border-t border-[#E4E6EB]/70">
+                        <span className="text-[10px] font-bold text-[#0866FF]">
+                          সক্রিয় অ্যাড: {activeCount}টি
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setNewAdPlacement(slot.placement as any);
+                            setShowNewAdModal(true);
+                          }}
+                          className="text-[11px] font-bold text-black hover:text-[#0866FF] cursor-pointer"
+                        >
+                          + অ্যাড বসান
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Section B: Ads Table & Campaign Ledger */}
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-base font-bold text-black">বিজ্ঞাপন স্লট ও সম্পূর্ণ হিসাব (Ad Campaigns Ledger)</h2>
+                  <p className="text-xs text-[#65676B]">
+                    স্লট প্রতি ইমপ্রেশন, ক্লিক, CPM/CPC রেট ও অর্জিত মোট রাজস্বের হিসাব
                   </p>
                 </div>
                 <button
                   onClick={() => setShowNewAdModal(true)}
-                  className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 shadow-sm self-start sm:self-auto"
+                  className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
                 >
                   <Plus className="w-4 h-4 stroke-[3]" />
                   <span>নতুন বিজ্ঞাপন যোগ করুন</span>
                 </button>
               </div>
 
-              {/* Ads Table */}
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs">
                   <thead className="bg-[#F0F2F5] text-[#65676B] uppercase text-[10px] tracking-wider">
                     <tr>
                       <th className="p-3 rounded-l-xl">বিজ্ঞাপন / স্পন্সর</th>
-                      <th className="p-3">প্লেসমেন্ট</th>
-                      <th className="p-3">ইমপ্রেশন (Views)</th>
-                      <th className="p-3">ক্লিক (Clicks)</th>
+                      <th className="p-3">প্লেসমেন্ট (কোথায় বসবে)</th>
+                      <th className="p-3">ভিউ / ক্লিক</th>
                       <th className="p-3">CPM / CPC</th>
                       <th className="p-3">মোট আয় (৳)</th>
-                      <th className="p-3 rounded-r-xl">স্ট্যাটাস</th>
+                      <th className="p-3 rounded-r-xl">অ্যাকশন</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[#E4E6EB] text-black">
@@ -1136,7 +1543,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                       <tr key={ad.id} className="hover:bg-[#F0F2F5]/60 transition-colors">
                         <td className="p-3">
                           <div className="flex items-center gap-2.5">
-                            <img src={ad.imageUrl} alt={ad.adTitle} className="w-10 h-10 rounded-lg object-cover" />
+                            <img src={ad.imageUrl} alt={ad.adTitle} className="w-10 h-10 rounded-lg object-cover shrink-0" />
                             <div>
                               <p className="font-bold text-black">{ad.adTitle}</p>
                               <p className="text-[10px] text-[#65676B]">{ad.sponsorName}</p>
@@ -1148,8 +1555,9 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             {ad.placement}
                           </span>
                         </td>
-                        <td className="p-3 font-mono">{ad.impressions.toLocaleString()}</td>
-                        <td className="p-3 font-mono">{ad.clicks.toLocaleString()}</td>
+                        <td className="p-3 font-mono">
+                          {ad.impressions.toLocaleString()} / {ad.clicks.toLocaleString()}
+                        </td>
                         <td className="p-3 font-mono text-[11px]">
                           ৳{ad.cpmRate}/1k <br />
                           <span className="text-[#65676B]">৳{ad.cpcRate}/click</span>
@@ -1158,16 +1566,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                           ৳ {ad.totalEarnings.toLocaleString()}
                         </td>
                         <td className="p-3">
-                          <button
-                            onClick={() => handleToggleAd(ad.id)}
-                            className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all ${
-                              ad.isActive
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
-                                : 'bg-[#F0F2F5] text-[#65676B] border border-[#E4E6EB] hover:bg-[#E4E6EB]'
-                            }`}
-                          >
-                            {ad.isActive ? 'সক্রিয় ✓' : 'বন্ধ ✕'}
-                          </button>
+                          <div className="flex items-center gap-1.5">
+                            <button
+                              onClick={() => handleToggleAd(ad.id)}
+                              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all cursor-pointer ${
+                                ad.isActive
+                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100'
+                                  : 'bg-[#F0F2F5] text-[#65676B] border border-[#E4E6EB] hover:bg-[#E4E6EB]'
+                              }`}
+                            >
+                              {ad.isActive ? 'সক্রিয় ✓' : 'পজ ✕'}
+                            </button>
+                            <button
+                              onClick={() => handleDeleteAd(ad.id)}
+                              className="p-1.5 rounded-full bg-rose-50 hover:bg-rose-100 text-rose-600 cursor-pointer"
+                              title="ডিলিট"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -1175,9 +1592,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 </table>
               </div>
 
-              {/* Total Calculation Summary Bar */}
               <div className="p-4 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] flex flex-col sm:flex-row items-center justify-between gap-3 text-xs">
-                <div className="space-y-0.5">
+                <div>
                   <span className="text-[#65676B]">সর্বমোট বিজ্ঞাপন রাজস্ব আয়:</span>
                   <p className="text-xl font-black text-emerald-700">৳ {totalAdRevenue.toLocaleString()}</p>
                 </div>
@@ -1197,11 +1613,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* TAB 4: MONETIZATION & CREATOR EARNINGS */}
+        {/* TAB 5: CREATOR MONETIZATION */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'monetization' && (
           <div className="space-y-6">
-            {/* Monetization Policy Bar */}
             <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-bold text-black flex items-center gap-2">
@@ -1209,18 +1624,14 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   <span>ক্রিয়েটর মনিটাইজেশন পলিসি ও রেভিনিউ শেয়ার</span>
                 </h3>
                 <p className="text-xs text-[#65676B] mt-0.5">
-                  শর্ত: কমপক্ষে ৫০০ ফলোয়ার্স, ৯৫%+ হালাল স্কোর এবং বাদ্যযন্ত্রমুক্ত অরিজিনাল দ্বীনি কনটেন্ট।
+                  শর্ত: কমপক্ষে ৫,০০০ ফলোয়ার্স / ৯৫%+ হালাল স্কোর এবং অরিজিনাল কনটেন্ট।
                 </p>
               </div>
-              <div className="text-right">
-                <span className="text-xs font-bold text-emerald-700">৫৫% ক্রিয়েটর / ৪৫% প্ল্যাটফর্ম</span>
-              </div>
+              <span className="text-xs font-bold text-emerald-700">৫৫% ক্রিয়েটর / ৪৫% প্ল্যাটফর্ম</span>
             </div>
 
-            {/* Creators List & Application Review */}
             <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
               <h3 className="font-bold text-sm text-black">মনিটাইজেশন আবেদন ও ক্রিয়েটর আর্নিং তালিকা</h3>
-              
               <div className="space-y-3">
                 {creators.map((c) => (
                   <div
@@ -1245,20 +1656,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
                     <div className="flex items-center justify-between md:justify-end gap-4 border-t md:border-t-0 pt-2 md:pt-0 border-[#E4E6EB]">
                       <div className="text-right">
-                        <span className="text-[10px] text-[#65676B] block">মোট আয় (Total Earned)</span>
+                        <span className="text-[10px] text-[#65676B] block">মোট আয়</span>
                         <span className="font-bold text-xs sm:text-sm text-emerald-700 font-mono">
                           ৳ {c.totalEarnings.toLocaleString()}
                         </span>
                       </div>
-
                       <div className="text-right">
                         <span className="text-[10px] text-[#65676B] block">পরিশোধিত</span>
                         <span className="font-bold text-xs text-black font-mono">
                           ৳ {c.paidEarnings.toLocaleString()}
                         </span>
                       </div>
-
-                      {/* Status & Action */}
                       {c.status === 'approved' ? (
                         <span className="px-3 py-1 rounded-xl bg-emerald-50 text-emerald-700 text-xs font-bold border border-emerald-200">
                           অনুমোদিত ✓
@@ -1267,13 +1675,13 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <div className="flex items-center gap-1.5">
                           <button
                             onClick={() => handleCreatorStatus(c.id, 'approved')}
-                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold"
+                            className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold cursor-pointer"
                           >
                             অনুমোদন দিন
                           </button>
                           <button
                             onClick={() => handleCreatorStatus(c.id, 'rejected')}
-                            className="px-2.5 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-black text-xs font-bold"
+                            className="px-2.5 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-black text-xs font-bold cursor-pointer"
                           >
                             বাতিল
                           </button>
@@ -1284,173 +1692,39 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 ))}
               </div>
             </div>
-
-            {/* Golden Coin Cashout Requests Section */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-amber-300 space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h3 className="font-extrabold text-sm text-black flex items-center gap-2">
-                    <span className="text-amber-600">🪙</span>
-                    <span>গোল্ডেন কয়েন ক্যাশআউট আবেদন (ইউজার টু বিকাশ / নগদ)</span>
-                  </h3>
-                  <p className="text-[11px] text-[#65676B] mt-0.5">
-                    ইউজাররা ভালো ভিডিওর জন্য পাওয়া গোল্ডেন কয়েন বিক্রি করে বিকাশে টাকা চেয়েছেন
-                  </p>
-                </div>
-                <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-xs">
-                  {goldenCashoutRequests.filter((r) => r.status === 'pending').length}টি অপেক্ষমাণ
-                </span>
-              </div>
-
-              {goldenCashoutRequests.length === 0 ? (
-                <div className="text-center py-6 text-xs text-[#65676B] bg-[#F0F2F5] rounded-xl border border-[#E4E6EB]">
-                  কোনো গোল্ডেন কয়েন ক্যাশআউট আবেদন জমা পড়েনি।
-                </div>
-              ) : (
-                <div className="space-y-2.5">
-                  {goldenCashoutRequests.map((req) => (
-                    <div
-                      key={req.id}
-                      className="p-3.5 bg-[#F0F2F5] rounded-xl border border-[#E4E6EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-                    >
-                      <div className="flex items-center gap-3">
-                        <div className="w-10 h-10 rounded-xl bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 font-black text-base shrink-0">
-                          🪙
-                        </div>
-                        <div>
-                          <div className="flex items-center gap-2">
-                            <p className="font-bold text-black text-sm">{req.userName}</p>
-                            <span className="text-[10px] bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-bold">
-                              {req.coinsAmount} কয়েন
-                            </span>
-                          </div>
-                          <p className="text-[11px] text-[#65676B] mt-0.5">
-                            মাধ্যম: <span className="capitalize font-bold text-emerald-700">{req.paymentMethod}</span> ({req.accountNumber})
-                          </p>
-                          <p className="text-[10px] text-[#65676B]">
-                            তারিখ: {new Date(req.requestedAt).toLocaleString('bn-BD')}
-                          </p>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between sm:justify-end gap-3 pt-2 sm:pt-0 border-t sm:border-t-0 border-[#E4E6EB]">
-                        <span className="font-mono font-black text-amber-700 text-base">
-                          ৳ {req.moneyAmount} টাকা
-                        </span>
-
-                        {req.status === 'pending' ? (
-                          <div className="flex items-center gap-2">
-                            <button
-                              onClick={() => onApproveGoldenCashout?.(req.id)}
-                              className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"
-                            >
-                              টাকা পাঠানো হয়েছে ✓
-                            </button>
-                            <button
-                              onClick={() => onRejectGoldenCashout?.(req.id)}
-                              className="px-2.5 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-bold text-xs transition-colors cursor-pointer"
-                            >
-                              বাতিল
-                            </button>
-                          </div>
-                        ) : (
-                          <span
-                            className={`px-3 py-1 rounded-full font-bold text-xs ${
-                              req.status === 'approved'
-                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                : 'bg-rose-50 text-rose-700 border border-rose-200'
-                            }`}
-                          >
-                            {req.status === 'approved' ? 'পরিশোধিত ✓' : 'বাতিলকৃত'}
-                          </span>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            {/* Payout & Cashout Requests Ledger */}
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
-              <h3 className="font-bold text-sm text-black">উত্তোলন অনুরোধ ও ক্যাশআউট রেজিস্টার (Payouts)</h3>
-
-              <div className="space-y-2.5">
-                {payouts.map((p) => (
-                  <div
-                    key={p.id}
-                    className="p-3 bg-[#F0F2F5] rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-3 text-xs"
-                  >
-                    <div className="flex items-center gap-3">
-                      <img src={p.creatorAvatar} alt={p.creatorName} className="w-9 h-9 rounded-full object-cover" />
-                      <div>
-                        <p className="font-bold text-black">{p.creatorName}</p>
-                        <p className="text-[10px] text-[#65676B]">
-                          {p.method} • {p.accountNumber} • {p.date}
-                        </p>
-                      </div>
-                    </div>
-
-                    <div className="flex items-center gap-3">
-                      <span className="font-mono font-bold text-emerald-700 text-sm">
-                        ৳ {p.amount.toLocaleString()}
-                      </span>
-
-                      {p.status === 'paid' ? (
-                        <div className="text-right">
-                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
-                            পরিশোধিত ✓
-                          </span>
-                          {p.transactionId && (
-                            <p className="text-[9px] text-[#65676B] font-mono mt-0.5">{p.transactionId}</p>
-                          )}
-                        </div>
-                      ) : (
-                        <button
-                          onClick={() => handleApprovePayout(p.id)}
-                          className="px-3 py-1.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs shadow-sm"
-                        >
-                          টাকা প্রদান করুন
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
           </div>
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* TAB 4B: DEDICATED PAYOUT REQUESTS VIEW                        */}
+        {/* TAB 6: PAYOUT REQUESTS */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'payouts' && (
           <div className="space-y-4">
-            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-              <div>
-                <h3 className="font-extrabold text-base text-black flex items-center gap-2">
-                  <span>💸 Payout Requests</span>
-                  <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
-                    {goldenCashoutRequests.filter((r) => r.status === 'pending').length} Pending
-                  </span>
-                </h3>
-                <p className="text-xs text-[#65676B] mt-0.5">
-                  গোল্ডেন ওয়ালেট থেকে আসা ইউজার ক্যাশআউট রিকোয়েস্টসমূহ (User · Coins · Amount · Method/Number · Status)
-                </p>
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="font-extrabold text-base text-black flex items-center gap-2">
+                    <span>💸 গোল্ডেন কয়েন ক্যাশআউট ও পেআউট আবেদন</span>
+                    <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold">
+                      {goldenCashoutRequests.filter((r) => r.status === 'pending').length} অপেক্ষমাণ
+                    </span>
+                  </h3>
+                  <p className="text-xs text-[#65676B] mt-0.5">
+                    ইউজারদের গোল্ডেন কয়েন ক্যাশআউট ও ক্রিয়েটর পেমেন্ট আবেদন অনুমোদন করুন
+                  </p>
+                </div>
               </div>
-            </div>
 
-            {goldenCashoutRequests.length === 0 ? (
-              <div className="bg-white rounded-2xl border border-[#E4E6EB] p-8 text-center text-xs text-[#65676B]">
-                এখনো কোনো Payout Request জমা পড়েনি।
-              </div>
-            ) : (
-              <div className="bg-white rounded-2xl border border-[#E4E6EB] overflow-hidden">
+              {goldenCashoutRequests.length === 0 ? (
+                <div className="bg-[#F0F2F5] rounded-2xl border border-[#E4E6EB] p-6 text-center text-xs text-[#65676B]">
+                  এখনো কোনো গোল্ডেন কয়েন ক্যাশআউট আবেদন জমা পড়েনি।
+                </div>
+              ) : (
                 <div className="divide-y divide-[#E4E6EB]">
                   {goldenCashoutRequests.map((req) => (
                     <div
                       key={req.id}
-                      className="p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                      className="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
                     >
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-amber-100 border border-amber-200 flex items-center justify-center text-amber-700 font-black shrink-0">
@@ -1462,13 +1736,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                             <span className="px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
                               {req.coinsAmount} coins
                             </span>
-                            <span className="font-mono font-bold text-emerald-700">
-                              ৳{req.moneyAmount}
-                            </span>
+                            <span className="font-mono font-bold text-emerald-700">৳{req.moneyAmount}</span>
                           </div>
                           <p className="text-[11px] text-[#65676B] mt-0.5">
-                            <span className="capitalize font-semibold text-black">{req.paymentMethod}</span>{' '}
-                            • {req.accountNumber}
+                            <span className="capitalize font-semibold text-black">{req.paymentMethod}</span> • {req.accountNumber}
                           </p>
                         </div>
                       </div>
@@ -1483,11 +1754,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               : 'bg-amber-50 text-amber-800 border border-amber-200'
                           }`}
                         >
-                          {req.status === 'approved'
-                            ? 'Approved ✓'
-                            : req.status === 'rejected'
-                            ? 'Rejected'
-                            : 'Pending'}
+                          {req.status === 'approved' ? 'Approved ✓' : req.status === 'rejected' ? 'Rejected' : 'Pending'}
                         </span>
 
                         {req.status === 'pending' && (
@@ -1518,81 +1785,96 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </div>
                   ))}
                 </div>
+              )}
+            </div>
+
+            <div className="bg-white p-4 sm:p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
+              <h3 className="font-bold text-sm text-black">ক্রিয়েটর উত্তোলন রেজিস্টার (Creator Payouts)</h3>
+              <div className="space-y-2.5">
+                {payouts.map((p) => (
+                  <div
+                    key={p.id}
+                    className="p-3 bg-[#F0F2F5] rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-3 text-xs"
+                  >
+                    <div className="flex items-center gap-3">
+                      <img src={p.creatorAvatar} alt={p.creatorName} className="w-9 h-9 rounded-full object-cover" />
+                      <div>
+                        <p className="font-bold text-black">{p.creatorName}</p>
+                        <p className="text-[10px] text-[#65676B]">
+                          {p.method} • {p.accountNumber} • {p.date}
+                        </p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <span className="font-mono font-bold text-emerald-700 text-sm">৳ {p.amount.toLocaleString()}</span>
+                      {p.status === 'paid' ? (
+                        <div className="text-right">
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
+                            পরিশোধিত ✓
+                          </span>
+                          {p.transactionId && (
+                            <p className="text-[9px] text-[#65676B] font-mono mt-0.5">{p.transactionId}</p>
+                          )}
+                        </div>
+                      ) : (
+                        <button
+                          onClick={() => handleApprovePayout(p.id)}
+                          className="px-3 py-1.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs shadow-sm cursor-pointer"
+                        >
+                          টাকা প্রদান করুন
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
-            )}
+            </div>
           </div>
         )}
 
         {/* ------------------------------------------------------------- */}
-        {/* TAB 5: POST & CONTENT MODERATION */}
+        {/* TAB 7: POST MODERATION */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'moderation' && (
           <div className="space-y-4">
             <div className="bg-white p-4 rounded-2xl border border-[#E4E6EB] flex flex-col sm:flex-row sm:items-center justify-between gap-3">
               <div>
                 <h3 className="font-bold text-sm text-black">পোস্ট ও কনটেন্ট মডারেশন ({posts.length})</h3>
-                <p className="text-xs text-[#65676B]">ব্লক, বাতিল, অনুমোদন, ডিলিট ও ইউজারদের আপিল পরিচালনা</p>
+                <p className="text-xs text-[#65676B]">ব্লক, বাতিল, অনুমোদন, ডিলিট ও আপিল পরিচালনা</p>
               </div>
               <button
                 onClick={() => {
                   handleAskAI('সমস্ত পোস্টের হালাল অডিট ও রিপোর্ট প্রস্তুত করুন');
                   setActiveTab('ai');
                 }}
-                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto transition-colors"
+                className="px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 self-start sm:self-auto cursor-pointer"
               >
                 <Bot className="w-3.5 h-3.5" />
-                <span>এআই দিয়ে ফুল অডিট করুন</span>
+                <span>এআই দিয়ে অডিট করুন</span>
               </button>
             </div>
 
-            {/* Moderation Sub-Filters */}
             <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1 text-xs">
-              <button
-                onClick={() => setModerationFilter('all')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                  moderationFilter === 'all'
-                    ? 'bg-[#0866FF] text-white'
-                    : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
-                }`}
-              >
-                সব পোস্ট ({posts.length})
-              </button>
-              <button
-                onClick={() => setModerationFilter('blocked')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                  moderationFilter === 'blocked'
-                    ? 'bg-rose-600 text-white'
-                    : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
-                }`}
-              >
-                🚫 ব্লকড ({posts.filter((p) => p.status === 'blocked').length})
-              </button>
-              <button
-                onClick={() => setModerationFilter('rejected')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors ${
-                  moderationFilter === 'rejected'
-                    ? 'bg-amber-600 text-white'
-                    : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
-                }`}
-              >
-                ⚠️ বাতিল ({posts.filter((p) => p.status === 'rejected').length})
-              </button>
-              <button
-                onClick={() => setModerationFilter('appeals')}
-                className={`px-3 py-1.5 rounded-xl font-bold transition-colors relative ${
-                  moderationFilter === 'appeals'
-                    ? 'bg-purple-600 text-white'
-                    : 'bg-[#F0F2F5] text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
-                }`}
-              >
-                <span>⚖️ আপিলসমূহ ({posts.filter((p) => p.appealStatus === 'pending').length})</span>
-                {posts.filter((p) => p.appealStatus === 'pending').length > 0 && (
-                  <span className="w-2 h-2 rounded-full bg-rose-500 inline-block ml-1 animate-pulse" />
-                )}
-              </button>
+              {[
+                { id: 'all', label: `সব পোস্ট (${posts.length})` },
+                { id: 'blocked', label: `🚫 ব্লকড (${posts.filter((p) => p.status === 'blocked').length})` },
+                { id: 'rejected', label: `⚠️ বাতিল (${posts.filter((p) => p.status === 'rejected').length})` },
+                { id: 'appeals', label: `⚖️ আপিলসমূহ (${posts.filter((p) => p.appealStatus === 'pending').length})` },
+              ].map((btn) => (
+                <button
+                  key={btn.id}
+                  onClick={() => setModerationFilter(btn.id as any)}
+                  className={`px-3 py-1.5 rounded-xl font-bold cursor-pointer ${
+                    moderationFilter === btn.id
+                      ? 'bg-[#0866FF] text-white'
+                      : 'bg-white text-black hover:bg-[#E4E6EB] border border-[#E4E6EB]'
+                  }`}
+                >
+                  {btn.label}
+                </button>
+              ))}
             </div>
 
-            {/* Moderation Post List */}
             <div className="space-y-3">
               {posts
                 .filter((p) => {
@@ -1609,7 +1891,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   return (
                     <div
                       key={post.id}
-                      className={`p-4 rounded-2xl border space-y-3 text-xs transition-colors ${
+                      className={`p-4 rounded-2xl border space-y-3 text-xs ${
                         isBlocked
                           ? 'bg-rose-50 border-rose-200'
                           : isRejected
@@ -1621,42 +1903,25 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         <div className="flex items-center gap-2.5">
                           <img src={post.author.avatar} alt={post.author.name} className="w-9 h-9 rounded-full object-cover" />
                           <div>
-                            <p className="font-bold text-black flex items-center gap-1.5">
-                              <span>{post.author.name}</span>
-                              <span className="text-[10px] text-[#65676B] font-mono">({post.id})</span>
-                            </p>
+                            <p className="font-bold text-black">{post.author.name}</p>
                             <p className="text-[10px] text-[#65676B]">
                               {post.timeAgo} • {post.category} • {post.privacy || 'public'}
                             </p>
                           </div>
                         </div>
-
-                        {/* Status badge */}
-                        <div className="flex items-center gap-2">
-                          {isBlocked && (
-                            <span className="px-2.5 py-1 rounded-full bg-rose-100 text-rose-700 font-bold text-[10px]">
-                              🚫 ব্লকড (Blocked)
-                            </span>
-                          )}
-                          {isRejected && (
-                            <span className="px-2.5 py-1 rounded-full bg-amber-100 text-amber-800 font-bold text-[10px]">
-                              ⚠️ বাতিল (Rejected)
-                            </span>
-                          )}
-                          {isApproved && (
-                            <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 font-bold text-[10px]">
-                              ✓ অনুমোদিত (Approved)
-                            </span>
-                          )}
-                          {post.appealStatus === 'pending' && (
-                            <span className="px-2.5 py-1 rounded-full bg-purple-100 text-purple-700 font-bold text-[10px] animate-pulse">
-                              ⚖️ আপিল বিবেচনাধীন
-                            </span>
-                          )}
-                        </div>
+                        <span
+                          className={`px-2.5 py-1 rounded-full font-bold text-[10px] ${
+                            isBlocked
+                              ? 'bg-rose-100 text-rose-700'
+                              : isRejected
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-emerald-100 text-emerald-700'
+                          }`}
+                        >
+                          {isBlocked ? '🚫 ব্লকড' : isRejected ? '⚠️ বাতিল' : isApproved ? '✓ অনুমোদিত' : ''}
+                        </span>
                       </div>
 
-                      {/* Post Content */}
                       <p className="text-black leading-relaxed bg-[#F0F2F5] p-3 rounded-xl border border-[#E4E6EB]">
                         {post.contentBangla}
                       </p>
@@ -1667,50 +1932,40 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                         </p>
                       )}
 
-                      {/* Action buttons */}
                       <div className="flex flex-wrap items-center justify-between gap-2 pt-1 border-t border-[#E4E6EB]">
                         <div className="flex items-center gap-2">
-                          {/* Approve / Restore */}
                           <button
                             onClick={() => {
-                              if (onModeratePost) {
-                                onModeratePost(post.id, 'approved', 'অনুমোদিত');
-                              } else {
-                                post.status = 'approved';
-                                post.appealStatus = 'resolved';
-                              }
+                              onModeratePost?.(post.id, 'approved', 'অনুমোদিত');
                               showToast('পোস্টটি অনুমোদিত ও আনব্লক করা হয়েছে');
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1 cursor-pointer"
                           >
                             <Check className="w-3.5 h-3.5" />
-                            <span>অনুমোদন (Approve)</span>
+                            <span>অনুমোদন</span>
                           </button>
 
-                          {/* Block */}
                           <button
                             onClick={() => {
                               setModeratingPost({ id: post.id, action: 'blocked', author: post.author.name });
                               setModerationReasonInput('ইসলামিক শালীনতা ও Peaceverse24.com গাইডলাইন লঙ্ঘন');
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer"
                           >
-                            <span>🚫 ব্লক (Block)</span>
+                            🚫 ব্লক
                           </button>
 
-                          {/* Reject */}
                           <button
                             onClick={() => {
                               setModeratingPost({ id: post.id, action: 'rejected', author: post.author.name });
                               setModerationReasonInput('অনৈসলামিক বা অনুপযুক্ত কনটেন্ট হওয়ায় বাতিল');
                             }}
-                            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs flex items-center gap-1 transition-colors"
+                            className="px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs cursor-pointer"
                           >
-                            <span>⚠️ বাতিল (Reject)</span>
+                            ⚠️ বাতিল
                           </button>
                         </div>
 
-                        {/* Delete */}
                         <button
                           onClick={() => {
                             if (window.confirm('আপনি কি নিশ্চিত এই পোস্টটি চিরতরে মুছে ফেলতে চান?')) {
@@ -1718,10 +1973,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                               showToast('পোস্ট মুছে ফেলা হয়েছে');
                             }
                           }}
-                          className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs flex items-center gap-1 transition-colors"
+                          className="px-3 py-1.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 font-semibold text-xs flex items-center gap-1 cursor-pointer"
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>মুছুন (Delete)</span>
+                          <span>মুছুন</span>
                         </button>
                       </div>
                     </div>
@@ -1729,40 +1984,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 })}
             </div>
 
-            {/* Moderation Reason Modal */}
             {moderatingPost && (
               <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-                <div className="bg-white border border-[#E4E6EB] rounded-2xl p-4 w-full max-w-md space-y-3 animate-in fade-in zoom-in-95 shadow-2xl">
+                <div className="bg-white border border-[#E4E6EB] rounded-2xl p-4 w-full max-w-md space-y-3 shadow-2xl">
                   <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-2">
                     <h3 className="font-bold text-black text-sm">
                       পোস্ট {moderatingPost.action === 'blocked' ? 'ব্লক' : 'বাতিল'} করার কারণ
                     </h3>
-                    <button onClick={() => setModeratingPost(null)} className="p-1 text-[#65676B] hover:text-black">✕</button>
+                    <button onClick={() => setModeratingPost(null)} className="p-1 text-[#65676B] hover:text-black cursor-pointer">✕</button>
                   </div>
-
-                  <p className="text-xs text-[#65676B]">
-                    {moderatingPost.author}-কে এই কারণটি নোটিফিকেশনে পাঠানো হবে:
-                  </p>
-
-                  <div className="flex flex-wrap gap-1.5 py-1">
-                    {[
-                      'ইসলামিক শালীনতা লঙ্ঘন',
-                      'অশ্লীলতা ও নগ্নতা',
-                      'গান-বাজনা ও বাদ্যযন্ত্র প্রচার',
-                      'জুয়া বা সুদের প্রচার',
-                      'অশালীন ও আক্রমণাত্মক ভাষা',
-                    ].map((reasonChip) => (
-                      <button
-                        key={reasonChip}
-                        type="button"
-                        onClick={() => setModerationReasonInput(reasonChip)}
-                        className="px-2.5 py-1 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-[#E4E6EB] text-black text-[11px]"
-                      >
-                        {reasonChip}
-                      </button>
-                    ))}
-                  </div>
-
                   <textarea
                     rows={3}
                     value={moderationReasonInput}
@@ -1770,25 +2000,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     placeholder="মডারেশনের কারণ লিখুন..."
                     className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-xs text-black outline-none focus:border-rose-500 focus:bg-white resize-none"
                   />
-
                   <div className="flex justify-end gap-2">
                     <button
                       type="button"
                       onClick={() => setModeratingPost(null)}
-                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#65676B] hover:bg-[#F0F2F5]"
+                      className="px-3 py-1.5 rounded-lg text-xs font-semibold text-[#65676B] hover:bg-[#F0F2F5] cursor-pointer"
                     >
                       বাতিল
                     </button>
                     <button
                       type="button"
                       onClick={() => {
-                        if (onModeratePost) {
-                          onModeratePost(moderatingPost.id, moderatingPost.action, moderationReasonInput.trim());
-                        }
+                        onModeratePost?.(moderatingPost.id, moderatingPost.action, moderationReasonInput.trim());
                         showToast(`পোস্টটি সফলভাবে ${moderatingPost.action === 'blocked' ? 'ব্লক' : 'বাতিল'} করা হয়েছে`);
                         setModeratingPost(null);
                       }}
-                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs"
+                      className="px-4 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer"
                     >
                       নিশ্চিত করুন
                     </button>
@@ -1799,20 +2026,423 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           </div>
         )}
 
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 8: BROADCAST */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'broadcast' && (
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+            <form
+              onSubmit={handleSendBroadcastNow}
+              className="lg:col-span-2 bg-white p-5 sm:p-6 rounded-3xl border border-[#E4E6EB] space-y-4"
+            >
+              <div className="flex items-center gap-3 border-b border-[#E4E6EB] pb-3">
+                <div className="w-11 h-11 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 flex items-center justify-center text-white">
+                  <Megaphone className="w-6 h-6" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-black">Send Global Broadcast</h2>
+                  <p className="text-xs text-[#65676B]">
+                    সব ইউজারের বেল নোটিফিকেশন ও ফিড অ্যালার্টে বার্তা পাঠান
+                  </p>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-black mb-1">Creator / Admin Name</label>
+                  <input
+                    type="text"
+                    value={broadcastCreatorName}
+                    onChange={(e) => setBroadcastCreatorName(e.target.value)}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-black mb-1">Link Route</label>
+                  <input
+                    type="text"
+                    value={broadcastLink}
+                    onChange={(e) => setBroadcastLink(e.target.value)}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-black mb-1">Notification Title *</label>
+                <input
+                  type="text"
+                  required
+                  value={broadcastTitle}
+                  onChange={(e) => setBroadcastTitle(e.target.value)}
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-black mb-1">Broadcast Message *</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={broadcastMessage}
+                  onChange={(e) => setBroadcastMessage(e.target.value)}
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-bold text-black mb-1 flex items-center gap-1.5">
+                  <ImageIcon className="w-3.5 h-3.5 text-emerald-600" />
+                  <span>Thumbnail Image URL</span>
+                </label>
+                <input
+                  type="url"
+                  value={broadcastImage}
+                  onChange={(e) => setBroadcastImage(e.target.value)}
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                />
+              </div>
+
+              {broadcastProgress && (
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-xs font-bold text-emerald-700 flex items-center gap-2">
+                  <Bell className="w-4 h-4" />
+                  <span>
+                    Sent to {broadcastProgress.sent}/{broadcastProgress.total} users
+                  </span>
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={broadcastSending}
+                className="w-full py-3 rounded-2xl bg-gradient-to-r from-[#0866FF] to-emerald-600 hover:opacity-95 disabled:opacity-60 text-white font-black text-sm shadow-md flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <Megaphone className="w-5 h-5" />
+                <span>{broadcastSending ? 'পাঠানো হচ্ছে...' : '📢 Send Broadcast Now'}</span>
+              </button>
+            </form>
+
+            <div className="space-y-4">
+              <div className="bg-white p-4 rounded-3xl border border-[#E4E6EB] space-y-3">
+                <h3 className="text-xs font-bold text-black">Auto-Broadcast Controls</h3>
+                <label className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] cursor-pointer">
+                  <span className="text-xs font-medium text-black">Notify followers on post</span>
+                  <input
+                    type="checkbox"
+                    checked={creatorPrefs.creatorNotifyFollowersOnPost}
+                    onChange={(e) =>
+                      setCreatorPrefs((prev) =>
+                        savePeaceSettings({ ...prev, creatorNotifyFollowersOnPost: e.target.checked })
+                      )
+                    }
+                    className="w-4 h-4 accent-[#0866FF]"
+                  />
+                </label>
+                <label className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] cursor-pointer">
+                  <span className="text-xs font-medium text-black">Push alert to all users</span>
+                  <input
+                    type="checkbox"
+                    checked={creatorPrefs.creatorSendPushToAllUsers}
+                    onChange={(e) =>
+                      setCreatorPrefs((prev) =>
+                        savePeaceSettings({ ...prev, creatorSendPushToAllUsers: e.target.checked })
+                      )
+                    }
+                    className="w-4 h-4 accent-emerald-600"
+                  />
+                </label>
+              </div>
+
+              {broadcastHistory.length > 0 && (
+                <div className="bg-white p-4 rounded-3xl border border-[#E4E6EB] space-y-2">
+                  <h3 className="text-xs font-bold text-black">সাম্প্রতিক ব্রডকাস্ট</h3>
+                  {broadcastHistory.slice(0, 4).map((b) => (
+                    <div key={b.id} className="p-2.5 rounded-xl bg-[#F0F2F5] text-xs">
+                      <p className="font-bold text-black truncate">{b.title}</p>
+                      <p className="text-[11px] text-emerald-700 font-semibold">✓ Sent ({b.time})</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 9: AI ADMIN ASSISTANT */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'ai' && (
+          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E4E6EB] space-y-4">
+            <div className="flex items-center gap-3">
+              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-700 flex items-center justify-center text-white">
+                <Bot className="w-7 h-7" />
+              </div>
+              <div>
+                <h2 className="text-base font-bold text-black">Gemini AI এডমিন সহকারী</h2>
+                <p className="text-xs text-[#65676B]">
+                  কনটেন্ট তৈরি, হালাল মডারেশন ও বিজ্ঞাপন রাজস্ব অপ্টিমাইজেশন
+                </p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {[
+                '🕌 জুমার দিনের বিশেষ নোটিশ পোস্ট ড্রাফট করুন',
+                '📈 বিজ্ঞাপন আয় বাড়ানোর কৌশল বলুন',
+                '📜 ক্রিয়েটর ও পেইজ মনিটাইজেশন গাইড তৈরি করুন',
+              ].map((preset, idx) => (
+                <button
+                  key={idx}
+                  onClick={() => handleAskAI(preset)}
+                  disabled={aiLoading}
+                  className="px-3 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-[#E4E6EB] text-xs font-medium text-black cursor-pointer"
+                >
+                  {preset}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input
+                type="text"
+                placeholder="এআই-কে আপনার নির্দেশ দিন..."
+                value={aiPrompt}
+                onChange={(e) => setAiPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') handleAskAI();
+                }}
+                className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-4 py-3 text-xs text-black focus:outline-none focus:border-emerald-600 focus:bg-white"
+              />
+              <button
+                onClick={() => handleAskAI()}
+                disabled={aiLoading || !aiPrompt.trim()}
+                className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 cursor-pointer"
+              >
+                {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                <span>{aiLoading ? 'জেনারেট হচ্ছে...' : 'পাঠান'}</span>
+              </button>
+            </div>
+
+            {aiResponse && (
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
+                <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                  <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                    <Sparkles className="w-4 h-4" /> এআই ফলাফল:
+                  </span>
+                  <button
+                    onClick={() => {
+                      navigator.clipboard.writeText(aiResponse);
+                      showToast('টেক্সট কপি করা হয়েছে!');
+                    }}
+                    className="text-xs font-bold text-[#65676B] hover:text-black cursor-pointer"
+                  >
+                    কপি করুন
+                  </button>
+                </div>
+                <p className="text-xs text-black leading-relaxed whitespace-pre-wrap">{aiResponse}</p>
+                {aiGeneratedPostDraft && (
+                  <div className="pt-2 flex items-center justify-between border-t border-emerald-200">
+                    <span className="text-[11px] text-[#65676B]">পোস্টটি ফিডে প্রকাশ করতে চান?</span>
+                    <button
+                      onClick={handlePublishAIDraftToFeed}
+                      className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                    >
+                      <Send className="w-3.5 h-3.5" />
+                      <span>ফিডে প্রকাশ করুন</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ------------------------------------------------------------- */}
+        {/* TAB 10: ADMIN SETTINGS & CREDENTIALS */}
+        {/* ------------------------------------------------------------- */}
+        {activeTab === 'settings' && (
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+            <div className="bg-white p-5 rounded-2xl border border-[#E4E6EB] space-y-4">
+              <div className="flex items-center gap-2.5 border-b border-[#E4E6EB] pb-3">
+                <Globe className="w-5 h-5 text-[#0866FF]" />
+                <div>
+                  <h3 className="text-sm font-bold text-black">আলাদা অ্যাডমিন প্যানেল লিংক (Direct Admin URLs)</h3>
+                  <p className="text-xs text-[#65676B]">যেকোনো ব্রাউজার থেকে সরাসরি অ্যাডমিন প্যানেলে প্রবেশ করুন</p>
+                </div>
+              </div>
+
+              <div className="space-y-2.5 text-xs">
+                <div className="p-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#65676B] block">Primary Standalone URL:</span>
+                    <code className="font-mono font-bold text-[#0866FF]">https://peaceverse24.com/admin</code>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('https://peaceverse24.com/admin');
+                      showToast('লিংক কপি করা হয়েছে!');
+                    }}
+                    className="px-3 py-1 rounded-lg bg-white border border-[#E4E6EB] font-bold text-black cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+
+                <div className="p-3 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] flex items-center justify-between gap-2">
+                  <div>
+                    <span className="text-[10px] font-bold text-[#65676B] block">Alternate Direct Hash URL:</span>
+                    <code className="font-mono font-bold text-emerald-700">https://peaceverse24.com/#admin</code>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      navigator.clipboard.writeText('https://peaceverse24.com/#admin');
+                      showToast('লিংক কপি করা হয়েছে!');
+                    }}
+                    className="px-3 py-1 rounded-lg bg-white border border-[#E4E6EB] font-bold text-black cursor-pointer"
+                  >
+                    Copy
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <form
+              onSubmit={handleUpdateCredentials}
+              className="bg-white p-5 rounded-2xl border border-[#E4E6EB] space-y-4"
+            >
+              <div className="flex items-center gap-2.5 border-b border-[#E4E6EB] pb-3">
+                <Key className="w-5 h-5 text-emerald-600" />
+                <div>
+                  <h3 className="text-sm font-bold text-black">অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড পরিবর্তন</h3>
+                  <p className="text-xs text-[#65676B]">আপনার পছন্দমতো নতুন ইউজারনেম ও পাসওয়ার্ড সেট করুন</p>
+                </div>
+              </div>
+
+              <div className="space-y-3 text-xs">
+                <div>
+                  <label className="block font-bold text-black mb-1">অ্যাডমিন ইউজারনেম</label>
+                  <input
+                    type="text"
+                    required
+                    value={settingsUsername}
+                    onChange={(e) => setSettingsUsername(e.target.value)}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-black mb-1">নতুন পাসওয়ার্ড</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    placeholder="কমপক্ষে ৬ অক্ষর লিখুন"
+                    value={settingsPassword}
+                    onChange={(e) => setSettingsPassword(e.target.value)}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
+                <div>
+                  <label className="block font-bold text-black mb-1">নতুন পাসওয়ার্ড নিশ্চিত করুন</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    placeholder="পুনরায় পাসওয়ার্ড লিখুন"
+                    value={settingsConfirmPassword}
+                    onChange={(e) => setSettingsConfirmPassword(e.target.value)}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                  />
+                </div>
+                <button
+                  type="submit"
+                  className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold shadow-sm cursor-pointer"
+                >
+                  সেভ ও আপডেট করুন
+                </button>
+              </div>
+            </form>
+          </div>
+        )}
       </main>
+
+      {/* ------------------------------------------------------------- */}
+      {/* ADD PAGE FOR ADMIN MONETIZATION MODAL */}
+      {/* ------------------------------------------------------------- */}
+      {showAddPageModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
+          <div className="bg-white w-full max-w-md rounded-2xl border border-[#E4E6EB] shadow-2xl p-5 space-y-4">
+            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
+              <h3 className="font-bold text-sm text-black flex items-center gap-2">
+                <Flag className="w-4 h-4 text-[#0866FF]" />
+                <span>পেইজ ও মনিটাইজেশন যুক্ত করুন</span>
+              </h3>
+              <button onClick={() => setShowAddPageModal(false)} className="text-[#65676B] hover:text-black cursor-pointer">✕</button>
+            </div>
+            <form onSubmit={handleCreateAdminPage} className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-black mb-1">পেইজের নাম *</label>
+                <input
+                  type="text"
+                  required
+                  value={newPageName}
+                  onChange={(e) => setNewPageName(e.target.value)}
+                  placeholder="যেমন: Peaceverse Official Media"
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-black mb-1">ক্যাটাগরি</label>
+                <input
+                  type="text"
+                  value={newPageCategory}
+                  onChange={(e) => setNewPageCategory(e.target.value)}
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                />
+              </div>
+              <div>
+                <label className="block font-bold text-black mb-1">ফলোয়ার্স সংখ্যা</label>
+                <input
+                  type="number"
+                  min={0}
+                  value={newPageFollowers}
+                  onChange={(e) => setNewPageFollowers(e.target.value)}
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                />
+              </div>
+              <div className="flex justify-end gap-2 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowAddPageModal(false)}
+                  className="px-4 py-2 rounded-xl bg-[#E4E6EB] text-black font-bold cursor-pointer"
+                >
+                  বাতিল
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold cursor-pointer"
+                >
+                  যুক্ত ও চালু করুন
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       {/* ------------------------------------------------------------- */}
       {/* NEW AD CAMPAIGN MODAL */}
       {/* ------------------------------------------------------------- */}
       {showNewAdModal && (
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4">
-          <div className="bg-white w-full max-w-lg rounded-2xl border border-[#E4E6EB] shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-in fade-in zoom-in-95">
+          <div className="bg-white w-full max-w-lg rounded-2xl border border-[#E4E6EB] shadow-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
               <h3 className="font-bold text-sm text-black flex items-center gap-2">
                 <Tag className="w-4 h-4 text-[#0866FF]" />
                 <span>নতুন বিজ্ঞাপন ক্যাম্পেইন যুক্ত করুন</span>
               </h3>
-              <button onClick={() => setShowNewAdModal(false)} className="text-[#65676B] hover:text-black">✕</button>
+              <button onClick={() => setShowNewAdModal(false)} className="text-[#65676B] hover:text-black cursor-pointer">✕</button>
             </div>
 
             <form onSubmit={handleCreateAd} className="space-y-3.5 text-xs">
@@ -1841,22 +2471,22 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
 
               <div>
-                <label className="block font-bold text-black mb-1">বিজ্ঞাপনের প্লেসমেন্ট</label>
+                <label className="block font-bold text-black mb-1">কোথায় বিজ্ঞাপন বসবে (Placement)</label>
                 <select
                   value={newAdPlacement}
                   onChange={(e) => setNewAdPlacement(e.target.value as any)}
                   className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
                 >
                   <option value="home_feed">হোম ফিড স্পন্সরড কার্ড (Home Feed In-Stream)</option>
-                  <option value="reels_preroll">রিলস ও ওয়াচ ভিডিও প্রিরোল (Reels Video Pre-Roll)</option>
+                  <option value="reels_preroll">রিলস ও ওয়াচ ব্যানার (Reels / Watch)</option>
                   <option value="marketplace_top">মার্কেটপ্লেস টপ ব্যানার (Marketplace Top)</option>
-                  <option value="story_ad">স্টোরি ইন্টারস্টিশিয়াল অ্যাড (Story Ad)</option>
+                  <option value="story_ad">স্টোরি ব্যানার অ্যাড (Story Ad)</option>
                 </select>
               </div>
 
               <div className="grid grid-cols-2 gap-2">
                 <div>
-                  <label className="block font-bold text-black mb-1">CPM রেট (প্রতি ১০০০ ভিউ-তে ৳)</label>
+                  <label className="block font-bold text-black mb-1">CPM রেট (৳/1k)</label>
                   <input
                     type="number"
                     value={newAdCpm}
@@ -1865,7 +2495,7 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                   />
                 </div>
                 <div>
-                  <label className="block font-bold text-black mb-1">CPC রেট (প্রতি ক্লিকে ৳)</label>
+                  <label className="block font-bold text-black mb-1">CPC রেট (৳/click)</label>
                   <input
                     type="number"
                     step="0.5"
@@ -1887,6 +2517,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
               </div>
 
               <div>
+                <label className="block font-bold text-black mb-1">ক্লিক লিংক (Target URL)</label>
+                <input
+                  type="url"
+                  value={newAdTargetUrl}
+                  onChange={(e) => setNewAdTargetUrl(e.target.value)}
+                  placeholder="https://..."
+                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                />
+              </div>
+
+              <div>
                 <label className="block font-bold text-black mb-1">বিজ্ঞাপনের সংক্ষিপ্ত বিবরণ</label>
                 <textarea
                   rows={2}
@@ -1901,15 +2542,15 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                 <button
                   type="button"
                   onClick={() => setShowNewAdModal(false)}
-                  className="px-4 py-2 rounded-xl bg-[#E4E6EB] text-black font-bold"
+                  className="px-4 py-2 rounded-xl bg-[#E4E6EB] text-black font-bold cursor-pointer"
                 >
                   বাতিল
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold shadow-sm"
+                  className="px-5 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold shadow-sm cursor-pointer"
                 >
-                  ক্যাম্পেইন সেভ করুন
+                  ক্যাম্পেইন সেভ ও চালু করুন
                 </button>
               </div>
             </form>
