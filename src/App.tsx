@@ -360,6 +360,7 @@ export default function App() {
     return null;
   });
   const [selectedPageIdToOpen, setSelectedPageIdToOpen] = useState<string | null>(null);
+  const [openPageSwitchSheetOnOpen, setOpenPageSwitchSheetOnOpen] = useState(false);
   const [initialCreatePageName, setInitialCreatePageName] = useState<string | null>(null);
 
   const handleCreatePageWithName = (name: string) => {
@@ -2224,6 +2225,11 @@ export default function App() {
             }}
             activeSwitchedPage={activeSwitchedPage}
             onSwitchToPage={handleSwitchToPage}
+            onOpenPageWithSwitch={(page) => {
+              setSelectedPageIdToOpen(page.id);
+              setOpenPageSwitchSheetOnOpen(true);
+              navigateToTab('pages');
+            }}
             onSwitchToPersonal={handleSwitchToPersonal}
             onNavigateTab={navigateToTab}
             onOpenProfile={() => {
@@ -2290,13 +2296,18 @@ export default function App() {
             <FbPagesView
               onBack={() => {
                 setSelectedPageIdToOpen(null);
+                setOpenPageSwitchSheetOnOpen(false);
                 setInitialCreatePageName(null);
                 goBack();
               }}
               userProfile={userProfile}
               onSwitchToPage={handleSwitchToPage}
+              activeSwitchedPageId={activeSwitchedPage?.id || null}
               onBroadcastNotification={addLocalBroadcastNotification}
               initialSelectedPageId={selectedPageIdToOpen}
+              onClearInitialSelectedPageId={() => setSelectedPageIdToOpen(null)}
+              openSwitchSheetOnInitialOpen={openPageSwitchSheetOnOpen}
+              onClearOpenSwitchSheet={() => setOpenPageSwitchSheetOnOpen(false)}
               initialCreatePageName={initialCreatePageName}
               onClearInitialCreatePageName={() => setInitialCreatePageName(null)}
             />

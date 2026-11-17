@@ -105,6 +105,7 @@ interface FbMenuViewProps {
   onBack: () => void;
   onOpenMessenger?: () => void;
   onSwitchToPage?: (page: PageItem) => void;
+  onOpenPageWithSwitch?: (page: PageItem) => void;
   onSwitchToPersonal?: () => void;
   unreadMessagesCount?: number;
   onPublishReel?: (newReel: PostItem) => void;
@@ -129,6 +130,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onBack,
   onOpenMessenger,
   onSwitchToPage,
+  onOpenPageWithSwitch,
   onSwitchToPersonal,
   unreadMessagesCount = 0,
   onPublishReel,
@@ -465,10 +467,16 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             .map((page) => (
               <div
                 key={page.id}
-                onClick={() => setSelectedSwitchPage(page)}
+                onClick={() => {
+                  if (onOpenPageWithSwitch) {
+                    onOpenPageWithSwitch(page);
+                  } else {
+                    setSelectedSwitchPage(page);
+                  }
+                }}
                 className="flex flex-col items-center gap-1.5 cursor-pointer shrink-0 group"
                 style={{ width: '74px' }}
-                title={`${page.name} পেজে সুইচ করুন`}
+                title={`${page.name} পেজ দেখুন ও সুইচ করুন`}
               >
                 <div className="relative w-[68px] h-[68px] rounded-[20px] overflow-hidden bg-[#E4E6EB] shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform flex items-center justify-center">
                   {page.avatar ? (
@@ -1569,7 +1577,11 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         }}
         onViewPageWithoutSwitch={(page) => {
           setSelectedSwitchPage(null);
-          onNavigateTab('pages');
+          if (onOpenPageWithSwitch) {
+            onOpenPageWithSwitch(page);
+          } else {
+            onNavigateTab('pages');
+          }
         }}
       />
 

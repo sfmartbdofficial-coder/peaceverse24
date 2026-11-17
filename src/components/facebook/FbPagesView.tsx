@@ -63,9 +63,13 @@ interface FbPagesViewProps {
   onBack: () => void;
   userProfile?: UserProfile;
   onSwitchToPage?: (page: PageItem) => void;
+  activeSwitchedPageId?: string | null;
   embedded?: boolean;
   onBroadcastNotification?: (notif: NotificationItem) => void;
   initialSelectedPageId?: string | null;
+  onClearInitialSelectedPageId?: () => void;
+  openSwitchSheetOnInitialOpen?: boolean;
+  onClearOpenSwitchSheet?: () => void;
   initialCreatePageName?: string | null;
   onClearInitialCreatePageName?: () => void;
 }
@@ -273,9 +277,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   onBack,
   userProfile,
   onSwitchToPage,
+  activeSwitchedPageId = null,
   embedded = false,
   onBroadcastNotification,
   initialSelectedPageId,
+  onClearInitialSelectedPageId,
+  openSwitchSheetOnInitialOpen = false,
+  onClearOpenSwitchSheet,
   initialCreatePageName,
   onClearInitialCreatePageName,
 }) => {
@@ -352,19 +360,32 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     return pages.find((p) => p.id === initialSelectedPageId) || null;
   });
 
-  useEffect(() => {
-    if (initialSelectedPageId) {
-      const found = pages.find((p) => p.id === initialSelectedPageId);
-      if (found) setSelectedPage(found);
-    }
-  }, [initialSelectedPageId, pages]);
-
   const [pageSearchOpen, setPageSearchOpen] = useState(false);
   const [pageSearchQuery, setPageSearchQuery] = useState('');
 
   // Dedicated Landing Page Creation State
   const [showCreatePageLanding, setShowCreatePageLanding] = useState(Boolean(initialCreatePageName));
-  const [sheetPage, setSheetPage] = useState<PageItem | null>(null);
+  const [sheetPage, setSheetPage] = useState<PageItem | null>(() => {
+    if (!initialSelectedPageId || !openSwitchSheetOnInitialOpen) return null;
+    const found = pages.find((p) => p.id === initialSelectedPageId) || null;
+    if (found && found.id !== activeSwitchedPageId) return found;
+    return null;
+  });
+
+  useEffect(() => {
+    if (initialSelectedPageId) {
+      const found = pages.find((p) => p.id === initialSelectedPageId);
+      if (found) {
+        setSelectedPage(found);
+        if (openSwitchSheetOnInitialOpen) {
+          if (found.id !== activeSwitchedPageId) {
+            setSheetPage(found);
+          }
+          onClearOpenSwitchSheet?.();
+        }
+      }
+    }
+  }, [initialSelectedPageId, pages, openSwitchSheetOnInitialOpen, activeSwitchedPageId]);
 
   useEffect(() => {
     if (initialCreatePageName) {
@@ -730,6 +751,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               setPageSearchOpen(false);
               setPageSearchQuery('');
               setSelectedPage(null);
+              setSheetPage(null);
+              onClearInitialSelectedPageId?.();
             }}
             className="min-w-[44px] min-h-[44px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
             title="Back"
@@ -1871,7 +1894,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   return (
                     <div
                       key={page.id}
-                      onClick={() => setSelectedPage(page)}
+                      onClick={() => {
+                        setSelectedPage(page);
+                        if (page.isOwner && page.id !== activeSwitchedPageId) {
+                          setSheetPage(page);
+                        }
+                      }}
                       className="flex items-center justify-between gap-3 py-1 bg-white hover:bg-[#F7F8FA] rounded-lg transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3 min-w-0">
