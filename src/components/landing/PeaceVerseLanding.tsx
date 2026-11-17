@@ -426,6 +426,42 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             >
               Help
             </button>
+            <a
+              href="#privacy"
+              onClick={(e) => {
+                if (onOpenLegalTab) {
+                  e.preventDefault();
+                  onOpenLegalTab('privacy');
+                  setTimeout(() => {
+                    document.getElementById('privacy-data-deletion')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 120);
+                } else {
+                  e.preventDefault();
+                  setFooterInfoModal('about');
+                }
+              }}
+              className="hover:underline cursor-pointer"
+            >
+              Contact Us (support@peaceverse24.com)
+            </a>
+            <a
+              href="#privacy"
+              onClick={(e) => {
+                if (onOpenLegalTab) {
+                  e.preventDefault();
+                  onOpenLegalTab('privacy');
+                  setTimeout(() => {
+                    document.getElementById('privacy-data-deletion')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                  }, 120);
+                } else {
+                  e.preventDefault();
+                  setFooterInfoModal('about');
+                }
+              }}
+              className="hover:underline cursor-pointer"
+            >
+              Data Deletion Request
+            </a>
             <button
               type="button"
               onClick={() => setShowWorldMapModal(true)}

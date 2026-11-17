@@ -270,20 +270,19 @@ export const LegalModal: React.FC<LegalModalProps> = ({
               {language === 'bn' ? (
                 <div className="space-y-4 text-black">
                   <div>
-                    <h3 className="font-bold text-base text-black">১. আমরা কোন তথ্য সংগ্রহ করি (Information We Collect)</h3>
+                    <h3 className="font-bold text-base text-black">1. Information We Collect (আমরা কোন তথ্য সংগ্রহ করি)</h3>
                     <p className="text-xs text-[#65676B] mt-1">
                       ব্যবহারকারী যখন আমাদের প্ল্যাটফর্মে অ্যাকাউন্ট খোলেন বা ব্যবহার করেন, আমরা শুধুমাত্র প্রয়োজনীয় তথ্য সংগ্রহ করি:
                     </p>
                     <ul className="list-disc pl-5 text-xs text-[#65676B] space-y-1 mt-1.5">
                       <li><strong className="text-black">প্রোফাইল তথ্য:</strong> নাম, ইমেইল ঠিকানা, প্রোফাইল ও কভার ছবি এবং বায়ো।</li>
                       <li><strong className="text-black">ইউজার কনটেন্ট:</strong> আপনার প্রকাশিত পোস্ট, কুরআন আয়াত কার্ড, আপলোডকৃত ফটো এবং কমেন্টসমূহ।</li>
-                      <li><strong className="text-black">মিডিয়া অনুমতি (Permissions):</strong> আপনি যখন নিজস্ব ডিভাইস থেকে ছবি বা ভিডিও আপলোড করতে চান, শুধুমাত্র তখনই আপনার অনুমতিক্রমে ডিভাইস গ্যালারি বা ক্যামেরার অ্যাক্সেস ব্যবহৃত হয়। আমরা ব্যাকগ্রাউন্ডে কোনো ব্যক্তিগত ফাইল স্ক্যান করি না।</li>
                       <li><strong className="text-black">ডিভাইস তথ্য:</strong> অ্যাপের পারফরম্যান্স ও ক্র্যাশ রিপোর্ট বিশ্লেষণের জন্য ডিভাইসের মডেল ও অপারেটিং সিস্টেম ভার্সন।</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-base text-black">২. তথ্যের ব্যবহার (How We Use Information)</h3>
+                    <h3 className="font-bold text-base text-black">2. How We Use (তথ্যের ব্যবহার)</h3>
                     <ul className="list-disc pl-5 text-xs text-[#65676B] space-y-1 mt-1.5">
                       <li>আপনার টাইমলাইনে হালাল ও প্রাসঙ্গিক কনটেন্ট প্রদর্শন করা।</li>
                       <li>ক্রিয়েটরদের মনিটাইজেশন আর্নিং ও ক্যাশআউট সুষ্ঠুভাবে হিসাব ও প্রদান করা।</li>
@@ -292,23 +291,83 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-base text-black">৩. বিজ্ঞাপন ও ট্র্যাকিং (Advertising & Third Parties)</h3>
+                    <h3 className="font-bold text-base text-black">3. Advertising (বিজ্ঞাপন ও ট্র্যাকিং)</h3>
                     <p className="text-xs text-[#65676B] mt-1">
                       আমরা কোনো অনৈতিক বিজ্ঞাপন বা ব্যবহারকারীর সংবেদনশীল দ্বীনি তথ্য তৃতীয় পক্ষের কাছে বিক্রি করি না। শুধুমাত্র ভেরিফাইড হালাল স্পন্সর এবং Google AdMob-এর নীতিমালার অধীনে প্রাসঙ্গিক হালাল প্রচার প্রদর্শিত হয়।
                     </p>
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-base text-black">৪. শিশুদের সুরক্ষা (Children's Privacy - Under 13)</h3>
+                    <h3 className="font-bold text-base text-black">4. Permissions (মিডিয়া ও ডিভাইস অনুমতি)</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      আপনি যখন নিজস্ব ডিভাইস থেকে ছবি বা ভিডিও আপলোড করতে চান, শুধুমাত্র তখনই আপনার অনুমতিক্রমে ডিভাইস গ্যালারি বা ক্যামেরার অ্যাক্সেস ব্যবহৃত হয়। আমরা ব্যাকগ্রাউন্ডে কোনো ব্যক্তিগত ফাইল স্ক্যান করি না।
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">5. Data Security (তথ্য নিরাপত্তা)</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      ব্যবহারকারীর সকল তথ্য আধুনিক TLS/SSL এনক্রিপশনের মাধ্যমে নিরাপদভাবে আদান-প্রদান ও সংরক্ষণ করা হয়।
+                    </p>
+                  </div>
+
+                  <div id="privacy-data-deletion">
+                    <h3 className="font-bold text-base text-black">6. Data Retention &amp; Deletion (ডাটা সংরক্ষণ ও ডিলিট)</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      গুগল প্লে স্টোরের বাধ্যতামূলক নীতি অনুযায়ী যেকোনো ব্যবহারকারী যেকোনো সময় নিজের অ্যাকাউন্ট ও সমস্ত তথ্য সম্পূর্ণ মুছে ফেলতে পারেন। অ্যাকাউন্ট ডিলিট করার নিয়ম:
+                    </p>
+                    <ul className="list-disc pl-5 text-xs text-[#65676B] space-y-1 mt-1.5">
+                      <li>অ্যাপের <strong className="text-black">Settings → Account Deletion</strong> অপশন থেকে সরাসরি অ্যাকাউন্ট ডিলিট করুন।</li>
+                      <li>
+                        অথবা উপরের{' '}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('delete-account')}
+                          className="text-[#0866FF] font-bold hover:underline cursor-pointer"
+                        >
+                          Account Deletion ফর্ম ট্যাবে
+                        </button>{' '}
+                        ক্লিক করে অনলাইনে ডিলিট রিকোয়েস্ট পাঠান।
+                      </li>
+                      <li>
+                        অথবা আপনার নিবন্ধিত ইমেইল থেকে{' '}
+                        <a href="mailto:support@peaceverse24.com" className="text-[#0866FF] font-bold hover:underline">
+                          support@peaceverse24.com
+                        </a>{' '}
+                        ঠিকানায় &quot;Data Deletion Request&quot; লিখে ইমেইল করুন — ৭২ ঘণ্টার মধ্যে সমস্ত ডাটা স্থায়ীভাবে মুছে ফেলা হবে।
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">7. User Rights (ব্যবহারকারীর অধিকার)</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      GDPR ও আন্তর্জাতিক নীতিমালা অনুযায়ী ব্যবহারকারীর যেকোনো সময় নিজস্ব ব্যক্তিগত তথ্য দেখা, সংশোধন করা, এক্সপোর্ট করা বা স্থায়ীভাবে মুছে ফেলার সম্পূর্ণ অধিকার রয়েছে।
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">8. Children&apos;s Privacy (Under 13) (শিশুদের সুরক্ষা)</h3>
                     <p className="text-xs text-[#65676B] mt-1">
                       Peaceverse24.com একটি পারিবারিক ও শিশু-বান্ধব প্ল্যাটফর্ম। আমরা জেনে-বুঝে ১৩ বছরের কম বয়সী শিশুদের ব্যক্তিগত তথ্য সংগ্রহ করি না।
                     </p>
                   </div>
 
-                  <div>
-                    <h3 className="font-bold text-base text-black">৫. ডাটা ডিলিট করার অধিকার (Data Retention & Deletion)</h3>
-                    <p className="text-xs text-[#65676B] mt-1">
-                      গুগল প্লে স্টোরের বাধ্যতামূলক নীতি অনুযায়ী যেকোনো ব্যবহারকারী যেকোনো সময় নিজের অ্যাকাউন্ট ও সমস্ত তথ্য সম্পূর্ণ মুছে ফেলতে পারেন (নিচের &apos;অ্যাকাউন্ট ডিলিট রিকোয়েস্ট&apos; ট্যাবে দেখুন)।
+                  <div className="p-3.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-xs space-y-1">
+                    <p className="font-bold text-black">Contact Us &amp; Data Deletion Support:</p>
+                    <p className="text-[#65676B]">
+                      Email:{' '}
+                      <a href="mailto:support@peaceverse24.com" className="text-[#0866FF] font-semibold hover:underline">
+                        support@peaceverse24.com
+                      </a>{' '}
+                      •{' '}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('delete-account')}
+                        className="text-rose-600 font-semibold hover:underline cursor-pointer"
+                      >
+                        অ্যাকাউন্ট ডিলিট ফর্ম খুলুন →
+                      </button>
                     </p>
                   </div>
                 </div>
@@ -322,14 +381,97 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                     <ul className="list-disc pl-5 text-xs text-[#65676B] space-y-1 mt-1.5">
                       <li><strong className="text-black">Account Information:</strong> Name, email address, profile avatar, and bio details.</li>
                       <li><strong className="text-black">User Content:</strong> Posts, text, comments, and media explicitly uploaded by you.</li>
-                      <li><strong className="text-black">Media & Storage Access:</strong> Device gallery/camera access is requested solely when you choose to attach photos or videos to your posts or stories. No background scanning is ever performed.</li>
+                      <li><strong className="text-black">Device Information:</strong> Device model and operating system version for app performance and crash diagnostics.</li>
                     </ul>
                   </div>
 
                   <div>
-                    <h3 className="font-bold text-base text-black">2. Data Security & GDPR Rights</h3>
+                    <h3 className="font-bold text-base text-black">2. How We Use</h3>
+                    <ul className="list-disc pl-5 text-xs text-[#65676B] space-y-1 mt-1.5">
+                      <li>Display wholesome, family-friendly, and relevant content on your feed.</li>
+                      <li>Accurately calculate and process creator monetization earnings and payouts.</li>
+                      <li>Maintain a safe community environment by preventing spam or harmful content.</li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">3. Advertising</h3>
                     <p className="text-xs text-[#65676B] mt-1">
-                      All data is encrypted in transit using industry-standard TLS/SSL. Users have the complete right to export, rectify, or permanently delete their personal records at any time.
+                      We never sell sensitive user data to third parties. Only verified ethical sponsors and compliant Google AdMob promotions are displayed.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">4. Permissions</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      Device gallery or camera access is requested solely when you choose to attach photos or videos to your posts or stories. No background scanning is ever performed.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">5. Data Security</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      All data is encrypted in transit using industry-standard TLS/SSL security protocols.
+                    </p>
+                  </div>
+
+                  <div id="privacy-data-deletion">
+                    <h3 className="font-bold text-base text-black">6. Data Retention &amp; Deletion</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      In compliance with Google Play Store policies, users can permanently delete their account and personal records at any time:
+                    </p>
+                    <ul className="list-disc pl-5 text-xs text-[#65676B] space-y-1 mt-1.5">
+                      <li>Delete directly inside the app via <strong className="text-black">Settings → Account Deletion</strong>.</li>
+                      <li>
+                        Submit a request online via our{' '}
+                        <button
+                          type="button"
+                          onClick={() => setActiveTab('delete-account')}
+                          className="text-[#0866FF] font-bold hover:underline cursor-pointer"
+                        >
+                          Account Deletion Request Form
+                        </button>
+                        .
+                      </li>
+                      <li>
+                        Or email{' '}
+                        <a href="mailto:support@peaceverse24.com" className="text-[#0866FF] font-bold hover:underline">
+                          support@peaceverse24.com
+                        </a>{' '}
+                        from your registered email with subject &quot;Data Deletion Request&quot; (processed within 72 hours).
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">7. User Rights</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      Under GDPR and international privacy standards, users have the complete right to access, export, rectify, or permanently delete their personal data at any time.
+                    </p>
+                  </div>
+
+                  <div>
+                    <h3 className="font-bold text-base text-black">8. Children&apos;s Privacy (Under 13)</h3>
+                    <p className="text-xs text-[#65676B] mt-1">
+                      Peaceverse24.com is a family-friendly platform. We do not knowingly collect personal information from children under the age of 13.
+                    </p>
+                  </div>
+
+                  <div className="p-3.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-xs space-y-1">
+                    <p className="font-bold text-black">Contact Us &amp; Data Deletion Support:</p>
+                    <p className="text-[#65676B]">
+                      Email:{' '}
+                      <a href="mailto:support@peaceverse24.com" className="text-[#0866FF] font-semibold hover:underline">
+                        support@peaceverse24.com
+                      </a>{' '}
+                      •{' '}
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('delete-account')}
+                        className="text-rose-600 font-semibold hover:underline cursor-pointer"
+                      >
+                        Open Data Deletion Form →
+                      </button>
                     </p>
                   </div>
                 </div>
