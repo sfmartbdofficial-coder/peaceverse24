@@ -242,7 +242,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 pt-1">
               <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-300 px-3 py-1 rounded-full">
                 <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims</span>
+                <span>Peaceverse24.com — World&apos;s Most Peaceful Social Network for 8 Billion People</span>
               </span>
 
               <button
@@ -251,7 +251,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                 className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0866FF] bg-white hover:bg-[#E7F3FF] border border-[#DADDE1] px-3 py-1 rounded-full shadow-xs transition-colors cursor-pointer"
               >
                 <Globe className="w-3.5 h-3.5" />
-                <span>🌍 Live Global Users Map (20+ Countries)</span>
+                <span>🌍 Live Global Users Map (196+ Countries Worldwide)</span>
               </button>
             </div>
           </div>
@@ -435,7 +435,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </button>
           </div>
 
-          <p className="text-[11px] text-[#737373]">Peaceverse24.com — Halal Alternative © 2026</p>
+          <p className="text-[11px] text-[#737373]">Peaceverse24.com — World&apos;s Most Peaceful Social Network © 2026</p>
         </div>
       </footer>
 
@@ -672,10 +672,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
               <div>
                 <h3 className="text-base font-extrabold text-black">
-                  Peaceverse24.com — Global Live Ummah Network
+                  Peaceverse24.com — Live Global Community Network
                 </h3>
                 <p className="text-xs text-[#65676B]">
-                  Connecting 2 Billion Muslims globally across USA, UK, Saudi Arabia, Indonesia, Bangladesh &amp; 20+ nations
+                  Connecting 8 Billion People globally across 196+ Countries Worldwide
                 </p>
               </div>
               <button
@@ -709,7 +709,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </div>
             <p className="text-sm text-[#4B4F56] leading-relaxed">
               {footerInfoModal === 'about'
-                ? 'Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims. Connect worldwide with auto-translated posts, global prayer times, Qibla compass, Peace Mart Global, and halal creator monetization.'
+                ? "Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People. Connect across 196+ countries with auto-translated posts, global prayer times, Qibla compass, Peace Mart Global, and halal creator monetization."
                 : 'Need help logging in or creating an account? Click "Create new account" for instant access, or use "Forgotten password?" to reset your email credentials.'}
             </p>
             <button

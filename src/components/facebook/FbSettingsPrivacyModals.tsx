@@ -1256,7 +1256,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   type="text"
                   value={contactMessenger}
                   onChange={(e) => setContactMessenger(e.target.value)}
-                  placeholder="facebook.com/username"
+                  placeholder="peaceverse24.com/username"
                   className={`w-full ${inputCardCls} focus:border-[#0084FF] rounded-xl px-3.5 py-2.5 text-xs outline-none`}
                 />
               </div>

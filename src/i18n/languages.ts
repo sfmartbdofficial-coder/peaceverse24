@@ -101,7 +101,7 @@ export interface TranslationDictionary {
 export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   bn: {
     appName: 'Peaceverse24.com (পিসভার্স)',
-    tagline: 'Peaceverse24.com - ২ বিলিয়ন মুসলিমের জন্য ফেসবুকের হালাল বিকল্প',
+    tagline: 'Peaceverse24.com — ৮ বিলিয়ন মানুষের জন্য বিশ্বের সবচেয়ে শান্তিপূর্ণ সোশ্যাল নেটওয়ার্ক',
     navHome: 'হোম',
     navWatch: 'ওয়াচ',
     navFriends: 'বন্ধু',
@@ -149,7 +149,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   },
   en: {
     appName: 'Peaceverse24.com',
-    tagline: 'Peaceverse24.com - Halal Alternative to Facebook for 2 Billion Muslims',
+    tagline: "Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People",
     navHome: 'Home',
     navWatch: 'Watch',
     navFriends: 'Friends',
@@ -197,7 +197,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   },
   ar: {
     appName: 'Peaceverse24.com (بيس فيرس)',
-    tagline: 'Peaceverse24.com - البديل الحلال لفيسبوك لـ ٢ مليار مسلم',
+    tagline: 'Peaceverse24.com — أكثر شبكة اجتماعية سلمية في العالم لـ ٨ مليارات إنسان',
     navHome: 'الرئيسية',
     navWatch: 'فيديو',
     navFriends: 'الأصدقاء',
@@ -245,7 +245,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   },
   ur: {
     appName: 'Peaceverse24.com (پیس ورس)',
-    tagline: 'Peaceverse24.com - 2 ارب مسلمانوں کے لیے فیس بک کا حلال متبادل',
+    tagline: 'Peaceverse24.com — 8 ارب لوگوں کے لیے دنیا کا پُرامن ترین سوشل نیٹ ورک',
     navHome: 'ہوم',
     navWatch: 'ویڈیوز',
     navFriends: 'دوست',
@@ -437,7 +437,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   },
   tr: {
     appName: 'Peaceverse24.com',
-    tagline: 'Peaceverse24.com - 2 Milyar Müslüman için Facebook’a Helal Alternatif',
+    tagline: 'Peaceverse24.com — 8 Milyar İnsan İçin Dünyanın En Huzurlu Sosyal Ağı',
     navHome: 'Ana Sayfa',
     navWatch: 'İzle',
     navFriends: 'Arkadaşlar',
@@ -485,7 +485,7 @@ export const TRANSLATIONS: Record<SupportedLanguage, TranslationDictionary> = {
   },
   fr: {
     appName: 'Peaceverse24.com',
-    tagline: "Peaceverse24.com - L'alternative Halal à Facebook pour 2 milliards de musulmans",
+    tagline: 'Peaceverse24.com — Le réseau social le plus paisible au monde pour 8 milliards de personnes',
     navHome: 'Accueil',
     navWatch: 'Vidéos',
     navFriends: 'Amis',

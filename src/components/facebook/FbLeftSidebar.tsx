@@ -115,7 +115,7 @@ export const FbLeftSidebar: React.FC<FbLeftSidebarProps> = ({
           <span>Peaceverse24.com হালাল সোশ্যাল নীতি</span>
         </div>
         <p className="text-[11px] text-[#65676B] leading-relaxed font-bengali">
-          Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims. বাদ্যযন্ত্রমুক্ত ও খাঁটি কুরআন-সুন্নাহর বিশ্বব্যাপী সামাজিক প্ল্যাটফর্ম।
+          Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People. বাদ্যযন্ত্রমুক্ত ও খাঁটি কুরআন-সুন্নাহর বিশ্বব্যাপী সামাজিক প্ল্যাটফর্ম।
         </p>
         <button
           onClick={onOpenHalalPolicy}

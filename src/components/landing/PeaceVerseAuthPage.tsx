@@ -564,7 +564,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
       {/* Footer */}
       <footer className="w-full max-w-md mx-auto text-center text-[11px] text-[#65676B] z-10">
-        <p>© 2024 Peaceverse24.com — Halal Alternative. All rights reserved.</p>
+        <p>© 2026 Peaceverse24.com — World&apos;s Most Peaceful Social Network. All rights reserved.</p>
         <p className="mt-0.5">Secure Firebase Authentication • Privacy Protected</p>
       </footer>
     </div>

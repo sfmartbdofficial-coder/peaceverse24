@@ -695,7 +695,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
                   type="text"
                   value={messengerLink}
                   onChange={(e) => setMessengerLink(e.target.value)}
-                  placeholder="facebook.com/username বা m.me/username"
+                  placeholder="peaceverse24.com/username বা মেসেজ লিংক"
                   className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505] placeholder-[#65676B] outline-none focus:border-[#0866FF]"
                 />
               </div>

@@ -200,6 +200,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const [aiPrompt, setAiPrompt] = useState('');
   const [aiLoading, setAiLoading] = useState(false);
   const [aiResponse, setAiResponse] = useState<string | null>(null);
+  const [lastSubmittedPrompt, setLastSubmittedPrompt] = useState<string | null>(null);
+  const [aiHistory, setAiHistory] = useState<
+    Array<{ id: string; prompt: string; response: string; time: string }>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_admin_ai_history');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
+  });
   const [aiGeneratedPostDraft, setAiGeneratedPostDraft] = useState<{ title: string; content: string } | null>(null);
 
   // New Ad Slot Modal
@@ -454,11 +465,28 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
 
   // AI Assistant Call
   const handleAskAI = async (customPrompt?: string) => {
-    const promptToSend = customPrompt || aiPrompt;
-    if (!promptToSend.trim()) return;
+    const promptToSend = (customPrompt || aiPrompt).trim();
+    if (!promptToSend) return;
 
     setAiLoading(true);
     setAiResponse(null);
+    setLastSubmittedPrompt(promptToSend);
+
+    const recordHistory = (replyText: string) => {
+      const entry = {
+        id: `ai-${Date.now()}`,
+        prompt: promptToSend,
+        response: replyText,
+        time: new Date().toLocaleTimeString('bn-BD', { hour: '2-digit', minute: '2-digit' }),
+      };
+      setAiHistory((prev) => {
+        const next = [entry, ...prev].slice(0, 30);
+        try {
+          localStorage.setItem('peaceverse_admin_ai_history', JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    };
 
     try {
       const res = await fetch('/api/ai/admin-assist', {
@@ -470,27 +498,48 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
       if (!res.ok) throw new Error('API request failed');
 
       const data = await res.json();
-      setAiResponse(data.text || 'কোনো উত্তর পাওয়া যায়নি');
+      const replyText = data.text || 'কোনো উত্তর পাওয়া যায়নি';
+      setAiResponse(replyText);
+      recordHistory(replyText);
 
-      if (promptToSend.includes('পোস্ট') || promptToSend.includes('জুমার') || promptToSend.includes('নোটিশ')) {
+      if (
+        promptToSend.includes('পোস্ট') ||
+        promptToSend.includes('জুমার') ||
+        promptToSend.includes('নোটিশ') ||
+        promptToSend.includes('মেসেজ') ||
+        promptToSend.includes('ওয়েলকাম') ||
+        promptToSend.toLowerCase().includes('welcome')
+      ) {
         setAiGeneratedPostDraft({
           title: 'অ্যাডমিন অফিসিয়াল বার্তা',
-          content: data.text,
+          content: replyText,
         });
       }
     } catch {
-      const fallbackReplies: Record<string, string> = {
-        জুমার: `আলহামদুলিল্লাহ! জুমার দিনের বিশেষ আমলসমূহ:\n\n১. বেশি বেশি দরুদ শরিফ পাঠ করুন।\n২. সূরা আল-কাহাফ তিলাওয়াত করুন।\n৩. উত্তম পোশাক পরিধান ও আতর ব্যবহার করুন।\n৪. খুতবা মনোযোগ সহকারে শ্রবণ করুন।\n\n— Peaceverse24.com এডমিন বার্তা 🕌`,
-        বিজ্ঞাপন: `💡 Peaceverse24.com বিজ্ঞাপন আয় বৃদ্ধির জন্য ৫টি কৌশল:\n\n১. হোম ফিডে প্রতি ৩টি পোস্ট পর পর ১টি ভেরিফাইড হালাল স্পন্সর প্রদর্শন।\n২. রিলস ও ওয়াচ ট্যাবে স্পন্সরশিপ ব্যানার চালু রাখা।\n৩. মার্কেটপ্লেস টপ ব্যানারে হালাল শপগুলোর প্রিমিয়াম স্লট বরাদ্দ।\n৪. স্টোরি বারের নিচে স্পন্সরড হাইলাইট চালু রাখা।\n৫. ক্রিয়েটরদের জন্য ৫৫% স্বচ্ছ রেভিনিউ শেয়ার বজায় রাখা।`,
-      };
+      const qLower = promptToSend.toLowerCase();
+      let fallbackText = '';
 
-      const matched = Object.keys(fallbackReplies).find((k) => promptToSend.includes(k));
-      const fallbackText = matched
-        ? fallbackReplies[matched]
-        : `আলহামদুলিল্লাহ! আপনার অনুরোধটি প্রসেস করা হয়েছে। Peaceverse24.com প্ল্যাটফর্ম ১০০% হালাল গাইডলাইন বজায় রেখে পরিচালিত হচ্ছে।`;
+      if (promptToSend.includes('ওয়েলকাম') || promptToSend.includes('স্বাগত') || qLower.includes('welcome')) {
+        fallbackText = `আসসালামু আলাইকুম ওয়া রাহমাতুল্লাহ! 🌙✨\n\nPeaceverse24.com পরিবারের পক্ষ থেকে আপনাকে আন্তরিক স্বাগতম (Welcome)!\n\n✅ এখানে আপনি পাচ্ছেন:\n• ১০০% হালাল ও শালীন সামাজিক যোগাযোগ মাধ্যম\n• গ্লোবাল নামাজের সময়সূচী, কুরআন ও কিবলা কম্পাস\n• পেইজ তৈরি ও শরিয়াহ সম্মত ক্রিয়েটর মনিটাইজেশন\n• হালাল মার্কেটপ্লেস ও বিশ্বব্যাপী উম্মাহর সাথে সংযোগ\n\nআপনার সুন্দর ও কল্যাণকর কনটেন্ট শেয়ার করে আমাদের সাথেই থাকুন। জাজাকাল্লাহু খাইরান! 🤍`;
+      } else if (promptToSend.includes('জুমার')) {
+        fallbackText = `আলহামদুলিল্লাহ! জুমার দিনের বিশেষ আমলসমূহ:\n\n১. বেশি বেশি দরুদ শরিফ পাঠ করুন।\n২. সূরা আল-কাহাফ তিলাওয়াত করুন।\n৩. উত্তম পোশাক পরিধান ও আতর ব্যবহার করুন।\n৪. খুতবা মনোযোগ সহকারে শ্রবণ করুন।\n\n— Peaceverse24.com এডমিন বার্তা 🕌`;
+      } else if (promptToSend.includes('বিজ্ঞাপন')) {
+        fallbackText = `💡 Peaceverse24.com বিজ্ঞাপন আয় বৃদ্ধির জন্য ৫টি কৌশল:\n\n১. হোম ফিডে প্রতি ৩টি পোস্ট পর পর ১টি ভেরিফাইড হালাল স্পন্সর প্রদর্শন।\n২. রিলস ও ওয়াচ ট্যাবে স্পন্সরশিপ ব্যানার চালু রাখা।\n৩. মার্কেটপ্লেস টপ ব্যানারে হালাল শপগুলোর প্রিমিয়াম স্লট বরাদ্দ।\n৪. স্টোরি বারের নিচে স্পন্সরড হাইলাইট চালু রাখা।\n৫. ক্রিয়েটরদের জন্য ৫৫% স্বচ্ছ রেভিনিউ শেয়ার বজায় রাখা।`;
+      } else if (promptToSend.includes('মনিটাইজেশন') || promptToSend.includes('আয়')) {
+        fallbackText = `💰 Peaceverse24.com পেইজ ও ক্রিয়েটর মনিটাইজেশন গাইড:\n\n১. পেইজে নিয়মিত মানসম্মত, অরিজিনাল ও হালাল ভিডিও/পোস্ট আপলোড করুন।\n২. ৫,০০০ ফলোয়ার্স পূর্ণ হলে অ্যাডমিন প্যানেল থেকে মনিটাইজেশন চালু করে দেওয়া হয়।\n৩. আয়ের ৫৫% ক্রিয়েটর পাবেন এবং বিকাশ/নগদ/ব্যাংক/PayPal-এর মাধ্যমে পেআউট নিতে পারবেন।`;
+      } else {
+        fallbackText = `আলহামদুলিল্লাহ! আপনার লেখা ("${promptToSend}") গ্রহণ করা হয়েছে।\n\nPeaceverse24.com অ্যাডমিন প্যানেল থেকে আপনি সরাসরি ইউজার কন্ট্রোল, পেইজ মনিটাইজেশন, বিজ্ঞাপন প্লেসমেন্ট এবং ব্রডকাস্ট নোটিফিকেশন পরিচালনা করতে পারবেন।`;
+      }
 
       setAiResponse(fallbackText);
-      if (promptToSend.includes('পোস্ট') || promptToSend.includes('জুমার')) {
+      recordHistory(fallbackText);
+      if (
+        promptToSend.includes('পোস্ট') ||
+        promptToSend.includes('জুমার') ||
+        promptToSend.includes('মেসেজ') ||
+        promptToSend.includes('ওয়েলকাম') ||
+        qLower.includes('welcome')
+      ) {
         setAiGeneratedPostDraft({
           title: 'অ্যাডমিন অফিসিয়াল বার্তা',
           content: fallbackText,
@@ -2172,86 +2221,178 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
         {/* TAB 9: AI ADMIN ASSISTANT */}
         {/* ------------------------------------------------------------- */}
         {activeTab === 'ai' && (
-          <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E4E6EB] space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-700 flex items-center justify-center text-white">
-                <Bot className="w-7 h-7" />
+          <div className="space-y-5">
+            <div className="bg-white p-5 sm:p-6 rounded-3xl border border-[#E4E6EB] space-y-4">
+              <div className="flex items-center gap-3">
+                <div className="w-12 h-12 rounded-2xl bg-gradient-to-tr from-emerald-500 to-teal-700 flex items-center justify-center text-white shrink-0">
+                  <Bot className="w-7 h-7" />
+                </div>
+                <div>
+                  <h2 className="text-base font-bold text-black">Gemini AI এডমিন সহকারী</h2>
+                  <p className="text-xs text-[#65676B]">
+                    আপনার প্রশ্ন, ওয়েলকাম মেসেজ, নোটিশ বা নির্দেশনা নিচের বড় ঘরে লিখুন
+                  </p>
+                </div>
               </div>
-              <div>
-                <h2 className="text-base font-bold text-black">Gemini AI এডমিন সহকারী</h2>
-                <p className="text-xs text-[#65676B]">
-                  কনটেন্ট তৈরি, হালাল মডারেশন ও বিজ্ঞাপন রাজস্ব অপ্টিমাইজেশন
-                </p>
-              </div>
-            </div>
 
-            <div className="flex flex-wrap gap-2">
-              {[
-                '🕌 জুমার দিনের বিশেষ নোটিশ পোস্ট ড্রাফট করুন',
-                '📈 বিজ্ঞাপন আয় বাড়ানোর কৌশল বলুন',
-                '📜 ক্রিয়েটর ও পেইজ মনিটাইজেশন গাইড তৈরি করুন',
-              ].map((preset, idx) => (
-                <button
-                  key={idx}
-                  onClick={() => handleAskAI(preset)}
-                  disabled={aiLoading}
-                  className="px-3 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-[#E4E6EB] text-xs font-medium text-black cursor-pointer"
-                >
-                  {preset}
-                </button>
-              ))}
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                type="text"
-                placeholder="এআই-কে আপনার নির্দেশ দিন..."
-                value={aiPrompt}
-                onChange={(e) => setAiPrompt(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === 'Enter') handleAskAI();
-                }}
-                className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-4 py-3 text-xs text-black focus:outline-none focus:border-emerald-600 focus:bg-white"
-              />
-              <button
-                onClick={() => handleAskAI()}
-                disabled={aiLoading || !aiPrompt.trim()}
-                className="px-5 py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-xs flex items-center gap-2 cursor-pointer"
-              >
-                {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
-                <span>{aiLoading ? 'জেনারেট হচ্ছে...' : 'পাঠান'}</span>
-              </button>
-            </div>
-
-            {aiResponse && (
-              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-3">
-                <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
-                  <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
-                    <Sparkles className="w-4 h-4" /> এআই ফলাফল:
-                  </span>
+              <div className="flex flex-wrap gap-2">
+                {[
+                  '✨ নতুন ইউজারদের জন্য ওয়েলকাম মেসেজ লিখে দিন',
+                  '🕌 জুমার দিনের বিশেষ নোটিশ পোস্ট ড্রাফট করুন',
+                  '📈 বিজ্ঞাপন আয় বাড়ানোর কৌশল বলুন',
+                  '📜 ক্রিয়েটর ও পেইজ মনিটাইজেশন গাইড তৈরি করুন',
+                ].map((preset, idx) => (
                   <button
+                    key={idx}
                     onClick={() => {
-                      navigator.clipboard.writeText(aiResponse);
-                      showToast('টেক্সট কপি করা হয়েছে!');
+                      setAiPrompt(preset);
+                      handleAskAI(preset);
                     }}
-                    className="text-xs font-bold text-[#65676B] hover:text-black cursor-pointer"
+                    disabled={aiLoading}
+                    className="px-3 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-[#E4E6EB] text-xs font-medium text-black cursor-pointer text-left"
                   >
-                    কপি করুন
+                    {preset}
+                  </button>
+                ))}
+              </div>
+
+              {/* Spacious Multi-Line Prompt Input Box */}
+              <div className="space-y-2.5">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-black">
+                    আপনার কথা / প্রশ্ন / নির্দেশ এখানে বিস্তারিত লিখুন:
+                  </label>
+                  <span className="text-[11px] text-[#65676B]">
+                    {aiPrompt.length} অক্ষর
+                  </span>
+                </div>
+                <textarea
+                  rows={5}
+                  placeholder="এখানে আপনার সমস্ত কথা, প্রশ্ন বা যেকোনো মেসেজ বিস্তারিত লিখুন... (লেখা বড় হলেও সম্পূর্ণ দেখা যাবে)"
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  className="w-full min-h-[140px] bg-[#F0F2F5] border-2 border-[#E4E6EB] rounded-2xl p-4 text-sm text-black leading-relaxed placeholder-[#65676B] focus:outline-none focus:border-emerald-600 focus:bg-white resize-y"
+                />
+                <div className="flex items-center justify-between gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setAiPrompt('')}
+                    disabled={!aiPrompt}
+                    className="px-4 py-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] disabled:opacity-40 text-black font-bold text-xs cursor-pointer"
+                  >
+                    লেখা মুছুন (Clear)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleAskAI()}
+                    disabled={aiLoading || !aiPrompt.trim()}
+                    className="px-6 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-bold text-sm flex items-center gap-2 cursor-pointer shadow-sm"
+                  >
+                    {aiLoading ? <RefreshCw className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+                    <span>{aiLoading ? 'জেনারেট হচ্ছে...' : 'পাঠান (Send)'}</span>
                   </button>
                 </div>
-                <p className="text-xs text-black leading-relaxed whitespace-pre-wrap">{aiResponse}</p>
-                {aiGeneratedPostDraft && (
-                  <div className="pt-2 flex items-center justify-between border-t border-emerald-200">
-                    <span className="text-[11px] text-[#65676B]">পোস্টটি ফিডে প্রকাশ করতে চান?</span>
+              </div>
+
+              {/* Latest AI Result with Submitted Prompt Echo */}
+              {aiResponse && (
+                <div className="p-4 rounded-2xl bg-emerald-50/70 border border-emerald-200 space-y-3">
+                  {lastSubmittedPrompt && (
+                    <div className="bg-white/90 p-3 rounded-xl border border-emerald-200/80">
+                      <span className="text-[10px] font-bold text-[#65676B] block mb-1">
+                        আপনি যা লিখেছিলেন:
+                      </span>
+                      <p className="text-xs text-black whitespace-pre-wrap leading-relaxed">
+                        {lastSubmittedPrompt}
+                      </p>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between border-b border-emerald-200 pb-2">
+                    <span className="text-xs font-bold text-emerald-700 flex items-center gap-1.5">
+                      <Sparkles className="w-4 h-4" /> এআই ফলাফল:
+                    </span>
                     <button
-                      onClick={handlePublishAIDraftToFeed}
-                      className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                      type="button"
+                      onClick={() => {
+                        navigator.clipboard.writeText(aiResponse);
+                        showToast('টেক্সট কপি করা হয়েছে!');
+                      }}
+                      className="text-xs font-bold text-[#0866FF] hover:underline cursor-pointer"
                     >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>ফিডে প্রকাশ করুন</span>
+                      কপি করুন
                     </button>
                   </div>
-                )}
+                  <p className="text-sm text-black leading-relaxed whitespace-pre-wrap">{aiResponse}</p>
+                  {aiGeneratedPostDraft && (
+                    <div className="pt-2 flex items-center justify-between border-t border-emerald-200">
+                      <span className="text-[11px] text-[#65676B]">পোস্টটি ফিডে প্রকাশ করতে চান?</span>
+                      <button
+                        type="button"
+                        onClick={handlePublishAIDraftToFeed}
+                        className="px-4 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer"
+                      >
+                        <Send className="w-3.5 h-3.5" />
+                        <span>ফিডে প্রকাশ করুন</span>
+                      </button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Saved History of Everything Asked & Answered */}
+            {aiHistory.length > 0 && (
+              <div className="bg-white p-5 rounded-3xl border border-[#E4E6EB] space-y-3">
+                <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-2.5">
+                  <h3 className="text-sm font-bold text-black">
+                    আপনার পূর্বের সমস্ত কথা ও উত্তর ({aiHistory.length})
+                  </h3>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAiHistory([]);
+                      try {
+                        localStorage.removeItem('peaceverse_admin_ai_history');
+                      } catch {}
+                      showToast('হিস্ট্রি মুছে ফেলা হয়েছে');
+                    }}
+                    className="text-xs font-bold text-rose-600 hover:underline cursor-pointer"
+                  >
+                    হিস্ট্রি মুছুন
+                  </button>
+                </div>
+
+                <div className="space-y-3 max-h-[420px] overflow-y-auto pr-1">
+                  {aiHistory.map((item) => (
+                    <div
+                      key={item.id}
+                      className="p-3.5 rounded-2xl bg-[#F0F2F5] border border-[#E4E6EB] space-y-2 text-xs"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="font-bold text-[#0866FF]">আপনার লেখা ({item.time}):</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setAiPrompt(item.prompt);
+                            window.scrollTo({ top: 0, behavior: 'smooth' });
+                          }}
+                          className="text-[11px] font-bold text-[#0866FF] hover:underline cursor-pointer"
+                        >
+                          আবার বক্সে আনুন ↑
+                        </button>
+                      </div>
+                      <p className="text-black bg-white p-2.5 rounded-xl border border-[#E4E6EB] whitespace-pre-wrap leading-relaxed">
+                        {item.prompt}
+                      </p>
+                      <div className="pt-1">
+                        <span className="font-bold text-emerald-700 block mb-1">এআই উত্তর:</span>
+                        <p className="text-[#050505] whitespace-pre-wrap leading-relaxed">
+                          {item.response}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
               </div>
             )}
           </div>

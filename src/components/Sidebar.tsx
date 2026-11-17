@@ -301,7 +301,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
           {/* Footer Info */}
           <div className="px-3 py-2 text-[10px] text-[#65676B] space-y-1">
-            <p>Peaceverse24.com — Halal Alternative.</p>
+            <p>Peaceverse24.com — World&apos;s Most Peaceful Social Network.</p>
             <p>© 2026 Peaceverse24.com. শান্তি ও বরকতময় প্ল্যাটফর্ম।</p>
           </div>
         </div>

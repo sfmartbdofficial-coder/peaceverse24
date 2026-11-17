@@ -61,8 +61,8 @@ export const GlobalWorldMap: React.FC<GlobalWorldMapProps> = ({
           <Globe className="w-4 h-4 text-sky-400" />
           <h3 className="text-xs sm:text-sm font-bold text-white">
             {mode === 'creator'
-              ? 'Global Ummah Reach & Hadiya Map (20 Countries)'
-              : 'Live Global Community Map · 2 Billion Muslims Connected'}
+              ? 'Global Community Reach & Hadiya Map (196+ Countries Worldwide)'
+              : 'Live Global Users Map (196+ Countries Worldwide) · 8 Billion People'}
           </h3>
         </div>
 

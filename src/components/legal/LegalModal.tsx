@@ -212,7 +212,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                   <div className="space-y-2 pt-2">
                     <h3 className="text-base font-bold text-black">২. টেকনিক্যাল স্পেসিফিকেশন ও রিলিজ</h3>
                     <div className="bg-[#F0F2F5] p-4 rounded-xl border border-[#E4E6EB] space-y-1 text-xs font-mono text-black">
-                      <p><span className="text-[#65676B]">App Name:</span> Peaceverse24.com — Halal Alternative</p>
+                      <p><span className="text-[#65676B]">App Name:</span> Peaceverse24.com — Peaceful Global Social Network</p>
                       <p><span className="text-[#65676B]">Version:</span> v1.0 Global Launch (Global Play Store Release)</p>
                       <p><span className="text-[#65676B]">Target Platform:</span> Web, Android (PWA / TWA), iOS</p>
                       <p><span className="text-[#65676B]">Engine:</span> React 19, TypeScript, Tailwind CSS, Express</p>
@@ -560,7 +560,7 @@ export const LegalModal: React.FC<LegalModalProps> = ({
 
         {/* Modal Footer */}
         <div className="px-4 sm:px-6 py-3 border-t border-[#E4E6EB] bg-white flex items-center justify-between text-xs text-[#65676B]">
-          <p>© 2026 Peaceverse24.com — Halal Alternative. All rights reserved.</p>
+          <p>© 2026 Peaceverse24.com — World&apos;s Most Peaceful Social Network. All rights reserved.</p>
           <button
             onClick={onClose}
             className="px-4 py-1.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] font-bold text-black transition-colors cursor-pointer"

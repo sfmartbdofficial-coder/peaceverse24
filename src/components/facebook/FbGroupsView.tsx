@@ -204,7 +204,7 @@ const INITIAL_ACTIVITY_CARDS: ActivityCardItem[] = [
     groupName: 'SF Mart BD Family',
     image:
       'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=700&q=80',
-    snippet: 'বড় ঘোষণা! আমাদের অফিসিয়াল ফেসবুক গ্রুপ চালু হয়েছে ❤️',
+    snippet: 'বড় ঘোষণা! আমাদের অফিসিয়াল Peaceverse24 গ্রুপ চালু হয়েছে ❤️',
     countLabel: '0/2',
   },
   {

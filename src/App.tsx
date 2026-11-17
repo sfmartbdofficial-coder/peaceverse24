@@ -1904,7 +1904,7 @@ export default function App() {
                             : 'Global Prayer Times'}
                         </p>
                         <p className="text-[10px] text-[#65676B] truncate">
-                          Peaceverse24.com — Halal Alternative to Facebook for 2 Billion Muslims
+                          Peaceverse24.com — World&apos;s Most Peaceful Social Network for 8 Billion People
                         </p>
                       </div>
                     </div>
