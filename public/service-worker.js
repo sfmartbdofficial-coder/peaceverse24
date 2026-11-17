@@ -1,12 +1,10 @@
 /* Peaceverse24 Offline Caching + Firebase Cloud Messaging & Instant Push Service Worker */
 
-const STATIC_CACHE = 'peaceverse24-shell-v2';
-const RUNTIME_CACHE = 'peaceverse24-runtime-v2';
+const STATIC_CACHE = 'peaceverse24-shell-v4';
+const RUNTIME_CACHE = 'peaceverse24-runtime-v4';
 const ACTIVE_CACHES = [STATIC_CACHE, RUNTIME_CACHE];
 
 const SHELL_ASSETS = [
-  '/',
-  '/index.html',
   '/manifest.json',
   '/icon-192.png',
   '/icon-512.png',
@@ -58,7 +56,7 @@ try {
   // Fallback seamlessly to native Web Push API events below
 }
 
-// Install: precache essential app shell files for offline launch
+// Install: precache essential static icons/manifest & activate immediately
 self.addEventListener('install', (event) => {
   event.waitUntil(
     caches
@@ -93,7 +91,7 @@ self.addEventListener('activate', (event) => {
   );
 });
 
-// Fetch: offline-capable caching for app shell & static assets
+// Fetch: always fetch fresh HTML (no-store) for navigations, bypass SW cache for /admin
 self.addEventListener('fetch', (event) => {
   const { request } = event;
   if (request.method !== 'GET') return;
@@ -106,12 +104,12 @@ self.addEventListener('fetch', (event) => {
   if (url.pathname.startsWith('/api/')) return;
   if (url.pathname.includes('/@vite/') || url.pathname.includes('__vite')) return;
 
-  // Navigation requests (SPA pages): Network-first with cached app shell fallback
+  // Navigation requests (SPA pages): Always bypass HTTP cache to pick up new deployments immediately
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
+      fetch(new Request(request.url, { cache: 'no-store' }))
         .then((response) => {
-          if (response && response.ok) {
+          if (response && response.ok && !url.pathname.startsWith('/admin')) {
             const copy = response.clone();
             caches.open(STATIC_CACHE).then((cache) => cache.put('/index.html', copy)).catch(() => {});
           }
@@ -131,7 +129,7 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin static assets (JS, CSS, images, fonts, manifest): Stale-While-Revalidate
+  // Same-origin hashed assets & icons: Stale-While-Revalidate
   const isStaticDestination =
     ['script', 'style', 'image', 'font', 'manifest'].includes(request.destination) ||
     url.pathname.startsWith('/assets/') ||

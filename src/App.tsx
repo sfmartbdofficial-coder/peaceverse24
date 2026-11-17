@@ -531,9 +531,9 @@ export default function App() {
             website: prev.website || remote.website || '',
           }));
         });
-        // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/"
+        // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/" (unless opening Admin Panel)
         const path = window.location.pathname;
-        if (path === '/' || path === '') {
+        if (!checkIsAdmin() && (path === '/' || path === '')) {
           navigateToPath('/home');
         }
       } else {
