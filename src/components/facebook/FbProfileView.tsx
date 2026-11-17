@@ -47,6 +47,10 @@ import {
   openDeepLinkWithFallback,
   normalizePhoneNumber,
 } from '../../utils/contactLinks';
+import {
+  subscribeToUserFriendsFromFirestore,
+  UserFriendItem,
+} from '../../lib/firebase';
 
 interface FbProfileViewProps {
   userProfile: UserProfile;
@@ -148,6 +152,32 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       return false;
     }
   });
+
+  const [realFriendsCount, setRealFriendsCount] = useState<number>(0);
+  const [realFriends, setRealFriends] = useState<UserFriendItem[]>([]);
+  const [realFriendsLoaded, setRealFriendsLoaded] = useState<boolean>(false);
+
+  React.useEffect(() => {
+    const targetUserId =
+      activeProfile.id &&
+      activeProfile.id !== 'user-me' &&
+      !activeProfile.id.startsWith('author-')
+        ? activeProfile.id
+        : '';
+    if (!targetUserId) {
+      setRealFriendsCount(0);
+      setRealFriends([]);
+      setRealFriendsLoaded(true);
+      return;
+    }
+    setRealFriendsLoaded(false);
+    const unsub = subscribeToUserFriendsFromFirestore(targetUserId, ({ count, friends }) => {
+      setRealFriendsCount(count);
+      setRealFriends(friends);
+      setRealFriendsLoaded(true);
+    });
+    return () => unsub();
+  }, [activeProfile.id]);
 
   React.useEffect(() => {
     const handleLockChange = () => {
@@ -346,20 +376,46 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             )}
           </div>
 
-          {/* Below "331 friends" 14px grey */}
-          <p className="text-[14px] text-[#65676B] font-normal">
-            {activeProfile.friendsCount || 331} friends
-          </p>
+          {/* Real Firestore friends count from users/{userId}/friends */}
+          {(() => {
+            const count = realFriendsLoaded
+              ? realFriendsCount
+              : typeof activeProfile.friendsCount === 'number' &&
+                activeProfile.friendsCount !== 331 &&
+                activeProfile.friendsCount !== 330
+              ? activeProfile.friendsCount
+              : 0;
+            return (
+              <p className="text-[14px] text-[#65676B] font-normal">
+                {count === 0 ? '0 friends' : count === 1 ? '1 friend' : `${count} friends`}
+              </p>
+            );
+          })()}
 
-          {/* Below that: show 3 friend avatars overlapping, then text "Friends with things in common" grey 13px */}
-          <div className="flex items-center justify-center gap-2 pt-1">
-            <div className="flex -space-x-2 overflow-hidden">
-              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover" src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=80&q=80" alt="Friend 1" />
-              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover" src="https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80" alt="Friend 2" />
-              <img className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover" src="https://images.unsplash.com/photo-1494790108377-be9c29b29330?auto=format&fit=crop&w=80&q=80" alt="Friend 3" />
+          {/* Show friend avatars only when real friend documents exist */}
+          {realFriends.length > 0 && (
+            <div className="flex items-center justify-center gap-2 pt-1">
+              <div className="flex -space-x-2 overflow-hidden">
+                {realFriends.slice(0, 3).map((friend) =>
+                  friend.avatar ? (
+                    <img
+                      key={friend.id}
+                      className="inline-block h-6 w-6 rounded-full ring-2 ring-white object-cover"
+                      src={friend.avatar}
+                      alt={friend.name}
+                    />
+                  ) : (
+                    <span
+                      key={friend.id}
+                      className="inline-flex h-6 w-6 rounded-full ring-2 ring-white bg-[#E4E6EB] text-[#050505] text-[10px] font-bold items-center justify-center"
+                    >
+                      {friend.name.charAt(0).toUpperCase()}
+                    </span>
+                  )
+                )}
+              </div>
             </div>
-            <span className="text-[13px] text-[#65676B]">Friends with things in common</span>
-          </div>
+          )}
         </div>
 
         {/* Two buttons */}

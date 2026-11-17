@@ -105,6 +105,7 @@ import {
   fetchSentFriendRequestIds,
   sendFriendRequestToUser,
   cancelFriendRequestToUser,
+  fetchUserFriendsFromFirestore,
   logUserActivity,
 } from './lib/firebase';
 import { SearchedUserProfile } from './types';
@@ -497,7 +498,12 @@ export default function App() {
           name: resolvedName,
           email: usr.email || prev.email,
           avatar: resolvedAvatar,
-          friendsCount: prev.friendsCount || 0,
+          friendsCount:
+            prev.id === usr.uid
+              ? prev.friendsCount === 330 || prev.friendsCount === 331
+                ? 0
+                : prev.friendsCount || 0
+              : 0,
           location: prev.location || '',
           hometown: prev.hometown || '',
           birthDate: prev.birthDate || '',
@@ -505,6 +511,11 @@ export default function App() {
         }));
 
         syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar);
+        fetchUserFriendsFromFirestore(usr.uid).then(({ count }) => {
+          setUserProfile((prev) =>
+            prev.id === usr.uid ? { ...prev, friendsCount: count } : prev
+          );
+        });
         fetchSentFriendRequestIds(usr.uid).then((ids) => {
           if (ids.length === 0) return;
           setSentFriendRequests((prev) => {
@@ -2041,7 +2052,7 @@ export default function App() {
                                 name: authorName,
                                 avatar: post.author.avatar,
                                 coverPhoto: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                                friendsCount: 245,
+                                friendsCount: 0,
                                 location: 'Dhaka, Bangladesh',
                                 hometown: 'Bangladesh',
                                 birthDate: '1994',

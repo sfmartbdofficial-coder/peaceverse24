@@ -928,6 +928,7 @@ export async function registerWithEmail(
           displayName: cleanName,
           username: generatedUsername,
           email: res.user.email,
+          friendsCount: 0,
           avatar:
             res.user.photoURL ||
             `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=1877f2,0ea5e9,3b82f6`,
@@ -1034,6 +1035,7 @@ export async function fetchUserProfileFromFirestore(uid: string): Promise<Partia
       viber: data.viber,
       messengerLink: data.messengerLink,
       contactPrivacy: data.contactPrivacy || 'public',
+      friendsCount: typeof data.friendsCount === 'number' ? data.friendsCount : 0,
       hobbies: Array.isArray(data.hobbies) ? data.hobbies : undefined,
     };
   } catch (err: any) {
@@ -1412,6 +1414,7 @@ export async function syncUserDirectoryProfile(
         name: existingData?.name || existingData?.displayName || displayName.trim(),
         username: derivedUsername,
         avatar: existingData?.avatar || existingData?.photoURL || avatar,
+        ...(existingData?.friendsCount === undefined ? { friendsCount: 0 } : {}),
         ...(email && !existingData?.email ? { email } : {}),
         updatedAt: new Date().toISOString(),
       },
@@ -1600,6 +1603,72 @@ export async function cancelFriendRequestToUser(
       handleFirestoreError(err, OperationType.DELETE, `follows/${followDocId}`);
     }
     return false;
+  }
+}
+
+export interface UserFriendItem {
+  id: string;
+  name: string;
+  avatar: string;
+}
+
+export async function fetchUserFriendsFromFirestore(
+  userId: string
+): Promise<{ count: number; friends: UserFriendItem[] }> {
+  if (!userId) return { count: 0, friends: [] };
+  try {
+    const friendsRef = collection(db, 'users', userId, 'friends');
+    const snap = await getDocs(friendsRef);
+    const friends = snap.docs.map((d) => {
+      const data = d.data();
+      return {
+        id: d.id,
+        name: String(data.name || data.displayName || 'Friend'),
+        avatar: String(data.avatar || data.photoURL || ''),
+      };
+    });
+    return {
+      count: snap.size,
+      friends,
+    };
+  } catch (err: any) {
+    if (!isOfflineOrUnavailableError(err) && err?.code !== 'permission-denied') {
+      console.warn('Notice fetching user friends:', err);
+    }
+    return { count: 0, friends: [] };
+  }
+}
+
+export function subscribeToUserFriendsFromFirestore(
+  userId: string,
+  onUpdate: (data: { count: number; friends: UserFriendItem[] }) => void
+): () => void {
+  if (!userId) {
+    onUpdate({ count: 0, friends: [] });
+    return () => {};
+  }
+  try {
+    const friendsRef = collection(db, 'users', userId, 'friends');
+    return onSnapshot(
+      friendsRef,
+      (snap) => {
+        const friends = snap.docs.map((d) => {
+          const data = d.data();
+          return {
+            id: d.id,
+            name: String(data.name || data.displayName || 'Friend'),
+            avatar: String(data.avatar || data.photoURL || ''),
+          };
+        });
+        onUpdate({ count: snap.size, friends });
+      },
+      () => {
+        onUpdate({ count: 0, friends: [] });
+      }
+    );
+  } catch {
+    onUpdate({ count: 0, friends: [] });
+    return () => {};
   }
 }
 
