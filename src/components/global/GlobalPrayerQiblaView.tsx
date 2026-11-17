@@ -20,6 +20,8 @@ import {
   detectUserGlobalCity,
   fetchPrayerTimesForCity,
   getDailyQuranVerse,
+  formatPrayerTime12h,
+  inferSchoolForRegion,
 } from '../../lib/globalPrayer';
 import { useLanguage } from '../../context/LanguageContext';
 
@@ -90,6 +92,7 @@ export const GlobalPrayerQiblaView: React.FC<GlobalPrayerQiblaViewProps> = ({ on
     setSelectedCity(city);
     setGpsStatus('');
     try {
+      localStorage.removeItem('peaceworld_custom_city');
       localStorage.setItem('peaceworld_selected_city', city.id);
     } catch {}
   };
@@ -104,7 +107,9 @@ export const GlobalPrayerQiblaView: React.FC<GlobalPrayerQiblaViewProps> = ({ on
       (pos) => {
         const lat = Math.round(pos.coords.latitude * 10000) / 10000;
         const lng = Math.round(pos.coords.longitude * 10000) / 10000;
-        setSelectedCity({
+        const tz = Intl.DateTimeFormat().resolvedOptions().timeZone || '';
+        const school = inferSchoolForRegion(undefined, tz);
+        const gpsCity: GlobalCity = {
           id: 'gps-live',
           city: `My Location (${lat.toFixed(2)}°, ${lng.toFixed(2)}°)`,
           country: 'GPS Detected',
@@ -112,9 +117,15 @@ export const GlobalPrayerQiblaView: React.FC<GlobalPrayerQiblaViewProps> = ({ on
           flag: '📍',
           lat,
           lng,
-          timezoneOffsetHours: Math.round(-new Date().getTimezoneOffset() / 60),
-          method: 3,
-        });
+          timezoneOffsetHours: -new Date().getTimezoneOffset() / 60,
+          method: school === 1 ? 1 : 3,
+          school,
+        };
+        setSelectedCity(gpsCity);
+        try {
+          localStorage.setItem('peaceworld_custom_city', JSON.stringify(gpsCity));
+          localStorage.removeItem('peaceworld_selected_city');
+        } catch {}
         setGpsStatus('Exact GPS coordinates active');
       },
       () => {
@@ -362,7 +373,9 @@ export const GlobalPrayerQiblaView: React.FC<GlobalPrayerQiblaViewProps> = ({ on
                   <span className="text-base font-black">{schedule.nextPrayer.name}</span>
                 </div>
                 <div className="text-right tabular-nums">
-                  <span className="text-lg font-black block leading-tight">{schedule.nextPrayer.time}</span>
+                  <span className="text-lg font-black block leading-tight">
+                    {formatPrayerTime12h(schedule.nextPrayer.time)}
+                  </span>
                   <span className="text-[11px] opacity-90">in {schedule.nextPrayer.remainingText}</span>
                 </div>
               </div>
@@ -381,7 +394,7 @@ export const GlobalPrayerQiblaView: React.FC<GlobalPrayerQiblaViewProps> = ({ on
                     }`}
                   >
                     <span>{row.label}</span>
-                    <span className="font-mono font-bold tabular-nums">{row.time}</span>
+                    <span className="font-mono font-bold tabular-nums">{formatPrayerTime12h(row.time)}</span>
                   </div>
                 );
               })}

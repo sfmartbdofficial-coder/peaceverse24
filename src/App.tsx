@@ -80,6 +80,7 @@ import {
   fetchPrayerTimesForCity,
   getCachedOrFallbackPrayerSchedule,
   getDailyQuranVerse,
+  formatPrayerTime12h,
 } from './lib/globalPrayer';
 import { fetchSupabasePosts, fetchSupabaseStories, insertSupabasePost } from './lib/supabase';
 import {
@@ -134,7 +135,9 @@ export default function App() {
   const [showHalalPolicy, setShowHalalPolicy] = useState(false);
   const [activeReelPostId, setActiveReelPostId] = useState<string | null>(null);
   const { currentLang } = useLanguage();
-  const [globalCity, setGlobalCity] = useState<GlobalCity>(GLOBAL_CITIES[4]);
+  const [globalCity, setGlobalCity] = useState<GlobalCity>(
+    () => GLOBAL_CITIES.find((c) => c.id === 'dhaka') || GLOBAL_CITIES[0]
+  );
   const [globalPrayerSchedule, setGlobalPrayerSchedule] = useState<PrayerSchedule | null>(() =>
     getCachedOrFallbackPrayerSchedule()
   );
@@ -1911,7 +1914,7 @@ export default function App() {
                         <p className="text-xs font-bold text-black truncate">
                           {globalCity.flag} {globalCity.city} •{' '}
                           {globalPrayerSchedule
-                            ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${globalPrayerSchedule.nextPrayer.time})`
+                            ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${formatPrayerTime12h(globalPrayerSchedule.nextPrayer.time)})`
                             : 'Global Prayer Times'}
                         </p>
                         <p className="text-[10px] text-[#65676B] truncate">
