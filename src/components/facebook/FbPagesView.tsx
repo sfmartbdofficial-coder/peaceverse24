@@ -45,6 +45,10 @@ import {
   Calendar,
   AtSign,
   Trash2,
+  Home,
+  Heart,
+  Clock,
+  Video,
 } from 'lucide-react';
 import { NotificationItem, PageItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -459,6 +463,39 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
   const [pagePostText, setPagePostText] = useState('');
+  const [showPageComposer, setShowPageComposer] = useState(false);
+  const [showMoreDetails, setShowMoreDetails] = useState(false);
+  const [showPostFilters, setShowPostFilters] = useState(false);
+  const [postFilterMode, setPostFilterMode] = useState<'all' | 'pinned' | 'top'>('all');
+  const [showExtraDetailsModal, setShowExtraDetailsModal] = useState(false);
+  const [extraCurrentCity, setExtraCurrentCity] = useState('');
+  const [extraHometown, setExtraHometown] = useState('');
+  const [extraRelationship, setExtraRelationship] = useState('');
+  const [extraHours, setExtraHours] = useState('');
+  const [extraAddress, setExtraAddress] = useState('');
+  const [showPageReelModal, setShowPageReelModal] = useState(false);
+  const [pageReelTitle, setPageReelTitle] = useState('');
+  const [showPageLiveModal, setShowPageLiveModal] = useState(false);
+  const [pageLiveTitle, setPageLiveTitle] = useState('');
+  const [pageExtraDetails, setPageExtraDetails] = useState<
+    Record<
+      string,
+      {
+        currentCity?: string;
+        hometown?: string;
+        relationship?: string;
+        hours?: string;
+        address?: string;
+      }
+    >
+  >(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_extra_details_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
   const [pagePostsList, setPagePostsList] = useState<
     Record<
       string,
@@ -488,6 +525,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       localStorage.setItem('peaceverse_page_posts_v1', JSON.stringify(pagePostsList));
     } catch {}
   }, [pagePostsList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_extra_details_v1', JSON.stringify(pageExtraDetails));
+    } catch {}
+  }, [pageExtraDetails]);
 
   useEffect(() => {
     try {
@@ -1196,16 +1239,113 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         {/* White Content Feed Canvas */}
         <div className="bg-white p-3 space-y-3 min-h-[360px]">
           {/* ALL TAB CONTENT */}
-          {pageSubTab === 'all' && (
-            <div className="space-y-3">
-              {/* Personal details summary block matching reference layout */}
-              <div className="px-1 pt-1 pb-2 space-y-2.5 border-b border-[#F0F2F5]">
+          {pageSubTab === 'all' && (() => {
+            const extra = pageExtraDetails[selectedPage.id] || {};
+            const openExtraEditor = () => {
+              setExtraCurrentCity(extra.currentCity ?? selectedPage.location ?? '');
+              setExtraHometown(extra.hometown ?? '');
+              setExtraRelationship(extra.relationship ?? '');
+              setExtraHours(extra.hours ?? 'Always open');
+              setExtraAddress(extra.address ?? selectedPage.location ?? '');
+              setShowExtraDetailsModal(true);
+            };
+            const filteredPosts = activePosts.filter((p) =>
+              postFilterMode === 'pinned' ? Boolean(p.pinned) : true
+            );
+            const sortedPosts = [...filteredPosts].sort((a, b) => {
+              if (postFilterMode === 'top') return b.likes + b.comments - (a.likes + a.comments);
+              return a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1;
+            });
+
+            return (
+            <div className="space-y-3.5">
+              {/* 1. Personal details */}
+              <div className="px-1 pt-1 pb-2.5 space-y-2.5 border-b border-[#E4E6EB]">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[16px] font-bold text-[#050505]">Personal details</h3>
                   {selectedPage.isOwner && (
                     <button
                       type="button"
-                      onClick={() => handleOpenEditModal(selectedPage)}
+                      onClick={openExtraEditor}
+                      className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                      title="Edit personal details"
+                      aria-label="Edit personal details"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2.5 text-[14px] text-[#050505]">
+                  {(extra.currentCity || selectedPage.location) && (
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-5 h-5 text-[#050505] shrink-0" />
+                      <span>{extra.currentCity || selectedPage.location}</span>
+                    </div>
+                  )}
+
+                  {(extra.hometown || selectedPage.isOwner) && (
+                    <div className="flex items-center gap-3">
+                      <Home className="w-5 h-5 text-[#050505] shrink-0" />
+                      {extra.hometown ? (
+                        <span>{extra.hometown}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openExtraEditor}
+                          className="text-[#65676B] hover:underline text-left cursor-pointer"
+                        >
+                          Add hometown
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  {(extra.relationship || selectedPage.isOwner) && (
+                    <div className="flex items-center gap-3">
+                      <Heart className="w-5 h-5 text-[#050505] shrink-0" />
+                      {extra.relationship ? (
+                        <span>{extra.relationship}</span>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={openExtraEditor}
+                          className="text-[#65676B] hover:underline text-left cursor-pointer"
+                        >
+                          Add relationship status
+                        </button>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => setShowMoreDetails((prev) => !prev)}
+                    className="pl-8 text-[13.5px] font-semibold text-[#65676B] hover:text-[#050505] cursor-pointer"
+                  >
+                    {showMoreDetails ? 'Hide extra details' : 'See more details'}
+                  </button>
+
+                  {showMoreDetails && (
+                    <div className="pl-8 pt-1 space-y-1.5 text-[13px] text-[#65676B]">
+                      <p>Category: {selectedPage.category}</p>
+                      {selectedPage.website && (
+                        <p className="text-[#0866FF] truncate">Website: {selectedPage.website}</p>
+                      )}
+                      {selectedPage.createdAt && <p>Created: {selectedPage.createdAt}</p>}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* 2. Details */}
+              <div className="px-1 pt-0.5 pb-2.5 space-y-2.5 border-b border-[#E4E6EB]">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-bold text-[#050505]">Details</h3>
+                  {selectedPage.isOwner && (
+                    <button
+                      type="button"
+                      onClick={openExtraEditor}
                       className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
                       title="Edit details"
                       aria-label="Edit details"
@@ -1215,31 +1355,245 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   )}
                 </div>
 
-                <div className="space-y-2 text-[14px] text-[#050505]">
-                  {selectedPage.location && (
-                    <div className="flex items-center gap-2.5">
-                      <MapPin className="w-4 h-4 text-[#65676B] shrink-0" />
-                      <span>{selectedPage.location}</span>
-                    </div>
-                  )}
-                  <div className="flex items-center gap-2.5">
-                    <Building className="w-4 h-4 text-[#65676B] shrink-0" />
-                    <span>{selectedPage.category}</span>
+                <div className="space-y-2.5 text-[14px] text-[#050505]">
+                  <div className="flex items-center gap-3">
+                    <Clock className="w-5 h-5 text-[#050505] shrink-0" />
+                    <span>{extra.hours || 'Always open'}</span>
                   </div>
-                  {selectedPage.website && (
-                    <div className="flex items-center gap-2.5">
-                      <Globe className="w-4 h-4 text-[#65676B] shrink-0" />
-                      <span className="text-[#0866FF] truncate">{selectedPage.website}</span>
-                    </div>
-                  )}
-                  {selectedPage.phone && (
-                    <div className="flex items-center gap-2.5">
-                      <Phone className="w-4 h-4 text-[#65676B] shrink-0" />
-                      <span>{selectedPage.phone}</span>
+                  {(extra.address || selectedPage.location) && (
+                    <div className="flex items-center gap-3">
+                      <MapPin className="w-5 h-5 text-[#050505] shrink-0" />
+                      <span>{extra.address || selectedPage.location}</span>
                     </div>
                   )}
                 </div>
               </div>
+
+              {/* 3. Contact info */}
+              <div className="px-1 pt-0.5 pb-2.5 space-y-2.5 border-b border-[#E4E6EB]">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-bold text-[#050505]">Contact info</h3>
+                  {selectedPage.isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(selectedPage)}
+                      className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                      title="Edit contact info"
+                      aria-label="Edit contact info"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2.5 text-[14px] text-[#050505]">
+                  {selectedPage.phone ? (
+                    <a
+                      href={`tel:${selectedPage.phone.replace(/\s+/g, '')}`}
+                      className="flex items-center gap-3 hover:text-[#0866FF]"
+                    >
+                      <Phone className="w-5 h-5 text-[#050505] shrink-0" />
+                      <span>{selectedPage.phone}</span>
+                    </a>
+                  ) : (
+                    selectedPage.isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => handleOpenEditModal(selectedPage)}
+                        className="flex items-center gap-3 text-[#65676B] hover:underline cursor-pointer"
+                      >
+                        <Phone className="w-5 h-5 text-[#050505] shrink-0" />
+                        <span>Add phone number</span>
+                      </button>
+                    )
+                  )}
+
+                  {selectedPage.email && (
+                    <a
+                      href={`mailto:${selectedPage.email}`}
+                      className="flex items-center gap-3 hover:text-[#0866FF]"
+                    >
+                      <Mail className="w-5 h-5 text-[#050505] shrink-0" />
+                      <span className="truncate">{selectedPage.email}</span>
+                    </a>
+                  )}
+
+                  {(selectedPage.whatsapp || selectedPage.phone) && (
+                    <a
+                      href={waUrl || '#'}
+                      target={waUrl ? '_blank' : undefined}
+                      rel={waUrl ? 'noopener noreferrer' : undefined}
+                      className="flex items-center gap-3 hover:text-[#0866FF]"
+                    >
+                      <WhatsAppBrandIcon className="w-5 h-5 text-[#050505] shrink-0" />
+                      <span>{selectedPage.whatsapp || selectedPage.phone}</span>
+                    </a>
+                  )}
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      try {
+                        navigator.clipboard?.writeText(
+                          `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}`
+                        );
+                      } catch {}
+                      showToast(`${selectedPage.name} মেসেজ লিংক কপি হয়েছে!`);
+                    }}
+                    className="flex items-center gap-3 text-[#65676B] hover:text-[#050505] cursor-pointer"
+                  >
+                    <MessageCircle className="w-5 h-5 text-[#050505] shrink-0" />
+                    <span>{selectedPage.name}</span>
+                  </button>
+                </div>
+              </div>
+
+              {/* 4. All posts header + Filters */}
+              <div className="px-1 pt-0.5 space-y-2">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-bold text-[#050505]">All posts</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowPostFilters((prev) => !prev)}
+                    className="text-[14px] font-semibold text-[#0866FF] hover:bg-[#E7F3FF] px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  >
+                    Filters
+                  </button>
+                </div>
+
+                {showPostFilters && (
+                  <div className="flex items-center gap-1.5 pb-1">
+                    {[
+                      { id: 'all', label: 'All posts' },
+                      { id: 'pinned', label: 'Pinned' },
+                      { id: 'top', label: 'Most engaged' },
+                    ].map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => setPostFilterMode(opt.id as any)}
+                        className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer ${
+                          postFilterMode === opt.id
+                            ? 'bg-[#E7F3FF] text-[#0866FF]'
+                            : 'bg-[#F0F2F5] text-[#65676B]'
+                        }`}
+                      >
+                        {opt.label}
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              {/* 5. Compact "What's on your mind?" Composer matching Facebook Page UI */}
+              {selectedPage.isOwner && (
+                <div className="space-y-2.5">
+                  <div className="flex items-center gap-2.5 px-1">
+                    {selectedPage.avatar ? (
+                      <img
+                        src={selectedPage.avatar}
+                        alt={selectedPage.name}
+                        className="w-10 h-10 rounded-full object-cover border border-[#E4E6EB] bg-[#E4E6EB] shrink-0"
+                      />
+                    ) : (
+                      <div className="w-10 h-10 rounded-full bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30 flex items-center justify-center font-extrabold text-sm shrink-0">
+                        {selectedPage.name.trim().charAt(0).toUpperCase()}
+                      </div>
+                    )}
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPageComposer((prev) => !prev)}
+                      className="flex-1 text-left px-3.5 py-2.5 rounded-full bg-white hover:bg-[#F0F2F5] text-[15px] text-[#65676B] transition-colors cursor-pointer"
+                    >
+                      What&apos;s on your mind?
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPageComposer(true)}
+                      className="p-2 rounded-lg hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                      title="Add Photo"
+                      aria-label="Add Photo"
+                    >
+                      <ImageIcon className="w-6 h-6" />
+                    </button>
+                  </div>
+
+                  {showPageComposer && (
+                    <div className="bg-[#F7F8FA] rounded-xl border border-[#E4E6EB] p-3 space-y-2.5">
+                      <textarea
+                        rows={3}
+                        value={pagePostText}
+                        onChange={(e) => setPagePostText(e.target.value)}
+                        placeholder="পেজের ফলোয়ারদের উদ্দেশ্যে কিছু লিখুন..."
+                        className="w-full bg-white border border-[#E4E6EB] rounded-xl p-3 text-xs sm:text-sm text-[#050505] placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] resize-none"
+                        autoFocus
+                      />
+                      <div className="flex items-center justify-between">
+                        <button
+                          type="button"
+                          onClick={() => showToast('ফটো যোগ করা হয়েছে')}
+                          className="px-2.5 py-1.5 rounded-lg hover:bg-[#E4E6EB] text-emerald-600 flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <ImageIcon className="w-4 h-4" />
+                          <span className="text-xs font-semibold text-[#050505]">Photo</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            void handlePublishPagePost();
+                            setShowPageComposer(false);
+                          }}
+                          disabled={!pagePostText.trim()}
+                          className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Send className="w-3.5 h-3.5" />
+                          <span>Post</span>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Reel + Live Action Pills */}
+                  <div className="flex items-center gap-2 px-1 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setShowPageReelModal(true)}
+                      className="px-4 py-2 rounded-full bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[13.5px] font-bold text-[#050505] flex items-center gap-2 cursor-pointer"
+                    >
+                      <Film className="w-4 h-4 text-[#050505]" />
+                      <span>Reel</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setShowPageLiveModal(true)}
+                      className="px-4 py-2 rounded-full bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[13.5px] font-bold text-[#050505] flex items-center gap-2 cursor-pointer"
+                    >
+                      <Video className="w-4 h-4 text-[#050505]" />
+                      <span>Live</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {/* Full-width Manage posts button */}
+              {selectedPage.isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setManagePostsMode((prev) => !prev)}
+                  className={`w-full py-2.5 px-4 rounded-lg font-bold text-[14px] flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                    managePostsMode
+                      ? 'bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30'
+                      : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505]'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>{managePostsMode ? 'Done managing posts' : 'Manage posts'}</span>
+                </button>
+              )}
+
               {/* Creator Broadcast Notification Settings (Compact White Card - Preserved) */}
               {selectedPage.isOwner && (
                 <div className="p-3.5 rounded-xl bg-white border border-[#E4E6EB] space-y-2 shadow-2xs">
@@ -1288,87 +1642,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </div>
               )}
 
-              {/* Owner Write Post Composer */}
-              {selectedPage.isOwner && (
-                <div className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-3 shadow-2xs">
-                  <div className="flex items-center gap-2.5">
-                    {selectedPage.avatar ? (
-                      <img
-                        src={selectedPage.avatar}
-                        alt={selectedPage.name}
-                        className="w-10 h-10 rounded-full object-cover border border-[#E4E6EB] bg-[#E4E6EB]"
-                      />
-                    ) : (
-                      <div className="w-10 h-10 rounded-full bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30 flex items-center justify-center font-extrabold text-sm shrink-0">
-                        {selectedPage.name.trim().charAt(0).toUpperCase()}
-                      </div>
-                    )}
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-[#050505]">
-                        {selectedPage.name} হিসেবে পোস্ট করুন
-                      </p>
-                      <span className="text-[11px] text-[#65676B]">Public • Page Post</span>
-                    </div>
-                  </div>
-
-                  <textarea
-                    rows={2}
-                    value={pagePostText}
-                    onChange={(e) => setPagePostText(e.target.value)}
-                    placeholder="পেজের ফলোয়ারদের উদ্দেশ্যে কিছু লিখুন..."
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-xs sm:text-sm text-[#050505] placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] resize-none"
-                  />
-
-                  <div className="flex items-center justify-between pt-1">
-                    <button
-                      type="button"
-                      onClick={() => showToast('ফটো যোগ করা হয়েছে')}
-                      className="px-2.5 py-1.5 rounded-lg hover:bg-[#F0F2F5] text-emerald-600 flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <ImageIcon className="w-4 h-4" />
-                      <span className="text-xs font-semibold text-[#050505]">Photo</span>
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handlePublishPagePost}
-                      disabled={!pagePostText.trim()}
-                      className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
-                    >
-                      <Send className="w-3.5 h-3.5" />
-                      <span>Post</span>
-                    </button>
-                  </div>
-                </div>
-              )}
-
-              {/* Full-width Manage posts button at top of posts list */}
-              {selectedPage.isOwner && (
-                <button
-                  type="button"
-                  onClick={() => setManagePostsMode((prev) => !prev)}
-                  className={`w-full py-2.5 px-4 rounded-lg font-bold text-[14px] flex items-center justify-center gap-2 transition-colors cursor-pointer ${
-                    managePostsMode
-                      ? 'bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30'
-                      : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505]'
-                  }`}
-                >
-                  <SlidersHorizontal className="w-4 h-4" />
-                  <span>{managePostsMode ? 'Done managing posts' : 'Manage posts'}</span>
-                </button>
-              )}
-
               {/* Feed of Posts for this Page (Pinned posts sorted first) */}
               <div className="space-y-3">
-                {activePosts.length === 0 ? (
+                {sortedPosts.length === 0 ? (
                   <div className="bg-white rounded-xl p-6 text-center border border-[#E4E6EB]">
                     <Flag className="w-8 h-8 text-[#65676B] mx-auto mb-2 opacity-50" />
-                    <p className="text-xs font-semibold text-[#65676B]">এই পেজে এখনও কোনো পোস্ট নেই।</p>
+                    <p className="text-xs font-semibold text-[#65676B]">
+                      {postFilterMode === 'pinned'
+                        ? 'কোনো পিন করা পোস্ট নেই।'
+                        : 'এই পেজে এখনও কোনো পোস্ট নেই।'}
+                    </p>
                   </div>
                 ) : (
-                  [...activePosts]
-                    .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1))
-                    .map((post) => (
+                  sortedPosts.map((post) => (
                       <div
                         key={post.id}
                         className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-2xs"
@@ -1512,7 +1798,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 )}
               </div>
             </div>
-          )}
+            );
+          })()}
 
           {/* PHOTOS TAB */}
           {pageSubTab === 'photos' && (
@@ -2118,6 +2405,222 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   </button>
                 </div>
               </form>
+            </div>
+          </div>
+        )}
+
+        {/* Edit Personal Details & Hours Modal */}
+        {showExtraDetailsModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-3.5 animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+                <h3 className="font-bold text-base text-[#050505]">Edit details</h3>
+                <button
+                  type="button"
+                  onClick={() => setShowExtraDetailsModal(false)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-2.5 text-left">
+                <div>
+                  <label className="block text-xs font-bold text-[#050505] mb-1">Current city</label>
+                  <input
+                    type="text"
+                    value={extraCurrentCity}
+                    onChange={(e) => setExtraCurrentCity(e.target.value)}
+                    placeholder="Dhaka, Bangladesh"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#050505] mb-1">Hometown</label>
+                  <input
+                    type="text"
+                    value={extraHometown}
+                    onChange={(e) => setExtraHometown(e.target.value)}
+                    placeholder="e.g. Phulpur, Mymensingh, Bangladesh"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#050505] mb-1">Relationship</label>
+                  <input
+                    type="text"
+                    value={extraRelationship}
+                    onChange={(e) => setExtraRelationship(e.target.value)}
+                    placeholder="e.g. Single / Married"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#050505] mb-1">Hours</label>
+                  <input
+                    type="text"
+                    value={extraHours}
+                    onChange={(e) => setExtraHours(e.target.value)}
+                    placeholder="Always open"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-[#050505] mb-1">Address</label>
+                  <input
+                    type="text"
+                    value={extraAddress}
+                    onChange={(e) => setExtraAddress(e.target.value)}
+                    placeholder="Dhaka, Bangladesh"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setPageExtraDetails((prev) => ({
+                    ...prev,
+                    [selectedPage.id]: {
+                      currentCity: extraCurrentCity.trim(),
+                      hometown: extraHometown.trim(),
+                      relationship: extraRelationship.trim(),
+                      hours: extraHours.trim() || 'Always open',
+                      address: extraAddress.trim(),
+                    },
+                  }));
+                  setShowExtraDetailsModal(false);
+                  showToast('তথ্য আপডেট করা হয়েছে!');
+                }}
+                className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm cursor-pointer"
+              >
+                Save details
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Create Page Reel Modal */}
+        {showPageReelModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-3.5 animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+                <h3 className="font-bold text-base text-[#050505] flex items-center gap-2">
+                  <Film className="w-5 h-5 text-[#0866FF]" />
+                  <span>Create Page Reel</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPageReelModal(false)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={pageReelTitle}
+                onChange={(e) => setPageReelTitle(e.target.value)}
+                placeholder="রিলসের শিরোনাম / ক্যাপশন লিখুন..."
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const title = pageReelTitle.trim() || `${selectedPage.name} New Reel`;
+                  const todayStr = new Date().toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  });
+                  setPagePostsList((prev) => ({
+                    ...prev,
+                    [selectedPage.id]: [
+                      {
+                        id: `reel-${Date.now()}`,
+                        text: `🎬 Reel: ${title}`,
+                        time: 'এখনই',
+                        dateLabel: todayStr,
+                        likes: 1,
+                        comments: 0,
+                        reach: 185,
+                        clicks: 21,
+                      },
+                      ...(prev[selectedPage.id] || []),
+                    ],
+                  }));
+                  setPageReelTitle('');
+                  setShowPageReelModal(false);
+                  showToast('🎬 রিলস পেজে যুক্ত করা হয়েছে!');
+                }}
+                className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm cursor-pointer"
+              >
+                Publish Reel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Go Live Modal */}
+        {showPageLiveModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-3.5 animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+                <h3 className="font-bold text-base text-[#050505] flex items-center gap-2">
+                  <Video className="w-5 h-5 text-rose-600" />
+                  <span>Go Live as {selectedPage.name}</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setShowPageLiveModal(false)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              <input
+                type="text"
+                value={pageLiveTitle}
+                onChange={(e) => setPageLiveTitle(e.target.value)}
+                placeholder="লাইভ ভিডিওর বিষয় লিখুন..."
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#050505] focus:outline-none focus:border-rose-500"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  const title = pageLiveTitle.trim() || `${selectedPage.name} Live Session`;
+                  const todayStr = new Date().toLocaleDateString('en-US', {
+                    month: 'short',
+                    day: 'numeric',
+                    year: 'numeric',
+                  });
+                  setPagePostsList((prev) => ({
+                    ...prev,
+                    [selectedPage.id]: [
+                      {
+                        id: `live-${Date.now()}`,
+                        text: `🔴 LIVE NOW: ${title}`,
+                        time: 'এখনই',
+                        dateLabel: todayStr,
+                        likes: 1,
+                        comments: 0,
+                        reach: 240,
+                        clicks: 34,
+                      },
+                      ...(prev[selectedPage.id] || []),
+                    ],
+                  }));
+                  setPageLiveTitle('');
+                  setShowPageLiveModal(false);
+                  showToast('🔴 পেজ লাইভ সেশন শুরু হয়েছে!');
+                }}
+                className="w-full py-2.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold text-sm cursor-pointer"
+              >
+                Start Live Video
+              </button>
             </div>
           </div>
         )}
