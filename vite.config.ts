@@ -103,6 +103,7 @@ export default defineConfig(() => {
       },
     },
     server: {
+      allowedHosts: true as const,
       // HMR is disabled in AI Studio to prevent WebSocket closed errors
       hmr: false,
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.

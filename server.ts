@@ -545,6 +545,7 @@ async function startServer() {
   } else {
     const vite = await createViteServer({
       server: {
+        allowedHosts: true,
         middlewareMode: true,
         hmr: false,
         watch: null,

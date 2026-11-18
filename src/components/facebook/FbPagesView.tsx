@@ -39,6 +39,12 @@ import {
   ExternalLink,
   Bell,
   Megaphone,
+  Pin,
+  SlidersHorizontal,
+  Film,
+  Calendar,
+  AtSign,
+  Trash2,
 } from 'lucide-react';
 import { NotificationItem, PageItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -277,12 +283,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   onBack,
   userProfile,
   onSwitchToPage,
-  activeSwitchedPageId = null,
+  activeSwitchedPageId: _activeSwitchedPageId,
   embedded = false,
   onBroadcastNotification,
   initialSelectedPageId,
   onClearInitialSelectedPageId,
-  openSwitchSheetOnInitialOpen = false,
+  openSwitchSheetOnInitialOpen,
   onClearOpenSwitchSheet,
   initialCreatePageName,
   onClearInitialCreatePageName,
@@ -360,32 +366,26 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     return pages.find((p) => p.id === initialSelectedPageId) || null;
   });
 
-  const [pageSearchOpen, setPageSearchOpen] = useState(false);
-  const [pageSearchQuery, setPageSearchQuery] = useState('');
-
-  // Dedicated Landing Page Creation State
-  const [showCreatePageLanding, setShowCreatePageLanding] = useState(Boolean(initialCreatePageName));
-  const [sheetPage, setSheetPage] = useState<PageItem | null>(() => {
-    if (!initialSelectedPageId || !openSwitchSheetOnInitialOpen) return null;
-    const found = pages.find((p) => p.id === initialSelectedPageId) || null;
-    if (found && found.id !== activeSwitchedPageId) return found;
-    return null;
-  });
-
   useEffect(() => {
     if (initialSelectedPageId) {
       const found = pages.find((p) => p.id === initialSelectedPageId);
       if (found) {
         setSelectedPage(found);
         if (openSwitchSheetOnInitialOpen) {
-          if (found.id !== activeSwitchedPageId) {
-            setSheetPage(found);
-          }
+          setSheetPage(found);
           onClearOpenSwitchSheet?.();
         }
+        onClearInitialSelectedPageId?.();
       }
     }
-  }, [initialSelectedPageId, pages, openSwitchSheetOnInitialOpen, activeSwitchedPageId]);
+  }, [initialSelectedPageId, openSwitchSheetOnInitialOpen, onClearInitialSelectedPageId, onClearOpenSwitchSheet, pages]);
+
+  const [pageSearchOpen, setPageSearchOpen] = useState(false);
+  const [pageSearchQuery, setPageSearchQuery] = useState('');
+
+  // Dedicated Landing Page Creation State
+  const [showCreatePageLanding, setShowCreatePageLanding] = useState(Boolean(initialCreatePageName));
+  const [sheetPage, setSheetPage] = useState<PageItem | null>(null);
 
   useEffect(() => {
     if (initialCreatePageName) {
@@ -424,12 +424,88 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [editLocation, setEditLocation] = useState('');
 
   // Page Profile Tabs & In-Page Post Creation
-  const [pageSubTab, setPageSubTab] = useState<'posts' | 'about' | 'monetization' | 'photos' | 'reviews'>('posts');
+  const [pageSubTab, setPageSubTab] = useState<'all' | 'photos' | 'reels' | 'events' | 'mentions'>('all');
   const [showMonetizationModal, setShowMonetizationModal] = useState(false);
+  const [showCreatorDashboard, setShowCreatorDashboard] = useState(false);
+  const [creatorDashboardTab, setCreatorDashboardTab] = useState<'overview' | 'earnings' | 'reviews'>('overview');
+  const [showAdvertiseModal, setShowAdvertiseModal] = useState(false);
+  const [boostTargetPost, setBoostTargetPost] = useState<{ id: string; text: string } | null>(null);
+  const [boostBudget, setBoostBudget] = useState<'500' | '1000' | '2500'>('1000');
+  const [insightsPost, setInsightsPost] = useState<{
+    id: string;
+    text: string;
+    time: string;
+    dateLabel?: string;
+    likes: number;
+    comments: number;
+    reach?: number;
+    clicks?: number;
+  } | null>(null);
+  const [managePostsMode, setManagePostsMode] = useState(false);
+  const [editingPageThought, setEditingPageThought] = useState(false);
+  const [pageThoughtDraft, setPageThoughtDraft] = useState('');
+  const [pageThoughts, setPageThoughts] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_thoughts_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [pageEventsList, setPageEventsList] = useState<
+    Record<string, Array<{ id: string; title: string; date: string; location: string }>>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_events_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [newEventTitle, setNewEventTitle] = useState('');
+  const [newEventDate, setNewEventDate] = useState('');
   const [pagePostText, setPagePostText] = useState('');
   const [pagePostsList, setPagePostsList] = useState<
-    Record<string, Array<{ id: string; text: string; time: string; likes: number; comments: number }>>
-  >({});
+    Record<
+      string,
+      Array<{
+        id: string;
+        text: string;
+        time: string;
+        dateLabel?: string;
+        likes: number;
+        comments: number;
+        pinned?: boolean;
+        reach?: number;
+        clicks?: number;
+      }>
+    >
+  >(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_posts_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_posts_v1', JSON.stringify(pagePostsList));
+    } catch {}
+  }, [pagePostsList]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_thoughts_v1', JSON.stringify(pageThoughts));
+    } catch {}
+  }, [pageThoughts]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_events_v1', JSON.stringify(pageEventsList));
+    } catch {}
+  }, [pageEventsList]);
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
@@ -524,12 +600,22 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const handlePublishPagePost = async () => {
     if (!pagePostText.trim() || !selectedPage) return;
 
+    const todayStr = new Date().toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      year: 'numeric',
+    });
+
     const newPost = {
       id: `pp-${Date.now()}`,
       text: pagePostText.trim(),
       time: 'এখনই',
+      dateLabel: todayStr,
       likes: 1,
       comments: 0,
+      pinned: false,
+      reach: 128,
+      clicks: 14,
     };
 
     setPagePostsList((prev) => ({
@@ -720,7 +806,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           setShowCreatePageLanding(false);
           onClearInitialCreatePageName?.();
           setSelectedPage(newPage);
-          setPageSubTab('posts');
+          setPageSubTab('all');
           showToast(`✍️ "${newPage.name}" পেজের প্রথম পোস্ট লিখুন!`);
         }}
       />
@@ -751,8 +837,6 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               setPageSearchOpen(false);
               setPageSearchQuery('');
               setSelectedPage(null);
-              setSheetPage(null);
-              onClearInitialSelectedPageId?.();
             }}
             className="min-w-[44px] min-h-[44px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
             title="Back"
@@ -825,7 +909,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
         )}
 
-        {/* 2. Cover Photo: Big Clear Gray Placeholder if empty, or Full-Width Cover Photo */}
+        {/* 2. Cover Photo: Big Clear Gray Placeholder if empty, or Full-Width Cover Photo + bottom-right Camera icon */}
         <div className="relative w-full h-48 sm:h-56 bg-[#E4E6EB] border-b border-[#D8DADF] overflow-hidden flex items-center justify-center">
           {selectedPage.cover ? (
             <>
@@ -842,19 +926,6 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   {selectedPage.name}
                 </span>
               </div>
-
-              {selectedPage.isOwner && (
-                <label className="absolute bottom-3 right-3 bg-white/95 hover:bg-white text-[#050505] px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1.5 cursor-pointer shadow-md border border-[#E4E6EB] transition-all active:scale-95">
-                  <Camera className="w-3.5 h-3.5" />
-                  <span>Edit cover</span>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleUpdatePageCover}
-                  />
-                </label>
-              )}
             </>
           ) : (
             <div className="w-full h-full flex flex-col items-center justify-center px-4 pb-8">
@@ -870,10 +941,71 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               </label>
             </div>
           )}
+
+          {selectedPage.isOwner && (
+            <label
+              className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center cursor-pointer shadow-md border-2 border-white transition-all active:scale-95 z-10"
+              title="Update cover photo"
+              aria-label="Update cover photo"
+            >
+              <Camera className="w-4 h-4 text-[#050505]" />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleUpdatePageCover}
+              />
+            </label>
+          )}
         </div>
 
-        {/* 3. Profile Photo / Logo: Clear Gray Circle with "+ লোগো যোগ করুন (Add Logo)" if empty */}
-        <div className="relative -mt-16 flex justify-center z-10 px-4">
+        {/* 3. Profile Photo / Logo + Facebook "Thinking about..." Thought Bubble above */}
+        <div className="relative -mt-20 flex flex-col items-center justify-center z-10 px-4">
+          {selectedPage.isOwner && editingPageThought ? (
+            <div className="mb-2 bg-white text-[#050505] p-1.5 rounded-[20px] shadow-xl border border-[#E4E6EB] flex items-center gap-1.5 z-20">
+              <input
+                type="text"
+                value={pageThoughtDraft}
+                onChange={(e) => setPageThoughtDraft(e.target.value)}
+                placeholder="Thinking about..."
+                className="bg-[#F0F2F5] text-[#050505] text-xs px-3 py-1 rounded-full outline-none w-44"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setPageThoughts((prev) => ({
+                    ...prev,
+                    [selectedPage.id]: pageThoughtDraft.trim(),
+                  }));
+                  setEditingPageThought(false);
+                }}
+                className="p-1.5 rounded-full bg-[#0866FF] text-white cursor-pointer"
+                aria-label="Save thought"
+              >
+                <Check className="w-3.5 h-3.5" />
+              </button>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => {
+                if (!selectedPage.isOwner) return;
+                setPageThoughtDraft(pageThoughts[selectedPage.id] || '');
+                setEditingPageThought(true);
+              }}
+              className={`mb-2 bg-white text-[#65676B] text-[12px] font-medium px-3.5 py-1.5 rounded-[20px] shadow-md border border-[#E4E6EB] flex items-center gap-1 relative transition-transform ${
+                selectedPage.isOwner ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+              }`}
+              title={selectedPage.isOwner ? 'Share a thought' : undefined}
+            >
+              <span className="max-w-[190px] truncate">
+                {pageThoughts[selectedPage.id] || 'Thinking about...'}
+              </span>
+              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white border-r border-b border-[#E4E6EB] rotate-45" />
+            </button>
+          )}
+
           <div className="relative">
             {selectedPage.avatar ? (
               <div className="w-32 h-32 rounded-full border-4 border-white ring-[3px] ring-[#0866FF] shadow-lg bg-[#E4E6EB] overflow-hidden relative">
@@ -921,7 +1053,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
         </div>
 
-        {/* 4. Centered Profile Title, Stats, Bio, Category & 5. Followed by & 6. Two 50/50 Buttons */}
+        {/* 4. Centered Profile Title, Stats, Bio, Category & 5. Followed by & 6. Creator Dashboard + Advertise */}
         <div className="px-4 pt-3 pb-4 bg-white">
           <div className="text-center space-y-1.5">
             {/* Title */}
@@ -930,14 +1062,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <ShieldCheck className="w-4 h-4 text-[#0866FF] shrink-0" />
             </h1>
 
-            {/* Stats: 18 followers · 47 following */}
+            {/* Stats: followers · following */}
             <p className="text-[14px] text-[#65676B] font-medium tabular-nums">
               <span className="font-bold text-[#050505]">
                 {selectedPage.followersCount.toLocaleString('en-US')}
               </span>{' '}
               followers ·{' '}
               <span className="font-bold text-[#050505]">
-                {(selectedPage.followingCount ?? 47).toLocaleString('en-US')}
+                {(selectedPage.followingCount ?? 0).toLocaleString('en-US')}
               </span>{' '}
               following
             </p>
@@ -978,91 +1110,90 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             </p>
           </div>
 
-          {/* 6. Two Equal 50% Action Buttons: [🔵 Follow] & [⚪ WhatsApp] */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              onClick={() => handleToggleLike(selectedPage.id)}
-              className={`h-10 rounded-lg font-bold text-[15px] flex items-center justify-center gap-2 shadow-2xs active:scale-[0.98] transition-all cursor-pointer ${
-                selectedPage.isLiked
-                  ? 'bg-[#E7F3FF] text-[#0866FF] hover:bg-[#DBE7F2]'
-                  : 'bg-[#0866FF] hover:bg-[#1877F2] text-white'
-              }`}
-            >
-              {selectedPage.isLiked ? (
-                <>
-                  <Check className="w-4 h-4 stroke-[2.8]" />
-                  <span>Following</span>
-                </>
-              ) : (
-                <>
-                  <ThumbsUp className="w-4 h-4 stroke-[2.2]" />
-                  <span>Follow</span>
-                </>
-              )}
-            </button>
-
-            {waUrl ? (
-              <a
-                href={waUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="h-10 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] active:scale-[0.98] text-[#050505] font-bold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer"
-                title="WhatsApp এ মেসেজ দিন"
-              >
-                <WhatsAppBrandIcon className="w-4 h-4 text-[#25D366]" />
-                <span>WhatsApp</span>
-              </a>
-            ) : (
+          {/* 6. Primary Facebook Action Buttons: [🔵 Creator Dashboard] & [⚪ Advertise] */}
+          {selectedPage.isOwner ? (
+            <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
                 onClick={() => {
-                  if (selectedPage.isOwner) {
-                    handleOpenEditModal(selectedPage);
-                    showToast('পেজের WhatsApp নম্বর যুক্ত করুন');
-                  } else {
-                    showToast('এই পেজে এখনো WhatsApp নম্বর যুক্ত করা হয়নি');
-                  }
+                  setCreatorDashboardTab('overview');
+                  setShowCreatorDashboard(true);
                 }}
-                className="h-10 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] active:scale-[0.98] text-[#050505] font-bold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer"
+                className="h-10 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-2xs transition-all cursor-pointer"
               >
-                <WhatsAppBrandIcon className="w-4 h-4 text-[#25D366]" />
-                <span>WhatsApp</span>
+                <TrendingUp className="w-4 h-4 stroke-[2.3]" />
+                <span>Creator Dashboard</span>
               </button>
-            )}
-          </div>
 
-          {/* Subtle Switch / Edit Controls Strip for Page Admins */}
-          <div className="flex items-center justify-between gap-2 pt-3 mt-3 border-t border-[#E4E6EB]">
-            <button
-              type="button"
-              onClick={() => setSheetPage(selectedPage)}
-              className="flex-1 py-2 px-3 rounded-lg bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-            >
-              <RefreshCw className="w-3.5 h-3.5 text-[#0866FF]" />
-              <span>Switch to {selectedPage.name}</span>
-            </button>
-            {selectedPage.isOwner && (
               <button
                 type="button"
-                onClick={() => handleOpenEditModal(selectedPage)}
-                className="py-2 px-3.5 rounded-lg bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+                onClick={() => {
+                  setBoostTargetPost(null);
+                  setShowAdvertiseModal(true);
+                }}
+                className="h-10 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] active:scale-[0.98] text-[#050505] font-bold text-[14px] flex items-center justify-center gap-2 transition-all cursor-pointer"
               >
-                <Edit3 className="w-3.5 h-3.5 text-[#65676B]" />
-                <span>Edit</span>
+                <Megaphone className="w-4 h-4" />
+                <span>Advertise</span>
               </button>
-            )}
-          </div>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 gap-2.5">
+              <button
+                type="button"
+                onClick={() => handleToggleLike(selectedPage.id)}
+                className={`h-10 rounded-lg font-bold text-[15px] flex items-center justify-center gap-2 shadow-2xs active:scale-[0.98] transition-all cursor-pointer ${
+                  selectedPage.isLiked
+                    ? 'bg-[#E7F3FF] text-[#0866FF] hover:bg-[#DBE7F2]'
+                    : 'bg-[#0866FF] hover:bg-[#1877F2] text-white'
+                }`}
+              >
+                {selectedPage.isLiked ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[2.8]" />
+                    <span>Following</span>
+                  </>
+                ) : (
+                  <>
+                    <ThumbsUp className="w-4 h-4 stroke-[2.2]" />
+                    <span>Follow</span>
+                  </>
+                )}
+              </button>
+
+              {waUrl ? (
+                <a
+                  href={waUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="h-10 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] active:scale-[0.98] text-[#050505] font-bold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer"
+                  title="WhatsApp এ মেসেজ দিন"
+                >
+                  <WhatsAppBrandIcon className="w-4 h-4 text-[#25D366]" />
+                  <span>WhatsApp</span>
+                </a>
+              ) : (
+                <button
+                  type="button"
+                  onClick={() => showToast('এই পেজে এখনো WhatsApp নম্বর যুক্ত করা হয়নি')}
+                  className="h-10 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] active:scale-[0.98] text-[#050505] font-bold text-[15px] flex items-center justify-center gap-2 transition-all cursor-pointer"
+                >
+                  <WhatsAppBrandIcon className="w-4 h-4 text-[#25D366]" />
+                  <span>WhatsApp</span>
+                </button>
+              )}
+            </div>
+          )}
         </div>
 
-        {/* Clean White Sub Navigation Tabs */}
+        {/* Clean White Sub Navigation Tabs: All / Photos / Reels / Events / Mentions */}
         <div className="bg-white border-y border-[#E4E6EB] px-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
           {[
-            { id: 'posts', label: 'Posts' },
-            { id: 'about', label: 'About' },
+            { id: 'all', label: 'All' },
             { id: 'photos', label: 'Photos' },
-            { id: 'monetization', label: 'Earnings' },
-            { id: 'reviews', label: 'Reviews' },
+            { id: 'reels', label: 'Reels' },
+            { id: 'events', label: 'Events' },
+            { id: 'mentions', label: 'Mentions' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -1081,10 +1212,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
         {/* White Content Feed Canvas */}
         <div className="bg-white p-3 space-y-3 min-h-[360px]">
-          {/* POSTS TAB CONTENT */}
-          {pageSubTab === 'posts' && (
+          {/* ALL TAB CONTENT */}
+          {pageSubTab === 'all' && (
             <div className="space-y-3">
-              {/* Creator Broadcast Notification Settings (Compact White Card) */}
+              {/* Creator Broadcast Notification Settings (Compact White Card - Preserved) */}
               {selectedPage.isOwner && (
                 <div className="p-3.5 rounded-xl bg-white border border-[#E4E6EB] space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between gap-2">
@@ -1186,7 +1317,23 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </div>
               )}
 
-              {/* Feed of Posts for this Page */}
+              {/* Full-width Manage posts button at top of posts list */}
+              {selectedPage.isOwner && (
+                <button
+                  type="button"
+                  onClick={() => setManagePostsMode((prev) => !prev)}
+                  className={`w-full py-2.5 px-4 rounded-lg font-bold text-[14px] flex items-center justify-center gap-2 transition-colors cursor-pointer ${
+                    managePostsMode
+                      ? 'bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30'
+                      : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505]'
+                  }`}
+                >
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span>{managePostsMode ? 'Done managing posts' : 'Manage posts'}</span>
+                </button>
+              )}
+
+              {/* Feed of Posts for this Page (Pinned posts sorted first) */}
               <div className="space-y-3">
                 {activePosts.length === 0 ? (
                   <div className="bg-white rounded-xl p-6 text-center border border-[#E4E6EB]">
@@ -1194,132 +1341,149 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     <p className="text-xs font-semibold text-[#65676B]">এই পেজে এখনও কোনো পোস্ট নেই।</p>
                   </div>
                 ) : (
-                  activePosts.map((post) => (
-                    <div
-                      key={post.id}
-                      className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-2xs"
-                    >
-                      <div className="flex items-center gap-2.5">
-                        {selectedPage.avatar ? (
-                          <img
-                            src={selectedPage.avatar}
-                            alt={selectedPage.name}
-                            className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB] bg-[#E4E6EB]"
-                          />
-                        ) : (
-                          <div className="w-9 h-9 rounded-full bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30 flex items-center justify-center font-extrabold text-xs shrink-0">
-                            {selectedPage.name.trim().charAt(0).toUpperCase()}
+                  [...activePosts]
+                    .sort((a, b) => (a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1))
+                    .map((post) => (
+                      <div
+                        key={post.id}
+                        className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-2xs"
+                      >
+                        {post.pinned && (
+                          <div className="flex items-center gap-1.5 text-[12px] font-semibold text-[#65676B] pb-1 border-b border-[#F0F2F5]">
+                            <Pin className="w-3.5 h-3.5 text-[#0866FF]" />
+                            <span>Pinned • {post.dateLabel || post.time}</span>
                           </div>
                         )}
-                        <div>
-                          <div className="flex items-center gap-1">
-                            <h4 className="text-[13px] font-bold text-[#050505]">{selectedPage.name}</h4>
-                            <ShieldCheck className="w-3.5 h-3.5 text-[#0866FF]" />
+
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex items-center gap-2.5">
+                            {selectedPage.avatar ? (
+                              <img
+                                src={selectedPage.avatar}
+                                alt={selectedPage.name}
+                                className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB] bg-[#E4E6EB]"
+                              />
+                            ) : (
+                              <div className="w-9 h-9 rounded-full bg-[#E7F3FF] text-[#0866FF] border border-[#0866FF]/30 flex items-center justify-center font-extrabold text-xs shrink-0">
+                                {selectedPage.name.trim().charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <div>
+                              <div className="flex items-center gap-1">
+                                <h4 className="text-[13px] font-bold text-[#050505]">{selectedPage.name}</h4>
+                                <ShieldCheck className="w-3.5 h-3.5 text-[#0866FF]" />
+                              </div>
+                              <p className="text-[11px] text-[#65676B]">
+                                {post.pinned ? `Pinned • ${post.dateLabel || post.time}` : post.time} • 🌐
+                              </p>
+                            </div>
                           </div>
-                          <p className="text-[11px] text-[#65676B]">{post.time} • 🌐</p>
+
+                          {selectedPage.isOwner && (
+                            <div className="flex items-center gap-1">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPagePostsList((prev) => ({
+                                    ...prev,
+                                    [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                                      item.id === post.id ? { ...item, pinned: !item.pinned } : item
+                                    ),
+                                  }));
+                                  showToast(
+                                    post.pinned ? 'পোস্ট থেকে পিন সরানো হয়েছে' : '📌 পোস্টটি পেজের উপরে পিন করা হয়েছে'
+                                  );
+                                }}
+                                className={`px-2 py-1 rounded-lg text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer ${
+                                  post.pinned
+                                    ? 'bg-[#E7F3FF] text-[#0866FF]'
+                                    : 'bg-[#F0F2F5] text-[#65676B] hover:text-[#050505]'
+                                }`}
+                                title={post.pinned ? 'Unpin post' : 'Pin post'}
+                              >
+                                <Pin className="w-3 h-3" />
+                                <span>{post.pinned ? 'Pinned' : 'Pin'}</span>
+                              </button>
+
+                              {managePostsMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setPagePostsList((prev) => ({
+                                      ...prev,
+                                      [selectedPage.id]: (prev[selectedPage.id] || []).filter(
+                                        (item) => item.id !== post.id
+                                      ),
+                                    }));
+                                    showToast('পোস্টটি মুছে ফেলা হয়েছে');
+                                  }}
+                                  className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer"
+                                  title="Delete post"
+                                >
+                                  <Trash2 className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          )}
                         </div>
+
+                        <p className="text-[14px] text-[#050505] leading-relaxed whitespace-pre-wrap">
+                          {post.text}
+                        </p>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-[#E4E6EB] text-xs font-semibold text-[#65676B]">
+                          <button
+                            type="button"
+                            onClick={() => showToast('পোস্টে লাইক দেওয়া হয়েছে')}
+                            className="flex items-center gap-1.5 hover:text-[#0866FF] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
+                          >
+                            <ThumbsUp className="w-4 h-4 text-[#0866FF]" />
+                            <span className="tabular-nums">{post.likes} Like</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => showToast('মন্তব্য অপশন খোলা হয়েছে')}
+                            className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span className="tabular-nums">{post.comments} Comment</span>
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => showToast('পোস্ট শেয়ার করা হয়েছে')}
+                            className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
+                          >
+                            <Share2 className="w-4 h-4" />
+                            <span>Share</span>
+                          </button>
+                        </div>
+
+                        {/* Facebook-style See insights and ads + Boost post row below each post */}
+                        {selectedPage.isOwner && (
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#F0F2F5]">
+                            <button
+                              type="button"
+                              onClick={() => setInsightsPost(post)}
+                              className="text-[12.5px] font-semibold text-[#0866FF] hover:underline flex items-center gap-1.5 cursor-pointer"
+                            >
+                              <TrendingUp className="w-3.5 h-3.5" />
+                              <span>See insights and ads</span>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setBoostTargetPost({ id: post.id, text: post.text });
+                                setShowAdvertiseModal(true);
+                              }}
+                              className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-[12px] font-bold transition-colors cursor-pointer"
+                            >
+                              Boost post
+                            </button>
+                          </div>
+                        )}
                       </div>
-
-                      <p className="text-[14px] text-[#050505] leading-relaxed whitespace-pre-wrap">
-                        {post.text}
-                      </p>
-
-                      <div className="flex items-center justify-between pt-2 border-t border-[#E4E6EB] text-xs font-semibold text-[#65676B]">
-                        <button
-                          type="button"
-                          onClick={() => showToast('পোস্টে লাইক দেওয়া হয়েছে')}
-                          className="flex items-center gap-1.5 hover:text-[#0866FF] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
-                        >
-                          <ThumbsUp className="w-4 h-4 text-[#0866FF]" />
-                          <span className="tabular-nums">{post.likes} Like</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => showToast('মন্তব্য অপশন খোলা হয়েছে')}
-                          className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
-                        >
-                          <MessageCircle className="w-4 h-4" />
-                          <span className="tabular-nums">{post.comments} Comment</span>
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => showToast('পোস্ট শেয়ার করা হয়েছে')}
-                          className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
-                        >
-                          <Share2 className="w-4 h-4" />
-                          <span>Share</span>
-                        </button>
-                      </div>
-                    </div>
-                  ))
-                )}
-              </div>
-            </div>
-          )}
-
-          {/* ABOUT TAB */}
-          {pageSubTab === 'about' && (
-            <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3.5 shadow-2xs">
-              <h3 className="text-sm font-bold text-[#050505]">About {selectedPage.name}</h3>
-              <div className="space-y-3 text-xs text-[#050505]">
-                <div>
-                  <span className="text-[11px] font-semibold text-[#65676B] block">Bio</span>
-                  <p className="mt-0.5 leading-relaxed">{selectedPage.bio || selectedPage.description}</p>
-                </div>
-                <div>
-                  <span className="text-[11px] font-semibold text-[#65676B] block">Category</span>
-                  <p className="mt-0.5 font-semibold">{selectedPage.category}</p>
-                </div>
-                {selectedPage.location && (
-                  <div className="flex items-center gap-2">
-                    <MapPin className="w-4 h-4 text-[#65676B]" />
-                    <span>{selectedPage.location}</span>
-                  </div>
-                )}
-                {(selectedPage.whatsapp || selectedPage.phone) && (
-                  <div className="flex items-center gap-2 text-emerald-700 font-semibold">
-                    <WhatsAppBrandIcon className="w-4 h-4 text-[#25D366]" />
-                    <span>
-                      {selectedPage.whatsapp || selectedPage.phone} (wa.me/{normalizePhoneNumber(selectedPage.whatsapp || selectedPage.phone)})
-                    </span>
-                  </div>
-                )}
-                {selectedPage.imo && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-sky-600" />
-                    <button
-                      type="button"
-                      onClick={() => openDeepLinkWithFallback(getImoDeepLink(selectedPage.imo)!, 'https://imo.im/')}
-                      className="text-sky-600 font-semibold hover:underline cursor-pointer"
-                    >
-                      IMO: {selectedPage.imo}
-                    </button>
-                  </div>
-                )}
-                {selectedPage.viber && (
-                  <div className="flex items-center gap-2">
-                    <Phone className="w-4 h-4 text-purple-600" />
-                    <button
-                      type="button"
-                      onClick={() => openDeepLinkWithFallback(getViberDeepLink(selectedPage.viber)!, 'https://www.viber.com/')}
-                      className="text-purple-600 font-semibold hover:underline cursor-pointer"
-                    >
-                      Viber: {selectedPage.viber}
-                    </button>
-                  </div>
-                )}
-                {selectedPage.website && (
-                  <div className="flex items-center gap-2">
-                    <Globe className="w-4 h-4 text-[#0866FF]" />
-                    <a
-                      href={selectedPage.website.startsWith('http') ? selectedPage.website : `https://${selectedPage.website}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-[#0866FF] font-semibold hover:underline"
-                    >
-                      {selectedPage.website}
-                    </a>
-                  </div>
+                    ))
                 )}
               </div>
             </div>
@@ -1347,102 +1511,434 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             </div>
           )}
 
-          {/* MONETIZATION & CREATOR STUDIO TAB */}
-          {pageSubTab === 'monetization' && (() => {
-            const adminControl = getPageMonetizationById(selectedPage.id);
-            const status = adminControl?.status || (selectedPage.followersCount >= 5000 ? 'approved' : 'pending');
-            const sharePct = adminControl?.revenueShareCreatorPct || 55;
-            const totalEarned = adminControl?.totalEarnings ?? 0;
-            const pendingEarned = adminControl?.pendingBalance ?? 0;
+          {/* REELS TAB */}
+          {pageSubTab === 'reels' && (
+            <div className="bg-white rounded-xl border border-[#E4E6EB] p-6 text-center space-y-2.5">
+              <div className="w-11 h-11 rounded-full bg-[#F0F2F5] text-[#0866FF] flex items-center justify-center mx-auto">
+                <Film className="w-5 h-5" />
+              </div>
+              <h3 className="text-sm font-bold text-[#050505]">{selectedPage.name} • Reels</h3>
+              <p className="text-xs text-[#65676B]">
+                এখনো কোনো রিলস ভিডিও আপলোড করা হয়নি। শরিয়াহসম্মত শর্ট ভিডিও শেয়ার করুন।
+              </p>
+            </div>
+          )}
 
-            return (
-              <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3.5 shadow-2xs">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-200">
-                      ৳
-                    </div>
-                    <div>
-                      <h3 className="text-sm font-bold text-[#050505]">পেইজ মনিটাইজেশন ও ক্রিয়েটর স্টুডিও</h3>
-                      <p className="text-[11px] text-emerald-700">
-                        শরিয়াহ সম্মত {sharePct}% ক্রিয়েটর রেভিনিউ শেয়ার
-                      </p>
-                    </div>
-                  </div>
-                  <span
-                    className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
-                      status === 'approved'
-                        ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
-                        : status === 'paused'
-                        ? 'bg-amber-50 text-amber-800 border-amber-200'
-                        : status === 'rejected'
-                        ? 'bg-rose-50 text-rose-700 border-rose-200'
-                        : 'bg-blue-50 text-[#0866FF] border-blue-200'
-                    }`}
+          {/* EVENTS TAB */}
+          {pageSubTab === 'events' && (
+            <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-bold text-[#050505] flex items-center gap-1.5">
+                  <Calendar className="w-4 h-4 text-[#0866FF]" />
+                  <span>Upcoming Events</span>
+                </h3>
+              </div>
+
+              {selectedPage.isOwner && (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <input
+                    type="text"
+                    value={newEventTitle}
+                    onChange={(e) => setNewEventTitle(e.target.value)}
+                    placeholder="নতুন ইভেন্টের নাম লিখুন..."
+                    className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                  <input
+                    type="date"
+                    value={newEventDate}
+                    onChange={(e) => setNewEventDate(e.target.value)}
+                    className="bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (!newEventTitle.trim()) return;
+                      setPageEventsList((prev) => ({
+                        ...prev,
+                        [selectedPage.id]: [
+                          {
+                            id: `ev-${Date.now()}`,
+                            title: newEventTitle.trim(),
+                            date: newEventDate || 'Upcoming',
+                            location: selectedPage.location || 'Online / Peaceverse24',
+                          },
+                          ...(prev[selectedPage.id] || []),
+                        ],
+                      }));
+                      setNewEventTitle('');
+                      setNewEventDate('');
+                      showToast('নতুন পেজ ইভেন্ট যোগ করা হয়েছে!');
+                    }}
+                    className="px-3.5 py-2 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
                   >
-                    {status === 'approved'
-                      ? 'Active ✓'
-                      : status === 'paused'
-                      ? 'Paused'
-                      : status === 'rejected'
-                      ? 'Rejected'
-                      : 'Pending Review'}
-                  </span>
+                    + Create Event
+                  </button>
                 </div>
+              )}
 
-                <div className="grid grid-cols-2 gap-2.5">
-                  <div className="bg-[#F0F2F5] p-3 rounded-xl">
-                    <span className="text-[10px] text-[#65676B] block">উত্তোলনযোগ্য ব্যালেন্স</span>
-                    <span className="text-base font-bold text-emerald-700 tabular-nums">
-                      ৳{pendingEarned.toLocaleString()}
-                    </span>
-                  </div>
-                  <div className="bg-[#F0F2F5] p-3 rounded-xl">
-                    <span className="text-[10px] text-[#65676B] block">মোট অর্জিত আয়</span>
-                    <span className="text-base font-bold text-[#050505] tabular-nums">
-                      ৳{totalEarned.toLocaleString()}
-                    </span>
-                  </div>
-                </div>
-
-                <button
-                  type="button"
-                  onClick={() => setShowMonetizationModal(true)}
-                  className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
-                >
-                  <DollarSign className="w-4 h-4" />
-                  <span>Payout Studio (PayPal / bKash / Bank)</span>
-                </button>
-              </div>
-            );
-          })()}
-
-          {/* REVIEWS TAB */}
-          {pageSubTab === 'reviews' && (
-            <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3 shadow-2xs">
-              <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
-                <div>
-                  <div className="text-xl font-extrabold text-amber-500">4.9 ★★★★★</div>
-                  <p className="text-xs text-[#65676B]">140 জনের মতামতের ভিত্তিতে</p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => showToast('ধন্যবাদ! আপনার ৫★ রিভিউ যুক্ত হয়েছে।')}
-                  className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
-                >
-                  রিভিউ দিন
-                </button>
-              </div>
-              <div className="bg-[#F0F2F5] p-3 rounded-xl">
-                <p className="text-xs font-bold text-[#050505]">মোহাম্মদ তৌফিক</p>
-                <p className="text-[11px] text-amber-600">★★★★★ ১০০% হালাল ও বিশ্বস্ত</p>
-                <p className="text-xs text-[#65676B] mt-1">
-                  মাশাআল্লাহ! পেজের কনটেন্ট এবং সেবার মান অত্যন্ত প্রশংসনীয়।
+              {(pageEventsList[selectedPage.id] || []).length === 0 ? (
+                <p className="text-xs text-[#65676B] text-center py-4">
+                  এই মুহূর্তে কোনো আসন্ন ইভেন্ট নেই।
                 </p>
+              ) : (
+                <div className="space-y-2">
+                  {(pageEventsList[selectedPage.id] || []).map((ev) => (
+                    <div key={ev.id} className="p-3 rounded-lg bg-[#F0F2F5] flex items-center justify-between gap-2">
+                      <div>
+                        <p className="text-xs font-bold text-[#050505]">{ev.title}</p>
+                        <p className="text-[11px] text-[#65676B]">
+                          {ev.date} • {ev.location}
+                        </p>
+                      </div>
+                      <span className="px-2 py-1 rounded-md bg-white text-[10px] font-bold text-[#0866FF] border border-[#E4E6EB]">
+                        Event
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* MENTIONS TAB */}
+          {pageSubTab === 'mentions' && (
+            <div className="bg-white rounded-xl border border-[#E4E6EB] p-6 text-center space-y-2.5">
+              <div className="w-11 h-11 rounded-full bg-[#F0F2F5] text-[#0866FF] flex items-center justify-center mx-auto">
+                <AtSign className="w-5 h-5" />
               </div>
+              <h3 className="text-sm font-bold text-[#050505]">Mentions</h3>
+              <p className="text-xs text-[#65676B]">
+                কেউ @{selectedPage.name} কে মেনশন করে পোস্ট করলে এখানে দেখাবে।
+              </p>
             </div>
           )}
         </div>
+
+        {/* CREATOR DASHBOARD MODAL (Includes Overview, Moved Earnings & Reviews) */}
+        {showCreatorDashboard && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-lg rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in fade-in">
+              <div className="px-4 py-3 border-b border-[#E4E6EB] flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-[#0866FF]" />
+                  <div>
+                    <h3 className="font-bold text-base text-[#050505]">Creator Dashboard</h3>
+                    <p className="text-[11px] text-[#65676B]">{selectedPage.name}</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowCreatorDashboard(false)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Creator Dashboard Sub-Tabs: Overview / Earnings / Reviews */}
+              <div className="flex border-b border-[#E4E6EB] px-3 bg-[#F8F9FA]">
+                {[
+                  { id: 'overview', label: 'Overview' },
+                  { id: 'earnings', label: 'Earnings' },
+                  { id: 'reviews', label: 'Reviews' },
+                ].map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    onClick={() => setCreatorDashboardTab(t.id as any)}
+                    className={`flex-1 py-2.5 text-xs font-bold border-b-2 transition-colors cursor-pointer ${
+                      creatorDashboardTab === t.id
+                        ? 'border-[#0866FF] text-[#0866FF]'
+                        : 'border-transparent text-[#65676B] hover:text-[#050505]'
+                    }`}
+                  >
+                    {t.label}
+                  </button>
+                ))}
+              </div>
+
+              <div className="p-4 overflow-y-auto flex-1 space-y-3.5">
+                {creatorDashboardTab === 'overview' && (
+                  <>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                        <span className="text-[11px] text-[#65676B] block">Followers</span>
+                        <span className="text-lg font-extrabold text-[#050505] tabular-nums">
+                          {selectedPage.followersCount.toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                        <span className="text-[11px] text-[#65676B] block">Post Reach (28d)</span>
+                        <span className="text-lg font-extrabold text-[#0866FF] tabular-nums">
+                          {(activePosts.length * 142 + selectedPage.followersCount * 3).toLocaleString()}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                        <span className="text-[11px] text-[#65676B] block">Total Posts</span>
+                        <span className="text-lg font-extrabold text-[#050505] tabular-nums">
+                          {activePosts.length}
+                        </span>
+                      </div>
+                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                        <span className="text-[11px] text-[#65676B] block">Engagement</span>
+                        <span className="text-lg font-extrabold text-emerald-700 tabular-nums">
+                          {activePosts.reduce((sum, p) => sum + p.likes + p.comments, 0)}
+                        </span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCreatorDashboard(false);
+                          setSheetPage(selectedPage);
+                        }}
+                        className="py-2.5 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <RefreshCw className="w-3.5 h-3.5 text-[#0866FF]" />
+                        <span>Switch to Page</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCreatorDashboard(false);
+                          handleOpenEditModal(selectedPage);
+                        }}
+                        className="py-2.5 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Edit3 className="w-3.5 h-3.5" />
+                        <span>Edit Page</span>
+                      </button>
+                    </div>
+                  </>
+                )}
+
+                {creatorDashboardTab === 'earnings' && (() => {
+                  const adminControl = getPageMonetizationById(selectedPage.id);
+                  const status = adminControl?.status || (selectedPage.followersCount >= 5000 ? 'approved' : 'pending');
+                  const sharePct = adminControl?.revenueShareCreatorPct || 55;
+                  const totalEarned = adminControl?.totalEarnings ?? 0;
+                  const pendingEarned = adminControl?.pendingBalance ?? 0;
+
+                  return (
+                    <div className="space-y-3.5">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center font-bold text-sm border border-emerald-200">
+                            ৳
+                          </div>
+                          <div>
+                            <h3 className="text-sm font-bold text-[#050505]">পেইজ মনিটাইজেশন ও ক্রিয়েটর স্টুডিও</h3>
+                            <p className="text-[11px] text-emerald-700">
+                              শরিয়াহ সম্মত {sharePct}% ক্রিয়েটর রেভিনিউ শেয়ার
+                            </p>
+                          </div>
+                        </div>
+                        <span
+                          className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full border ${
+                            status === 'approved'
+                              ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                              : status === 'paused'
+                              ? 'bg-amber-50 text-amber-800 border-amber-200'
+                              : status === 'rejected'
+                              ? 'bg-rose-50 text-rose-700 border-rose-200'
+                              : 'bg-blue-50 text-[#0866FF] border-blue-200'
+                          }`}
+                        >
+                          {status === 'approved'
+                            ? 'Active ✓'
+                            : status === 'paused'
+                            ? 'Paused'
+                            : status === 'rejected'
+                            ? 'Rejected'
+                            : 'Pending Review'}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="bg-[#F0F2F5] p-3 rounded-xl">
+                          <span className="text-[10px] text-[#65676B] block">উত্তোলনযোগ্য ব্যালেন্স</span>
+                          <span className="text-base font-bold text-emerald-700 tabular-nums">
+                            ৳{pendingEarned.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="bg-[#F0F2F5] p-3 rounded-xl">
+                          <span className="text-[10px] text-[#65676B] block">মোট অর্জিত আয়</span>
+                          <span className="text-base font-bold text-[#050505] tabular-nums">
+                            ৳{totalEarned.toLocaleString()}
+                          </span>
+                        </div>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowCreatorDashboard(false);
+                          setShowMonetizationModal(true);
+                        }}
+                        className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        <DollarSign className="w-4 h-4" />
+                        <span>Payout Studio (PayPal / bKash / Bank)</span>
+                      </button>
+                    </div>
+                  );
+                })()}
+
+                {creatorDashboardTab === 'reviews' && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
+                      <div>
+                        <div className="text-xl font-extrabold text-amber-500">4.9 ★★★★★</div>
+                        <p className="text-xs text-[#65676B]">140 জনের মতামতের ভিত্তিতে</p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => showToast('ধন্যবাদ! আপনার ৫★ রিভিউ যুক্ত হয়েছে।')}
+                        className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                      >
+                        রিভিউ দিন
+                      </button>
+                    </div>
+                    <div className="bg-[#F0F2F5] p-3 rounded-xl">
+                      <p className="text-xs font-bold text-[#050505]">মোহাম্মদ তৌফিক</p>
+                      <p className="text-[11px] text-amber-600">★★★★★ ১০০% হালাল ও বিশ্বস্ত</p>
+                      <p className="text-xs text-[#65676B] mt-1">
+                        মাশাআল্লাহ! পেজের কনটেন্ট এবং সেবার মান অত্যন্ত প্রশংসনীয়।
+                      </p>
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ADVERTISE / BOOST POST MODAL */}
+        {showAdvertiseModal && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-4 animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+                <div className="flex items-center gap-2">
+                  <Megaphone className="w-5 h-5 text-[#0866FF]" />
+                  <h3 className="font-bold text-base text-[#050505]">
+                    {boostTargetPost ? 'Boost Post' : `Advertise ${selectedPage.name}`}
+                  </h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvertiseModal(false)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {boostTargetPost && (
+                <div className="p-3 rounded-xl bg-[#F0F2F5] text-xs text-[#050505] line-clamp-2">
+                  {boostTargetPost.text}
+                </div>
+              )}
+
+              <div className="space-y-2">
+                <p className="text-xs font-bold text-[#050505]">বাজেট ও সময় নির্বাচন করুন (Halal Ad Reach)</p>
+                <div className="grid grid-cols-3 gap-2">
+                  {[
+                    { id: '500', label: '৳500 / 3d', reach: '1.2K–3.5K reach' },
+                    { id: '1000', label: '৳1,000 / 5d', reach: '3K–8.5K reach' },
+                    { id: '2500', label: '৳2,500 / 7d', reach: '8K–22K reach' },
+                  ].map((opt) => (
+                    <button
+                      key={opt.id}
+                      type="button"
+                      onClick={() => setBoostBudget(opt.id as any)}
+                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
+                        boostBudget === opt.id
+                          ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                          : 'bg-white border-[#E4E6EB] text-[#050505]'
+                      }`}
+                    >
+                      <span className="text-xs font-extrabold block">{opt.label}</span>
+                      <span className="text-[10px] text-[#65676B]">{opt.reach}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setShowAdvertiseModal(false);
+                  showToast(
+                    boostTargetPost
+                      ? '🚀 আপনার পোস্ট বুস্ট ক্যাম্পেইন সাবমিট করা হয়েছে!'
+                      : `📢 ${selectedPage.name} পেজের বিজ্ঞাপন চালু হয়েছে!`
+                  );
+                }}
+                className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm cursor-pointer"
+              >
+                {boostTargetPost ? 'Boost post now' : 'Start Promotion'}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* POST INSIGHTS & ADS MODAL */}
+        {insightsPost && (
+          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
+            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-4 animate-in fade-in">
+              <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+                <h3 className="font-bold text-base text-[#050505] flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-[#0866FF]" />
+                  <span>Post insights and ads</span>
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => setInsightsPost(null)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2.5">
+                <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                  <span className="text-[11px] text-[#65676B] block">People Reached</span>
+                  <span className="text-lg font-extrabold text-[#050505] tabular-nums">
+                    {(insightsPost.reach ?? 140).toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                  <span className="text-[11px] text-[#65676B] block">Engagement</span>
+                  <span className="text-lg font-extrabold text-[#0866FF] tabular-nums">
+                    {(insightsPost.likes + insightsPost.comments).toLocaleString()}
+                  </span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                  <span className="text-[11px] text-[#65676B] block">Reactions</span>
+                  <span className="text-base font-bold text-[#050505] tabular-nums">{insightsPost.likes}</span>
+                </div>
+                <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                  <span className="text-[11px] text-[#65676B] block">Link Clicks</span>
+                  <span className="text-base font-bold text-[#050505] tabular-nums">{insightsPost.clicks ?? 14}</span>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setBoostTargetPost({ id: insightsPost.id, text: insightsPost.text });
+                  setInsightsPost(null);
+                  setShowAdvertiseModal(true);
+                }}
+                className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm cursor-pointer"
+              >
+                Boost this post
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Creator Monetization Studio Modal */}
         {showMonetizationModal && (
@@ -1894,12 +2390,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   return (
                     <div
                       key={page.id}
-                      onClick={() => {
-                        setSelectedPage(page);
-                        if (page.isOwner && page.id !== activeSwitchedPageId) {
-                          setSheetPage(page);
-                        }
-                      }}
+                      onClick={() => setSelectedPage(page)}
                       className="flex items-center justify-between gap-3 py-1 bg-white hover:bg-[#F7F8FA] rounded-lg transition-colors cursor-pointer"
                     >
                       <div className="flex items-center gap-3 min-w-0">
