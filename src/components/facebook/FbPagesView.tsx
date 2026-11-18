@@ -49,6 +49,16 @@ import {
   Heart,
   Clock,
   Video,
+  ChevronLeft,
+  Shield,
+  BadgeCheck,
+  Archive,
+  FileText,
+  Link2,
+  KeyRound,
+  Settings,
+  UserPlus,
+  List,
 } from 'lucide-react';
 import { NotificationItem, PageItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -477,6 +487,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [pageReelTitle, setPageReelTitle] = useState('');
   const [showPageLiveModal, setShowPageLiveModal] = useState(false);
   const [pageLiveTitle, setPageLiveTitle] = useState('');
+  const [showPageSettings, setShowPageSettings] = useState(false);
+  const [activeSettingKey, setActiveSettingKey] = useState<string | null>(null);
+  const [pageActionButtonLabel, setPageActionButtonLabel] = useState<string>('WhatsApp');
   const [pageExtraDetails, setPageExtraDetails] = useState<
     Record<
       string,
@@ -889,15 +902,16 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           )}
 
           {/* Top Overlay Controls directly over cover */}
-          <div className="absolute top-0 inset-x-0 z-20 px-2.5 pt-2 flex items-center justify-between">
+          <div className="absolute top-0 inset-x-0 z-30 px-2.5 pt-2 flex items-center justify-between">
             <button
               type="button"
               onClick={() => {
                 setPageSearchOpen(false);
                 setPageSearchQuery('');
+                setShowPageSettings(false);
                 setSelectedPage(null);
               }}
-              className="min-w-[40px] min-h-[40px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+              className="min-w-[42px] min-h-[42px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
               title="Back"
               aria-label="Back to pages"
             >
@@ -909,7 +923,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 <button
                   type="button"
                   onClick={() => handleOpenEditModal(selectedPage)}
-                  className="min-w-[38px] min-h-[38px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+                  className="min-w-[40px] min-h-[40px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
                   title="Edit page"
                   aria-label="Edit page"
                 >
@@ -920,7 +934,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <button
                 type="button"
                 onClick={() => setPageSearchOpen((prev) => !prev)}
-                className="min-w-[38px] min-h-[38px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+                className="min-w-[40px] min-h-[40px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
                 title="Search in page"
                 aria-label="Search in page"
               >
@@ -929,10 +943,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
               <button
                 type="button"
-                onClick={() => setSheetPage(selectedPage)}
-                className="min-w-[38px] min-h-[38px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
-                title="More options & Switch to Page"
-                aria-label="Page options"
+                onClick={() => {
+                  setActiveSettingKey(null);
+                  setShowPageSettings(true);
+                }}
+                className="min-w-[42px] min-h-[42px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Page Settings"
+                aria-label="Page Settings"
               >
                 <span className="w-7 h-7 rounded-full border-[1.8px] border-white flex items-center justify-center drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]">
                   <MoreHorizontal className="w-4 h-4 stroke-[2.4]" />
@@ -2621,6 +2638,387 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               >
                 Start Live Video
               </button>
+            </div>
+          </div>
+        )}
+
+        {/* FULL-SCREEN PAGE SETTINGS OVERLAY (Exact Facebook Page Settings Screen) */}
+        {showPageSettings && (
+          <div className="fixed inset-0 z-[120] bg-white text-[#050505] overflow-y-auto pb-20 font-sans animate-in fade-in">
+            <div className="max-w-[700px] mx-auto min-h-screen bg-white">
+              {/* Top Sticky Header: <  |  Page Settings  |  Page Avatar + Chevron */}
+              <div className="sticky top-0 z-20 bg-white border-b border-[#E4E6EB] h-[54px] px-3 flex items-center justify-between">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (activeSettingKey) {
+                      setActiveSettingKey(null);
+                    } else {
+                      setShowPageSettings(false);
+                    }
+                  }}
+                  className="w-10 h-10 -ml-1 rounded-full hover:bg-[#F0F2F5] flex items-center justify-center cursor-pointer"
+                  aria-label="Back from Page Settings"
+                >
+                  <ChevronLeft className="w-7 h-7 text-[#050505] stroke-[2.2]" />
+                </button>
+
+                <h2 className="text-[18px] font-bold text-[#050505]">Page Settings</h2>
+
+                <button
+                  type="button"
+                  onClick={() => setSheetPage(selectedPage)}
+                  className="relative w-9 h-9 rounded-full cursor-pointer"
+                  title="Switch Page"
+                  aria-label="Switch Page"
+                >
+                  {selectedPage.avatar ? (
+                    <img
+                      src={selectedPage.avatar}
+                      alt={selectedPage.name}
+                      className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB]"
+                    />
+                  ) : (
+                    <div className="w-9 h-9 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-bold text-sm border border-[#E4E6EB]">
+                      {selectedPage.name.trim().charAt(0).toUpperCase()}
+                    </div>
+                  )}
+                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#E4E6EB] border border-white flex items-center justify-center">
+                    <ChevronDown className="w-2.5 h-2.5 text-[#050505]" />
+                  </span>
+                </button>
+              </div>
+
+              {/* Detail Sub-view when a setting item is tapped */}
+              {activeSettingKey ? (
+                <div className="p-4 space-y-4">
+                  <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
+                    <h3 className="text-base font-bold text-[#050505]">{activeSettingKey}</h3>
+                    <button
+                      type="button"
+                      onClick={() => setActiveSettingKey(null)}
+                      className="text-xs font-bold text-[#0866FF] cursor-pointer"
+                    >
+                      Done
+                    </button>
+                  </div>
+
+                  {activeSettingKey === 'Page status' && (
+                    <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 space-y-1.5">
+                      <p className="text-sm font-bold text-emerald-800 flex items-center gap-2">
+                        <ShieldCheck className="w-5 h-5" />
+                        <span>Page has no issues</span>
+                      </p>
+                      <p className="text-xs text-emerald-700">
+                        {selectedPage.name} পেজটি সম্পূর্ণ হালাল নীতিমালা মেনে চলছে এবং সক্রিয় রয়েছে।
+                      </p>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Verify your Page' && (
+                    <div className="p-4 rounded-xl bg-[#F0F2F5] space-y-3">
+                      <p className="text-sm font-bold text-[#050505]">
+                        Blue Verification Badge ({selectedPage.name})
+                      </p>
+                      <p className="text-xs text-[#65676B]">
+                        পেজ ভেরিফিকেশনের জন্য আবেদন করলে অ্যাডমিন টিম আপনার পেজের তথ্য যাচাই করবে।
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          showToast('✅ ভেরিফিকেশন আবেদন জমা দেওয়া হয়েছে!');
+                          setActiveSettingKey(null);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                      >
+                        Request Verification
+                      </button>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Action Button' && (
+                    <div className="space-y-2.5">
+                      <p className="text-xs text-[#65676B]">
+                        ভিজিটরদের জন্য প্রাইমারি অ্যাকশন বাটন নির্বাচন করুন:
+                      </p>
+                      {['WhatsApp', 'Call Now', 'Send Message', 'Follow Page'].map((btnOpt) => (
+                        <button
+                          key={btnOpt}
+                          type="button"
+                          onClick={() => {
+                            setPageActionButtonLabel(btnOpt);
+                            showToast(`Action button "${btnOpt}" সেট করা হয়েছে!`);
+                          }}
+                          className={`w-full p-3 rounded-xl border text-left text-sm font-semibold flex items-center justify-between cursor-pointer ${
+                            pageActionButtonLabel === btnOpt
+                              ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                              : 'bg-white border-[#E4E6EB] text-[#050505]'
+                          }`}
+                        >
+                          <span>{btnOpt}</span>
+                          {pageActionButtonLabel === btnOpt && <Check className="w-4 h-4" />}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Add highlights' && (
+                    <div className="space-y-2.5">
+                      <p className="text-xs text-[#65676B]">
+                        পিন করা পোস্টগুলো হাইলাইট হিসেবে পেজের উপরে দেখানো হয় (মোট{' '}
+                        {rawPosts.filter((p) => p.pinned).length}টি)।
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPageSettings(false);
+                          setActiveSettingKey(null);
+                          setPostFilterMode('pinned');
+                        }}
+                        className="px-4 py-2 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                      >
+                        Manage highlighted posts
+                      </button>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Archive' && (
+                    <div className="p-6 rounded-xl bg-[#F0F2F5] text-center space-y-1.5">
+                      <Archive className="w-7 h-7 text-[#65676B] mx-auto" />
+                      <p className="text-sm font-bold text-[#050505]">No archived items</p>
+                      <p className="text-xs text-[#65676B]">আর্কাইভ করা কোনো পোস্ট বা স্টোরি নেই।</p>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Posts and tags' && (
+                    <div className="space-y-3">
+                      <p className="text-xs text-[#65676B]">
+                        অন্যান্য ইউজাররা @{selectedPage.name} কে পোস্টে মেনশন ও ট্যাগ করতে পারবেন।
+                      </p>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPageSettings(false);
+                          setActiveSettingKey(null);
+                          setPageSubTab('mentions');
+                        }}
+                        className="px-4 py-2 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                      >
+                        View Mentions & Tags
+                      </button>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Connected experiences' && (
+                    <div className="space-y-3">
+                      <div className="p-3.5 rounded-xl bg-[#F0F2F5] space-y-1.5 text-xs">
+                        <p className="font-bold text-[#050505]">
+                          WhatsApp: {selectedPage.whatsapp || selectedPage.phone || 'Not linked'}
+                        </p>
+                        <p className="text-[#65676B]">
+                          Website: {selectedPage.website || 'Not linked'}
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPageSettings(false);
+                          setActiveSettingKey(null);
+                          handleOpenEditModal(selectedPage);
+                        }}
+                        className="px-4 py-2 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                      >
+                        Update Connected Accounts
+                      </button>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Admins' && (
+                    <div className="p-3.5 rounded-xl bg-[#F0F2F5] flex items-center justify-between">
+                      <div>
+                        <p className="text-sm font-bold text-[#050505]">
+                          {userProfile?.name || 'Page Owner'}
+                        </p>
+                        <p className="text-xs text-[#65676B]">Admin • Full control</p>
+                      </div>
+                      <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold">
+                        Active
+                      </span>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Settings & privacy' && (
+                    <div className="space-y-2.5">
+                      <label className="flex items-center justify-between p-3 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                        <span className="text-xs font-bold text-[#050505]">Notify all followers on post</span>
+                        <input
+                          type="checkbox"
+                          checked={creatorPrefs.creatorNotifyFollowersOnPost}
+                          onChange={(e) =>
+                            updateCreatorPref({ creatorNotifyFollowersOnPost: e.target.checked })
+                          }
+                          className="w-4 h-4 accent-[#0866FF]"
+                        />
+                      </label>
+                      <label className="flex items-center justify-between p-3 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                        <span className="text-xs font-bold text-[#050505]">Push notifications to all users</span>
+                        <input
+                          type="checkbox"
+                          checked={creatorPrefs.creatorSendPushToAllUsers}
+                          onChange={(e) =>
+                            updateCreatorPref({ creatorSendPushToAllUsers: e.target.checked })
+                          }
+                          className="w-4 h-4 accent-emerald-600"
+                        />
+                      </label>
+                    </div>
+                  )}
+
+                  {activeSettingKey === 'Activity log' && (
+                    <div className="space-y-2">
+                      {rawPosts.length === 0 ? (
+                        <p className="text-xs text-[#65676B] py-4 text-center">
+                          এখনো কোনো অ্যাক্টিভিটি রেকর্ড নেই।
+                        </p>
+                      ) : (
+                        rawPosts.map((p) => (
+                          <div key={p.id} className="p-3 rounded-xl bg-[#F0F2F5] text-xs space-y-1">
+                            <p className="font-bold text-[#050505] line-clamp-2">{p.text}</p>
+                            <p className="text-[11px] text-[#65676B]">
+                              {p.dateLabel || p.time} • {p.likes} likes
+                            </p>
+                          </div>
+                        ))
+                      )}
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="px-4 py-4 space-y-6">
+                  {/* Manage Section */}
+                  <div className="space-y-1">
+                    <h3 className="text-[19px] font-bold text-[#050505] mb-2">Manage</h3>
+
+                    {[
+                      { label: 'Page status', icon: Shield },
+                      { label: 'Verify your Page', icon: BadgeCheck },
+                      { label: 'Action Button', icon: Edit3 },
+                      { label: 'Add highlights', icon: Heart },
+                      { label: 'Archive', icon: Archive },
+                      { label: 'Posts and tags', icon: FileText },
+                      { label: 'Connected experiences', icon: Link2 },
+                      { label: 'Admins', icon: KeyRound },
+                      { label: 'Settings & privacy', icon: Settings },
+                    ].map((item) => {
+                      const Icon = item.icon;
+                      return (
+                        <button
+                          key={item.label}
+                          type="button"
+                          onClick={() => setActiveSettingKey(item.label)}
+                          className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                        >
+                          <Icon className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                          <span className="text-[16px] font-medium text-[#050505]">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Share Section */}
+                  <div className="space-y-1">
+                    <h3 className="text-[19px] font-bold text-[#050505] mb-2">Share</h3>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pageUrl = `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}`;
+                        if (navigator.share) {
+                          navigator.share({
+                            title: `Follow ${selectedPage.name} on Peaceverse24`,
+                            url: pageUrl,
+                          }).catch(() => {});
+                        } else {
+                          try {
+                            navigator.clipboard?.writeText(pageUrl);
+                          } catch {}
+                          showToast('ইনভাইট লিংক কপি করা হয়েছে!');
+                        }
+                      }}
+                      className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                    >
+                      <UserPlus className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                      <span className="text-[16px] font-medium text-[#050505]">
+                        Invite people to connect
+                      </span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pageUrl = `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}`;
+                        if (navigator.share) {
+                          navigator.share({
+                            title: selectedPage.name,
+                            text: selectedPage.bio || selectedPage.description || selectedPage.name,
+                            url: pageUrl,
+                          }).catch(() => {});
+                        } else {
+                          try {
+                            navigator.clipboard?.writeText(pageUrl);
+                          } catch {}
+                          showToast(`${selectedPage.name} পেজের শেয়ার লিংক কপি হয়েছে!`);
+                        }
+                      }}
+                      className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                    >
+                      <Share2 className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                      <span className="text-[16px] font-medium text-[#050505]">Share Page</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const pageUrl = `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}`;
+                        try {
+                          navigator.clipboard?.writeText(pageUrl);
+                        } catch {}
+                        showToast(`Page link কপি হয়েছে: ${pageUrl}`);
+                      }}
+                      className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                    >
+                      <Link2 className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                      <span className="text-[16px] font-medium text-[#050505]">Page link</span>
+                    </button>
+                  </div>
+
+                  {/* View Section */}
+                  <div className="space-y-1">
+                    <h3 className="text-[19px] font-bold text-[#050505] mb-2">View</h3>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setShowPageSettings(false);
+                        setPageSearchOpen(true);
+                      }}
+                      className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                    >
+                      <Search className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                      <span className="text-[16px] font-medium text-[#050505]">Search this Page</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => setActiveSettingKey('Activity log')}
+                      className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                    >
+                      <List className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                      <span className="text-[16px] font-medium text-[#050505]">Activity log</span>
+                    </button>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         )}
