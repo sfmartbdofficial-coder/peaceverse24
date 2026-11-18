@@ -34,7 +34,7 @@ import {
   Eye,
   ExternalLink,
 } from 'lucide-react';
-import { UserProfile, PostItem } from '../../types';
+import { UserProfile, PostItem, PageItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
 import { FbEditProfileModal } from './FbEditProfileModal';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -69,6 +69,9 @@ interface FbProfileViewProps {
   onOpenGoldenWallet?: () => void;
   viewedProfile?: UserProfile | null;
   onBackToOwnProfile?: () => void;
+  activeSwitchedPageId?: string | null;
+  onSwitchToPage?: (page: PageItem) => void;
+  onSwitchToPersonal?: () => void;
 }
 
 export const FbProfileView: React.FC<FbProfileViewProps> = ({
@@ -88,6 +91,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   onOpenGoldenWallet,
   viewedProfile,
   onBackToOwnProfile,
+  activeSwitchedPageId = null,
+  onSwitchToPage,
+  onSwitchToPersonal,
 }) => {
   const activeProfile = viewedProfile || userProfile;
   const isOwnProfile = !viewedProfile || viewedProfile.name === userProfile.name;
@@ -885,8 +891,26 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       {showProfileSwitcher && (
         <FbProfileSwitcherModal
           userProfile={userProfile}
-          activeProfileId={activeProfileId}
-          onSelectProfile={(id) => setActiveProfileId(id)}
+          activeProfileId={activeSwitchedPageId || activeProfileId}
+          onSelectProfile={(id) => {
+            setActiveProfileId(id);
+            if (id === 'main') {
+              onSwitchToPersonal?.();
+              return;
+            }
+            try {
+              const stored = localStorage.getItem('qalby_fb_pages');
+              if (stored) {
+                const parsed = JSON.parse(stored);
+                if (Array.isArray(parsed)) {
+                  const found = parsed.find((p: PageItem) => p.id === id);
+                  if (found && onSwitchToPage) {
+                    onSwitchToPage(found);
+                  }
+                }
+              }
+            } catch {}
+          }}
           onClose={() => setShowProfileSwitcher(false)}
           onCreatePage={() => {
             if (onOpenPages) onOpenPages();

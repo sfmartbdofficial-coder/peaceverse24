@@ -117,9 +117,39 @@ import {
 } from './lib/fcm';
 import { loadPeaceSettings } from './utils/settingsStorage';
 
+const VALID_MAIN_TABS: FacebookMainTab[] = [
+  'home',
+  'reels',
+  'friends',
+  'marketplace',
+  'notifications',
+  'profile',
+  'menu',
+  'saved',
+  'groups',
+  'pages',
+  'feeds',
+  'memories',
+];
+
 export default function App() {
-  const [currentTab, setCurrentTab] = useState<FacebookMainTab>('home');
-  const [tabHistory, setTabHistory] = useState<FacebookMainTab[]>(['home']);
+  const [currentTab, setCurrentTab] = useState<FacebookMainTab>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlTab = params.get('tab') as FacebookMainTab | null;
+      if (urlTab && VALID_MAIN_TABS.includes(urlTab)) return urlTab;
+      const savedTab = localStorage.getItem('peaceverse_current_tab_v1') as FacebookMainTab | null;
+      if (savedTab && VALID_MAIN_TABS.includes(savedTab)) return savedTab;
+    } catch {}
+    return 'home';
+  });
+  const [tabHistory, setTabHistory] = useState<FacebookMainTab[]>(() => [currentTab]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_current_tab_v1', currentTab);
+    } catch {}
+  }, [currentTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<SearchedUserProfile[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
@@ -359,9 +389,36 @@ export default function App() {
     } catch {}
     return null;
   });
-  const [selectedPageIdToOpen, setSelectedPageIdToOpen] = useState<string | null>(null);
+  const [selectedPageIdToOpen, setSelectedPageIdToOpen] = useState<string | null>(() => {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const urlPageId = params.get('pageId');
+      if (urlPageId) return urlPageId;
+      const savedTab = localStorage.getItem('peaceverse_current_tab_v1');
+      const savedPageId = localStorage.getItem('peaceverse_selected_page_id_v1');
+      if (savedTab === 'pages' && savedPageId) return savedPageId;
+    } catch {}
+    return null;
+  });
   const [openPageSwitchSheetOnOpen, setOpenPageSwitchSheetOnOpen] = useState(false);
   const [initialCreatePageName, setInitialCreatePageName] = useState<string | null>(null);
+
+  useEffect(() => {
+    const syncSwitchedPage = () => {
+      try {
+        const saved = localStorage.getItem('qalby_switched_page');
+        setActiveSwitchedPage(saved ? JSON.parse(saved) : null);
+      } catch {
+        setActiveSwitchedPage(null);
+      }
+    };
+    window.addEventListener('peaceverse:switched-page-updated', syncSwitchedPage);
+    window.addEventListener('storage', syncSwitchedPage);
+    return () => {
+      window.removeEventListener('peaceverse:switched-page-updated', syncSwitchedPage);
+      window.removeEventListener('storage', syncSwitchedPage);
+    };
+  }, []);
 
   const handleCreatePageWithName = (name: string) => {
     setInitialCreatePageName(name);
@@ -369,14 +426,23 @@ export default function App() {
     navigateToTab('pages');
   };
 
-  const handleSwitchToPage = (page: PageItem) => {
+  const handleSwitchToPage = (
+    page: PageItem,
+    options?: { stayInPage?: boolean; targetTab?: FacebookMainTab }
+  ) => {
     setActiveSwitchedPage(page);
     setSelectedPageIdToOpen(page.id);
     try {
       localStorage.setItem('qalby_switched_page', JSON.stringify(page));
+      localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
     } catch {}
-    setCurrentTab('home');
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    if (options?.stayInPage) {
+      if (currentTab !== 'pages') {
+        navigateToTab('pages');
+      }
+      return;
+    }
+    navigateToTab(options?.targetTab || 'pages');
   };
 
   const handleSwitchToPersonal = () => {
@@ -384,6 +450,7 @@ export default function App() {
     setSelectedPageIdToOpen(null);
     try {
       localStorage.removeItem('qalby_switched_page');
+      localStorage.removeItem('peaceverse_selected_page_id_v1');
     } catch {}
   };
   // Google Play Store & Legal Policy Modal state (supports direct hash: #about, #privacy, #terms, #guidelines, #delete-account, #contact)
@@ -458,10 +525,13 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
 
   const navigateToPath = (path: string) => {
-    if (window.location.pathname !== path) {
-      window.history.pushState({}, '', path);
+    const url = new URL(path, window.location.origin);
+    const nextFull = url.pathname + url.search + url.hash;
+    const curFull = window.location.pathname + window.location.search + window.location.hash;
+    if (curFull !== nextFull) {
+      window.history.pushState({}, '', nextFull);
     }
-    setCurrentPath(path);
+    setCurrentPath(url.pathname || '/');
     setShowAdminPortal(checkIsAdmin());
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
@@ -549,13 +619,13 @@ export default function App() {
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/" (unless opening Admin Panel)
         const path = window.location.pathname;
         if (!checkIsAdmin() && (path === '/' || path === '')) {
-          navigateToPath('/home');
+          navigateToPath('/home' + window.location.search + window.location.hash);
         }
       } else {
         // Rule: If user is NOT logged in, redirect any /home visit back to "/"
         const path = window.location.pathname;
         if (path === '/home') {
-          navigateToPath('/');
+          navigateToPath('/' + window.location.search + window.location.hash);
         }
       }
     });
@@ -1536,10 +1606,17 @@ export default function App() {
       console.error('Logout error:', err);
     }
     setFirebaseUser(null);
+    setActiveSwitchedPage(null);
+    setSelectedPageIdToOpen(null);
     setCurrentTab('home');
+    setTabHistory(['home']);
     try {
       localStorage.removeItem('qalby_user_profile');
       localStorage.removeItem('peaceverse_registered_name');
+      localStorage.removeItem('qalby_switched_page');
+      localStorage.removeItem('peaceverse_current_tab_v1');
+      localStorage.removeItem('peaceverse_selected_page_id_v1');
+      localStorage.removeItem('peaceverse_page_subtab_v1');
     } catch {}
     setUserProfile(USER_PROFILE);
     navigateToPath('/');
@@ -2196,6 +2273,9 @@ export default function App() {
             onBackToOwnProfile={() => setViewedProfile(null)}
             onOpenMenu={() => navigateToTab('menu')}
             onOpenPages={() => navigateToTab('pages')}
+            activeSwitchedPageId={activeSwitchedPage?.id || null}
+            onSwitchToPage={(page) => handleSwitchToPage(page)}
+            onSwitchToPersonal={handleSwitchToPersonal}
             onBack={() => {
               setViewedProfile(null);
               goBack();
@@ -2225,9 +2305,19 @@ export default function App() {
             }}
             activeSwitchedPage={activeSwitchedPage}
             onSwitchToPage={handleSwitchToPage}
+            onOpenSwitchedPage={(page) => {
+              setSelectedPageIdToOpen(page.id);
+              try {
+                localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
+              } catch {}
+              navigateToTab('pages');
+            }}
             onOpenPageWithSwitch={(page) => {
               setSelectedPageIdToOpen(page.id);
               setOpenPageSwitchSheetOnOpen(true);
+              try {
+                localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
+              } catch {}
               navigateToTab('pages');
             }}
             onSwitchToPersonal={handleSwitchToPersonal}
@@ -2298,6 +2388,9 @@ export default function App() {
                 setSelectedPageIdToOpen(null);
                 setOpenPageSwitchSheetOnOpen(false);
                 setInitialCreatePageName(null);
+                try {
+                  localStorage.removeItem('peaceverse_selected_page_id_v1');
+                } catch {}
                 goBack();
               }}
               userProfile={userProfile}
@@ -2365,7 +2458,7 @@ export default function App() {
       {/* 5. Facebook Create Story Modal */}
       {showCreateStory && (
         <FbCreateStoryModal
-          userProfile={userProfile}
+          userProfile={effectiveProfile}
           onClose={() => setShowCreateStory(false)}
           onStoryCreated={handleStoryCreated}
         />
@@ -2374,7 +2467,7 @@ export default function App() {
       {/* 6. Facebook Create Reel Modal */}
       {showCreateReel && (
         <FbCreateReelModal
-          userProfile={userProfile}
+          userProfile={effectiveProfile}
           onClose={() => setShowCreateReel(false)}
           onReelCreated={handleReelCreated}
         />
@@ -2383,7 +2476,7 @@ export default function App() {
       {/* 7. Facebook Live Modal */}
       {showLive && (
         <FbLiveModal
-          userProfile={userProfile}
+          userProfile={effectiveProfile}
           onClose={() => setShowLive(false)}
           onLiveCreated={handleLiveCreated}
         />

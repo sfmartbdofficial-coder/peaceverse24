@@ -90,7 +90,7 @@ import { getPageMonetizationById } from '../../utils/adminControlStorage';
 interface FbPagesViewProps {
   onBack: () => void;
   userProfile?: UserProfile;
-  onSwitchToPage?: (page: PageItem) => void;
+  onSwitchToPage?: (page: PageItem, options?: { stayInPage?: boolean }) => void;
   activeSwitchedPageId?: string | null;
   embedded?: boolean;
   onBroadcastNotification?: (notif: NotificationItem) => void;
@@ -496,9 +496,25 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   }, [removedSuggestedIds]);
 
   const [selectedPage, setSelectedPage] = useState<PageItem | null>(() => {
-    if (!initialSelectedPageId) return null;
-    return pages.find((p) => p.id === initialSelectedPageId) || null;
+    try {
+      const targetId =
+        initialSelectedPageId || localStorage.getItem('peaceverse_selected_page_id_v1');
+      if (!targetId) return null;
+      return pages.find((p) => p.id === targetId) || null;
+    } catch {
+      return null;
+    }
   });
+
+  useEffect(() => {
+    try {
+      if (selectedPage) {
+        localStorage.setItem('peaceverse_selected_page_id_v1', selectedPage.id);
+      } else {
+        localStorage.removeItem('peaceverse_selected_page_id_v1');
+      }
+    } catch {}
+  }, [selectedPage]);
 
   useEffect(() => {
     if (initialSelectedPageId) {
@@ -558,7 +574,27 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [editLocation, setEditLocation] = useState('');
 
   // Page Profile Tabs & In-Page Post Creation
-  const [pageSubTab, setPageSubTab] = useState<'all' | 'photos' | 'reels' | 'events' | 'mentions'>('all');
+  const [pageSubTab, setPageSubTab] = useState<'all' | 'photos' | 'reels' | 'events' | 'mentions'>(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_subtab_v1');
+      if (
+        saved === 'all' ||
+        saved === 'photos' ||
+        saved === 'reels' ||
+        saved === 'events' ||
+        saved === 'mentions'
+      ) {
+        return saved;
+      }
+    } catch {}
+    return 'all';
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_subtab_v1', pageSubTab);
+    } catch {}
+  }, [pageSubTab]);
   const [showMonetizationModal, setShowMonetizationModal] = useState(false);
   const [showCreatorDashboard, setShowCreatorDashboard] = useState(false);
   const [creatorDashboardTab, setCreatorDashboardTab] = useState<'overview' | 'earnings' | 'reviews'>('overview');
@@ -598,6 +634,26 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   });
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
+  const [pageEventRsvps, setPageEventRsvps] = useState<Record<string, 'going' | 'interested'>>(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_event_rsvps_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [pageReviewsMap, setPageReviewsMap] = useState<
+    Record<string, Array<{ id: string; author: string; rating: number; text: string; time: string }>>
+  >(() => {
+    try {
+      const saved = localStorage.getItem('peaceverse_page_reviews_v1');
+      return saved ? JSON.parse(saved) : {};
+    } catch {
+      return {};
+    }
+  });
+  const [reviewRatingDraft, setReviewRatingDraft] = useState<number>(5);
+  const [reviewTextDraft, setReviewTextDraft] = useState('');
   const [pagePostText, setPagePostText] = useState('');
   const [pagePostImage, setPagePostImage] = useState('');
   const [showPageComposer, setShowPageComposer] = useState(false);
@@ -800,6 +856,33 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     } catch {}
   }, [pageEventsList]);
 
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_event_rsvps_v1', JSON.stringify(pageEventRsvps));
+    } catch {}
+  }, [pageEventRsvps]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('peaceverse_page_reviews_v1', JSON.stringify(pageReviewsMap));
+    } catch {}
+  }, [pageReviewsMap]);
+
+  const syncUpdatedPageToSwitchedStorage = (updated: PageItem | null, deletedId?: string) => {
+    try {
+      const switchedRaw = localStorage.getItem('qalby_switched_page');
+      if (!switchedRaw) return;
+      const switched = JSON.parse(switchedRaw);
+      if (deletedId && switched?.id === deletedId) {
+        localStorage.removeItem('qalby_switched_page');
+        window.dispatchEvent(new Event('peaceverse:switched-page-updated'));
+      } else if (updated && switched?.id === updated.id) {
+        localStorage.setItem('qalby_switched_page', JSON.stringify(updated));
+        window.dispatchEvent(new Event('peaceverse:switched-page-updated'));
+      }
+    } catch {}
+  };
+
   const [toastMessage, setToastMessage] = useState<string | null>(null);
 
   const showToast = (msg: string) => {
@@ -990,15 +1073,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       const updated = { ...selectedPage, avatar: base64 };
       setSelectedPage(updated);
       setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
-      try {
-        const switchedRaw = localStorage.getItem('qalby_switched_page');
-        if (switchedRaw) {
-          const switched = JSON.parse(switchedRaw);
-          if (switched?.id === updated.id) {
-            localStorage.setItem('qalby_switched_page', JSON.stringify(updated));
-          }
-        }
-      } catch {}
+      syncUpdatedPageToSwitchedStorage(updated);
       showToast('পেজের লোগো / প্রোফাইল ছবি আপডেট করা হয়েছে!');
     } catch {
       showToast('ছবি আপলোড করতে সমস্যা হয়েছে');
@@ -1014,15 +1089,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       const updated = { ...selectedPage, cover: base64 };
       setSelectedPage(updated);
       setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
-      try {
-        const switchedRaw = localStorage.getItem('qalby_switched_page');
-        if (switchedRaw) {
-          const switched = JSON.parse(switchedRaw);
-          if (switched?.id === updated.id) {
-            localStorage.setItem('qalby_switched_page', JSON.stringify(updated));
-          }
-        }
-      } catch {}
+      syncUpdatedPageToSwitchedStorage(updated);
       showToast('পেজের কভার ফটো আপডেট করা হয়েছে!');
     } catch {
       showToast('কভার ফটো আপলোড করতে সমস্যা হয়েছে');
@@ -1064,6 +1131,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
     setSelectedPage(updated);
     setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
+    syncUpdatedPageToSwitchedStorage(updated);
     setShowEditModal(false);
     showToast('💾 পেজের তথ্য সফলভাবে সেভ করা হয়েছে!');
   };
@@ -2819,19 +2887,70 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </p>
               ) : (
                 <div className="space-y-2">
-                  {(pageEventsList[selectedPage.id] || []).map((ev) => (
-                    <div key={ev.id} className="p-3 rounded-lg bg-[#F0F2F5] flex items-center justify-between gap-2">
-                      <div>
-                        <p className="text-xs font-bold text-[#050505]">{ev.title}</p>
-                        <p className="text-[11px] text-[#65676B]">
-                          {ev.date} • {ev.location}
-                        </p>
+                  {(pageEventsList[selectedPage.id] || []).map((ev) => {
+                    const rsvp = pageEventRsvps[ev.id];
+                    return (
+                      <div key={ev.id} className="p-3 rounded-lg bg-[#F0F2F5] flex items-center justify-between gap-2">
+                        <div className="min-w-0">
+                          <p className="text-xs font-bold text-[#050505] truncate">{ev.title}</p>
+                          <p className="text-[11px] text-[#65676B] truncate">
+                            {ev.date} • {ev.location}
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setPageEventRsvps((prev) => {
+                                const nextState =
+                                  prev[ev.id] === 'going'
+                                    ? 'interested'
+                                    : prev[ev.id] === 'interested'
+                                    ? undefined
+                                    : 'going';
+                                const copy = { ...prev };
+                                if (nextState) copy[ev.id] = nextState;
+                                else delete copy[ev.id];
+                                return copy;
+                              });
+                              showToast(
+                                rsvp === 'going'
+                                  ? 'Interested হিসেবে চিহ্নিত হয়েছে'
+                                  : rsvp === 'interested'
+                                  ? 'RSVP সরানো হয়েছে'
+                                  : 'Going ✓ হিসেবে নিশ্চিত হয়েছে'
+                              );
+                            }}
+                            className={`px-2.5 py-1 rounded-md text-[11px] font-bold border cursor-pointer transition-colors ${
+                              rsvp === 'going'
+                                ? 'bg-[#0866FF] text-white border-[#0866FF]'
+                                : rsvp === 'interested'
+                                ? 'bg-[#E7F3FF] text-[#0866FF] border-[#0866FF]/30'
+                                : 'bg-white text-[#050505] border-[#E4E6EB]'
+                            }`}
+                          >
+                            {rsvp === 'going' ? 'Going ✓' : rsvp === 'interested' ? 'Interested ★' : 'Going'}
+                          </button>
+                          {isOwnerView && (
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setPageEventsList((prev) => ({
+                                  ...prev,
+                                  [selectedPage.id]: (prev[selectedPage.id] || []).filter((x) => x.id !== ev.id),
+                                }));
+                                showToast('ইভেন্ট মুছে ফেলা হয়েছে');
+                              }}
+                              className="p-1.5 rounded-md bg-white text-rose-600 border border-[#E4E6EB] hover:bg-rose-50 cursor-pointer"
+                              title="Delete event"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </div>
-                      <span className="px-2 py-1 rounded-md bg-white text-[10px] font-bold text-[#0866FF] border border-[#E4E6EB]">
-                        Event
-                      </span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
@@ -3232,30 +3351,110 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   );
                 })()}
 
-                {creatorDashboardTab === 'reviews' && (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
-                      <div>
-                        <div className="text-xl font-extrabold text-amber-500">4.9 ★★★★★</div>
-                        <p className="text-xs text-[#65676B]">140 জনের মতামতের ভিত্তিতে</p>
+                {creatorDashboardTab === 'reviews' && (() => {
+                  const defaultReview = {
+                    id: 'rev-default-1',
+                    author: 'মোহাম্মদ তৌফিক',
+                    rating: 5,
+                    text: 'মাশাআল্লাহ! পেজের কনটেন্ট এবং সেবার মান অত্যন্ত প্রশংসনীয়।',
+                    time: 'Verified Reviewer',
+                  };
+                  const userReviews = pageReviewsMap[selectedPage.id] || [];
+                  const allReviews = [...userReviews, defaultReview];
+                  const avgRating = (
+                    allReviews.reduce((acc, r) => acc + r.rating, 0) / allReviews.length
+                  ).toFixed(1);
+
+                  return (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-3">
+                        <div>
+                          <div className="text-xl font-extrabold text-amber-500">
+                            {avgRating} {'★'.repeat(Math.round(Number(avgRating)))}
+                          </div>
+                          <p className="text-xs text-[#65676B]">
+                            {139 + allReviews.length} জনের মতামতের ভিত্তিতে
+                          </p>
+                        </div>
+                        <span className="px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-700 text-[11px] font-bold border border-emerald-200">
+                          Recommended ✓
+                        </span>
                       </div>
-                      <button
-                        type="button"
-                        onClick={() => showToast('ধন্যবাদ! আপনার ৫★ রিভিউ যুক্ত হয়েছে।')}
-                        className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
-                      >
-                        রিভিউ দিন
-                      </button>
+
+                      <div className="p-3 rounded-xl border border-[#E4E6EB] space-y-2 bg-[#F8F9FA]">
+                        <div className="flex items-center justify-between">
+                          <span className="text-xs font-bold text-[#050505]">আপনার রিভিউ যোগ করুন</span>
+                          <div className="flex items-center gap-1">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <button
+                                key={star}
+                                type="button"
+                                onClick={() => setReviewRatingDraft(star)}
+                                className={`text-base leading-none cursor-pointer ${
+                                  star <= reviewRatingDraft ? 'text-amber-500' : 'text-[#CED0D4]'
+                                }`}
+                                aria-label={`${star} stars`}
+                              >
+                                ★
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={reviewTextDraft}
+                            onChange={(e) => setReviewTextDraft(e.target.value)}
+                            placeholder="পেজ সম্পর্কে আপনার মতামত লিখুন..."
+                            className="flex-1 bg-white border border-[#E4E6EB] rounded-lg px-3 py-1.5 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const txt = reviewTextDraft.trim() || 'মাশাআল্লাহ, অসাধারণ পেজ!';
+                              const entry = {
+                                id: `rev-${Date.now()}`,
+                                author: userProfile?.name || 'Follower',
+                                rating: reviewRatingDraft,
+                                text: txt,
+                                time: 'এখনই',
+                              };
+                              setPageReviewsMap((prev) => ({
+                                ...prev,
+                                [selectedPage.id]: [entry, ...(prev[selectedPage.id] || [])],
+                              }));
+                              setReviewTextDraft('');
+                              logPageActivity(
+                                selectedPage.id,
+                                'post',
+                                `Submitted ${reviewRatingDraft}★ review`
+                              );
+                              showToast(`ধন্যবাদ! আপনার ${reviewRatingDraft}★ রিভিউ যুক্ত হয়েছে।`);
+                            }}
+                            className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer shrink-0"
+                          >
+                            রিভিউ দিন
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="space-y-2 max-h-52 overflow-y-auto">
+                        {allReviews.map((rev) => (
+                          <div key={rev.id} className="bg-[#F0F2F5] p-3 rounded-xl">
+                            <div className="flex items-center justify-between gap-2">
+                              <p className="text-xs font-bold text-[#050505]">{rev.author}</p>
+                              <span className="text-[10px] text-[#65676B]">{rev.time}</span>
+                            </div>
+                            <p className="text-[11px] text-amber-600">
+                              {'★'.repeat(rev.rating)} ১০০% হালাল ও বিশ্বস্ত
+                            </p>
+                            <p className="text-xs text-[#65676B] mt-1">{rev.text}</p>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <div className="bg-[#F0F2F5] p-3 rounded-xl">
-                      <p className="text-xs font-bold text-[#050505]">মোহাম্মদ তৌফিক</p>
-                      <p className="text-[11px] text-amber-600">★★★★★ ১০০% হালাল ও বিশ্বস্ত</p>
-                      <p className="text-xs text-[#65676B] mt-1">
-                        মাশাআল্লাহ! পেজের কনটেন্ট এবং সেবার মান অত্যন্ত প্রশংসনীয়।
-                      </p>
-                    </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           </div>
@@ -3685,6 +3884,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       ...(prev[selectedPage.id] || []),
                     ],
                   }));
+                  logPageActivity(selectedPage.id, 'post', 'Published a Page Reel', title);
                   setPageReelTitle('');
                   setShowPageReelModal(false);
                   showToast('🎬 রিলস পেজে যুক্ত করা হয়েছে!');
@@ -3747,6 +3947,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       ...(prev[selectedPage.id] || []),
                     ],
                   }));
+                  logPageActivity(selectedPage.id, 'post', 'Started a Live video', title);
                   setPageLiveTitle('');
                   setShowPageLiveModal(false);
                   showToast('🔴 পেজ লাইভ সেশন শুরু হয়েছে!');
@@ -5304,6 +5505,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           };
                           setSelectedPage(updatedPage);
                           setPages((prev) => prev.map((p) => (p.id === updatedPage.id ? updatedPage : p)));
+                          syncUpdatedPageToSwitchedStorage(updatedPage);
                           logPageActivity(selectedPage.id, 'settings', 'Updated Connected experiences');
                           showToast('✅ Connected accounts সফলভাবে সেভ হয়েছে!');
                         }}
@@ -5559,6 +5761,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               };
                               setSelectedPage(upd);
                               setPages((prev) => prev.map((p) => (p.id === upd.id ? upd : p)));
+                              syncUpdatedPageToSwitchedStorage(upd);
                               logPageActivity(selectedPage.id, 'settings', 'Updated Page setup details');
                               showToast('Page setup সেভ করা হয়েছে!');
                             }}
@@ -5788,6 +5991,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                   setActiveSettingKey(null);
                                   setSelectedPage(null);
                                   setPages((prev) => prev.filter((p) => p.id !== delId));
+                                  syncUpdatedPageToSwitchedStorage(null, delId);
                                   showToast(`"${delName}" পেজটি মুছে ফেলা হয়েছে`);
                                 }}
                                 className="py-2 rounded-lg bg-rose-600 text-white text-xs font-bold cursor-pointer"
@@ -6299,8 +6503,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           onClose={() => setSheetPage(null)}
           page={sheetPage}
           onConfirmSwitch={(page) => {
-            if (onSwitchToPage) onSwitchToPage(page);
+            if (onSwitchToPage) onSwitchToPage(page, { stayInPage: true });
             setSheetPage(null);
+            showToast(`"${page.name}" পেজ মোডে সুইচ করা হয়েছে`);
           }}
           onViewPageWithoutSwitch={() => {
             setSheetPage(null);
@@ -6309,6 +6514,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             handleOpenEditModal(page);
           }}
         />
+
+        {/* Floating Toast Notification inside Page View */}
+        {toastMessage && (
+          <div className="fixed bottom-20 left-1/2 -translate-x-1/2 z-[160] bg-[#1877F2] text-white px-4 py-2.5 rounded-full text-xs font-bold shadow-2xl flex items-center gap-2 border border-white/20 animate-in fade-in slide-in-from-bottom-2">
+            <Check className="w-4 h-4 stroke-[3]" />
+            <span>{toastMessage}</span>
+          </div>
+        )}
       </div>
     );
   }
@@ -7126,8 +7339,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         onClose={() => setSheetPage(null)}
         page={sheetPage}
         onConfirmSwitch={(page) => {
-          if (onSwitchToPage) onSwitchToPage(page);
+          setSelectedPage(page);
+          if (onSwitchToPage) onSwitchToPage(page, { stayInPage: true });
           setSheetPage(null);
+          showToast(`"${page.name}" পেজ মোডে সুইচ করা হয়েছে`);
         }}
         onViewPageWithoutSwitch={(page) => {
           setSheetPage(null);

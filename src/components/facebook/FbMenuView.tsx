@@ -105,6 +105,7 @@ interface FbMenuViewProps {
   onBack: () => void;
   onOpenMessenger?: () => void;
   onSwitchToPage?: (page: PageItem) => void;
+  onOpenSwitchedPage?: (page: PageItem) => void;
   onOpenPageWithSwitch?: (page: PageItem) => void;
   onSwitchToPersonal?: () => void;
   unreadMessagesCount?: number;
@@ -130,6 +131,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onBack,
   onOpenMessenger,
   onSwitchToPage,
+  onOpenSwitchedPage,
   onOpenPageWithSwitch,
   onSwitchToPersonal,
   unreadMessagesCount = 0,
@@ -244,7 +246,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   };
 
   // Load ONLY user-created pages for Your shortcuts (excluding demo mock pages)
-  const [menuPages, setMenuPages] = useState<PageItem[]>(() => {
+  const loadStoredOwnerPages = (): PageItem[] => {
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       if (stored) {
@@ -256,7 +258,21 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       }
     } catch {}
     return [];
-  });
+  };
+
+  const [menuPages, setMenuPages] = useState<PageItem[]>(() => loadStoredOwnerPages());
+
+  useEffect(() => {
+    const syncPages = () => setMenuPages(loadStoredOwnerPages());
+    window.addEventListener('peaceverse:switched-page-updated', syncPages);
+    window.addEventListener('storage', syncPages);
+    window.addEventListener('focus', syncPages);
+    return () => {
+      window.removeEventListener('peaceverse:switched-page-updated', syncPages);
+      window.removeEventListener('storage', syncPages);
+      window.removeEventListener('focus', syncPages);
+    };
+  }, []);
 
   const handleMessengerClick = () => {
     if (onOpenMessenger) {
@@ -344,7 +360,19 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           Left: User Profile or active Page card
           Right: Switch account icon and dropdown with 9+ red badge */}
       <div
-        onClick={onOpenProfile}
+        onClick={() => {
+          if (activeSwitchedPage) {
+            if (onOpenSwitchedPage) {
+              onOpenSwitchedPage(activeSwitchedPage);
+            } else if (onOpenPageWithSwitch) {
+              onOpenPageWithSwitch(activeSwitchedPage);
+            } else {
+              onNavigateTab('pages');
+            }
+          } else {
+            onOpenProfile();
+          }
+        }}
         className="bg-white rounded-[12px] p-3 shadow-xs border border-neutral-200/80 flex items-center justify-between cursor-pointer hover:bg-neutral-50 transition-colors"
       >
         <div className="flex items-center gap-3 min-w-0">
@@ -375,7 +403,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             </h2>
             {activeSwitchedPage && (
               <p className="text-[11px] text-[#0866FF] font-semibold mt-0.5">
-                পেজ মোডে আছেন • প্রোফাইলে ফিরুন
+                পেজ মোডে আছেন • পেজ দেখুন
               </p>
             )}
           </div>
@@ -384,13 +412,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         {/* Right side: switch account icon (circular arrow) and dropdown arrow with 9+ red badge matching Screenshot 1 */}
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <button
-            onClick={() => {
-              if (activeSwitchedPage && onSwitchToPersonal) {
-                onSwitchToPersonal();
-              } else {
-                setShowProfileSwitcher(true);
-              }
-            }}
+            onClick={() => setShowProfileSwitcher(true)}
             className="w-9 h-9 rounded-full bg-neutral-100 hover:bg-neutral-200 flex items-center justify-center text-neutral-800 transition-colors cursor-pointer"
             title="Switch account"
           >
@@ -1555,6 +1577,20 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       {showProfileSwitcher && (
         <FbProfileSwitcherModal
           userProfile={userProfile}
+          activeProfileId={activeSwitchedPage?.id || 'main'}
+          onSelectProfile={(id) => {
+            if (id === 'main') {
+              onSwitchToPersonal?.();
+              onOpenProfile();
+              return;
+            }
+            const matched =
+              menuPages.find((p) => p.id === id) ||
+              loadStoredOwnerPages().find((p) => p.id === id);
+            if (matched && onSwitchToPage) {
+              onSwitchToPage(matched);
+            }
+          }}
           onClose={() => setShowProfileSwitcher(false)}
           onCreatePage={() => {
             setShowProfileSwitcher(false);
@@ -1573,7 +1609,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             onSwitchToPage(page);
           }
           setSelectedSwitchPage(null);
-          onNavigateTab('home');
         }}
         onViewPageWithoutSwitch={(page) => {
           setSelectedSwitchPage(null);
