@@ -80,12 +80,6 @@ interface FbPagesViewProps {
   onClearInitialCreatePageName?: () => void;
 }
 
-const FOLLOWER_PREVIEW_AVATARS = [
-  'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80',
-  'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80',
-  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
-];
-
 const DEMO_PAGE_IDS = [
   'page-sharif-story',
   'page-sf-mart',
@@ -822,72 +816,109 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       ? rawPosts.filter((p) => p.text.toLowerCase().includes(pageSearchQuery.trim().toLowerCase()))
       : rawPosts;
     const waUrl = getWhatsAppUrl(selectedPage.whatsapp || selectedPage.phone);
-    const followedByList =
-      selectedPage.followedBy && selectedPage.followedBy.length > 0
-        ? selectedPage.followedBy
-        : ['Abul Baser', 'Hassan Abdullah', 'MD Oli Ullah'];
 
     return (
       <div className="max-w-[700px] mx-auto min-h-screen bg-white text-[#050505] pb-24 font-sans">
-        {/* 1. Top Navigation: < Back, Search icon, 3 dots, Share icon */}
-        <div className="sticky top-0 z-30 bg-white/95 backdrop-blur-md px-2.5 h-[52px] flex items-center justify-between border-b border-[#E4E6EB]">
-          <button
-            type="button"
-            onClick={() => {
-              setPageSearchOpen(false);
-              setPageSearchQuery('');
-              setSelectedPage(null);
-            }}
-            className="min-w-[44px] min-h-[44px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
-            title="Back"
-            aria-label="Back to pages"
-          >
-            <ArrowLeft className="w-6 h-6 stroke-[2.2]" />
-          </button>
+        {/* 1. Cover Photo with Overlay Top Controls (Back, Edit Pencil, Search, Circle More) & Bottom-Right Camera */}
+        <div className="relative w-full h-56 sm:h-64 bg-[#E4E6EB] overflow-hidden flex items-center justify-center">
+          {selectedPage.cover ? (
+            <>
+              <img
+                src={selectedPage.cover}
+                alt={selectedPage.name}
+                className="w-full h-full object-cover"
+              />
+              <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
+            </>
+          ) : (
+            <div className="w-full h-full flex flex-col items-center justify-center px-4 pb-10">
+              <label className="bg-white hover:bg-[#F7F8FA] active:scale-[0.98] text-[#050505] px-4 py-2.5 rounded-xl text-[13px] sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-[#CED0D4] transition-all">
+                <Camera className="w-4 h-4 text-[#0866FF]" />
+                <span>+ কভার ফটো যোগ করুন (Add Cover Photo)</span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={handleUpdatePageCover}
+                />
+              </label>
+            </div>
+          )}
 
-          <div className="flex items-center gap-0.5">
-            <button
-              type="button"
-              onClick={() => setPageSearchOpen((prev) => !prev)}
-              className="min-w-[44px] min-h-[44px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
-              title="Search in page"
-              aria-label="Search in page"
-            >
-              <Search className="w-5 h-5 stroke-[2.2]" />
-            </button>
-
-            <button
-              type="button"
-              onClick={() => setSheetPage(selectedPage)}
-              className="min-w-[44px] min-h-[44px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
-              title="More options & Switch to Page"
-              aria-label="Page options"
-            >
-              <MoreHorizontal className="w-5 h-5 stroke-[2.2]" />
-            </button>
-
+          {/* Top Overlay Controls directly over cover */}
+          <div className="absolute top-0 inset-x-0 z-20 px-2.5 pt-2 flex items-center justify-between">
             <button
               type="button"
               onClick={() => {
-                try {
-                  navigator.clipboard?.writeText(
-                    `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}`
-                  );
-                } catch {}
-                showToast(`${selectedPage.name} পেজের লিংক কপি করা হয়েছে!`);
+                setPageSearchOpen(false);
+                setPageSearchQuery('');
+                setSelectedPage(null);
               }}
-              className="min-w-[44px] min-h-[44px] rounded-full hover:bg-[#F0F2F5] active:bg-[#E4E6EB] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
-              title="Share page"
-              aria-label="Share page"
+              className="min-w-[40px] min-h-[40px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+              title="Back"
+              aria-label="Back to pages"
             >
-              <Share2 className="w-5 h-5 stroke-[2.2]" />
+              <ArrowLeft className="w-6 h-6 stroke-[2.3] drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]" />
             </button>
+
+            <div className="flex items-center gap-1.5">
+              {selectedPage.isOwner && (
+                <button
+                  type="button"
+                  onClick={() => handleOpenEditModal(selectedPage)}
+                  className="min-w-[38px] min-h-[38px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+                  title="Edit page"
+                  aria-label="Edit page"
+                >
+                  <Edit3 className="w-5 h-5 stroke-[2.2] drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]" />
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={() => setPageSearchOpen((prev) => !prev)}
+                className="min-w-[38px] min-h-[38px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="Search in page"
+                aria-label="Search in page"
+              >
+                <Search className="w-5 h-5 stroke-[2.3] drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setSheetPage(selectedPage)}
+                className="min-w-[38px] min-h-[38px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
+                title="More options & Switch to Page"
+                aria-label="Page options"
+              >
+                <span className="w-7 h-7 rounded-full border-[1.8px] border-white flex items-center justify-center drop-shadow-[0_1px_4px_rgba(0,0,0,0.75)]">
+                  <MoreHorizontal className="w-4 h-4 stroke-[2.4]" />
+                </span>
+              </button>
+            </div>
           </div>
+
+          {/* Bottom-right Cover Camera Icon positioned above curved white sheet */}
+          {selectedPage.isOwner && (
+            <label
+              className="absolute bottom-7 right-3 w-9 h-9 rounded-full bg-white hover:bg-[#F0F2F5] text-[#050505] flex items-center justify-center cursor-pointer shadow-md border border-black/10 transition-all active:scale-95 z-20"
+              title="Update cover photo"
+              aria-label="Update cover photo"
+            >
+              <Camera className="w-4 h-4 text-[#050505]" />
+              <input
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={handleUpdatePageCover}
+              />
+            </label>
+          )}
         </div>
 
         {/* Inline Page Search Bar */}
         {pageSearchOpen && (
-          <div className="px-4 py-2.5 bg-[#F0F2F5] border-b border-[#E4E6EB] flex items-center gap-2">
+          <div className="px-4 py-2.5 bg-[#F0F2F5] border-b border-[#E4E6EB] flex items-center gap-2 relative z-30">
             <Search className="w-4 h-4 text-[#65676B] shrink-0" />
             <input
               type="text"
@@ -909,166 +940,134 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
         )}
 
-        {/* 2. Cover Photo: Big Clear Gray Placeholder if empty, or Full-Width Cover Photo + bottom-right Camera icon */}
-        <div className="relative w-full h-48 sm:h-56 bg-[#E4E6EB] border-b border-[#D8DADF] overflow-hidden flex items-center justify-center">
-          {selectedPage.cover ? (
-            <>
-              <img
-                src={selectedPage.cover}
-                alt={selectedPage.name}
-                className="w-full h-full object-cover"
-              />
-              <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-black/30 to-black/55" />
-
-              {/* Text Overlay on Cover Image */}
-              <div className="absolute inset-0 flex items-center justify-center px-6 pb-6 pointer-events-none">
-                <span className="text-2xl sm:text-3xl font-extrabold tracking-tight text-white/95 text-center drop-shadow-[0_2px_12px_rgba(0,0,0,0.85)]">
-                  {selectedPage.name}
-                </span>
-              </div>
-            </>
-          ) : (
-            <div className="w-full h-full flex flex-col items-center justify-center px-4 pb-8">
-              <label className="bg-white hover:bg-[#F7F8FA] active:scale-[0.98] text-[#050505] px-4 py-2.5 rounded-xl text-[13px] sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-[#CED0D4] transition-all">
-                <Camera className="w-4 h-4 text-[#0866FF]" />
-                <span>+ কভার ফটো যোগ করুন (Add Cover Photo)</span>
+        {/* 2. Curved White Sheet + Overlapping Profile Photo + "Share a note..." Thought Bubble */}
+        <div className="relative -mt-5 rounded-t-[22px] bg-white z-10 px-4 pt-2 pb-3">
+          <div className="relative -mt-20 flex flex-col items-center justify-center">
+            {selectedPage.isOwner && editingPageThought ? (
+              <div className="mb-1.5 bg-white text-[#050505] p-1.5 rounded-full shadow-xl border border-[#E4E6EB] flex items-center gap-1.5 z-30">
                 <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleUpdatePageCover}
+                  type="text"
+                  value={pageThoughtDraft}
+                  onChange={(e) => setPageThoughtDraft(e.target.value)}
+                  placeholder="Share a note..."
+                  className="bg-[#F0F2F5] text-[#050505] text-xs px-3 py-1 rounded-full outline-none w-44"
+                  autoFocus
                 />
-              </label>
-            </div>
-          )}
-
-          {selectedPage.isOwner && (
-            <label
-              className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center cursor-pointer shadow-md border-2 border-white transition-all active:scale-95 z-10"
-              title="Update cover photo"
-              aria-label="Update cover photo"
-            >
-              <Camera className="w-4 h-4 text-[#050505]" />
-              <input
-                type="file"
-                accept="image/*"
-                className="hidden"
-                onChange={handleUpdatePageCover}
-              />
-            </label>
-          )}
-        </div>
-
-        {/* 3. Profile Photo / Logo + Facebook "Thinking about..." Thought Bubble above */}
-        <div className="relative -mt-20 flex flex-col items-center justify-center z-10 px-4">
-          {selectedPage.isOwner && editingPageThought ? (
-            <div className="mb-2 bg-white text-[#050505] p-1.5 rounded-[20px] shadow-xl border border-[#E4E6EB] flex items-center gap-1.5 z-20">
-              <input
-                type="text"
-                value={pageThoughtDraft}
-                onChange={(e) => setPageThoughtDraft(e.target.value)}
-                placeholder="Thinking about..."
-                className="bg-[#F0F2F5] text-[#050505] text-xs px-3 py-1 rounded-full outline-none w-44"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setPageThoughts((prev) => ({
-                    ...prev,
-                    [selectedPage.id]: pageThoughtDraft.trim(),
-                  }));
-                  setEditingPageThought(false);
-                }}
-                className="p-1.5 rounded-full bg-[#0866FF] text-white cursor-pointer"
-                aria-label="Save thought"
-              >
-                <Check className="w-3.5 h-3.5" />
-              </button>
-            </div>
-          ) : (
-            <button
-              type="button"
-              onClick={() => {
-                if (!selectedPage.isOwner) return;
-                setPageThoughtDraft(pageThoughts[selectedPage.id] || '');
-                setEditingPageThought(true);
-              }}
-              className={`mb-2 bg-white text-[#65676B] text-[12px] font-medium px-3.5 py-1.5 rounded-[20px] shadow-md border border-[#E4E6EB] flex items-center gap-1 relative transition-transform ${
-                selectedPage.isOwner ? 'cursor-pointer hover:scale-105' : 'cursor-default'
-              }`}
-              title={selectedPage.isOwner ? 'Share a thought' : undefined}
-            >
-              <span className="max-w-[190px] truncate">
-                {pageThoughts[selectedPage.id] || 'Thinking about...'}
-              </span>
-              <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white border-r border-b border-[#E4E6EB] rotate-45" />
-            </button>
-          )}
-
-          <div className="relative">
-            {selectedPage.avatar ? (
-              <div className="w-32 h-32 rounded-full border-4 border-white ring-[3px] ring-[#0866FF] shadow-lg bg-[#E4E6EB] overflow-hidden relative">
-                <img
-                  src={selectedPage.avatar}
-                  alt={selectedPage.name}
-                  className="w-full h-full object-cover"
-                />
+                <button
+                  type="button"
+                  onClick={() => {
+                    setPageThoughts((prev) => ({
+                      ...prev,
+                      [selectedPage.id]: pageThoughtDraft.trim(),
+                    }));
+                    setEditingPageThought(false);
+                  }}
+                  className="p-1.5 rounded-full bg-[#0866FF] text-white cursor-pointer"
+                  aria-label="Save note"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
               </div>
             ) : (
-              <label
-                className="w-32 h-32 rounded-full border-4 border-white ring-[3px] ring-[#0866FF] shadow-lg bg-[#E4E6EB] hover:bg-[#D8DADF] flex flex-col items-center justify-center text-center px-2 cursor-pointer transition-colors"
-                title="+ লোগো যোগ করুন (Add Logo)"
-              >
-                <Camera className="w-5 h-5 text-[#0866FF] mb-1" />
-                <span className="text-[11px] font-extrabold text-[#050505] leading-tight">
-                  + লোগো যোগ করুন
-                </span>
-                <span className="text-[10px] font-semibold text-[#65676B] leading-tight mt-0.5">
-                  (Add Logo)
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleUpdatePageAvatar}
-                />
-              </label>
+              <div className="flex flex-col items-center mb-0.5 z-20">
+                <button
+                  type="button"
+                  onClick={() => {
+                    if (!selectedPage.isOwner) return;
+                    setPageThoughtDraft(pageThoughts[selectedPage.id] || '');
+                    setEditingPageThought(true);
+                  }}
+                  className={`bg-white text-[#65676B] text-[13px] font-medium px-4 py-1.5 rounded-full shadow-[0_2px_10px_rgba(0,0,0,0.16)] border border-[#E4E6EB] transition-transform ${
+                    selectedPage.isOwner ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                  }`}
+                  title={selectedPage.isOwner ? 'Share a note' : undefined}
+                >
+                  <span className="max-w-[190px] truncate block">
+                    {pageThoughts[selectedPage.id] || 'Share a note...'}
+                  </span>
+                </button>
+                {/* Classic thought-bubble dots leading into the avatar */}
+                <div className="flex flex-col items-center -mt-1 pointer-events-none">
+                  <span className="w-2.5 h-2.5 rounded-full bg-white shadow-sm border border-[#E4E6EB]" />
+                  <span className="w-1.5 h-1.5 rounded-full bg-white shadow-sm border border-[#E4E6EB] mt-0.5" />
+                </div>
+              </div>
             )}
 
-            {selectedPage.isOwner && (
-              <label
-                className="absolute bottom-1 right-1 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] p-2 rounded-full cursor-pointer shadow-md border-2 border-white transition-all active:scale-95"
-                title="লোগো / প্রোফাইল ছবি পরিবর্তন করুন"
-              >
-                <Camera className="w-4 h-4" />
-                <input
-                  type="file"
-                  accept="image/*"
-                  className="hidden"
-                  onChange={handleUpdatePageAvatar}
-                />
-              </label>
-            )}
+            <div className="relative -mt-1">
+              {selectedPage.avatar ? (
+                <div className="w-32 h-32 rounded-full border-4 border-white shadow-[0_2px_12px_rgba(0,0,0,0.16)] bg-[#E4E6EB] overflow-hidden relative">
+                  <img
+                    src={selectedPage.avatar}
+                    alt={selectedPage.name}
+                    className="w-full h-full object-cover"
+                  />
+                </div>
+              ) : (
+                <label
+                  className="w-32 h-32 rounded-full border-4 border-white shadow-[0_2px_12px_rgba(0,0,0,0.16)] bg-[#E4E6EB] hover:bg-[#D8DADF] flex flex-col items-center justify-center text-center px-2 cursor-pointer transition-colors"
+                  title="+ লোগো যোগ করুন (Add Logo)"
+                >
+                  <Camera className="w-5 h-5 text-[#0866FF] mb-1" />
+                  <span className="text-[11px] font-extrabold text-[#050505] leading-tight">
+                    + লোগো যোগ করুন
+                  </span>
+                  <span className="text-[10px] font-semibold text-[#65676B] leading-tight mt-0.5">
+                    (Add Logo)
+                  </span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleUpdatePageAvatar}
+                  />
+                </label>
+              )}
+
+              {selectedPage.isOwner && (
+                <label
+                  className="absolute bottom-1 right-1 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] p-2 rounded-full cursor-pointer shadow-md border-2 border-white transition-all active:scale-95"
+                  title="লোগো / প্রোফাইল ছবি পরিবর্তন করুন"
+                >
+                  <Camera className="w-4 h-4" />
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleUpdatePageAvatar}
+                  />
+                </label>
+              )}
+            </div>
           </div>
-        </div>
 
-        {/* 4. Centered Profile Title, Stats, Bio, Category & 5. Followed by & 6. Creator Dashboard + Advertise */}
-        <div className="px-4 pt-3 pb-4 bg-white">
-          <div className="text-center space-y-1.5">
-            {/* Title */}
-            <h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#050505] tracking-tight inline-flex items-center justify-center gap-1.5">
-              <span>{selectedPage.name}</span>
+          {/* 3. Centered Name + Badge + Right Switch Chevron Button (with red dot) */}
+          <div className="relative text-center pt-2.5 space-y-1">
+            <div className="inline-flex items-center justify-center gap-1.5 px-10">
+              <h1 className="text-[22px] sm:text-[24px] font-extrabold text-[#050505] tracking-tight">
+                {selectedPage.name}
+              </h1>
               <ShieldCheck className="w-4 h-4 text-[#0866FF] shrink-0" />
-            </h1>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setSheetPage(selectedPage)}
+              className="absolute right-0 top-1.5 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
+              title="Switch Page"
+              aria-label="Switch Page"
+            >
+              <ChevronDown className="w-5 h-5 stroke-[2.2]" />
+              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FA383E] border-2 border-white" />
+            </button>
 
             {/* Stats: followers · following */}
-            <p className="text-[14px] text-[#65676B] font-medium tabular-nums">
-              <span className="font-bold text-[#050505]">
+            <p className="text-[14px] text-[#050505] font-normal tabular-nums">
+              <span className="font-bold">
                 {selectedPage.followersCount.toLocaleString('en-US')}
               </span>{' '}
               followers ·{' '}
-              <span className="font-bold text-[#050505]">
+              <span className="font-bold">
                 {(selectedPage.followingCount ?? 0).toLocaleString('en-US')}
               </span>{' '}
               following
@@ -1076,41 +1075,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
             {/* Bio */}
             {(selectedPage.bio || selectedPage.description) && (
-              <p className="text-[14px] text-[#050505] leading-relaxed max-w-md mx-auto pt-1">
+              <p className="text-[14px] text-[#050505] leading-snug max-w-md mx-auto pt-1.5">
                 {selectedPage.bio || selectedPage.description}
               </p>
             )}
 
-            {/* Category: ■ Personal blog */}
-            <div className="flex items-center justify-center gap-1.5 text-[13px] font-semibold text-[#65676B] pt-0.5">
-              <span className="w-2.5 h-2.5 rounded-[2px] bg-[#65676B] inline-block shrink-0" />
+            {/* Category */}
+            <div className="flex items-center justify-center gap-1.5 text-[13px] font-bold text-[#050505] pt-1.5 pb-3">
+              <span className="w-3 h-2.5 rounded-[2px] bg-[#050505] inline-block shrink-0" />
               <span>{selectedPage.category}</span>
             </div>
           </div>
 
-          {/* 5. Followed by Row: 3 small circular avatars + text */}
-          <div className="flex items-center justify-center gap-2 pt-3 pb-3.5">
-            <div className="flex items-center shrink-0">
-              {FOLLOWER_PREVIEW_AVATARS.map((av, idx) => (
-                <img
-                  key={idx}
-                  src={av}
-                  alt="Follower"
-                  className={`w-6 h-6 rounded-full object-cover border-2 border-white bg-[#E4E6EB] ${
-                    idx > 0 ? '-ml-1.5' : ''
-                  }`}
-                />
-              ))}
-            </div>
-            <p className="text-[12.5px] text-[#65676B] leading-snug">
-              Followed by{' '}
-              <span className="font-semibold text-[#050505]">{followedByList[0]}</span>,{' '}
-              <span className="font-semibold text-[#050505]">{followedByList[1]}</span>,{' '}
-              <span className="font-semibold text-[#050505]">{followedByList[2]}</span> and 1 other
-            </p>
-          </div>
-
-          {/* 6. Primary Facebook Action Buttons: [🔵 Creator Dashboard] & [⚪ Advertise] */}
+          {/* 4. Primary Action Buttons: [🔵 Creator Dashboard] & [⚪ Advertise] */}
           {selectedPage.isOwner ? (
             <div className="grid grid-cols-2 gap-2.5">
               <button
@@ -1121,7 +1098,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 }}
                 className="h-10 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white font-bold text-[14px] flex items-center justify-center gap-2 shadow-2xs transition-all cursor-pointer"
               >
-                <TrendingUp className="w-4 h-4 stroke-[2.3]" />
+                <svg
+                  viewBox="0 0 24 24"
+                  className="w-4 h-4 fill-current shrink-0"
+                  aria-hidden="true"
+                >
+                  <path d="M5 3a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2H5zm3 14a1 1 0 0 1-1-1v-4a1 1 0 1 1 2 0v4a1 1 0 0 1-1 1zm4 0a1 1 0 0 1-1-1V8a1 1 0 1 1 2 0v8a1 1 0 0 1-1 1zm4 0a1 1 0 0 1-1-1v-6a1 1 0 1 1 2 0v6a1 1 0 0 1-1 1z" />
+                </svg>
                 <span>Creator Dashboard</span>
               </button>
 
@@ -1186,8 +1169,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           )}
         </div>
 
-        {/* Clean White Sub Navigation Tabs: All / Photos / Reels / Events / Mentions */}
-        <div className="bg-white border-y border-[#E4E6EB] px-2 flex items-center gap-1 overflow-x-auto no-scrollbar">
+        {/* 5. Pill Sub Navigation Tabs: All / Photos / Reels / Events / Mentions */}
+        <div className="bg-white px-3 py-2 flex items-center justify-between gap-1 overflow-x-auto no-scrollbar border-b border-[#F0F2F5]">
           {[
             { id: 'all', label: 'All' },
             { id: 'photos', label: 'Photos' },
@@ -1199,10 +1182,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               key={tab.id}
               type="button"
               onClick={() => setPageSubTab(tab.id as any)}
-              className={`flex-1 py-3 px-3 text-[13px] font-bold border-b-[3px] transition-all whitespace-nowrap cursor-pointer ${
+              className={`px-4 py-1.5 rounded-full text-[13.5px] transition-all whitespace-nowrap cursor-pointer ${
                 pageSubTab === tab.id
-                  ? 'border-[#0866FF] text-[#0866FF]'
-                  : 'border-transparent text-[#65676B] hover:bg-[#F0F2F5]'
+                  ? 'bg-[#E7F3FF] text-[#0866FF] font-bold'
+                  : 'text-[#65676B] font-semibold hover:bg-[#F0F2F5]'
               }`}
             >
               {tab.label}
@@ -1215,6 +1198,48 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           {/* ALL TAB CONTENT */}
           {pageSubTab === 'all' && (
             <div className="space-y-3">
+              {/* Personal details summary block matching reference layout */}
+              <div className="px-1 pt-1 pb-2 space-y-2.5 border-b border-[#F0F2F5]">
+                <div className="flex items-center justify-between">
+                  <h3 className="text-[16px] font-bold text-[#050505]">Personal details</h3>
+                  {selectedPage.isOwner && (
+                    <button
+                      type="button"
+                      onClick={() => handleOpenEditModal(selectedPage)}
+                      className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                      title="Edit details"
+                      aria-label="Edit details"
+                    >
+                      <Edit3 className="w-4 h-4" />
+                    </button>
+                  )}
+                </div>
+
+                <div className="space-y-2 text-[14px] text-[#050505]">
+                  {selectedPage.location && (
+                    <div className="flex items-center gap-2.5">
+                      <MapPin className="w-4 h-4 text-[#65676B] shrink-0" />
+                      <span>{selectedPage.location}</span>
+                    </div>
+                  )}
+                  <div className="flex items-center gap-2.5">
+                    <Building className="w-4 h-4 text-[#65676B] shrink-0" />
+                    <span>{selectedPage.category}</span>
+                  </div>
+                  {selectedPage.website && (
+                    <div className="flex items-center gap-2.5">
+                      <Globe className="w-4 h-4 text-[#65676B] shrink-0" />
+                      <span className="text-[#0866FF] truncate">{selectedPage.website}</span>
+                    </div>
+                  )}
+                  {selectedPage.phone && (
+                    <div className="flex items-center gap-2.5">
+                      <Phone className="w-4 h-4 text-[#65676B] shrink-0" />
+                      <span>{selectedPage.phone}</span>
+                    </div>
+                  )}
+                </div>
+              </div>
               {/* Creator Broadcast Notification Settings (Compact White Card - Preserved) */}
               {selectedPage.isOwner && (
                 <div className="p-3.5 rounded-xl bg-white border border-[#E4E6EB] space-y-2 shadow-2xs">
