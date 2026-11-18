@@ -62,6 +62,11 @@ import {
   Copy,
   Download,
   RotateCcw,
+  ChevronRight,
+  UserCircle2,
+  Award,
+  CircleDollarSign,
+  Eye,
 } from 'lucide-react';
 import { NotificationItem, PageItem, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
@@ -284,7 +289,7 @@ interface PageAdminMember {
   id: string;
   name: string;
   contact: string;
-  role: 'Full control' | 'Content & Ads' | 'Moderator';
+  role: 'Full control' | 'Partial control' | 'Task access' | 'Community manager';
   addedAt: string;
 }
 
@@ -292,6 +297,7 @@ interface PageHighlightItem {
   id: string;
   title: string;
   note?: string;
+  image?: string;
   createdAt: string;
 }
 
@@ -321,6 +327,10 @@ interface PageSettingsData {
   verificationStatus: 'none' | 'pending' | 'verified';
   verificationCategory: string;
   verificationNote: string;
+  verificationDocType: string;
+  verificationDocName: string;
+  verificationCountry: string;
+  verificationReason: string;
   actionButtonType: string;
   actionButtonValue: string;
   whoCanPost: 'admins' | 'everyone';
@@ -329,13 +339,21 @@ interface PageSettingsData {
   allowMentions: boolean;
   allowComments: boolean;
   isPublished: boolean;
+  searchEngineVisible: boolean;
   allowDirectMessages: boolean;
   halalFilterLevel: 'strong' | 'standard';
+  modHideLinks: boolean;
+  modHideProfanity: boolean;
+  modNoAvatarBlock: boolean;
+  modBlockedWords: string[];
+  blockedUsers: string[];
+  statusFeedbackGiven: boolean;
   customSlug: string;
   invitedNames: string[];
   admins: PageAdminMember[];
   highlights: PageHighlightItem[];
   archivedPosts: ArchivedPagePost[];
+  trashedPosts: ArchivedPagePost[];
   activityLog: PageActivityItem[];
 }
 
@@ -344,6 +362,10 @@ const DEFAULT_PAGE_SETTINGS: PageSettingsData = {
   verificationStatus: 'none',
   verificationCategory: 'Creator / Public Figure',
   verificationNote: '',
+  verificationDocType: 'National Identity Card (NID)',
+  verificationDocName: '',
+  verificationCountry: 'Bangladesh',
+  verificationReason: '',
   actionButtonType: 'WhatsApp',
   actionButtonValue: '',
   whoCanPost: 'admins',
@@ -352,13 +374,21 @@ const DEFAULT_PAGE_SETTINGS: PageSettingsData = {
   allowMentions: true,
   allowComments: true,
   isPublished: true,
+  searchEngineVisible: true,
   allowDirectMessages: true,
   halalFilterLevel: 'strong',
+  modHideLinks: true,
+  modHideProfanity: true,
+  modNoAvatarBlock: false,
+  modBlockedWords: ['spam', 'scam'],
+  blockedUsers: [],
+  statusFeedbackGiven: false,
   customSlug: '',
   invitedNames: [],
   admins: [],
   highlights: [],
   archivedPosts: [],
+  trashedPosts: [],
   activityLog: [],
 };
 
@@ -569,7 +599,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [newEventTitle, setNewEventTitle] = useState('');
   const [newEventDate, setNewEventDate] = useState('');
   const [pagePostText, setPagePostText] = useState('');
+  const [pagePostImage, setPagePostImage] = useState('');
   const [showPageComposer, setShowPageComposer] = useState(false);
+  const [viewAsVisitor, setViewAsVisitor] = useState(false);
+  const [openCommentPostId, setOpenCommentPostId] = useState<string | null>(null);
+  const [postCommentDraft, setPostCommentDraft] = useState('');
+  const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
+  const [editingPostId, setEditingPostId] = useState<string | null>(null);
+  const [editingPostText, setEditingPostText] = useState('');
   const [showMoreDetails, setShowMoreDetails] = useState(false);
   const [showPostFilters, setShowPostFilters] = useState(false);
   const [postFilterMode, setPostFilterMode] = useState<'all' | 'pinned' | 'top'>('all');
@@ -597,7 +634,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [newHighlightNote, setNewHighlightNote] = useState('');
   const [newAdminName, setNewAdminName] = useState('');
   const [newAdminContact, setNewAdminContact] = useState('');
-  const [newAdminRole, setNewAdminRole] = useState<'Full control' | 'Content & Ads' | 'Moderator'>('Content & Ads');
+  const [newAdminRole, setNewAdminRole] = useState<'Full control' | 'Partial control' | 'Task access' | 'Community manager'>('Full control');
   const [inviteSearch, setInviteSearch] = useState('');
   const [confirmDeletePage, setConfirmDeletePage] = useState(false);
   const [activityFilter, setActivityFilter] = useState<'all' | 'post' | 'settings' | 'archive' | 'invite'>('all');
@@ -605,6 +642,18 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [actionBtnValueDraft, setActionBtnValueDraft] = useState('');
   const [verifyCategoryDraft, setVerifyCategoryDraft] = useState('Creator / Public Figure');
   const [verifyNoteDraft, setVerifyNoteDraft] = useState('');
+  const [verifyDocTypeDraft, setVerifyDocTypeDraft] = useState('National Identity Card (NID)');
+  const [verifyDocNameDraft, setVerifyDocNameDraft] = useState('');
+  const [verifyCountryDraft, setVerifyCountryDraft] = useState('Bangladesh');
+  const [verifyReasonDraft, setVerifyReasonDraft] = useState('');
+  const [newHighlightImage, setNewHighlightImage] = useState('');
+  const [archiveTab, setArchiveTab] = useState<'archive' | 'trash'>('archive');
+  const [privacySubView, setPrivacySubView] = useState<
+    null | 'setup' | 'privacy' | 'notifications' | 'blocking' | 'info' | 'deletion'
+  >(null);
+  const [setupNameDraft, setSetupNameDraft] = useState('');
+  const [setupBioDraft, setSetupBioDraft] = useState('');
+  const [newBlockedUserName, setNewBlockedUserName] = useState('');
   const [customSlugDraft, setCustomSlugDraft] = useState('');
   const [connWhatsapp, setConnWhatsapp] = useState('');
   const [connPhone, setConnPhone] = useState('');
@@ -612,6 +661,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [connWebsite, setConnWebsite] = useState('');
   const [connImo, setConnImo] = useState('');
   const [connViber, setConnViber] = useState('');
+  const [pageStatusSubView, setPageStatusSubView] = useState<
+    | null
+    | 'recommendations'
+    | 'moderation'
+    | 'updates'
+    | 'guide_intro'
+    | 'guide_enforce'
+    | 'guide_tips'
+    | 'feedback'
+  >(null);
+  const [modNewWord, setModNewWord] = useState('');
+  const [feedbackRating, setFeedbackRating] = useState<'satisfied' | 'neutral' | 'dissatisfied'>('satisfied');
+  const [feedbackText, setFeedbackText] = useState('');
 
   useEffect(() => {
     try {
@@ -692,10 +754,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       Array<{
         id: string;
         text: string;
+        image?: string;
         time: string;
         dateLabel?: string;
         likes: number;
+        isLikedByMe?: boolean;
         comments: number;
+        shares?: number;
+        commentsList?: Array<{ id: string; author: string; text: string; time: string }>;
         pinned?: boolean;
         reach?: number;
         clicks?: number;
@@ -825,7 +891,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
   // Add post directly to the active page
   const handlePublishPagePost = async () => {
-    if (!pagePostText.trim() || !selectedPage) return;
+    if ((!pagePostText.trim() && !pagePostImage) || !selectedPage) return;
 
     const todayStr = new Date().toLocaleDateString('en-US', {
       month: 'short',
@@ -836,10 +902,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     const newPost = {
       id: `pp-${Date.now()}`,
       text: pagePostText.trim(),
+      image: pagePostImage || undefined,
       time: 'এখনই',
       dateLabel: todayStr,
       likes: 1,
+      isLikedByMe: false,
       comments: 0,
+      shares: 0,
+      commentsList: [],
       pinned: false,
       reach: 128,
       clicks: 14,
@@ -854,10 +924,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       selectedPage.id,
       'post',
       'Published a new post',
-      newPost.text.slice(0, 80)
+      newPost.text ? newPost.text.slice(0, 80) : 'Photo post'
     );
 
     setPagePostText('');
+    setPagePostImage('');
 
     if (creatorPrefs.creatorNotifyFollowersOnPost) {
       showToast('পেজে পোস্ট প্রকাশিত ও সব ফলোয়ারকে নোটিফিকেশন পাঠানো হচ্ছে!');
@@ -867,8 +938,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         creatorAvatar: selectedPage.avatar,
         contentType: 'post',
         title: `${selectedPage.name} নতুন পোস্ট আপলোড করেছেন`,
-        body: newPost.text.length > 90 ? newPost.text.slice(0, 90) + '...' : newPost.text,
-        thumbnail: selectedPage.cover || selectedPage.avatar,
+        body: newPost.text
+          ? newPost.text.length > 90
+            ? newPost.text.slice(0, 90) + '...'
+            : newPost.text
+          : 'নতুন ছবি পোস্ট করা হয়েছে',
+        thumbnail: pagePostImage || selectedPage.cover || selectedPage.avatar,
         postId: newPost.id,
         link: `/?tab=pages&pageId=${selectedPage.id}`,
         broadcastToAll: creatorPrefs.creatorSendPushToAllUsers,
@@ -1051,6 +1126,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   // DETAIL VIEW FOR A SELECTED PAGE (Exact Facebook Clean White Page Profile)
   // -------------------------------------------------------------
   if (selectedPage) {
+    const isOwnerView = selectedPage.isOwner && !viewAsVisitor;
     const rawPosts = pagePostsList[selectedPage.id] || [];
     const activePosts = pageSearchQuery.trim()
       ? rawPosts.filter((p) => p.text.toLowerCase().includes(pageSearchQuery.trim().toLowerCase()))
@@ -1059,6 +1135,23 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
     return (
       <div className="max-w-[700px] mx-auto min-h-screen bg-white text-[#050505] pb-24 font-sans">
+        {/* Sticky View as Visitor Banner */}
+        {selectedPage.isOwner && viewAsVisitor && (
+          <div className="sticky top-0 z-40 bg-[#0866FF] text-white px-3.5 py-2 flex items-center justify-between gap-2 text-xs font-bold shadow-md">
+            <span className="flex items-center gap-1.5">
+              <Eye className="w-4 h-4 shrink-0" />
+              <span>Viewing Page as Visitor</span>
+            </span>
+            <button
+              type="button"
+              onClick={() => setViewAsVisitor(false)}
+              className="px-2.5 py-1 rounded-md bg-white text-[#0866FF] text-[11px] font-bold hover:bg-[#F0F2F5] cursor-pointer"
+            >
+              Exit View As
+            </button>
+          </div>
+        )}
+
         {/* 1. Cover Photo with Overlay Top Controls (Back, Edit Pencil, Search, Circle More) & Bottom-Right Camera */}
         <div className="relative w-full h-56 sm:h-64 bg-[#E4E6EB] overflow-hidden flex items-center justify-center">
           {selectedPage.cover ? (
@@ -1070,7 +1163,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               />
               <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/50 via-black/20 to-transparent pointer-events-none" />
             </>
-          ) : (
+          ) : isOwnerView ? (
             <div className="w-full h-full flex flex-col items-center justify-center px-4 pb-10">
               <label className="bg-white hover:bg-[#F7F8FA] active:scale-[0.98] text-[#050505] px-4 py-2.5 rounded-xl text-[13px] sm:text-sm font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-[#CED0D4] transition-all">
                 <Camera className="w-4 h-4 text-[#0866FF]" />
@@ -1083,6 +1176,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 />
               </label>
             </div>
+          ) : (
+            <div className="w-full h-full bg-[#E4E6EB]" />
           )}
 
           {/* Top Overlay Controls directly over cover */}
@@ -1093,6 +1188,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 setPageSearchOpen(false);
                 setPageSearchQuery('');
                 setShowPageSettings(false);
+                setViewAsVisitor(false);
                 setSelectedPage(null);
               }}
               className="min-w-[42px] min-h-[42px] rounded-full hover:bg-black/25 text-white flex items-center justify-center transition-colors cursor-pointer"
@@ -1103,7 +1199,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             </button>
 
             <div className="flex items-center gap-1.5">
-              {selectedPage.isOwner && (
+              {isOwnerView && (
                 <button
                   type="button"
                   onClick={() => handleOpenEditModal(selectedPage)}
@@ -1143,7 +1239,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
 
           {/* Bottom-right Cover Camera Icon positioned above curved white sheet */}
-          {selectedPage.isOwner && (
+          {isOwnerView && (
             <label
               className="absolute bottom-7 right-3 w-9 h-9 rounded-full bg-white hover:bg-[#F0F2F5] text-[#050505] flex items-center justify-center cursor-pointer shadow-md border border-black/10 transition-all active:scale-95 z-20"
               title="Update cover photo"
@@ -1187,7 +1283,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         {/* 2. Curved White Sheet + Overlapping Profile Photo + "Share a note..." Thought Bubble */}
         <div className="relative -mt-5 rounded-t-[22px] bg-white z-10 px-4 pt-2 pb-3">
           <div className="relative -mt-20 flex flex-col items-center justify-center">
-            {selectedPage.isOwner && editingPageThought ? (
+            {isOwnerView && editingPageThought ? (
               <div className="mb-1.5 bg-white text-[#050505] p-1.5 rounded-full shadow-xl border border-[#E4E6EB] flex items-center gap-1.5 z-30">
                 <input
                   type="text"
@@ -1212,19 +1308,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   <Check className="w-3.5 h-3.5" />
                 </button>
               </div>
-            ) : (
+            ) : (isOwnerView || pageThoughts[selectedPage.id]) ? (
               <div className="flex flex-col items-center mb-0.5 z-20">
                 <button
                   type="button"
                   onClick={() => {
-                    if (!selectedPage.isOwner) return;
+                    if (!isOwnerView) return;
                     setPageThoughtDraft(pageThoughts[selectedPage.id] || '');
                     setEditingPageThought(true);
                   }}
                   className={`bg-white text-[#65676B] text-[13px] font-medium px-4 py-1.5 rounded-full shadow-[0_2px_10px_rgba(0,0,0,0.16)] border border-[#E4E6EB] transition-transform ${
-                    selectedPage.isOwner ? 'cursor-pointer hover:scale-105' : 'cursor-default'
+                    isOwnerView ? 'cursor-pointer hover:scale-105' : 'cursor-default'
                   }`}
-                  title={selectedPage.isOwner ? 'Share a note' : undefined}
+                  title={isOwnerView ? 'Share a note' : undefined}
                 >
                   <span className="max-w-[190px] truncate block">
                     {pageThoughts[selectedPage.id] || 'Share a note...'}
@@ -1236,7 +1332,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   <span className="w-1.5 h-1.5 rounded-full bg-white shadow-sm border border-[#E4E6EB] mt-0.5" />
                 </div>
               </div>
-            )}
+            ) : null}
 
             <div className="relative -mt-1">
               {selectedPage.avatar ? (
@@ -1247,7 +1343,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     className="w-full h-full object-cover"
                   />
                 </div>
-              ) : (
+              ) : isOwnerView ? (
                 <label
                   className="w-32 h-32 rounded-full border-4 border-white shadow-[0_2px_12px_rgba(0,0,0,0.16)] bg-[#E4E6EB] hover:bg-[#D8DADF] flex flex-col items-center justify-center text-center px-2 cursor-pointer transition-colors"
                   title="+ লোগো যোগ করুন (Add Logo)"
@@ -1266,9 +1362,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     onChange={handleUpdatePageAvatar}
                   />
                 </label>
+              ) : (
+                <div className="w-32 h-32 rounded-full border-4 border-white shadow-[0_2px_12px_rgba(0,0,0,0.16)] bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-extrabold text-3xl">
+                  {selectedPage.name.trim().charAt(0).toUpperCase()}
+                </div>
               )}
 
-              {selectedPage.isOwner && (
+              {isOwnerView && (
                 <label
                   className="absolute bottom-1 right-1 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] p-2 rounded-full cursor-pointer shadow-md border-2 border-white transition-all active:scale-95"
                   title="লোগো / প্রোফাইল ছবি পরিবর্তন করুন"
@@ -1294,16 +1394,18 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <ShieldCheck className="w-4 h-4 text-[#0866FF] shrink-0" />
             </div>
 
-            <button
-              type="button"
-              onClick={() => setSheetPage(selectedPage)}
-              className="absolute right-0 top-1.5 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
-              title="Switch Page"
-              aria-label="Switch Page"
-            >
-              <ChevronDown className="w-5 h-5 stroke-[2.2]" />
-              <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FA383E] border-2 border-white" />
-            </button>
+            {isOwnerView && (
+              <button
+                type="button"
+                onClick={() => setSheetPage(selectedPage)}
+                className="absolute right-0 top-1.5 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] flex items-center justify-center transition-colors cursor-pointer"
+                title="Switch Page"
+                aria-label="Switch Page"
+              >
+                <ChevronDown className="w-5 h-5 stroke-[2.2]" />
+                <span className="absolute -top-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-[#FA383E] border-2 border-white" />
+              </button>
+            )}
 
             {/* Stats: followers · following */}
             <p className="text-[14px] text-[#050505] font-normal tabular-nums">
@@ -1332,7 +1434,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
 
           {/* 4. Primary Action Buttons: [🔵 Creator Dashboard] & [⚪ Advertise] */}
-          {selectedPage.isOwner ? (
+          {isOwnerView ? (
             <div className="grid grid-cols-2 gap-2.5">
               <button
                 type="button"
@@ -1520,7 +1622,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             return (
             <div className="space-y-3.5">
               {/* Unpublished Page Banner if toggled off in Settings & privacy */}
-              {selectedPage.isOwner && !currentSettings.isPublished && (
+              {isOwnerView && !currentSettings.isPublished && (
                 <div className="p-3 rounded-xl bg-amber-50 border border-amber-200 flex items-center justify-between gap-2">
                   <div>
                     <p className="text-xs font-bold text-amber-900">Unpublished Draft</p>
@@ -1545,7 +1647,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 <div className="px-1 pt-1 pb-2 border-b border-[#E4E6EB] space-y-2">
                   <div className="flex items-center justify-between">
                     <h3 className="text-[15px] font-bold text-[#050505]">Highlights</h3>
-                    {selectedPage.isOwner && (
+                    {isOwnerView && (
                       <button
                         type="button"
                         onClick={() => {
@@ -1562,15 +1664,20 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     {currentSettings.highlights.map((hl) => (
                       <div
                         key={hl.id}
-                        className="min-w-[130px] max-w-[160px] p-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] shrink-0 space-y-1"
+                        className="min-w-[130px] max-w-[160px] rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] shrink-0 overflow-hidden"
                       >
-                        <div className="flex items-center gap-1.5 text-[#0866FF]">
-                          <Heart className="w-3.5 h-3.5 fill-current shrink-0" />
-                          <span className="text-xs font-bold text-[#050505] truncate">{hl.title}</span>
-                        </div>
-                        {hl.note && (
-                          <p className="text-[11px] text-[#65676B] line-clamp-2">{hl.note}</p>
+                        {hl.image && (
+                          <img src={hl.image} alt={hl.title} className="w-full h-20 object-cover" />
                         )}
+                        <div className="p-2.5 space-y-1">
+                          <div className="flex items-center gap-1.5 text-[#0866FF]">
+                            <Heart className="w-3.5 h-3.5 fill-current shrink-0" />
+                            <span className="text-xs font-bold text-[#050505] truncate">{hl.title}</span>
+                          </div>
+                          {hl.note && (
+                            <p className="text-[11px] text-[#65676B] line-clamp-2">{hl.note}</p>
+                          )}
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -1581,7 +1688,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <div className="px-1 pt-1 pb-2.5 space-y-2.5 border-b border-[#E4E6EB]">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[16px] font-bold text-[#050505]">Personal details</h3>
-                  {selectedPage.isOwner && (
+                  {isOwnerView && (
                     <button
                       type="button"
                       onClick={openExtraEditor}
@@ -1602,7 +1709,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {(extra.hometown || selectedPage.isOwner) && (
+                  {(extra.hometown || isOwnerView) && (
                     <div className="flex items-center gap-3">
                       <Home className="w-5 h-5 text-[#050505] shrink-0" />
                       {extra.hometown ? (
@@ -1619,7 +1726,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {(extra.relationship || selectedPage.isOwner) && (
+                  {(extra.relationship || isOwnerView) && (
                     <div className="flex items-center gap-3">
                       <Heart className="w-5 h-5 text-[#050505] shrink-0" />
                       {extra.relationship ? (
@@ -1660,7 +1767,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <div className="px-1 pt-0.5 pb-2.5 space-y-2.5 border-b border-[#E4E6EB]">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[16px] font-bold text-[#050505]">Details</h3>
-                  {selectedPage.isOwner && (
+                  {isOwnerView && (
                     <button
                       type="button"
                       onClick={openExtraEditor}
@@ -1691,7 +1798,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <div className="px-1 pt-0.5 pb-2.5 space-y-2.5 border-b border-[#E4E6EB]">
                 <div className="flex items-center justify-between">
                   <h3 className="text-[16px] font-bold text-[#050505]">Contact info</h3>
-                  {selectedPage.isOwner && (
+                  {isOwnerView && (
                     <button
                       type="button"
                       onClick={() => handleOpenEditModal(selectedPage)}
@@ -1714,7 +1821,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       <span>{selectedPage.phone}</span>
                     </a>
                   ) : (
-                    selectedPage.isOwner && (
+                    isOwnerView && (
                       <button
                         type="button"
                         onClick={() => handleOpenEditModal(selectedPage)}
@@ -1804,7 +1911,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               </div>
 
               {/* 5. Compact "What's on your mind?" Composer matching Facebook Page UI */}
-              {(selectedPage.isOwner || currentSettings.whoCanPost === 'everyone') && (
+              {(isOwnerView || currentSettings.whoCanPost === 'everyone') && (
                 <div className="space-y-2.5">
                   <div className="flex items-center gap-2.5 px-1">
                     {selectedPage.avatar ? (
@@ -1827,15 +1934,29 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       What&apos;s on your mind?
                     </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowPageComposer(true)}
+                    <label
                       className="p-2 rounded-lg hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
                       title="Add Photo"
                       aria-label="Add Photo"
                     >
                       <ImageIcon className="w-6 h-6" />
-                    </button>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (!file) return;
+                          try {
+                            const b64 = await fileToBase64(file);
+                            setPagePostImage(b64);
+                            setShowPageComposer(true);
+                            showToast('ফটো যুক্ত করা হয়েছে!');
+                          } catch {}
+                          e.target.value = '';
+                        }}
+                      />
+                    </label>
                   </div>
 
                   {showPageComposer && (
@@ -1848,22 +1969,54 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                         className="w-full bg-white border border-[#E4E6EB] rounded-xl p-3 text-xs sm:text-sm text-[#050505] placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] resize-none"
                         autoFocus
                       />
+
+                      {pagePostImage && (
+                        <div className="relative rounded-xl overflow-hidden border border-[#E4E6EB] bg-white">
+                          <img
+                            src={pagePostImage}
+                            alt="Selected attachment"
+                            className="w-full max-h-56 object-cover"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setPagePostImage('')}
+                            className="absolute top-2 right-2 w-7 h-7 rounded-full bg-black/70 text-white flex items-center justify-center cursor-pointer"
+                            aria-label="Remove photo"
+                          >
+                            <X className="w-4 h-4" />
+                          </button>
+                        </div>
+                      )}
+
                       <div className="flex items-center justify-between">
-                        <button
-                          type="button"
-                          onClick={() => showToast('ফটো যোগ করা হয়েছে')}
-                          className="px-2.5 py-1.5 rounded-lg hover:bg-[#E4E6EB] text-emerald-600 flex items-center gap-1.5 cursor-pointer"
-                        >
+                        <label className="px-2.5 py-1.5 rounded-lg hover:bg-[#E4E6EB] text-emerald-600 flex items-center gap-1.5 cursor-pointer">
                           <ImageIcon className="w-4 h-4" />
-                          <span className="text-xs font-semibold text-[#050505]">Photo</span>
-                        </button>
+                          <span className="text-xs font-semibold text-[#050505]">
+                            {pagePostImage ? 'Change Photo' : 'Photo'}
+                          </span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (!file) return;
+                              try {
+                                const b64 = await fileToBase64(file);
+                                setPagePostImage(b64);
+                                showToast('ফটো যুক্ত করা হয়েছে!');
+                              } catch {}
+                              e.target.value = '';
+                            }}
+                          />
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
                             void handlePublishPagePost();
                             setShowPageComposer(false);
                           }}
-                          disabled={!pagePostText.trim()}
+                          disabled={!pagePostText.trim() && !pagePostImage}
                           className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
                         >
                           <Send className="w-3.5 h-3.5" />
@@ -1874,30 +2027,32 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   )}
 
                   {/* Reel + Live Action Pills */}
-                  <div className="flex items-center gap-2 px-1 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => setShowPageReelModal(true)}
-                      className="px-4 py-2 rounded-full bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[13.5px] font-bold text-[#050505] flex items-center gap-2 cursor-pointer"
-                    >
-                      <Film className="w-4 h-4 text-[#050505]" />
-                      <span>Reel</span>
-                    </button>
+                  {isOwnerView && (
+                    <div className="flex items-center gap-2 px-1 pt-1">
+                      <button
+                        type="button"
+                        onClick={() => setShowPageReelModal(true)}
+                        className="px-4 py-2 rounded-full bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[13.5px] font-bold text-[#050505] flex items-center gap-2 cursor-pointer"
+                      >
+                        <Film className="w-4 h-4 text-[#050505]" />
+                        <span>Reel</span>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setShowPageLiveModal(true)}
-                      className="px-4 py-2 rounded-full bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[13.5px] font-bold text-[#050505] flex items-center gap-2 cursor-pointer"
-                    >
-                      <Video className="w-4 h-4 text-[#050505]" />
-                      <span>Live</span>
-                    </button>
-                  </div>
+                      <button
+                        type="button"
+                        onClick={() => setShowPageLiveModal(true)}
+                        className="px-4 py-2 rounded-full bg-white border border-[#CED0D4] hover:bg-[#F0F2F5] text-[13.5px] font-bold text-[#050505] flex items-center gap-2 cursor-pointer"
+                      >
+                        <Video className="w-4 h-4 text-[#050505]" />
+                        <span>Live</span>
+                      </button>
+                    </div>
+                  )}
                 </div>
               )}
 
               {/* Full-width Manage posts button */}
-              {selectedPage.isOwner && (
+              {isOwnerView && (
                 <button
                   type="button"
                   onClick={() => setManagePostsMode((prev) => !prev)}
@@ -1913,7 +2068,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               )}
 
               {/* Creator Broadcast Notification Settings (Compact White Card - Preserved) */}
-              {selectedPage.isOwner && (
+              {isOwnerView && (
                 <div className="p-3.5 rounded-xl bg-white border border-[#E4E6EB] space-y-2 shadow-2xs">
                   <div className="flex items-center justify-between gap-2">
                     <div className="flex items-center gap-2">
@@ -1975,7 +2130,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   sortedPosts.map((post) => (
                       <div
                         key={post.id}
-                        className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-2xs"
+                        className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-2xs relative"
                       >
                         {post.pinned && (
                           <div className="flex items-center gap-1.5 text-[12px] font-semibold text-[#65676B] pb-1 border-b border-[#F0F2F5]">
@@ -2008,8 +2163,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             </div>
                           </div>
 
-                          {selectedPage.isOwner && (
-                            <div className="flex items-center gap-1">
+                          {isOwnerView && (
+                            <div className="flex items-center gap-1 relative">
                               <button
                                 type="button"
                                 onClick={() => {
@@ -2081,64 +2236,426 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                           (item) => item.id !== post.id
                                         ),
                                       }));
+                                      updatePageSettings(selectedPage.id, (cur) => ({
+                                        ...cur,
+                                        trashedPosts: [
+                                          { ...post, archivedAt: '30 days left' },
+                                          ...(cur.trashedPosts || []),
+                                        ],
+                                      }));
                                       logPageActivity(
                                         selectedPage.id,
-                                        'post',
-                                        'Deleted a post',
+                                        'archive',
+                                        'Moved post to Trash',
                                         post.text.slice(0, 60)
                                       );
-                                      showToast('পোস্টটি মুছে ফেলা হয়েছে');
+                                      showToast('পোস্টটি Trash-এ পাঠানো হয়েছে (৩০ দিন সংরক্ষিত থাকবে)');
                                     }}
                                     className="p-1.5 rounded-lg bg-rose-50 text-rose-600 hover:bg-rose-100 cursor-pointer"
-                                    title="Delete post"
+                                    title="Move to Trash"
                                   >
                                     <Trash2 className="w-3.5 h-3.5" />
                                   </button>
                                 </>
                               )}
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setOpenPostMenuId((prev) => (prev === post.id ? null : post.id))
+                                }
+                                className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                                title="Post options"
+                                aria-label="Post options"
+                              >
+                                <MoreHorizontal className="w-4 h-4" />
+                              </button>
+
+                              {openPostMenuId === post.id && (
+                                <div className="absolute right-0 top-8 z-30 w-48 bg-white rounded-xl border border-[#E4E6EB] shadow-xl py-1 text-left">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setEditingPostId(post.id);
+                                      setEditingPostText(post.text);
+                                      setOpenPostMenuId(null);
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Edit3 className="w-3.5 h-3.5" />
+                                    <span>Edit post</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPagePostsList((prev) => ({
+                                        ...prev,
+                                        [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                                          item.id === post.id ? { ...item, pinned: !item.pinned } : item
+                                        ),
+                                      }));
+                                      setOpenPostMenuId(null);
+                                      showToast(post.pinned ? 'পিন সরানো হয়েছে' : 'পোস্ট পিন করা হয়েছে');
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Pin className="w-3.5 h-3.5" />
+                                    <span>{post.pinned ? 'Unpin post' : 'Pin post'}</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPagePostsList((prev) => ({
+                                        ...prev,
+                                        [selectedPage.id]: (prev[selectedPage.id] || []).filter(
+                                          (item) => item.id !== post.id
+                                        ),
+                                      }));
+                                      updatePageSettings(selectedPage.id, (cur) => ({
+                                        ...cur,
+                                        archivedPosts: [
+                                          { ...post, archivedAt: 'এখনই' },
+                                          ...(cur.archivedPosts || []),
+                                        ],
+                                      }));
+                                      logPageActivity(
+                                        selectedPage.id,
+                                        'archive',
+                                        'Moved post to Archive',
+                                        post.text.slice(0, 60)
+                                      );
+                                      setOpenPostMenuId(null);
+                                      showToast('পোস্টটি Archive-এ সরানো হয়েছে');
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Archive className="w-3.5 h-3.5" />
+                                    <span>Move to archive</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      try {
+                                        navigator.clipboard?.writeText(
+                                          `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}&post=${post.id}`
+                                        );
+                                      } catch {}
+                                      setOpenPostMenuId(null);
+                                      showToast('পোস্টের লিংক কপি হয়েছে');
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-semibold text-[#050505] hover:bg-[#F0F2F5] flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Copy className="w-3.5 h-3.5" />
+                                    <span>Copy link</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setPagePostsList((prev) => ({
+                                        ...prev,
+                                        [selectedPage.id]: (prev[selectedPage.id] || []).filter(
+                                          (item) => item.id !== post.id
+                                        ),
+                                      }));
+                                      updatePageSettings(selectedPage.id, (cur) => ({
+                                        ...cur,
+                                        trashedPosts: [
+                                          { ...post, archivedAt: '30 days left' },
+                                          ...(cur.trashedPosts || []),
+                                        ],
+                                      }));
+                                      logPageActivity(
+                                        selectedPage.id,
+                                        'archive',
+                                        'Moved post to Trash',
+                                        post.text.slice(0, 60)
+                                      );
+                                      setOpenPostMenuId(null);
+                                      showToast('পোস্টটি Trash-এ পাঠানো হয়েছে');
+                                    }}
+                                    className="w-full px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 flex items-center gap-2 cursor-pointer"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                    <span>Move to trash</span>
+                                  </button>
+                                </div>
+                              )}
                             </div>
                           )}
                         </div>
 
-                        <p className="text-[14px] text-[#050505] leading-relaxed whitespace-pre-wrap">
-                          {post.text}
-                        </p>
+                        {editingPostId === post.id ? (
+                          <div className="space-y-2 bg-[#F7F8FA] p-2.5 rounded-xl border border-[#E4E6EB]">
+                            <textarea
+                              rows={3}
+                              value={editingPostText}
+                              onChange={(e) => setEditingPostText(e.target.value)}
+                              className="w-full bg-white border border-[#E4E6EB] rounded-lg p-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF] resize-none"
+                              autoFocus
+                            />
+                            <div className="flex justify-end gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setEditingPostId(null)}
+                                className="px-3 py-1 rounded-lg bg-[#E4E6EB] text-xs font-bold text-[#050505] cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setPagePostsList((prev) => ({
+                                    ...prev,
+                                    [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                                      item.id === post.id ? { ...item, text: editingPostText.trim() } : item
+                                    ),
+                                  }));
+                                  logPageActivity(
+                                    selectedPage.id,
+                                    'post',
+                                    'Edited post',
+                                    editingPostText.trim().slice(0, 60)
+                                  );
+                                  setEditingPostId(null);
+                                  showToast('পোস্ট আপডেট করা হয়েছে!');
+                                }}
+                                className="px-3 py-1 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                              >
+                                Save
+                              </button>
+                            </div>
+                          </div>
+                        ) : (
+                          post.text && (
+                            <p className="text-[14px] text-[#050505] leading-relaxed whitespace-pre-wrap">
+                              {post.text}
+                            </p>
+                          )
+                        )}
+
+                        {post.image && (
+                          <div className="rounded-xl overflow-hidden bg-[#F0F2F5] border border-[#E4E6EB]">
+                            <img
+                              src={post.image}
+                              alt="Post photo"
+                              className="w-full max-h-[420px] object-cover"
+                            />
+                          </div>
+                        )}
 
                         <div className="flex items-center justify-between pt-2 border-t border-[#E4E6EB] text-xs font-semibold text-[#65676B]">
                           <button
                             type="button"
-                            onClick={() => showToast('পোস্টে লাইক দেওয়া হয়েছে')}
-                            className="flex items-center gap-1.5 hover:text-[#0866FF] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
+                            onClick={() => {
+                              setPagePostsList((prev) => ({
+                                ...prev,
+                                [selectedPage.id]: (prev[selectedPage.id] || []).map((item) => {
+                                  if (item.id !== post.id) return item;
+                                  const nextLiked = !item.isLikedByMe;
+                                  return {
+                                    ...item,
+                                    isLikedByMe: nextLiked,
+                                    likes: nextLiked ? item.likes + 1 : Math.max(0, item.likes - 1),
+                                  };
+                                }),
+                              }));
+                            }}
+                            className={`flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer ${
+                              post.isLikedByMe ? 'text-[#0866FF] font-bold' : 'hover:text-[#0866FF]'
+                            }`}
                           >
-                            <ThumbsUp className="w-4 h-4 text-[#0866FF]" />
+                            <ThumbsUp className={`w-4 h-4 ${post.isLikedByMe ? 'fill-[#0866FF] text-[#0866FF]' : 'text-[#0866FF]'}`} />
                             <span className="tabular-nums">{post.likes} Like</span>
                           </button>
+
                           <button
                             type="button"
-                            onClick={() =>
-                              showToast(
-                                currentSettings.allowComments
-                                  ? 'মন্তব্য অপশন খোলা হয়েছে'
-                                  : 'অ্যাডমিন এই পেজে মন্তব্য সীমিত করেছেন'
-                              )
-                            }
-                            className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
+                            onClick={() => {
+                              setOpenCommentPostId((prev) => (prev === post.id ? null : post.id));
+                              setPostCommentDraft('');
+                            }}
+                            className={`flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer ${
+                              openCommentPostId === post.id ? 'text-[#0866FF]' : 'hover:text-[#050505]'
+                            }`}
                           >
                             <MessageCircle className="w-4 h-4" />
                             <span className="tabular-nums">{post.comments} Comment</span>
                           </button>
+
                           <button
                             type="button"
-                            onClick={() => showToast('পোস্ট শেয়ার করা হয়েছে')}
+                            onClick={() => {
+                              setPagePostsList((prev) => ({
+                                ...prev,
+                                [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                                  item.id === post.id
+                                    ? { ...item, shares: (item.shares || 0) + 1 }
+                                    : item
+                                ),
+                              }));
+                              try {
+                                navigator.clipboard?.writeText(
+                                  `${window.location.origin}/?tab=pages&pageId=${selectedPage.id}&post=${post.id}`
+                                );
+                              } catch {}
+                              logPageActivity(
+                                selectedPage.id,
+                                'post',
+                                'Shared post',
+                                post.text ? post.text.slice(0, 60) : 'Photo post'
+                              );
+                              showToast('পোস্টের লিংক কপি ও শেয়ার হয়েছে!');
+                            }}
                             className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
                           >
                             <Share2 className="w-4 h-4" />
-                            <span>Share</span>
+                            <span>{post.shares ? `${post.shares} Share` : 'Share'}</span>
                           </button>
                         </div>
 
+                        {/* Interactive Comments Drawer (Enforces Page Settings & Moderation Assist) */}
+                        {openCommentPostId === post.id && (
+                          <div className="pt-2 border-t border-[#F0F2F5] space-y-2">
+                            {(post.commentsList || []).length > 0 && (
+                              <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                                {(post.commentsList || []).map((c) => (
+                                  <div key={c.id} className="p-2 rounded-xl bg-[#F0F2F5] text-xs">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span className="font-bold text-[#050505]">{c.author}</span>
+                                      <span className="text-[10px] text-[#65676B]">{c.time}</span>
+                                    </div>
+                                    <p className="text-[#050505] mt-0.5">{c.text}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+
+                            {!currentSettings.allowComments ? (
+                              <p className="text-[11px] text-[#65676B] bg-[#F7F8FA] p-2 rounded-lg text-center">
+                                এই পেজে মন্তব্য সীমিত করা হয়েছে (Page Settings -&gt; Posts and tags)।
+                              </p>
+                            ) : (
+                              <div className="flex items-center gap-2">
+                                <input
+                                  type="text"
+                                  value={postCommentDraft}
+                                  onChange={(e) => setPostCommentDraft(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' && postCommentDraft.trim()) {
+                                      e.preventDefault();
+                                      const commentAuthor = isOwnerView
+                                        ? selectedPage.name
+                                        : userProfile?.name || 'Follower';
+                                      const rawText = postCommentDraft.trim();
+                                      if (
+                                        currentSettings.blockedUsers.some(
+                                          (u) => u.toLowerCase() === commentAuthor.toLowerCase()
+                                        )
+                                      ) {
+                                        showToast('এই অ্যাকাউন্টটি পেজ থেকে ব্লক করা আছে');
+                                        return;
+                                      }
+                                      if (
+                                        currentSettings.modHideLinks &&
+                                        /(https?:\/\/|www\.)/i.test(rawText)
+                                      ) {
+                                        showToast('Moderation Assist: লিংকযুক্ত কমেন্ট হাইড করা হয়েছে');
+                                        return;
+                                      }
+                                      const matchedWord = currentSettings.modBlockedWords.find((w) =>
+                                        rawText.toLowerCase().includes(w.toLowerCase())
+                                      );
+                                      if (matchedWord) {
+                                        showToast(`Moderation Assist: "${matchedWord}" শব্দটি ব্লক করা আছে`);
+                                        return;
+                                      }
+                                      const newComment = {
+                                        id: `cmt-${Date.now()}`,
+                                        author: commentAuthor,
+                                        text: rawText,
+                                        time: 'এখনই',
+                                      };
+                                      setPagePostsList((prev) => ({
+                                        ...prev,
+                                        [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                                          item.id === post.id
+                                            ? {
+                                                ...item,
+                                                comments: item.comments + 1,
+                                                commentsList: [...(item.commentsList || []), newComment],
+                                              }
+                                            : item
+                                        ),
+                                      }));
+                                      setPostCommentDraft('');
+                                    }
+                                  }}
+                                  placeholder="একটি মন্তব্য লিখুন..."
+                                  className="flex-1 bg-[#F0F2F5] rounded-full px-3.5 py-1.5 text-xs text-[#050505] placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const rawText = postCommentDraft.trim();
+                                    if (!rawText) return;
+                                    const commentAuthor = isOwnerView
+                                      ? selectedPage.name
+                                      : userProfile?.name || 'Follower';
+                                    if (
+                                      currentSettings.blockedUsers.some(
+                                        (u) => u.toLowerCase() === commentAuthor.toLowerCase()
+                                      )
+                                    ) {
+                                      showToast('এই অ্যাকাউন্টটি পেজ থেকে ব্লক করা আছে');
+                                      return;
+                                    }
+                                    if (
+                                      currentSettings.modHideLinks &&
+                                      /(https?:\/\/|www\.)/i.test(rawText)
+                                    ) {
+                                      showToast('Moderation Assist: লিংকযুক্ত কমেন্ট হাইড করা হয়েছে');
+                                      return;
+                                    }
+                                    const matchedWord = currentSettings.modBlockedWords.find((w) =>
+                                      rawText.toLowerCase().includes(w.toLowerCase())
+                                    );
+                                    if (matchedWord) {
+                                      showToast(`Moderation Assist: "${matchedWord}" শব্দটি ব্লক করা আছে`);
+                                      return;
+                                    }
+                                    const newComment = {
+                                      id: `cmt-${Date.now()}`,
+                                      author: commentAuthor,
+                                      text: rawText,
+                                      time: 'এখনই',
+                                    };
+                                    setPagePostsList((prev) => ({
+                                      ...prev,
+                                      [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                                        item.id === post.id
+                                          ? {
+                                              ...item,
+                                              comments: item.comments + 1,
+                                              commentsList: [...(item.commentsList || []), newComment],
+                                            }
+                                          : item
+                                      ),
+                                    }));
+                                    setPostCommentDraft('');
+                                  }}
+                                  className="p-2 rounded-full bg-[#0866FF] text-white cursor-pointer disabled:opacity-50"
+                                  disabled={!postCommentDraft.trim()}
+                                  aria-label="Send comment"
+                                >
+                                  <Send className="w-3.5 h-3.5" />
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                        )}
+
                         {/* Facebook-style See insights and ads + Boost post row below each post */}
-                        {selectedPage.isOwner && (
+                        {isOwnerView && (
                           <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#F0F2F5]">
                             <button
                               type="button"
@@ -2152,7 +2669,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             <button
                               type="button"
                               onClick={() => {
-                                setBoostTargetPost({ id: post.id, text: post.text });
+                                setBoostTargetPost({ id: post.id, text: post.text || 'Photo post' });
                                 setShowAdvertiseModal(true);
                               }}
                               className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-[12px] font-bold transition-colors cursor-pointer"
@@ -2169,27 +2686,34 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             );
           })()}
 
-          {/* PHOTOS TAB */}
-          {pageSubTab === 'photos' && (
-            <div className="bg-white rounded-xl border border-[#E4E6EB] p-3">
-              {[selectedPage.cover, selectedPage.avatar].filter(Boolean).length === 0 ? (
-                <div className="py-8 text-center space-y-2">
-                  <ImageIcon className="w-8 h-8 text-[#65676B] mx-auto opacity-50" />
-                  <p className="text-xs font-semibold text-[#65676B]">
-                    এখনো কোনো কভার ফটো বা লোগো যোগ করা হয়নি।
-                  </p>
-                </div>
-              ) : (
-                <div className="grid grid-cols-3 gap-2">
-                  {[selectedPage.cover, selectedPage.avatar].filter(Boolean).map((imgUrl, i) => (
-                    <div key={i} className="aspect-square rounded-lg overflow-hidden bg-[#F0F2F5]">
-                      <img src={imgUrl} alt="Page photo" className="w-full h-full object-cover" />
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
+          {/* PHOTOS TAB (Synced with Cover, Avatar & all Post Photos) */}
+          {pageSubTab === 'photos' && (() => {
+            const allPagePhotos = [
+              selectedPage.cover,
+              selectedPage.avatar,
+              ...rawPosts.map((p) => p.image).filter((img): img is string => Boolean(img)),
+            ].filter(Boolean) as string[];
+            return (
+              <div className="bg-white rounded-xl border border-[#E4E6EB] p-3">
+                {allPagePhotos.length === 0 ? (
+                  <div className="py-8 text-center space-y-2">
+                    <ImageIcon className="w-8 h-8 text-[#65676B] mx-auto opacity-50" />
+                    <p className="text-xs font-semibold text-[#65676B]">
+                      এখনো কোনো কভার ফটো, লোগো বা পোস্টের ছবি যোগ করা হয়নি।
+                    </p>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-3 gap-2">
+                    {allPagePhotos.map((imgUrl, i) => (
+                      <div key={i} className="aspect-square rounded-lg overflow-hidden bg-[#F0F2F5]">
+                        <img src={imgUrl} alt={`Page photo ${i + 1}`} className="w-full h-full object-cover" />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })()}
 
           {/* REELS TAB */}
           {pageSubTab === 'reels' && (() => {
@@ -2201,7 +2725,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     <Film className="w-4 h-4 text-[#0866FF]" />
                     <span>{selectedPage.name} • Reels ({pageReels.length})</span>
                   </h3>
-                  {selectedPage.isOwner && (
+                  {isOwnerView && (
                     <button
                       type="button"
                       onClick={() => setShowPageReelModal(true)}
@@ -2247,7 +2771,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </h3>
               </div>
 
-              {selectedPage.isOwner && (
+              {isOwnerView && (
                 <div className="flex flex-col sm:flex-row gap-2">
                   <input
                     type="text"
@@ -2409,61 +2933,232 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               </div>
 
               <div className="p-4 overflow-y-auto flex-1 space-y-3.5">
-                {creatorDashboardTab === 'overview' && (
-                  <>
-                    <div className="grid grid-cols-2 gap-2.5">
-                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
-                        <span className="text-[11px] text-[#65676B] block">Followers</span>
-                        <span className="text-lg font-extrabold text-[#050505] tabular-nums">
-                          {selectedPage.followersCount.toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
-                        <span className="text-[11px] text-[#65676B] block">Post Reach (28d)</span>
-                        <span className="text-lg font-extrabold text-[#0866FF] tabular-nums">
-                          {(activePosts.length * 142 + selectedPage.followersCount * 3).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
-                        <span className="text-[11px] text-[#65676B] block">Total Posts</span>
-                        <span className="text-lg font-extrabold text-[#050505] tabular-nums">
-                          {activePosts.length}
-                        </span>
-                      </div>
-                      <div className="p-3 rounded-xl bg-[#F0F2F5]">
-                        <span className="text-[11px] text-[#65676B] block">Engagement</span>
-                        <span className="text-lg font-extrabold text-emerald-700 tabular-nums">
-                          {activePosts.reduce((sum, p) => sum + p.likes + p.comments, 0)}
-                        </span>
-                      </div>
-                    </div>
+                {creatorDashboardTab === 'overview' && (() => {
+                  const dashSettings = getPageSettings(selectedPage.id);
+                  const setupChecks = [
+                    {
+                      label: 'Profile photo',
+                      done: Boolean(selectedPage.avatar),
+                      action: () => {
+                        setShowCreatorDashboard(false);
+                        showToast('লোগো ক্যামেরা আইকন থেকে প্রোফাইল ছবি যুক্ত করুন');
+                      },
+                    },
+                    {
+                      label: 'Cover photo',
+                      done: Boolean(selectedPage.cover),
+                      action: () => {
+                        setShowCreatorDashboard(false);
+                        showToast('কভার ফটোর ডানদিকের ক্যামেরা আইকন থেকে ছবি যুক্ত করুন');
+                      },
+                    },
+                    {
+                      label: 'Action button',
+                      done: Boolean(dashSettings.actionButtonValue || selectedPage.whatsapp || selectedPage.phone),
+                      action: () => {
+                        setShowCreatorDashboard(false);
+                        setActionBtnTypeDraft(dashSettings.actionButtonType || 'WhatsApp');
+                        setActionBtnValueDraft(dashSettings.actionButtonValue || selectedPage.whatsapp || selectedPage.phone || '');
+                        setActiveSettingKey('Action Button');
+                        setShowPageSettings(true);
+                      },
+                    },
+                    {
+                      label: 'First post',
+                      done: rawPosts.length > 0,
+                      action: () => {
+                        setShowCreatorDashboard(false);
+                        setPageSubTab('all');
+                        setShowPageComposer(true);
+                      },
+                    },
+                    {
+                      label: 'Invite friends',
+                      done: dashSettings.invitedNames.length > 0,
+                      action: () => {
+                        setShowCreatorDashboard(false);
+                        setActiveSettingKey('Invite people to connect');
+                        setShowPageSettings(true);
+                      },
+                    },
+                  ];
+                  const completedCount = setupChecks.filter((s) => s.done).length;
 
-                    <div className="grid grid-cols-2 gap-2 pt-1">
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCreatorDashboard(false);
-                          setSheetPage(selectedPage);
-                        }}
-                        className="py-2.5 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <RefreshCw className="w-3.5 h-3.5 text-[#0866FF]" />
-                        <span>Switch to Page</span>
-                      </button>
-                      <button
-                        type="button"
-                        onClick={() => {
-                          setShowCreatorDashboard(false);
-                          handleOpenEditModal(selectedPage);
-                        }}
-                        className="py-2.5 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-                      >
-                        <Edit3 className="w-3.5 h-3.5" />
-                        <span>Edit Page</span>
-                      </button>
-                    </div>
-                  </>
-                )}
+                  return (
+                    <>
+                      <div className="grid grid-cols-2 gap-2.5">
+                        <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                          <span className="text-[11px] text-[#65676B] block">Followers</span>
+                          <span className="text-lg font-extrabold text-[#050505] tabular-nums">
+                            {selectedPage.followersCount.toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                          <span className="text-[11px] text-[#65676B] block">Post Reach (28d)</span>
+                          <span className="text-lg font-extrabold text-[#0866FF] tabular-nums">
+                            {(activePosts.length * 142 + selectedPage.followersCount * 3).toLocaleString()}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                          <span className="text-[11px] text-[#65676B] block">Total Posts</span>
+                          <span className="text-lg font-extrabold text-[#050505] tabular-nums">
+                            {activePosts.length}
+                          </span>
+                        </div>
+                        <div className="p-3 rounded-xl bg-[#F0F2F5]">
+                          <span className="text-[11px] text-[#65676B] block">Engagement</span>
+                          <span className="text-lg font-extrabold text-emerald-700 tabular-nums">
+                            {activePosts.reduce((sum, p) => sum + p.likes + p.comments, 0)}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Page Setup Progress */}
+                      <div className="p-3 rounded-xl border border-[#E4E6EB] bg-white space-y-2">
+                        <div className="flex items-center justify-between">
+                          <h4 className="text-xs font-bold text-[#050505]">Page setup progress</h4>
+                          <span className="text-[11px] font-bold text-[#0866FF]">
+                            {completedCount}/{setupChecks.length} completed
+                          </span>
+                        </div>
+                        <div className="w-full h-1.5 rounded-full bg-[#F0F2F5] overflow-hidden">
+                          <div
+                            className="h-full bg-[#0866FF] transition-all"
+                            style={{ width: `${(completedCount / setupChecks.length) * 100}%` }}
+                          />
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 pt-1">
+                          {setupChecks.map((step) => (
+                            <button
+                              key={step.label}
+                              type="button"
+                              onClick={step.action}
+                              className={`px-2.5 py-1 rounded-lg text-[11px] font-semibold flex items-center gap-1 cursor-pointer ${
+                                step.done
+                                  ? 'bg-emerald-50 text-emerald-700'
+                                  : 'bg-[#F0F2F5] text-[#050505] hover:bg-[#E4E6EB]'
+                              }`}
+                            >
+                              {step.done && <Check className="w-3 h-3" />}
+                              <span>{step.label}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+
+                      {/* Professional Tools Grid */}
+                      <div className="space-y-2">
+                        <h4 className="text-xs font-bold text-[#050505]">Tools</h4>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreatorDashboard(false);
+                              setBoostTargetPost(null);
+                              setShowAdvertiseModal(true);
+                            }}
+                            className="p-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-left space-y-1 cursor-pointer"
+                          >
+                            <Megaphone className="w-4 h-4 text-[#0866FF]" />
+                            <p className="text-xs font-bold text-[#050505]">Ad Center</p>
+                            <p className="text-[10px] text-[#65676B]">Promote Page & Posts</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setCreatorDashboardTab('earnings')}
+                            className="p-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-left space-y-1 cursor-pointer"
+                          >
+                            <CircleDollarSign className="w-4 h-4 text-emerald-600" />
+                            <p className="text-xs font-bold text-[#050505]">Monetization</p>
+                            <p className="text-[10px] text-[#65676B]">Halal Payout & Studio</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreatorDashboard(false);
+                              setActiveSettingKey('Admins');
+                              setShowPageSettings(true);
+                            }}
+                            className="p-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-left space-y-1 cursor-pointer"
+                          >
+                            <KeyRound className="w-4 h-4 text-[#0866FF]" />
+                            <p className="text-xs font-bold text-[#050505]">Page access</p>
+                            <p className="text-[10px] text-[#65676B]">Manage Admins & Roles</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreatorDashboard(false);
+                              setActiveSettingKey('Page status');
+                              setPageStatusSubView('moderation');
+                              setShowPageSettings(true);
+                            }}
+                            className="p-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-left space-y-1 cursor-pointer"
+                          >
+                            <Shield className="w-4 h-4 text-[#0866FF]" />
+                            <p className="text-xs font-bold text-[#050505]">Moderation Assist</p>
+                            <p className="text-[10px] text-[#65676B]">Comment & Link Filters</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreatorDashboard(false);
+                              setPageSubTab('events');
+                            }}
+                            className="p-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-left space-y-1 cursor-pointer"
+                          >
+                            <Calendar className="w-4 h-4 text-[#0866FF]" />
+                            <p className="text-xs font-bold text-[#050505]">Events</p>
+                            <p className="text-[10px] text-[#65676B]">Manage Page Events</p>
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowCreatorDashboard(false);
+                              setActiveSettingKey(null);
+                              setShowPageSettings(true);
+                            }}
+                            className="p-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-left space-y-1 cursor-pointer"
+                          >
+                            <Settings className="w-4 h-4 text-[#050505]" />
+                            <p className="text-xs font-bold text-[#050505]">Page Settings</p>
+                            <p className="text-[10px] text-[#65676B]">All 14 Settings Tools</p>
+                          </button>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-2 pt-1">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCreatorDashboard(false);
+                            setSheetPage(selectedPage);
+                          }}
+                          className="py-2.5 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <RefreshCw className="w-3.5 h-3.5 text-[#0866FF]" />
+                          <span>Switch to Page</span>
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowCreatorDashboard(false);
+                            handleOpenEditModal(selectedPage);
+                          }}
+                          className="py-2.5 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                        >
+                          <Edit3 className="w-3.5 h-3.5" />
+                          <span>Edit Page</span>
+                        </button>
+                      </div>
+                    </>
+                  );
+                })()}
 
                 {creatorDashboardTab === 'earnings' && (() => {
                   const adminControl = getPageMonetizationById(selectedPage.id);
@@ -3079,6 +3774,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             } else if (key === 'Verify your Page') {
               setVerifyCategoryDraft(settings.verificationCategory || 'Creator / Public Figure');
               setVerifyNoteDraft(settings.verificationNote || '');
+              setVerifyDocTypeDraft(settings.verificationDocType || 'National Identity Card (NID)');
+              setVerifyDocNameDraft(settings.verificationDocName || '');
+              setVerifyCountryDraft(settings.verificationCountry || 'Bangladesh');
+              setVerifyReasonDraft(settings.verificationReason || '');
             } else if (key === 'Page link') {
               setCustomSlugDraft(
                 settings.customSlug ||
@@ -3097,6 +3796,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               setConnViber(selectedPage.viber || '');
             } else if (key === 'Settings & privacy') {
               setConfirmDeletePage(false);
+              setPrivacySubView(null);
+              setSetupNameDraft(selectedPage.name);
+              setSetupBioDraft(selectedPage.bio || selectedPage.description || '');
+            } else if (key === 'Page status') {
+              setPageStatusSubView(null);
+            } else if (key === 'Archive') {
+              setArchiveTab('archive');
             }
             setActiveSettingKey(key);
           };
@@ -3109,15 +3815,52 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             (entry) => activityFilter === 'all' || entry.category === activityFilter
           );
 
+          const pageStatusHeaderTitle =
+            activeSettingKey === 'Page status' && pageStatusSubView
+              ? pageStatusSubView === 'recommendations'
+                ? 'Recommendations'
+                : pageStatusSubView === 'moderation'
+                ? 'Moderation Assist'
+                : pageStatusSubView === 'updates'
+                ? 'Other updates'
+                : pageStatusSubView === 'guide_intro'
+                ? 'Community Standards'
+                : pageStatusSubView === 'guide_enforce'
+                ? 'How we enforce'
+                : pageStatusSubView === 'guide_tips'
+                ? 'Creator Tips'
+                : 'Give feedback'
+              : activeSettingKey === 'Settings & privacy' && privacySubView
+              ? privacySubView === 'setup'
+                ? 'Page setup'
+                : privacySubView === 'privacy'
+                ? 'Privacy'
+                : privacySubView === 'notifications'
+                ? 'Notifications'
+                : privacySubView === 'blocking'
+                ? 'Blocking'
+                : privacySubView === 'info'
+                ? 'Your Page information'
+                : 'Deactivation & deletion'
+              : activeSettingKey === 'Admins'
+              ? 'Page access'
+              : activeSettingKey === 'Posts and tags'
+              ? 'Page and tagging'
+              : activeSettingKey || 'Page Settings';
+
           return (
           <div className="fixed inset-0 z-[120] bg-white text-[#050505] overflow-y-auto pb-20 font-sans animate-in fade-in">
             <div className="max-w-[700px] mx-auto min-h-screen bg-white">
-              {/* Top Sticky Header: <  |  Page Settings  |  Page Avatar + Chevron */}
+              {/* Top Sticky Header: <  |  Page Settings / Sub-Title  |  Profile Icon + Page Avatar Chevron */}
               <div className="sticky top-0 z-20 bg-white border-b border-[#E4E6EB] h-[54px] px-3 flex items-center justify-between">
                 <button
                   type="button"
                   onClick={() => {
-                    if (activeSettingKey) {
+                    if (activeSettingKey === 'Page status' && pageStatusSubView) {
+                      setPageStatusSubView(null);
+                    } else if (activeSettingKey === 'Settings & privacy' && privacySubView) {
+                      setPrivacySubView(null);
+                    } else if (activeSettingKey) {
                       setActiveSettingKey(null);
                     } else {
                       setShowPageSettings(false);
@@ -3130,75 +3873,78 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </button>
 
                 <h2 className="text-[18px] font-bold text-[#050505]">
-                  {activeSettingKey || 'Page Settings'}
+                  {pageStatusHeaderTitle}
                 </h2>
 
-                <button
-                  type="button"
-                  onClick={() => setSheetPage(selectedPage)}
-                  className="relative w-9 h-9 rounded-full cursor-pointer"
-                  title="Switch Page"
-                  aria-label="Switch Page"
-                >
-                  {selectedPage.avatar ? (
-                    <img
-                      src={selectedPage.avatar}
-                      alt={selectedPage.name}
-                      className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB]"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-bold text-sm border border-[#E4E6EB]">
-                      {selectedPage.name.trim().charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#E4E6EB] border border-white flex items-center justify-center">
-                    <ChevronDown className="w-2.5 h-2.5 text-[#050505]" />
-                  </span>
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setSheetPage(selectedPage)}
+                    className="w-8 h-8 rounded-full hover:bg-[#F0F2F5] flex items-center justify-center text-[#050505] cursor-pointer"
+                    title="Personal Profile / Account"
+                    aria-label="Account"
+                  >
+                    <UserCircle2 className="w-6 h-6 stroke-[1.7]" />
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setSheetPage(selectedPage)}
+                    className="relative w-9 h-9 rounded-full cursor-pointer"
+                    title="Switch Page"
+                    aria-label="Switch Page"
+                  >
+                    {selectedPage.avatar ? (
+                      <img
+                        src={selectedPage.avatar}
+                        alt={selectedPage.name}
+                        className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB]"
+                      />
+                    ) : (
+                      <div className="w-9 h-9 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-bold text-sm border border-[#E4E6EB]">
+                        {selectedPage.name.trim().charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <span className="absolute -bottom-0.5 -right-0.5 w-4 h-4 rounded-full bg-[#E4E6EB] border border-white flex items-center justify-center">
+                      <ChevronDown className="w-2.5 h-2.5 text-[#050505]" />
+                    </span>
+                  </button>
+                </div>
               </div>
 
               {/* Detail Sub-view when any setting item is tapped */}
               {activeSettingKey ? (
                 <div className="p-4 space-y-4">
-                  {/* 1. PAGE STATUS */}
+                  {/* 1. PAGE STATUS (Exact Facebook Page status layout + A-to-Z working sub-panels) */}
                   {activeSettingKey === 'Page status' && (
-                    <div className="space-y-4">
-                      <div className="p-4 rounded-2xl bg-emerald-50 border border-emerald-200 space-y-2">
-                        <div className="flex items-center justify-between">
-                          <p className="text-base font-extrabold text-emerald-800 flex items-center gap-2">
-                            <ShieldCheck className="w-5 h-5" />
-                            <span>Page has no issues</span>
-                          </p>
-                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-600 text-white">
-                            Good Standing
-                          </span>
-                        </div>
-                        <p className="text-xs text-emerald-700 leading-relaxed">
-                          {selectedPage.name} পেজটি সম্পূর্ণ হালাল নীতিমালা মেনে চলছে। কোনো কপিরাইট বা কমিউনিটি স্ট্রাইক নেই।
-                        </p>
-                      </div>
-
-                      <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-3">
-                        <h4 className="text-sm font-bold text-[#050505]">Page eligibility & reach</h4>
-                        <div className="grid grid-cols-2 gap-2.5 text-xs">
-                          <div className="p-3 rounded-xl bg-[#F0F2F5]">
-                            <span className="text-[#65676B] block">Followers</span>
-                            <span className="text-base font-extrabold text-[#050505] tabular-nums">
-                              {selectedPage.followersCount.toLocaleString()}
-                            </span>
-                          </div>
-                          <div className="p-3 rounded-xl bg-[#F0F2F5]">
-                            <span className="text-[#65676B] block">Monetization</span>
-                            <span className="text-sm font-extrabold text-[#0866FF]">
-                              {monetizationInfo?.status === 'approved' ? 'Active ✓' : 'Eligible / Active'}
+                    pageStatusSubView === 'recommendations' ? (
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-2xl bg-[#F0F2F5] space-y-2">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <h4 className="text-[15px] font-bold text-[#050505]">Recommendable</h4>
+                              <p className="text-xs text-[#65676B]">
+                                {settings.allowRecommendations
+                                  ? 'Active • আপনার পেজটি নতুন ইউজারদের ফিডে রিকমেন্ড করা হচ্ছে'
+                                  : 'Off • রিকমেন্ডেশন সাময়িকভাবে বন্ধ রাখা হয়েছে'}
+                              </p>
+                            </div>
+                            <span
+                              className={`px-2.5 py-1 rounded-full text-xs font-bold ${
+                                settings.allowRecommendations
+                                  ? 'bg-[#31A24C] text-white'
+                                  : 'bg-[#E4E6EB] text-[#65676B]'
+                              }`}
+                            >
+                              {settings.allowRecommendations ? 'Active' : 'Off'}
                             </span>
                           </div>
                         </div>
 
-                        <label className="flex items-center justify-between gap-2 p-3 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                        <label className="flex items-center justify-between gap-3 p-4 rounded-2xl border border-[#E4E6EB] cursor-pointer">
                           <div>
-                            <p className="text-xs font-bold text-[#050505]">Page recommendation</p>
-                            <p className="text-[11px] text-[#65676B]">নতুন মানুষদের কাছে পেজ সাজেস্ট করুন</p>
+                            <p className="text-sm font-bold text-[#050505]">Allow Page recommendations</p>
+                            <p className="text-xs text-[#65676B]">অন্যদের সামনে এই পেজটি সাজেস্ট করা চালু বা বন্ধ করুন</p>
                           </div>
                           <input
                             type="checkbox"
@@ -3210,27 +3956,455 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 'settings',
                                 e.target.checked ? 'Enabled Page recommendations' : 'Disabled Page recommendations'
                               );
+                              showToast(
+                                e.target.checked ? 'Recommendations সক্রিয় করা হয়েছে' : 'Recommendations বন্ধ করা হয়েছে'
+                              );
+                            }}
+                            className="w-5 h-5 accent-[#0866FF]"
+                          />
+                        </label>
+
+                        <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2 text-xs text-[#050505]">
+                          <p className="font-bold text-sm">Why this Page is eligible:</p>
+                          <p className="flex items-center gap-2 text-emerald-700 font-medium">
+                            <Check className="w-4 h-4 shrink-0" />
+                            <span>No Community Standards violations</span>
+                          </p>
+                          <p className="flex items-center gap-2 text-emerald-700 font-medium">
+                            <Check className="w-4 h-4 shrink-0" />
+                            <span>Original Halal & educational content shared</span>
+                          </p>
+                        </div>
+                      </div>
+                    ) : pageStatusSubView === 'moderation' ? (
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-2xl bg-[#E7F3FF] border border-[#0866FF]/20 space-y-1">
+                          <h4 className="text-sm font-bold text-[#050505]">Moderation Assist</h4>
+                          <p className="text-xs text-[#65676B]">
+                            আপনার পেজের কমেন্ট সেকশন স্বয়ংক্রিয়ভাবে নিরাপদ ও পরিচ্ছন্ন রাখতে রুলস সেট করুন।
+                          </p>
+                        </div>
+
+                        <label className="flex items-center justify-between gap-2 p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Hide comments with external links</p>
+                            <p className="text-[11px] text-[#65676B]">অপ্রত্যাশিত লিংকযুক্ত কমেন্ট হাইড করুন</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.modHideLinks}
+                            onChange={(e) => {
+                              updatePageSettings(selectedPage.id, { modHideLinks: e.target.checked });
+                              logPageActivity(selectedPage.id, 'settings', 'Updated Moderation Assist link filter');
                             }}
                             className="w-4 h-4 accent-[#0866FF]"
                           />
                         </label>
 
+                        <label className="flex items-center justify-between gap-2 p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Filter profanity & abusive words</p>
+                            <p className="text-[11px] text-[#65676B]">খারাপ বা অশালীন শব্দ স্বয়ংক্রিয়ভাবে ফিল্টার করুন</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.modHideProfanity}
+                            onChange={(e) => {
+                              updatePageSettings(selectedPage.id, { modHideProfanity: e.target.checked });
+                              logPageActivity(selectedPage.id, 'settings', 'Updated Moderation Assist profanity filter');
+                            }}
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
+
+                        <label className="flex items-center justify-between gap-2 p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Limit accounts with no profile picture</p>
+                            <p className="text-[11px] text-[#65676B]">সন্দেহজনক ফেক আইডি থেকে কমেন্ট সীমিত করুন</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.modNoAvatarBlock}
+                            onChange={(e) =>
+                              updatePageSettings(selectedPage.id, { modNoAvatarBlock: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
+
+                        <div className="p-3.5 rounded-2xl border border-[#E4E6EB] space-y-2.5">
+                          <p className="text-xs font-bold text-[#050505]">Blocked keywords in comments</p>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={modNewWord}
+                              onChange={(e) => setModNewWord(e.target.value)}
+                              placeholder="নতুন ব্লক শব্দ লিখুন..."
+                              className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505]"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => {
+                                const w = modNewWord.trim();
+                                if (!w) return;
+                                updatePageSettings(selectedPage.id, (cur) => ({
+                                  ...cur,
+                                  modBlockedWords: Array.from(new Set([...(cur.modBlockedWords || []), w])),
+                                }));
+                                setModNewWord('');
+                                logPageActivity(selectedPage.id, 'settings', `Added blocked word "${w}"`);
+                                showToast(`"${w}" ব্লক তালিকায় যুক্ত হয়েছে`);
+                              }}
+                              className="px-3.5 py-2 rounded-xl bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                            >
+                              Add
+                            </button>
+                          </div>
+                          <div className="flex flex-wrap gap-1.5">
+                            {(settings.modBlockedWords || []).map((word) => (
+                              <span
+                                key={word}
+                                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-[#F0F2F5] text-xs font-medium text-[#050505]"
+                              >
+                                <span>{word}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePageSettings(selectedPage.id, (cur) => ({
+                                      ...cur,
+                                      modBlockedWords: (cur.modBlockedWords || []).filter((x) => x !== word),
+                                    }))
+                                  }
+                                  className="text-[#65676B] hover:text-rose-600 cursor-pointer"
+                                >
+                                  ✕
+                                </button>
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    ) : pageStatusSubView === 'updates' ? (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-2xl bg-[#F0F2F5] text-center space-y-2">
+                          <Bell className="w-8 h-8 text-[#0866FF] mx-auto" />
+                          <h4 className="text-sm font-bold text-[#050505]">No other updates or warnings</h4>
+                          <p className="text-xs text-[#65676B] leading-relaxed">
+                            এই মুহূর্তে আপনার {selectedPage.name} পেজের বিরুদ্ধে কোনো অজানা বা সাধারণ নীতিমালা সতর্কতা নেই।
+                          </p>
+                        </div>
+                        <div className="p-3.5 rounded-xl border border-[#E4E6EB] space-y-1">
+                          <p className="text-xs font-bold text-[#050505]">Halal & Community Guidelines 2026</p>
+                          <p className="text-[11px] text-[#65676B]">
+                            সব নিয়ম সক্রিয় আছে এবং আপনার পেজটি সম্পূর্ণ নিরাপদ অবস্থায় রয়েছে।
+                          </p>
+                        </div>
+                      </div>
+                    ) : pageStatusSubView === 'guide_intro' ||
+                      pageStatusSubView === 'guide_enforce' ||
+                      pageStatusSubView === 'guide_tips' ? (
+                      <div className="space-y-4">
+                        <div className="p-4 rounded-2xl bg-[#F0F2F5] space-y-2">
+                          <h4 className="text-base font-bold text-[#050505]">
+                            {pageStatusSubView === 'guide_intro'
+                              ? 'Introduction to Community Standards'
+                              : pageStatusSubView === 'guide_enforce'
+                              ? 'How we enforce Standards'
+                              : 'Tips for great Halal content'}
+                          </h4>
+                          <p className="text-xs text-[#050505] leading-relaxed">
+                            {pageStatusSubView === 'guide_intro'
+                              ? 'Peaceverse24 কমিউনিটি স্ট্যান্ডার্ডস প্রত্যেকটি পেজ ও ক্রিয়েটরকে একটি নিরাপদ, সম্মানজনক ও হালাল পরিবেশ বজায় রাখতে সহায়তা করে। সত্য তথ্য, পারস্পরিক শ্রদ্ধা ও কপিরাইট-মুক্ত কনটেন্ট সর্বদা উৎসাহিত করা হয়।'
+                              : pageStatusSubView === 'guide_enforce'
+                              ? 'কোনো পোস্ট বা কমেন্ট নীতিমালা ভঙ্গ করলে স্বয়ংক্রিয় সিস্টেম ও রিভিউ টিম তা যাচাই করে। গুরুতর সমস্যা হলে এখানে Page status-এ বিস্তারিত দেখাবে এবং আপিল করার সুযোগ থাকবে।'
+                              : 'নিয়মিত মূল ইসলামিক ও শিক্ষামূলক পোস্ট, সংক্ষিপ্ত Reels, স্পষ্ট প্রোফাইল ছবি এবং ফলোয়ারদের সাথে ইতিবাচক যোগাযোগ পেজের অর্গানিক রিচ বাড়াতে সাহায্য করে।'}
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => setPageStatusSubView(null)}
+                          className="w-full py-2.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                        >
+                          Back to Page status
+                        </button>
+                      </div>
+                    ) : pageStatusSubView === 'feedback' ? (
+                      <div className="space-y-4">
+                        <h4 className="text-base font-bold text-[#050505]">Tell us how we&apos;re doing</h4>
+                        <p className="text-xs text-[#65676B]">
+                          Page status অভিজ্ঞতা সম্পর্কে আপনার মতামত জানান:
+                        </p>
+                        <div className="grid grid-cols-3 gap-2">
+                          {[
+                            { id: 'satisfied', label: '😊 Satisfied' },
+                            { id: 'neutral', label: '😐 Neutral' },
+                            { id: 'dissatisfied', label: '😞 Dissatisfied' },
+                          ].map((r) => (
+                            <button
+                              key={r.id}
+                              type="button"
+                              onClick={() => setFeedbackRating(r.id as any)}
+                              className={`py-2.5 px-2 rounded-xl border text-xs font-bold cursor-pointer ${
+                                feedbackRating === r.id
+                                  ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                                  : 'bg-[#F0F2F5] border-transparent text-[#050505]'
+                              }`}
+                            >
+                              {r.label}
+                            </button>
+                          ))}
+                        </div>
+                        <textarea
+                          rows={4}
+                          value={feedbackText}
+                          onChange={(e) => setFeedbackText(e.target.value)}
+                          placeholder="আপনার মতামত বা পরামর্শ লিখুন..."
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-xs text-[#050505]"
+                        />
                         <button
                           type="button"
                           onClick={() => {
-                            setShowPageSettings(false);
-                            setCreatorDashboardTab('earnings');
-                            setShowCreatorDashboard(true);
+                            updatePageSettings(selectedPage.id, { statusFeedbackGiven: true });
+                            logPageActivity(selectedPage.id, 'settings', `Submitted Page status feedback (${feedbackRating})`);
+                            setFeedbackText('');
+                            setPageStatusSubView(null);
+                            showToast('🙏 আপনার মূল্যবান মতামতের জন্য ধন্যবাদ!');
                           }}
-                          className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold cursor-pointer"
+                          className="w-full py-2.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
                         >
-                          Open Monetization & Earnings Studio
+                          Submit feedback
                         </button>
                       </div>
-                    </div>
+                    ) : (
+                      <div className="space-y-6 pb-4">
+                        {/* Centered Hero: Avatar + Green Check + Page Name + Page has no issues */}
+                        <div className="flex flex-col items-center text-center pt-2 space-y-2.5">
+                          <div className="relative">
+                            {selectedPage.avatar ? (
+                              <img
+                                src={selectedPage.avatar}
+                                alt={selectedPage.name}
+                                className="w-24 h-24 rounded-full object-cover border border-[#E4E6EB] shadow-xs"
+                              />
+                            ) : (
+                              <div className="w-24 h-24 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-extrabold text-3xl border border-[#E4E6EB]">
+                                {selectedPage.name.trim().charAt(0).toUpperCase()}
+                              </div>
+                            )}
+                            <span className="absolute bottom-0 right-0 w-7 h-7 rounded-full bg-[#31A24C] border-2 border-white flex items-center justify-center shadow-xs">
+                              <Check className="w-4 h-4 text-white stroke-[3]" />
+                            </span>
+                          </div>
+
+                          <div className="space-y-0.5">
+                            <h3 className="text-[22px] font-bold text-[#050505] tracking-tight">
+                              {selectedPage.name}
+                            </h3>
+                            <p className="text-[14.5px] text-[#65676B]">Page has no issues</p>
+                          </div>
+
+                          <p className="text-[14px] text-[#65676B] leading-snug text-left w-full pt-1">
+                            Your Page is in good standing. If there are any issues, you will be able to see what happened and what you can do about it here.
+                          </p>
+                        </div>
+
+                        {/* Section 1: Page features */}
+                        <div className="space-y-3">
+                          <div>
+                            <h4 className="text-[18px] font-bold text-[#050505]">Page features</h4>
+                            <p className="text-[13.5px] text-[#65676B] mt-0.5 leading-snug">
+                              To use these features, you must be eligible and avoid breaking any rules.
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setPageStatusSubView('recommendations')}
+                            className="w-full py-2 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <Award className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <div>
+                                <p className="text-[15.5px] font-medium text-[#050505]">Recommendations</p>
+                                <p className="text-[13px] text-[#65676B]">
+                                  {settings.allowRecommendations ? 'Active' : 'Off'}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setShowPageSettings(false);
+                              setCreatorDashboardTab('earnings');
+                              setShowCreatorDashboard(true);
+                            }}
+                            className="w-full py-2 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <CircleDollarSign className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <div>
+                                <p className="text-[15.5px] font-medium text-[#050505]">Monetization</p>
+                                <p className="text-[13px] text-[#65676B]">
+                                  {monetizationInfo?.status === 'approved'
+                                    ? 'Active'
+                                    : selectedPage.followersCount >= 100
+                                    ? 'Eligible'
+                                    : 'Not eligible'}
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
+                          </button>
+                        </div>
+
+                        {/* Section 2: More about your Page */}
+                        <div className="space-y-2.5">
+                          <h4 className="text-[18px] font-bold text-[#050505]">More about your Page</h4>
+
+                          <button
+                            type="button"
+                            onClick={() => setActiveSettingKey('Admins')}
+                            className="w-full py-2.5 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <Shield className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <span className="text-[15.5px] font-medium text-[#050505]">Manage admins</span>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPageStatusSubView('moderation')}
+                            className="w-full py-2.5 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <SlidersHorizontal className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <span className="text-[15.5px] font-medium text-[#050505]">Moderation Assist</span>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => setPageStatusSubView('updates')}
+                            className="w-full py-2.5 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
+                          >
+                            <div className="flex items-center gap-3.5">
+                              <Bell className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <div>
+                                <p className="text-[15.5px] font-medium text-[#050505]">Other updates</p>
+                                <p className="text-[13px] text-[#65676B] leading-snug">
+                                  These issues don&apos;t hurt your Page, but you should still know about them.
+                                </p>
+                              </div>
+                            </div>
+                            <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
+                          </button>
+                        </div>
+
+                        {/* Section 3: Find out more */}
+                        <div className="space-y-3">
+                          <div>
+                            <h4 className="text-[18px] font-bold text-[#050505]">Find out more</h4>
+                            <p className="text-[13.5px] text-[#65676B] mt-0.5 leading-snug">
+                              See our Community Standards and get tips for great content.
+                            </p>
+                          </div>
+
+                          <div className="flex gap-3 overflow-x-auto no-scrollbar pb-1">
+                            <button
+                              type="button"
+                              onClick={() => setPageStatusSubView('guide_intro')}
+                              className="w-[210px] shrink-0 rounded-2xl border border-[#E4E6EB] bg-white overflow-hidden text-left shadow-2xs hover:shadow-sm transition-shadow cursor-pointer"
+                            >
+                              <div className="h-[118px] bg-[#DCEFE3] flex items-center justify-center px-4">
+                                <svg viewBox="0 0 180 100" className="w-full h-full">
+                                  <rect x="0" y="72" width="180" height="28" fill="#B5DFC4" rx="4" />
+                                  <rect x="44" y="64" width="92" height="12" fill="#F29F67" rx="3" />
+                                  <circle cx="90" cy="34" r="14" fill="#E8B89A" />
+                                  <path d="M62 72 C62 50 118 50 118 72 Z" fill="#C4DF76" />
+                                  <rect x="76" y="62" width="28" height="14" fill="#FFFDF8" rx="2" />
+                                </svg>
+                              </div>
+                              <div className="p-3">
+                                <p className="text-[14px] font-semibold text-[#050505] leading-snug">
+                                  Introduction to Community Standards
+                                </p>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPageStatusSubView('guide_enforce')}
+                              className="w-[210px] shrink-0 rounded-2xl border border-[#E4E6EB] bg-white overflow-hidden text-left shadow-2xs hover:shadow-sm transition-shadow cursor-pointer"
+                            >
+                              <div className="h-[118px] bg-[#F7CFD7] flex items-center justify-center px-4">
+                                <svg viewBox="0 0 180 100" className="w-full h-full">
+                                  <rect x="0" y="74" width="180" height="26" fill="#EFB2BF" rx="4" />
+                                  <circle cx="88" cy="34" r="14" fill="#F1C5AB" />
+                                  <path d="M58 76 C58 50 118 50 118 76 Z" fill="#6374E6" />
+                                  <rect x="112" y="48" width="22" height="28" fill="#5D6B7E" rx="3" />
+                                </svg>
+                              </div>
+                              <div className="p-3">
+                                <p className="text-[14px] font-semibold text-[#050505] leading-snug">
+                                  How we enforce Standards
+                                </p>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => setPageStatusSubView('guide_tips')}
+                              className="w-[210px] shrink-0 rounded-2xl border border-[#E4E6EB] bg-white overflow-hidden text-left shadow-2xs hover:shadow-sm transition-shadow cursor-pointer"
+                            >
+                              <div className="h-[118px] bg-[#DCEAFE] flex items-center justify-center px-4">
+                                <svg viewBox="0 0 180 100" className="w-full h-full">
+                                  <rect x="28" y="20" width="124" height="62" fill="#FFFFFF" rx="10" />
+                                  <circle cx="90" cy="48" r="16" fill="#0866FF" opacity="0.16" />
+                                  <path d="M84 48 L89 53 L98 42" stroke="#0866FF" strokeWidth="4" fill="none" strokeLinecap="round" strokeLinejoin="round" />
+                                </svg>
+                              </div>
+                              <div className="p-3">
+                                <p className="text-[14px] font-semibold text-[#050505] leading-snug">
+                                  Tips for great Halal content
+                                </p>
+                              </div>
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Section 4: Tell us how we're doing + Give feedback */}
+                        <div className="p-4 rounded-2xl border border-[#E4E6EB] bg-white space-y-3 shadow-2xs">
+                          <div className="space-y-1">
+                            <h4 className="text-[16px] font-bold text-[#050505]">
+                              Tell us how we&apos;re doing
+                            </h4>
+                            <p className="text-[13px] text-[#65676B] leading-snug">
+                              How satisfied or dissatisfied are you with the help you received for this issue?
+                            </p>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setPageStatusSubView('feedback')}
+                            className="w-full py-2.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer"
+                          >
+                            <MessageCircle className="w-4 h-4" />
+                            <span>
+                              {settings.statusFeedbackGiven ? 'Feedback submitted ✓ (Edit)' : 'Give feedback'}
+                            </span>
+                          </button>
+                        </div>
+                      </div>
+                    )
                   )}
 
-                  {/* 2. VERIFY YOUR PAGE */}
+                  {/* 2. VERIFY YOUR PAGE (Facebook Request a Verified Badge flow) */}
                   {activeSettingKey === 'Verify your Page' && (
                     <div className="space-y-4">
                       <div className="p-4 rounded-2xl bg-[#E7F3FF] border border-[#0866FF]/20 space-y-1.5">
@@ -3242,23 +4416,27 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               ? 'Verified ✓'
                               : settings.verificationStatus === 'pending'
                               ? 'Under Review (Pending)'
-                              : 'Not Verified Yet'}
+                              : 'Apply for Verification'}
                           </span>
                         </p>
-                        <p className="text-xs text-[#65676B]">
-                          ব্লু ভেরিফিকেশন ব্যাজ আপনার পেজকে আসল এবং বিশ্বস্ত হিসেবে চিহ্নিত করে।
+                        <p className="text-xs text-[#65676B] leading-relaxed">
+                          ভেরিফায়েড ব্যাজ মানে হলো আপনার পেজটি একটি আসল পাবলিক ফিগার, ব্র্যান্ড বা ইসলামিক অর্গানাইজেশন।
                         </p>
                       </div>
 
-                      <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2.5">
-                        <h4 className="text-xs font-bold text-[#050505] uppercase tracking-wide">
-                          Eligibility Checklist
+                      {/* Eligibility Checklist */}
+                      <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2">
+                        <h4 className="text-xs font-bold text-[#65676B] uppercase tracking-wide">
+                          Page Authenticity Checklist
                         </h4>
                         {[
                           { label: 'Profile Photo / Logo uploaded', ok: Boolean(selectedPage.avatar) },
                           { label: 'Cover Photo uploaded', ok: Boolean(selectedPage.cover) },
                           { label: 'Bio & Category completed', ok: Boolean(selectedPage.bio && selectedPage.category) },
-                          { label: 'Contact info (Phone / WhatsApp / Web)', ok: Boolean(selectedPage.phone || selectedPage.whatsapp || selectedPage.website) },
+                          {
+                            label: 'Contact info (Phone / WhatsApp / Web)',
+                            ok: Boolean(selectedPage.phone || selectedPage.whatsapp || selectedPage.website),
+                          },
                         ].map((chk) => (
                           <div key={chk.label} className="flex items-center justify-between text-xs py-1">
                             <span className="text-[#050505]">{chk.label}</span>
@@ -3269,27 +4447,94 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                         ))}
                       </div>
 
-                      <div className="space-y-2.5">
+                      {/* Step 1: Confirm Authenticity */}
+                      <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2.5">
+                        <h4 className="text-sm font-bold text-[#050505]">Step 1: Confirm authenticity</h4>
+                        <label className="block text-xs font-bold text-[#050505]">Document Type</label>
+                        <select
+                          value={verifyDocTypeDraft}
+                          onChange={(e) => setVerifyDocTypeDraft(e.target.value)}
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2.5 text-xs text-[#050505]"
+                        >
+                          <option value="National Identity Card (NID)">National Identity Card (NID)</option>
+                          <option value="Passport">Passport</option>
+                          <option value="Driver's License">Driver&apos;s License</option>
+                          <option value="Business License / Registration">Business License / Registration</option>
+                          <option value="Tax Filing / Utility Bill">Tax Filing / Utility Bill</option>
+                        </select>
+
+                        <label className="w-full py-2.5 px-3 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-dashed border-[#CED0D4] flex items-center justify-between text-xs cursor-pointer">
+                          <span className="font-semibold text-[#050505] truncate">
+                            {verifyDocNameDraft ? `📎 ${verifyDocNameDraft}` : 'Upload Official Document / ID Photo'}
+                          </span>
+                          <span className="text-[#0866FF] font-bold shrink-0">Choose File</span>
+                          <input
+                            type="file"
+                            accept="image/*,.pdf"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setVerifyDocNameDraft(file.name);
+                                showToast(`ডকুমেন্ট যুক্ত হয়েছে: ${file.name}`);
+                              }
+                            }}
+                          />
+                        </label>
+                      </div>
+
+                      {/* Step 2: Confirm Notability */}
+                      <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2.5">
+                        <h4 className="text-sm font-bold text-[#050505]">Step 2: Confirm notability</h4>
+
                         <label className="block text-xs font-bold text-[#050505]">Category</label>
                         <select
                           value={verifyCategoryDraft}
                           onChange={(e) => setVerifyCategoryDraft(e.target.value)}
                           className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2.5 text-xs text-[#050505]"
                         >
-                          <option value="Creator / Public Figure">Creator / Public Figure</option>
+                          <option value="Creator / Public Figure">Digital Creator / Public Figure</option>
                           <option value="Islamic Organization / Mosque">Islamic Organization / Mosque</option>
-                          <option value="Business / Brand">Business / Brand</option>
-                          <option value="Media & News">Media & News</option>
+                          <option value="Business / Brand">Business / Brand / Organization</option>
+                          <option value="News / Media">News / Media</option>
+                          <option value="Entertainment / Education">Entertainment / Education</option>
+                        </select>
+
+                        <label className="block text-xs font-bold text-[#050505]">Country / Region</label>
+                        <select
+                          value={verifyCountryDraft}
+                          onChange={(e) => setVerifyCountryDraft(e.target.value)}
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2.5 text-xs text-[#050505]"
+                        >
+                          <option value="Bangladesh">Bangladesh</option>
+                          <option value="India">India</option>
+                          <option value="Saudi Arabia">Saudi Arabia</option>
+                          <option value="United Arab Emirates">United Arab Emirates</option>
+                          <option value="Malaysia">Malaysia</option>
+                          <option value="United Kingdom">United Kingdom</option>
+                          <option value="United States">United States</option>
+                          <option value="Global">Global</option>
                         </select>
 
                         <label className="block text-xs font-bold text-[#050505]">
-                          Reference Link / Official ID Note
+                          Audience &amp; Notability Description
+                        </label>
+                        <textarea
+                          rows={2}
+                          value={verifyReasonDraft}
+                          onChange={(e) => setVerifyReasonDraft(e.target.value)}
+                          placeholder="আপনার পেজের ফলোয়ার কারা এবং কেন এটি ভেরিফিকেশন পাওয়া উচিত..."
+                          className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-3 text-xs text-[#050505]"
+                        />
+
+                        <label className="block text-xs font-bold text-[#050505]">
+                          Official Website / Reference Links (Optional)
                         </label>
                         <input
                           type="text"
                           value={verifyNoteDraft}
                           onChange={(e) => setVerifyNoteDraft(e.target.value)}
-                          placeholder="যেমন: ওয়েবসাইট লিংক বা পরিচিতি তথ্য..."
+                          placeholder="https://... অথবা মিডিয়া/অন্যান্য সোশ্যাল লিংক"
                           className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2.5 text-xs text-[#050505]"
                         />
 
@@ -3313,8 +4558,17 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 verificationStatus: 'pending',
                                 verificationCategory: verifyCategoryDraft,
                                 verificationNote: verifyNoteDraft.trim(),
+                                verificationDocType: verifyDocTypeDraft,
+                                verificationDocName: verifyDocNameDraft,
+                                verificationCountry: verifyCountryDraft,
+                                verificationReason: verifyReasonDraft.trim(),
                               });
-                              logPageActivity(selectedPage.id, 'settings', 'Submitted verification request', verifyCategoryDraft);
+                              logPageActivity(
+                                selectedPage.id,
+                                'settings',
+                                'Submitted verification request',
+                                `${verifyCategoryDraft} • ${verifyCountryDraft}`
+                              );
                               showToast('✅ ভেরিফিকেশন আবেদন সফলভাবে জমা হয়েছে!');
                             }}
                             className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold cursor-pointer"
@@ -3326,40 +4580,74 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 3. ACTION BUTTON */}
+                  {/* 3. ACTION BUTTON (Facebook Categorized Action Button Picker) */}
                   {activeSettingKey === 'Action Button' && (
-                    <div className="space-y-3.5">
-                      <p className="text-xs text-[#65676B]">
-                        পেজের ভিজিটররা প্রধান অ্যাকশন বাটনে ক্লিক করলে কী হবে তা সেট করুন:
-                      </p>
-
-                      <div className="space-y-2">
-                        {[
-                          { id: 'WhatsApp', desc: 'Open WhatsApp chat directly' },
-                          { id: 'Call Now', desc: 'Dial your Page phone number' },
-                          { id: 'Send Message', desc: 'Copy / open Page message link' },
-                          { id: 'Send Email', desc: 'Open email composer to your Page' },
-                          { id: 'Visit Website', desc: 'Open external website / shop' },
-                          { id: 'Follow Page', desc: 'Primary Follow action' },
-                        ].map((btnOpt) => (
-                          <button
-                            key={btnOpt.id}
-                            type="button"
-                            onClick={() => setActionBtnTypeDraft(btnOpt.id)}
-                            className={`w-full p-3 rounded-xl border text-left flex items-center justify-between cursor-pointer ${
-                              actionBtnTypeDraft === btnOpt.id
-                                ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
-                                : 'bg-white border-[#E4E6EB] text-[#050505]'
-                            }`}
-                          >
-                            <div>
-                              <span className="text-sm font-bold block">{btnOpt.id}</span>
-                              <span className="text-[11px] text-[#65676B]">{btnOpt.desc}</span>
-                            </div>
-                            {actionBtnTypeDraft === btnOpt.id && <Check className="w-4 h-4 shrink-0" />}
-                          </button>
-                        ))}
+                    <div className="space-y-4">
+                      <div className="p-3.5 rounded-2xl bg-[#F0F2F5] flex items-center justify-between">
+                        <div>
+                          <span className="text-[11px] font-bold text-[#65676B] uppercase">Current Active Button</span>
+                          <p className="text-sm font-bold text-[#050505]">{settings.actionButtonType || 'WhatsApp'}</p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setActionBtnTypeDraft('Follow Page');
+                            setActionBtnValueDraft('');
+                            updatePageSettings(selectedPage.id, {
+                              actionButtonType: 'Follow Page',
+                              actionButtonValue: '',
+                            });
+                            logPageActivity(selectedPage.id, 'settings', 'Reset Action Button to Follow Page');
+                            showToast('অ্যাকশন বাটন রিসেট করা হয়েছে');
+                          }}
+                          className="px-2.5 py-1 rounded-lg bg-white text-rose-600 text-xs font-bold border border-[#E4E6EB] cursor-pointer"
+                        >
+                          Remove
+                        </button>
                       </div>
+
+                      {[
+                        {
+                          group: 'Help people get in touch',
+                          items: [
+                            { id: 'WhatsApp', desc: 'Send WhatsApp message directly' },
+                            { id: 'Send Message', desc: 'Open Page direct message' },
+                            { id: 'Call Now', desc: 'Dial your Page phone number' },
+                            { id: 'Send Email', desc: 'Send an email to your Page' },
+                          ],
+                        },
+                        {
+                          group: 'Reserve or Learn more',
+                          items: [
+                            { id: 'Book Now', desc: 'Schedule appointments / consultations' },
+                            { id: 'Visit Website', desc: 'Open your website or online store' },
+                            { id: 'Watch Video', desc: 'Highlight video / YouTube channel' },
+                            { id: 'Follow Page', desc: 'Default Follow button' },
+                          ],
+                        },
+                      ].map((grp) => (
+                        <div key={grp.group} className="space-y-2">
+                          <h4 className="text-xs font-bold text-[#65676B] uppercase tracking-wide">{grp.group}</h4>
+                          {grp.items.map((btnOpt) => (
+                            <button
+                              key={btnOpt.id}
+                              type="button"
+                              onClick={() => setActionBtnTypeDraft(btnOpt.id)}
+                              className={`w-full p-3 rounded-xl border text-left flex items-center justify-between cursor-pointer ${
+                                actionBtnTypeDraft === btnOpt.id
+                                  ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                                  : 'bg-white border-[#E4E6EB] text-[#050505]'
+                              }`}
+                            >
+                              <div>
+                                <span className="text-sm font-bold block">{btnOpt.id}</span>
+                                <span className="text-[11px] text-[#65676B]">{btnOpt.desc}</span>
+                              </div>
+                              {actionBtnTypeDraft === btnOpt.id && <Check className="w-4 h-4 shrink-0" />}
+                            </button>
+                          ))}
+                        </div>
+                      ))}
 
                       {actionBtnTypeDraft !== 'Follow Page' && (
                         <div>
@@ -3371,7 +4659,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             value={actionBtnValueDraft}
                             onChange={(e) => setActionBtnValueDraft(e.target.value)}
                             placeholder={
-                              actionBtnTypeDraft === 'Visit Website'
+                              actionBtnTypeDraft === 'Visit Website' ||
+                              actionBtnTypeDraft === 'Watch Video' ||
+                              actionBtnTypeDraft === 'Book Now'
                                 ? 'https://peaceverse24.com'
                                 : actionBtnTypeDraft === 'Send Email'
                                 ? 'email@example.com'
@@ -3401,7 +4691,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                   ? actionBtnValueDraft.trim()
                                   : selectedPage.email,
                               website:
-                                actionBtnTypeDraft === 'Visit Website' && actionBtnValueDraft.trim()
+                                (actionBtnTypeDraft === 'Visit Website' ||
+                                  actionBtnTypeDraft === 'Watch Video' ||
+                                  actionBtnTypeDraft === 'Book Now') &&
+                                actionBtnValueDraft.trim()
                                   ? actionBtnValueDraft.trim()
                                   : selectedPage.website,
                             };
@@ -3421,7 +4714,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           }}
                           className="py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold cursor-pointer"
                         >
-                          Save Action Button
+                          Save
                         </button>
 
                         {actionBtnTypeDraft === 'WhatsApp' &&
@@ -3448,7 +4741,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           >
                             Test Button
                           </a>
-                        ) : actionBtnTypeDraft === 'Visit Website' && (actionBtnValueDraft || selectedPage.website) ? (
+                        ) : (actionBtnTypeDraft === 'Visit Website' ||
+                            actionBtnTypeDraft === 'Watch Video' ||
+                            actionBtnTypeDraft === 'Book Now') &&
+                          (actionBtnValueDraft || selectedPage.website) ? (
                           <a
                             href={
                               (actionBtnValueDraft || selectedPage.website || '').startsWith('http')
@@ -3474,7 +4770,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 4. ADD HIGHLIGHTS */}
+                  {/* 4. ADD HIGHLIGHTS (Facebook Featured / Highlights with Photo Upload) */}
                   {activeSettingKey === 'Add highlights' && (
                     <div className="space-y-4">
                       <div className="p-3.5 rounded-2xl border border-[#E4E6EB] space-y-2.5">
@@ -3493,6 +4789,26 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           placeholder="সংক্ষিপ্ত বিবরণ লিখুন..."
                           className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505]"
                         />
+                        <label className="w-full py-2 px-3 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-dashed border-[#CED0D4] flex items-center justify-between text-xs cursor-pointer">
+                          <span className="font-semibold text-[#050505]">
+                            {newHighlightImage ? '🖼️ Photo attached ✓' : 'Add Highlight Photo (Optional)'}
+                          </span>
+                          <span className="text-[#0866FF] font-bold">Upload</span>
+                          <input
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={async (e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                try {
+                                  const b64 = await fileToBase64(file);
+                                  setNewHighlightImage(b64);
+                                } catch {}
+                              }
+                            }}
+                          />
+                        </label>
                         <button
                           type="button"
                           onClick={() => {
@@ -3504,6 +4820,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               id: `hl-${Date.now()}`,
                               title: newHighlightTitle.trim(),
                               note: newHighlightNote.trim() || undefined,
+                              image: newHighlightImage || undefined,
                               createdAt: 'এখনই',
                             };
                             updatePageSettings(selectedPage.id, (cur) => ({
@@ -3513,6 +4830,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             logPageActivity(selectedPage.id, 'settings', 'Added a Page highlight', hlItem.title);
                             setNewHighlightTitle('');
                             setNewHighlightNote('');
+                            setNewHighlightImage('');
                             showToast('❤️ হাইলাইট পেজে যুক্ত করা হয়েছে!');
                           }}
                           className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold cursor-pointer"
@@ -3566,9 +4884,18 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               key={hl.id}
                               className="p-3 rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-2"
                             >
-                              <div className="min-w-0">
-                                <p className="text-xs font-bold text-[#050505] truncate">{hl.title}</p>
-                                {hl.note && <p className="text-[11px] text-[#65676B] truncate">{hl.note}</p>}
+                              <div className="flex items-center gap-2.5 min-w-0">
+                                {hl.image && (
+                                  <img
+                                    src={hl.image}
+                                    alt={hl.title}
+                                    className="w-10 h-10 rounded-lg object-cover shrink-0 border border-[#E4E6EB]"
+                                  />
+                                )}
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-[#050505] truncate">{hl.title}</p>
+                                  {hl.note && <p className="text-[11px] text-[#65676B] truncate">{hl.note}</p>}
+                                </div>
                               </div>
                               <button
                                 type="button"
@@ -3591,83 +4918,192 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 5. ARCHIVE */}
+                  {/* 5. ARCHIVE & TRASH (Facebook Archive + 30-day Trash bin) */}
                   {activeSettingKey === 'Archive' && (
                     <div className="space-y-3">
-                      {settings.archivedPosts.length === 0 ? (
+                      <div className="grid grid-cols-2 gap-2 p-1 rounded-xl bg-[#F0F2F5]">
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab('archive')}
+                          className={`py-2 rounded-lg text-xs font-bold cursor-pointer ${
+                            archiveTab === 'archive' ? 'bg-white text-[#0866FF] shadow-2xs' : 'text-[#65676B]'
+                          }`}
+                        >
+                          Archive ({settings.archivedPosts.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setArchiveTab('trash')}
+                          className={`py-2 rounded-lg text-xs font-bold cursor-pointer ${
+                            archiveTab === 'trash' ? 'bg-white text-[#0866FF] shadow-2xs' : 'text-[#65676B]'
+                          }`}
+                        >
+                          Trash ({(settings.trashedPosts || []).length})
+                        </button>
+                      </div>
+
+                      {archiveTab === 'archive' ? (
+                        settings.archivedPosts.length === 0 ? (
+                          <div className="p-6 rounded-2xl bg-[#F0F2F5] text-center space-y-2">
+                            <Archive className="w-8 h-8 text-[#65676B] mx-auto" />
+                            <p className="text-sm font-bold text-[#050505]">No archived items</p>
+                            <p className="text-xs text-[#65676B]">
+                              পেজের Manage posts বাটন অন করে যেকোনো পোস্টে Archive চাপলে তা এখানে সংরক্ষিত থাকবে।
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="space-y-2.5">
+                            {settings.archivedPosts.map((arch) => (
+                              <div
+                                key={arch.id}
+                                className="p-3.5 rounded-xl border border-[#E4E6EB] space-y-2 bg-white"
+                              >
+                                <div className="flex items-center justify-between text-[11px] text-[#65676B]">
+                                  <span>Archived • {arch.archivedAt || arch.time}</span>
+                                  <span>{arch.likes} likes</span>
+                                </div>
+                                <p className="text-xs text-[#050505] whitespace-pre-wrap">{arch.text}</p>
+                                <div className="flex items-center gap-2 pt-1">
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updatePageSettings(selectedPage.id, (cur) => ({
+                                        ...cur,
+                                        archivedPosts: (cur.archivedPosts || []).filter((x) => x.id !== arch.id),
+                                      }));
+                                      setPagePostsList((prev) => ({
+                                        ...prev,
+                                        [selectedPage.id]: [
+                                          {
+                                            id: arch.id,
+                                            text: arch.text,
+                                            time: arch.time,
+                                            dateLabel: arch.dateLabel,
+                                            likes: arch.likes,
+                                            comments: arch.comments,
+                                            pinned: arch.pinned,
+                                            reach: arch.reach,
+                                            clicks: arch.clicks,
+                                          },
+                                          ...(prev[selectedPage.id] || []),
+                                        ],
+                                      }));
+                                      logPageActivity(
+                                        selectedPage.id,
+                                        'archive',
+                                        'Restored post from Archive',
+                                        arch.text.slice(0, 60)
+                                      );
+                                      showToast('পোস্টটি পেজে পুনরায় প্রকাশ করা হয়েছে!');
+                                    }}
+                                    className="flex-1 py-2 rounded-lg bg-[#E7F3FF] text-[#0866FF] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                                  >
+                                    <RotateCcw className="w-3.5 h-3.5" />
+                                    <span>Restore</span>
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      updatePageSettings(selectedPage.id, (cur) => ({
+                                        ...cur,
+                                        archivedPosts: (cur.archivedPosts || []).filter((x) => x.id !== arch.id),
+                                        trashedPosts: [
+                                          { ...arch, archivedAt: '30 days left' },
+                                          ...(cur.trashedPosts || []),
+                                        ],
+                                      }));
+                                      logPageActivity(selectedPage.id, 'archive', 'Moved archived post to Trash');
+                                      showToast('Trash-এ সরানো হয়েছে');
+                                    }}
+                                    className="px-3 py-2 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold cursor-pointer"
+                                  >
+                                    Move to Trash
+                                  </button>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )
+                      ) : (settings.trashedPosts || []).length === 0 ? (
                         <div className="p-6 rounded-2xl bg-[#F0F2F5] text-center space-y-2">
-                          <Archive className="w-8 h-8 text-[#65676B] mx-auto" />
-                          <p className="text-sm font-bold text-[#050505]">No archived items</p>
+                          <Trash2 className="w-8 h-8 text-[#65676B] mx-auto" />
+                          <p className="text-sm font-bold text-[#050505]">Trash is empty</p>
                           <p className="text-xs text-[#65676B]">
-                            পেজের Manage posts বাটন অন করে যেকোনো পোস্টে Archive চাপলে তা এখানে সংরক্ষিত থাকবে।
+                            মুছে ফেলা পোস্ট ৩০ দিন পর্যন্ত এখানে থাকে, চাইলে আবার Restore করতে পারবেন।
                           </p>
                         </div>
                       ) : (
                         <div className="space-y-2.5">
-                          <p className="text-xs font-semibold text-[#65676B]">
-                            আর্কাইভ করা পোস্ট ({settings.archivedPosts.length}টি)
-                          </p>
-                          {settings.archivedPosts.map((arch) => (
+                          <div className="flex items-center justify-between">
+                            <p className="text-xs text-[#65676B]">Items are automatically deleted after 30 days</p>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                updatePageSettings(selectedPage.id, { trashedPosts: [] });
+                                logPageActivity(selectedPage.id, 'archive', 'Emptied Page Trash');
+                                showToast('Trash খালি করা হয়েছে');
+                              }}
+                              className="text-xs font-bold text-rose-600 cursor-pointer"
+                            >
+                              Empty Trash
+                            </button>
+                          </div>
+                          {(settings.trashedPosts || []).map((tr) => (
                             <div
-                              key={arch.id}
+                              key={tr.id}
                               className="p-3.5 rounded-xl border border-[#E4E6EB] space-y-2 bg-white"
                             >
                               <div className="flex items-center justify-between text-[11px] text-[#65676B]">
-                                <span>Archived • {arch.archivedAt || arch.time}</span>
-                                <span>{arch.likes} likes</span>
+                                <span className="text-amber-700 font-semibold">{tr.archivedAt || '30 days left'}</span>
+                                <span>{tr.likes} likes</span>
                               </div>
-                              <p className="text-xs text-[#050505] whitespace-pre-wrap">{arch.text}</p>
+                              <p className="text-xs text-[#050505] whitespace-pre-wrap">{tr.text}</p>
                               <div className="flex items-center gap-2 pt-1">
                                 <button
                                   type="button"
                                   onClick={() => {
                                     updatePageSettings(selectedPage.id, (cur) => ({
                                       ...cur,
-                                      archivedPosts: (cur.archivedPosts || []).filter((x) => x.id !== arch.id),
+                                      trashedPosts: (cur.trashedPosts || []).filter((x) => x.id !== tr.id),
                                     }));
                                     setPagePostsList((prev) => ({
                                       ...prev,
                                       [selectedPage.id]: [
                                         {
-                                          id: arch.id,
-                                          text: arch.text,
-                                          time: arch.time,
-                                          dateLabel: arch.dateLabel,
-                                          likes: arch.likes,
-                                          comments: arch.comments,
-                                          pinned: arch.pinned,
-                                          reach: arch.reach,
-                                          clicks: arch.clicks,
+                                          id: tr.id,
+                                          text: tr.text,
+                                          time: tr.time,
+                                          dateLabel: tr.dateLabel,
+                                          likes: tr.likes,
+                                          comments: tr.comments,
+                                          pinned: tr.pinned,
+                                          reach: tr.reach,
+                                          clicks: tr.clicks,
                                         },
                                         ...(prev[selectedPage.id] || []),
                                       ],
                                     }));
-                                    logPageActivity(
-                                      selectedPage.id,
-                                      'archive',
-                                      'Restored post from Archive',
-                                      arch.text.slice(0, 60)
-                                    );
-                                    showToast('পোস্টটি পেজে পুনরায় প্রকাশ করা হয়েছে!');
+                                    logPageActivity(selectedPage.id, 'archive', 'Restored post from Trash', tr.text.slice(0, 60));
+                                    showToast('পোস্টটি Restore করা হয়েছে!');
                                   }}
                                   className="flex-1 py-2 rounded-lg bg-[#E7F3FF] text-[#0866FF] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
                                 >
                                   <RotateCcw className="w-3.5 h-3.5" />
-                                  <span>Restore to Page</span>
+                                  <span>Restore</span>
                                 </button>
                                 <button
                                   type="button"
                                   onClick={() => {
                                     updatePageSettings(selectedPage.id, (cur) => ({
                                       ...cur,
-                                      archivedPosts: (cur.archivedPosts || []).filter((x) => x.id !== arch.id),
+                                      trashedPosts: (cur.trashedPosts || []).filter((x) => x.id !== tr.id),
                                     }));
-                                    logPageActivity(selectedPage.id, 'archive', 'Permanently deleted archived post');
-                                    showToast('আর্কাইভ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে');
+                                    logPageActivity(selectedPage.id, 'archive', 'Permanently deleted post');
+                                    showToast('স্থায়ীভাবে মুছে ফেলা হয়েছে');
                                   }}
                                   className="px-3 py-2 rounded-lg bg-rose-50 text-rose-600 text-xs font-bold cursor-pointer"
                                 >
-                                  Delete
+                                  Delete Permanently
                                 </button>
                               </div>
                             </div>
@@ -3677,85 +5113,121 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 6. POSTS AND TAGS */}
+                  {/* 6. POSTS AND TAGS (Facebook Page and Tagging 4 sections) */}
                   {activeSettingKey === 'Posts and tags' && (
-                    <div className="space-y-3">
-                      <div className="p-3.5 rounded-2xl border border-[#E4E6EB] space-y-2.5">
-                        <p className="text-xs font-bold text-[#050505]">Who can post on your Page?</p>
-                        <div className="grid grid-cols-2 gap-2">
-                          {[
-                            { id: 'admins', label: 'Only Admins' },
-                            { id: 'everyone', label: 'Everyone' },
-                          ].map((opt) => (
-                            <button
-                              key={opt.id}
-                              type="button"
-                              onClick={() => {
-                                updatePageSettings(selectedPage.id, { whoCanPost: opt.id as any });
-                                logPageActivity(selectedPage.id, 'settings', `Set who can post to ${opt.label}`);
-                                showToast(`Who can post: ${opt.label}`);
-                              }}
-                              className={`py-2 px-3 rounded-xl border text-xs font-bold cursor-pointer ${
-                                settings.whoCanPost === opt.id
-                                  ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
-                                  : 'bg-[#F0F2F5] border-transparent text-[#050505]'
-                              }`}
-                            >
-                              {opt.label}
-                            </button>
-                          ))}
+                    <div className="space-y-4">
+                      <div className="space-y-2.5">
+                        <h4 className="text-sm font-bold text-[#050505]">Viewing and sharing</h4>
+                        <div className="p-3.5 rounded-2xl border border-[#E4E6EB] space-y-2">
+                          <p className="text-xs font-bold text-[#050505]">Who can post on your Page?</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { id: 'admins', label: 'Only Admins' },
+                              { id: 'everyone', label: 'Everyone' },
+                            ].map((opt) => (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => {
+                                  updatePageSettings(selectedPage.id, { whoCanPost: opt.id as any });
+                                  logPageActivity(selectedPage.id, 'settings', `Set who can post to ${opt.label}`);
+                                  showToast(`Who can post: ${opt.label}`);
+                                }}
+                                className={`py-2 px-3 rounded-xl border text-xs font-bold cursor-pointer ${
+                                  settings.whoCanPost === opt.id
+                                    ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                                    : 'bg-[#F0F2F5] border-transparent text-[#050505]'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
                         </div>
+
+                        <div className="p-3.5 rounded-2xl border border-[#E4E6EB] space-y-2">
+                          <p className="text-xs font-bold text-[#050505]">Who can see what others post on your Page?</p>
+                          <div className="grid grid-cols-2 gap-2">
+                            {[
+                              { id: 'everyone', label: 'Everyone' },
+                              { id: 'admins', label: 'Only Admins' },
+                            ].map((opt) => (
+                              <button
+                                key={opt.id}
+                                type="button"
+                                onClick={() => {
+                                  updatePageSettings(selectedPage.id, { whoCanSeeOthersPosts: opt.id as any });
+                                  logPageActivity(selectedPage.id, 'settings', `Visitor posts visible to: ${opt.label}`);
+                                  showToast(`Visibility: ${opt.label}`);
+                                }}
+                                className={`py-2 px-3 rounded-xl border text-xs font-bold cursor-pointer ${
+                                  settings.whoCanSeeOthersPosts === opt.id
+                                    ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                                    : 'bg-[#F0F2F5] border-transparent text-[#050505]'
+                                }`}
+                              >
+                                {opt.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Allow comments on Page posts</p>
+                            <p className="text-[11px] text-[#65676B]">পেজের সব পোস্টে ভিজিটররা মন্তব্য করতে পারবে</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.allowComments}
+                            onChange={(e) =>
+                              updatePageSettings(selectedPage.id, { allowComments: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
                       </div>
 
-                      <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
-                        <div>
-                          <p className="text-xs font-bold text-[#050505]">Allow others to mention & tag this Page</p>
-                          <p className="text-[11px] text-[#65676B]">অন্যান্য ইউজার @{selectedPage.name} মেনশন করতে পারবে</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.allowMentions}
-                          onChange={(e) => {
-                            updatePageSettings(selectedPage.id, { allowMentions: e.target.checked });
-                            logPageActivity(
-                              selectedPage.id,
-                              'settings',
-                              e.target.checked ? 'Allowed mentions & tagging' : 'Restricted mentions & tagging'
-                            );
-                          }}
-                          className="w-4 h-4 accent-[#0866FF]"
-                        />
-                      </label>
+                      <div className="space-y-2.5">
+                        <h4 className="text-sm font-bold text-[#050505]">Tagging &amp; Reviewing</h4>
 
-                      <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
-                        <div>
-                          <p className="text-xs font-bold text-[#050505]">Review tags before they appear on Page</p>
-                          <p className="text-[11px] text-[#65676B]">ট্যাগ করা পোস্ট প্রকাশের আগে অ্যাডমিন রিভিউ করবে</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.reviewTagsBeforeShowing}
-                          onChange={(e) =>
-                            updatePageSettings(selectedPage.id, { reviewTagsBeforeShowing: e.target.checked })
-                          }
-                          className="w-4 h-4 accent-[#0866FF]"
-                        />
-                      </label>
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Allow others to mention &amp; tag this Page</p>
+                            <p className="text-[11px] text-[#65676B]">অন্যান্য ইউজার @{selectedPage.name} মেনশন করতে পারবে</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.allowMentions}
+                            onChange={(e) => {
+                              updatePageSettings(selectedPage.id, { allowMentions: e.target.checked });
+                              logPageActivity(
+                                selectedPage.id,
+                                'settings',
+                                e.target.checked ? 'Allowed mentions & tagging' : 'Restricted mentions & tagging'
+                              );
+                            }}
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
 
-                      <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
-                        <div>
-                          <p className="text-xs font-bold text-[#050505]">Allow comments on Page posts</p>
-                          <p className="text-[11px] text-[#65676B]">পেজের সব পোস্টে ভিজিটররা মন্তব্য করতে পারবে</p>
-                        </div>
-                        <input
-                          type="checkbox"
-                          checked={settings.allowComments}
-                          onChange={(e) =>
-                            updatePageSettings(selectedPage.id, { allowComments: e.target.checked })
-                          }
-                          className="w-4 h-4 accent-[#0866FF]"
-                        />
-                      </label>
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">
+                              Review tags people add to your posts before appearing
+                            </p>
+                            <p className="text-[11px] text-[#65676B]">ট্যাগ করা পোস্ট প্রকাশের আগে অ্যাডমিন রিভিউ করবে</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.reviewTagsBeforeShowing}
+                            onChange={(e) =>
+                              updatePageSettings(selectedPage.id, { reviewTagsBeforeShowing: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
+                      </div>
 
                       <button
                         type="button"
@@ -3771,38 +5243,49 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 7. CONNECTED EXPERIENCES */}
+                  {/* 7. CONNECTED EXPERIENCES (Facebook Linked Accounts) */}
                   {activeSettingKey === 'Connected experiences' && (
                     <div className="space-y-3">
                       <p className="text-xs text-[#65676B]">
-                        WhatsApp, IMO, Viber, Email এবং ওয়েবসাইট অ্যাকাউন্ট সরাসরি পেজের সাথে যুক্ত করুন:
+                        WhatsApp, Phone, Email, Website, IMO এবং Viber অ্যাকাউন্ট পেজের সাথে যুক্ত ও পরিচালনা করুন:
                       </p>
 
                       {[
-                        { label: 'WhatsApp Number', val: connWhatsapp, set: setConnWhatsapp, ph: '+8801...' },
-                        { label: 'Phone Number', val: connPhone, set: setConnPhone, ph: '+8801...' },
-                        { label: 'Email Address', val: connEmail, set: setConnEmail, ph: 'contact@example.com' },
-                        { label: 'Website URL', val: connWebsite, set: setConnWebsite, ph: 'https://...' },
-                        { label: 'IMO Number', val: connImo, set: setConnImo, ph: '+8801...' },
-                        { label: 'Viber Number', val: connViber, set: setConnViber, ph: '+8801...' },
+                        { label: 'WhatsApp Business / Personal', val: connWhatsapp, set: setConnWhatsapp, ph: '+8801...' },
+                        { label: 'Official Phone Number', val: connPhone, set: setConnPhone, ph: '+8801...' },
+                        { label: 'Business Email Address', val: connEmail, set: setConnEmail, ph: 'contact@example.com' },
+                        { label: 'Official Website URL', val: connWebsite, set: setConnWebsite, ph: 'https://...' },
+                        { label: 'IMO Account', val: connImo, set: setConnImo, ph: '+8801...' },
+                        { label: 'Viber Account', val: connViber, set: setConnViber, ph: '+8801...' },
                       ].map((field) => (
-                        <div key={field.label}>
-                          <div className="flex items-center justify-between mb-1">
+                        <div key={field.label} className="p-3 rounded-xl border border-[#E4E6EB] space-y-1.5">
+                          <div className="flex items-center justify-between">
                             <label className="text-xs font-bold text-[#050505]">{field.label}</label>
-                            <span
-                              className={`text-[10px] font-bold ${
-                                field.val.trim() ? 'text-emerald-600' : 'text-[#65676B]'
-                              }`}
-                            >
-                              {field.val.trim() ? 'Connected ✓' : 'Not connected'}
-                            </span>
+                            <div className="flex items-center gap-2">
+                              <span
+                                className={`text-[10px] font-bold ${
+                                  field.val.trim() ? 'text-emerald-600' : 'text-[#65676B]'
+                                }`}
+                              >
+                                {field.val.trim() ? 'Connected ✓' : 'Not linked'}
+                              </span>
+                              {field.val.trim() && (
+                                <button
+                                  type="button"
+                                  onClick={() => field.set('')}
+                                  className="text-[10px] font-bold text-rose-600 cursor-pointer"
+                                >
+                                  Disconnect
+                                </button>
+                              )}
+                            </div>
                           </div>
                           <input
                             type="text"
                             value={field.val}
                             onChange={(e) => field.set(e.target.value)}
                             placeholder={field.ph}
-                            className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505]"
+                            className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-lg px-3 py-2 text-xs text-[#050505]"
                           />
                         </div>
                       ))}
@@ -3831,25 +5314,31 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 8. ADMINS */}
+                  {/* 8. ADMINS / PAGE ACCESS (Facebook New Pages Experience 3-Tier Access) */}
                   {activeSettingKey === 'Admins' && (
                     <div className="space-y-4">
-                      <div className="p-3.5 rounded-xl bg-[#F0F2F5] flex items-center justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-[#050505]">
-                            {userProfile?.name || 'Page Owner'}
-                          </p>
-                          <p className="text-xs text-[#65676B]">Primary Owner • Full control</p>
-                        </div>
-                        <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold">
-                          Owner
-                        </span>
-                      </div>
+                      {/* Section 1: People with Facebook access */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-bold text-[#050505]">People with Page access</h4>
+                        <p className="text-[11px] text-[#65676B]">
+                          যাদের ফুল বা পারশিয়াল কন্ট্রোল থাকবে তারা সরাসরি পেজে সুইচ করে পোস্ট, মেসেজ, অ্যাড ও সেটিংস ম্যানেজ করতে পারবে।
+                        </p>
 
-                      {settings.admins.length > 0 && (
-                        <div className="space-y-2">
-                          <h4 className="text-xs font-bold text-[#65676B] uppercase">Added Admins & Moderators</h4>
-                          {settings.admins.map((adm) => (
+                        <div className="p-3.5 rounded-xl bg-[#F0F2F5] flex items-center justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-[#050505]">
+                              {userProfile?.name || 'Page Owner'}
+                            </p>
+                            <p className="text-xs text-[#65676B]">Primary Owner • Full control</p>
+                          </div>
+                          <span className="px-2.5 py-1 rounded-full bg-emerald-100 text-emerald-700 text-[11px] font-bold">
+                            Owner
+                          </span>
+                        </div>
+
+                        {settings.admins
+                          .filter((a) => a.role === 'Full control' || a.role === 'Partial control')
+                          .map((adm) => (
                             <div
                               key={adm.id}
                               className="p-3 rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-2"
@@ -3867,8 +5356,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                     ...cur,
                                     admins: (cur.admins || []).filter((x) => x.id !== adm.id),
                                   }));
-                                  logPageActivity(selectedPage.id, 'settings', `Removed admin ${adm.name}`);
-                                  showToast(`${adm.name} কে অ্যাডমিন তালিকা থেকে সরানো হয়েছে`);
+                                  logPageActivity(selectedPage.id, 'settings', `Removed access for ${adm.name}`);
+                                  showToast(`${adm.name} কে সরানো হয়েছে`);
                                 }}
                                 className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-bold shrink-0 cursor-pointer"
                               >
@@ -3876,11 +5365,87 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               </button>
                             </div>
                           ))}
-                        </div>
-                      )}
+                      </div>
 
+                      {/* Section 2: People with task access */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-bold text-[#050505]">People with task access</h4>
+                        <p className="text-[11px] text-[#65676B]">
+                          টাস্ক অ্যাক্সেস থাকলে পেজ প্রোফাইলে সুইচ না করেই কন্টেন্ট, অ্যাড ও ইনসাইটস পরিচালনা করতে পারবে।
+                        </p>
+                        {settings.admins.filter((a) => a.role === 'Task access').length === 0 ? (
+                          <p className="text-xs text-[#65676B] py-1">No task access members added yet.</p>
+                        ) : (
+                          settings.admins
+                            .filter((a) => a.role === 'Task access')
+                            .map((adm) => (
+                              <div
+                                key={adm.id}
+                                className="p-3 rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-[#050505] truncate">{adm.name}</p>
+                                  <p className="text-[11px] text-[#65676B] truncate">Task access • {adm.contact}</p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updatePageSettings(selectedPage.id, (cur) => ({
+                                      ...cur,
+                                      admins: (cur.admins || []).filter((x) => x.id !== adm.id),
+                                    }));
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-bold shrink-0 cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))
+                        )}
+                      </div>
+
+                      {/* Section 3: Community managers */}
+                      <div className="space-y-2">
+                        <h4 className="text-sm font-bold text-[#050505]">Community managers</h4>
+                        <p className="text-[11px] text-[#65676B]">
+                          কমেন্ট মডারেট করা, লাইভ চ্যাট ও স্প্যাম রিমুভ করার জন্য।
+                        </p>
+                        {settings.admins.filter((a) => a.role === 'Community manager').length === 0 ? (
+                          <p className="text-xs text-[#65676B] py-1">No community managers added yet.</p>
+                        ) : (
+                          settings.admins
+                            .filter((a) => a.role === 'Community manager')
+                            .map((adm) => (
+                              <div
+                                key={adm.id}
+                                className="p-3 rounded-xl border border-[#E4E6EB] flex items-center justify-between gap-2"
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-xs font-bold text-[#050505] truncate">{adm.name}</p>
+                                  <p className="text-[11px] text-[#65676B] truncate">
+                                    Community manager • {adm.contact}
+                                  </p>
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    updatePageSettings(selectedPage.id, (cur) => ({
+                                      ...cur,
+                                      admins: (cur.admins || []).filter((x) => x.id !== adm.id),
+                                    }));
+                                  }}
+                                  className="px-2.5 py-1 rounded-lg bg-rose-50 text-rose-600 text-[11px] font-bold shrink-0 cursor-pointer"
+                                >
+                                  Remove
+                                </button>
+                              </div>
+                            ))
+                        )}
+                      </div>
+
+                      {/* Add New Person Form */}
                       <div className="p-3.5 rounded-2xl border border-[#E4E6EB] space-y-2.5">
-                        <h4 className="text-xs font-bold text-[#050505]">Add Admin / Editor / Moderator</h4>
+                        <h4 className="text-xs font-bold text-[#050505]">+ Add New Page Access</h4>
                         <input
                           type="text"
                           value={newAdminName}
@@ -3900,15 +5465,16 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           onChange={(e) => setNewAdminRole(e.target.value as any)}
                           className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505]"
                         >
-                          <option value="Full control">Full control (Admin)</option>
-                          <option value="Content & Ads">Content & Ads (Editor)</option>
-                          <option value="Moderator">Moderator (Comments & Messages)</option>
+                          <option value="Full control">Facebook access (Full control)</option>
+                          <option value="Partial control">Facebook access (Partial control)</option>
+                          <option value="Task access">Task access (Content, Ads &amp; Insights)</option>
+                          <option value="Community manager">Community manager (Moderate comments)</option>
                         </select>
                         <button
                           type="button"
                           onClick={() => {
                             if (!newAdminName.trim()) {
-                              showToast('অ্যাডমিনের নাম লিখুন');
+                              showToast('নাম লিখুন');
                               return;
                             }
                             const member: PageAdminMember = {
@@ -3929,21 +5495,21 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           }}
                           className="w-full py-2.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
                         >
-                          + Add Page Access
+                          Give Access
                         </button>
                       </div>
                     </div>
                   )}
 
-                  {/* 9. SETTINGS & PRIVACY */}
+                  {/* 9. SETTINGS & PRIVACY (Facebook Page Settings inner sub-menu + all 6 real sub-screens) */}
                   {activeSettingKey === 'Settings & privacy' && (
-                    <div className="space-y-3">
-                      <div className="p-3.5 rounded-xl bg-[#F0F2F5] space-y-2">
-                        <div className="flex items-center justify-between">
+                    privacySubView === 'setup' ? (
+                      <div className="space-y-4">
+                        <div className="p-3.5 rounded-xl bg-[#F0F2F5] flex items-center justify-between">
                           <div>
                             <p className="text-xs font-bold text-[#050505]">Page Visibility</p>
                             <p className="text-[11px] text-[#65676B]">
-                              {settings.isPublished ? 'Published (Public to everyone)' : 'Unpublished (Private draft)'}
+                              {settings.isPublished ? 'Published (Public)' : 'Unpublished (Private draft)'}
                             </p>
                           </div>
                           <button
@@ -3956,7 +5522,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 'settings',
                                 nextPub ? 'Published Page publicly' : 'Unpublished Page (Draft)'
                               );
-                              showToast(nextPub ? 'পেজটি পাবলিক করা হয়েছে' : 'পেজটি আনপাবলিশ (প্রাইভেট) করা হয়েছে');
+                              showToast(nextPub ? 'পেজটি পাবলিক করা হয়েছে' : 'পেজটি আনপাবলিশ করা হয়েছে');
                             }}
                             className={`px-3 py-1.5 rounded-lg text-xs font-bold cursor-pointer ${
                               settings.isPublished ? 'bg-emerald-600 text-white' : 'bg-amber-500 text-white'
@@ -3965,116 +5531,334 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             {settings.isPublished ? 'Published' : 'Unpublished'}
                           </button>
                         </div>
+
+                        <div className="space-y-2.5 p-3.5 rounded-2xl border border-[#E4E6EB]">
+                          <label className="block text-xs font-bold text-[#050505]">Page Name</label>
+                          <input
+                            type="text"
+                            value={setupNameDraft}
+                            onChange={(e) => setSetupNameDraft(e.target.value)}
+                            className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505]"
+                          />
+                          <label className="block text-xs font-bold text-[#050505]">Page Bio / Intro</label>
+                          <textarea
+                            rows={2}
+                            value={setupBioDraft}
+                            onChange={(e) => setSetupBioDraft(e.target.value)}
+                            className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl p-2.5 text-xs text-[#050505]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (!setupNameDraft.trim()) return;
+                              const upd = {
+                                ...selectedPage,
+                                name: setupNameDraft.trim(),
+                                bio: setupBioDraft.trim(),
+                                description: setupBioDraft.trim(),
+                              };
+                              setSelectedPage(upd);
+                              setPages((prev) => prev.map((p) => (p.id === upd.id ? upd : p)));
+                              logPageActivity(selectedPage.id, 'settings', 'Updated Page setup details');
+                              showToast('Page setup সেভ করা হয়েছে!');
+                            }}
+                            className="w-full py-2.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                          >
+                            Save Page Setup
+                          </button>
+                        </div>
                       </div>
+                    ) : privacySubView === 'privacy' ? (
+                      <div className="space-y-3">
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Allow direct messages to Page</p>
+                            <p className="text-[11px] text-[#65676B]">ভিজিটররা পেজে সরাসরি মেসেজ পাঠাতে পারবে</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.allowDirectMessages}
+                            onChange={(e) =>
+                              updatePageSettings(selectedPage.id, { allowDirectMessages: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
 
-                      <label className="flex items-center justify-between p-3 rounded-xl bg-[#F0F2F5] cursor-pointer">
-                        <span className="text-xs font-bold text-[#050505]">Allow direct messages to Page</span>
-                        <input
-                          type="checkbox"
-                          checked={settings.allowDirectMessages}
-                          onChange={(e) =>
-                            updatePageSettings(selectedPage.id, { allowDirectMessages: e.target.checked })
-                          }
-                          className="w-4 h-4 accent-[#0866FF]"
-                        />
-                      </label>
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">
+                              Allow search engines outside to link to your Page
+                            </p>
+                            <p className="text-[11px] text-[#65676B]">সার্চ ইঞ্জিনে পেজ খুঁজে পাওয়া যাবে</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={settings.searchEngineVisible}
+                            onChange={(e) =>
+                              updatePageSettings(selectedPage.id, { searchEngineVisible: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
+                      </div>
+                    ) : privacySubView === 'notifications' ? (
+                      <div className="space-y-3">
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Notify all followers on post</p>
+                            <p className="text-[11px] text-[#65676B]">পোস্ট করলে সকল ফলোয়ারের কাছে নোটিফিকেশন যাবে</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={creatorPrefs.creatorNotifyFollowersOnPost}
+                            onChange={(e) =>
+                              updateCreatorPref({ creatorNotifyFollowersOnPost: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-[#0866FF]"
+                          />
+                        </label>
 
-                      <label className="flex items-center justify-between p-3 rounded-xl bg-[#F0F2F5] cursor-pointer">
-                        <span className="text-xs font-bold text-[#050505]">Notify all followers on post</span>
-                        <input
-                          type="checkbox"
-                          checked={creatorPrefs.creatorNotifyFollowersOnPost}
-                          onChange={(e) =>
-                            updateCreatorPref({ creatorNotifyFollowersOnPost: e.target.checked })
-                          }
-                          className="w-4 h-4 accent-[#0866FF]"
-                        />
-                      </label>
+                        <label className="flex items-center justify-between p-3.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <div>
+                            <p className="text-xs font-bold text-[#050505]">Push notifications to all users</p>
+                            <p className="text-[11px] text-[#65676B]">সকল ইউজারের ডিভাইসে পুশ নোটিফিকেশন পাঠান</p>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={creatorPrefs.creatorSendPushToAllUsers}
+                            onChange={(e) =>
+                              updateCreatorPref({ creatorSendPushToAllUsers: e.target.checked })
+                            }
+                            className="w-4 h-4 accent-emerald-600"
+                          />
+                        </label>
+                      </div>
+                    ) : privacySubView === 'blocking' ? (
+                      <div className="space-y-3">
+                        <p className="text-xs text-[#65676B]">
+                          ব্লক করা ইউজাররা আপনার পেজে কমেন্ট করতে বা মেসেজ পাঠাতে পারবে না:
+                        </p>
+                        <div className="flex gap-2">
+                          <input
+                            type="text"
+                            value={newBlockedUserName}
+                            onChange={(e) => setNewBlockedUserName(e.target.value)}
+                            placeholder="ইউজারের নাম লিখুন..."
+                            className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3 py-2 text-xs text-[#050505]"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const u = newBlockedUserName.trim();
+                              if (!u) return;
+                              updatePageSettings(selectedPage.id, (cur) => ({
+                                ...cur,
+                                blockedUsers: Array.from(new Set([...(cur.blockedUsers || []), u])),
+                              }));
+                              setNewBlockedUserName('');
+                              logPageActivity(selectedPage.id, 'settings', `Blocked user ${u}`);
+                              showToast(`${u} কে ব্লক করা হয়েছে`);
+                            }}
+                            className="px-3.5 py-2 rounded-xl bg-[#0866FF] text-white text-xs font-bold cursor-pointer"
+                          >
+                            Block
+                          </button>
+                        </div>
 
-                      <label className="flex items-center justify-between p-3 rounded-xl bg-[#F0F2F5] cursor-pointer">
-                        <span className="text-xs font-bold text-[#050505]">Push notifications to all users</span>
-                        <input
-                          type="checkbox"
-                          checked={creatorPrefs.creatorSendPushToAllUsers}
-                          onChange={(e) =>
-                            updateCreatorPref({ creatorSendPushToAllUsers: e.target.checked })
-                          }
-                          className="w-4 h-4 accent-emerald-600"
-                        />
-                      </label>
-
-                      <button
-                        type="button"
-                        onClick={() => {
-                          try {
-                            const payload = {
-                              page: selectedPage,
-                              posts: rawPosts,
-                              events: pageEventsList[selectedPage.id] || [],
-                              settings,
-                              exportedAt: new Date().toISOString(),
-                            };
-                            const blob = new Blob([JSON.stringify(payload, null, 2)], {
-                              type: 'application/json',
-                            });
-                            const url = URL.createObjectURL(blob);
-                            const a = document.createElement('a');
-                            a.href = url;
-                            a.download = `${selectedPage.name.replace(/\s+/g, '-').toLowerCase()}-page-data.json`;
-                            a.click();
-                            URL.revokeObjectURL(url);
-                            logPageActivity(selectedPage.id, 'settings', 'Downloaded Page information export');
-                            showToast('📥 পেজের তথ্য ডাউনলোড হয়েছে!');
-                          } catch {
-                            showToast('এক্সপোর্ট করতে সমস্যা হয়েছে');
-                          }
-                        }}
-                        className="w-full py-2.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
-                      >
-                        <Download className="w-4 h-4" />
-                        <span>Download Page Information (JSON)</span>
-                      </button>
-
-                      {!confirmDeletePage ? (
+                        {(settings.blockedUsers || []).length === 0 ? (
+                          <p className="text-xs text-[#65676B] text-center py-4">কোনো ইউজার ব্লক করা নেই।</p>
+                        ) : (
+                          <div className="space-y-2">
+                            {(settings.blockedUsers || []).map((bu) => (
+                              <div
+                                key={bu}
+                                className="p-3 rounded-xl border border-[#E4E6EB] flex items-center justify-between"
+                              >
+                                <span className="text-xs font-bold text-[#050505]">{bu}</span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    updatePageSettings(selectedPage.id, (cur) => ({
+                                      ...cur,
+                                      blockedUsers: (cur.blockedUsers || []).filter((x) => x !== bu),
+                                    }))
+                                  }
+                                  className="text-xs font-bold text-[#0866FF] cursor-pointer"
+                                >
+                                  Unblock
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    ) : privacySubView === 'info' ? (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-2xl bg-[#F0F2F5] space-y-1">
+                          <h4 className="text-sm font-bold text-[#050505]">Download Page Information</h4>
+                          <p className="text-xs text-[#65676B]">
+                            আপনার পেজের সকল পোস্ট, ইভেন্ট, সেটিংস ও অ্যাক্টিভিটির ব্যাকআপ JSON ফাইল হিসেবে ডাউনলোড করুন।
+                          </p>
+                        </div>
                         <button
                           type="button"
-                          onClick={() => setConfirmDeletePage(true)}
-                          className="w-full py-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer"
+                          onClick={() => {
+                            try {
+                              const payload = {
+                                page: selectedPage,
+                                posts: rawPosts,
+                                events: pageEventsList[selectedPage.id] || [],
+                                settings,
+                                exportedAt: new Date().toISOString(),
+                              };
+                              const blob = new Blob([JSON.stringify(payload, null, 2)], {
+                                type: 'application/json',
+                              });
+                              const url = URL.createObjectURL(blob);
+                              const a = document.createElement('a');
+                              a.href = url;
+                              a.download = `${selectedPage.name.replace(/\s+/g, '-').toLowerCase()}-page-data.json`;
+                              a.click();
+                              URL.revokeObjectURL(url);
+                              logPageActivity(selectedPage.id, 'settings', 'Downloaded Page information export');
+                              showToast('📥 পেজের তথ্য ডাউনলোড হয়েছে!');
+                            } catch {
+                              showToast('এক্সপোর্ট করতে সমস্যা হয়েছে');
+                            }
+                          }}
+                          className="w-full py-2.5 rounded-lg bg-[#0866FF] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
                         >
-                          Delete Page permanently
+                          <Download className="w-4 h-4" />
+                          <span>Download JSON Archive</span>
                         </button>
-                      ) : (
-                        <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
-                          <p className="text-xs font-bold text-rose-800">
-                            আপনি কি নিশ্চিত যে &ldquo;{selectedPage.name}&rdquo; পেজটি ডিলিট করতে চান?
+                      </div>
+                    ) : privacySubView === 'deletion' ? (
+                      <div className="space-y-3">
+                        <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2">
+                          <h4 className="text-sm font-bold text-[#050505]">Deactivate Page (Temporary)</h4>
+                          <p className="text-xs text-[#65676B]">
+                            সাময়িকভাবে পেজটি লুকিয়ে রাখুন; চাইলে যেকোনো সময় আবার Publish করতে পারবেন।
                           </p>
-                          <div className="grid grid-cols-2 gap-2">
-                            <button
-                              type="button"
-                              onClick={() => setConfirmDeletePage(false)}
-                              className="py-2 rounded-lg bg-white text-[#050505] text-xs font-bold cursor-pointer"
-                            >
-                              Cancel
-                            </button>
-                            <button
-                              type="button"
-                              onClick={() => {
-                                const delId = selectedPage.id;
-                                const delName = selectedPage.name;
-                                setShowPageSettings(false);
-                                setActiveSettingKey(null);
-                                setSelectedPage(null);
-                                setPages((prev) => prev.filter((p) => p.id !== delId));
-                                showToast(`"${delName}" পেজটি মুছে ফেলা হয়েছে`);
-                              }}
-                              className="py-2 rounded-lg bg-rose-600 text-white text-xs font-bold cursor-pointer"
-                            >
-                              Confirm Delete
-                            </button>
-                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              const nextPub = !settings.isPublished;
+                              updatePageSettings(selectedPage.id, { isPublished: nextPub });
+                              logPageActivity(
+                                selectedPage.id,
+                                'settings',
+                                nextPub ? 'Reactivated Page' : 'Deactivated Page temporarily'
+                              );
+                              showToast(nextPub ? 'পেজটি পুনরায় সক্রিয় হয়েছে' : 'পেজটি ডিঅ্যাক্টিভেট করা হয়েছে');
+                            }}
+                            className="w-full py-2.5 rounded-lg bg-[#E4E6EB] text-[#050505] text-xs font-bold cursor-pointer"
+                          >
+                            {settings.isPublished ? 'Deactivate Page Temporarily' : 'Reactivate Page Now'}
+                          </button>
                         </div>
-                      )}
-                    </div>
+
+                        {!confirmDeletePage ? (
+                          <button
+                            type="button"
+                            onClick={() => setConfirmDeletePage(true)}
+                            className="w-full py-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer"
+                          >
+                            Delete Page permanently
+                          </button>
+                        ) : (
+                          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
+                            <p className="text-xs font-bold text-rose-800">
+                              আপনি কি নিশ্চিত যে &ldquo;{selectedPage.name}&rdquo; পেজটি স্থায়ীভাবে ডিলিট করতে চান?
+                            </p>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                onClick={() => setConfirmDeletePage(false)}
+                                className="py-2 rounded-lg bg-white text-[#050505] text-xs font-bold cursor-pointer"
+                              >
+                                Cancel
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const delId = selectedPage.id;
+                                  const delName = selectedPage.name;
+                                  setShowPageSettings(false);
+                                  setActiveSettingKey(null);
+                                  setSelectedPage(null);
+                                  setPages((prev) => prev.filter((p) => p.id !== delId));
+                                  showToast(`"${delName}" পেজটি মুছে ফেলা হয়েছে`);
+                                }}
+                                className="py-2 rounded-lg bg-rose-600 text-white text-xs font-bold cursor-pointer"
+                              >
+                                Confirm Delete
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ) : (
+                      <div className="space-y-1">
+                        {[
+                          {
+                            id: 'setup',
+                            title: 'Page setup',
+                            sub: `Name, Bio • ${settings.isPublished ? 'Published' : 'Unpublished Draft'}`,
+                            icon: Building,
+                          },
+                          {
+                            id: 'privacy',
+                            title: 'Privacy',
+                            sub: 'Messaging, search engines & audience',
+                            icon: Shield,
+                          },
+                          {
+                            id: 'notifications',
+                            title: 'Notifications',
+                            sub: 'Creator Broadcast, follower & push alerts',
+                            icon: Bell,
+                          },
+                          {
+                            id: 'blocking',
+                            title: 'Blocking',
+                            sub: `${(settings.blockedUsers || []).length} blocked profiles`,
+                            icon: Users,
+                          },
+                          {
+                            id: 'info',
+                            title: 'Your Page information',
+                            sub: 'Download a copy of your Page data',
+                            icon: Download,
+                          },
+                          {
+                            id: 'deletion',
+                            title: 'Deactivation and deletion',
+                            sub: 'Temporarily deactivate or permanently delete Page',
+                            icon: Trash2,
+                          },
+                        ].map((row) => {
+                          const RowIcon = row.icon;
+                          return (
+                            <button
+                              key={row.id}
+                              type="button"
+                              onClick={() => setPrivacySubView(row.id as any)}
+                              className="w-full py-3 px-2 rounded-xl hover:bg-[#F0F2F5] flex items-center justify-between gap-3 text-left transition-colors cursor-pointer"
+                            >
+                              <div className="flex items-center gap-3.5">
+                                <RowIcon className="w-5 h-5 text-[#050505] shrink-0" />
+                                <div>
+                                  <p className="text-[15px] font-semibold text-[#050505]">{row.title}</p>
+                                  <p className="text-[12px] text-[#65676B]">{row.sub}</p>
+                                </div>
+                              </div>
+                              <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )
                   )}
 
                   {/* 10. INVITE PEOPLE TO CONNECT */}
@@ -4204,7 +5988,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                         }}
                         className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold cursor-pointer"
                       >
-                        Share as Page Update Post
+                        Share to Feed (Page Update Post)
                       </button>
 
                       <a
@@ -4219,7 +6003,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                         className="w-full py-2.5 rounded-lg bg-[#25D366] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer"
                       >
                         <WhatsAppBrandIcon className="w-4 h-4 text-white" />
-                        <span>Share via WhatsApp</span>
+                        <span>Send via WhatsApp</span>
                       </a>
 
                       <button
@@ -4298,23 +6082,46 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </div>
                   )}
 
-                  {/* 13. ACTIVITY LOG */}
+                  {/* 13. ACTIVITY LOG (Facebook Manage Activity with Filters & Archive/Trash links) */}
                   {activeSettingKey === 'Activity log' && (
                     <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-2 p-2.5 rounded-xl bg-[#F0F2F5]">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArchiveTab('archive');
+                            setActiveSettingKey('Archive');
+                          }}
+                          className="flex-1 py-1.5 rounded-lg bg-white text-xs font-bold text-[#050505] border border-[#E4E6EB] cursor-pointer"
+                        >
+                          Archive ({settings.archivedPosts.length})
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setArchiveTab('trash');
+                            setActiveSettingKey('Archive');
+                          }}
+                          className="flex-1 py-1.5 rounded-lg bg-white text-xs font-bold text-[#050505] border border-[#E4E6EB] cursor-pointer"
+                        >
+                          Trash ({(settings.trashedPosts || []).length})
+                        </button>
+                      </div>
+
                       <div className="flex items-center justify-between gap-2 overflow-x-auto no-scrollbar">
                         <div className="flex items-center gap-1.5">
                           {[
                             { id: 'all', label: 'All' },
                             { id: 'post', label: 'Posts' },
                             { id: 'settings', label: 'Settings' },
-                            { id: 'archive', label: 'Archive' },
+                            { id: 'archive', label: 'Archive & Trash' },
                             { id: 'invite', label: 'Invites' },
                           ].map((f) => (
                             <button
                               key={f.id}
                               type="button"
                               onClick={() => setActivityFilter(f.id as any)}
-                              className={`px-3 py-1 rounded-full text-xs font-bold cursor-pointer ${
+                              className={`px-3 py-1 rounded-full text-xs font-bold whitespace-nowrap cursor-pointer ${
                                 activityFilter === f.id
                                   ? 'bg-[#E7F3FF] text-[#0866FF]'
                                   : 'bg-[#F0F2F5] text-[#65676B]'
@@ -4324,6 +6131,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             </button>
                           ))}
                         </div>
+
+                        {filteredLog.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              updatePageSettings(selectedPage.id, { activityLog: [] });
+                              showToast('অ্যাক্টিভিটি লগ পরিষ্কার করা হয়েছে');
+                            }}
+                            className="text-[11px] font-bold text-rose-600 shrink-0 cursor-pointer"
+                          >
+                            Clear
+                          </button>
+                        )}
                       </div>
 
                       {filteredLog.length === 0 && rawPosts.length === 0 ? (
@@ -4427,6 +6247,22 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   {/* View Section */}
                   <div className="space-y-1">
                     <h3 className="text-[19px] font-bold text-[#050505] mb-2">View</h3>
+
+                    {selectedPage.isOwner && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setShowPageSettings(false);
+                          setActiveSettingKey(null);
+                          setViewAsVisitor(true);
+                          showToast('Visitor হিসেবে পেজ প্রিভিউ চালু হয়েছে');
+                        }}
+                        className="w-full py-3 px-1 flex items-center gap-4 hover:bg-[#F0F2F5] rounded-xl text-left transition-colors cursor-pointer"
+                      >
+                        <Eye className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                        <span className="text-[16px] font-medium text-[#050505]">View as visitor</span>
+                      </button>
+                    )}
 
                     <button
                       type="button"
