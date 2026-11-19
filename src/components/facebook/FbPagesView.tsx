@@ -86,6 +86,7 @@ import {
   PeaceSettingsPrefs,
 } from '../../utils/settingsStorage';
 import { getPageMonetizationById } from '../../utils/adminControlStorage';
+import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -574,7 +575,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [editLocation, setEditLocation] = useState('');
 
   // Page Profile Tabs & In-Page Post Creation
-  const [pageSubTab, setPageSubTab] = useState<'all' | 'photos' | 'reels' | 'events' | 'mentions'>(() => {
+  const [pageSubTab, setPageSubTab] = useState<'all' | 'photos' | 'reels' | 'events' | 'mentions' | 'deeds'>(() => {
     try {
       const saved = localStorage.getItem('peaceverse_page_subtab_v1');
       if (
@@ -582,13 +583,15 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         saved === 'photos' ||
         saved === 'reels' ||
         saved === 'events' ||
-        saved === 'mentions'
+        saved === 'mentions' ||
+        saved === 'deeds'
       ) {
         return saved;
       }
     } catch {}
     return 'all';
   });
+  const [pageDeedsLog, setPageDeedsLog] = useState<DeedLogItem[]>(() => loadDeedsLog());
 
   useEffect(() => {
     try {
@@ -1480,7 +1483,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               <span className="font-bold">
                 {selectedPage.followersCount.toLocaleString('en-US')}
               </span>{' '}
-              followers ·{' '}
+              {selectedPage.followersCount === 1 ? 'follower' : 'followers'} ·{' '}
               <span className="font-bold">
                 {(selectedPage.followingCount ?? 0).toLocaleString('en-US')}
               </span>{' '}
@@ -1641,7 +1644,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           })()}
         </div>
 
-        {/* 5. Pill Sub Navigation Tabs: All / Photos / Reels / Events / Mentions */}
+        {/* 5. Pill Sub Navigation Tabs: All / Photos / Reels / Events / Mentions / Deeds Log */}
         <div className="bg-white px-3 py-2 flex items-center justify-between gap-1 overflow-x-auto no-scrollbar border-b border-[#F0F2F5]">
           {[
             { id: 'all', label: 'All' },
@@ -1649,6 +1652,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             { id: 'reels', label: 'Reels' },
             { id: 'events', label: 'Events' },
             { id: 'mentions', label: 'Mentions' },
+            { id: 'deeds', label: 'Deeds Log' },
           ].map((tab) => (
             <button
               key={tab.id}
@@ -3006,6 +3010,87 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               </div>
             );
           })()}
+
+          {/* DEEDS LOG TAB (Halal Deeds Tracker) */}
+          {pageSubTab === 'deeds' && (
+            <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3">
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-[#050505] flex items-center gap-1.5">
+                    <BookOpen className="w-4 h-4 text-emerald-600" />
+                    <span>{selectedPage.name} — Deeds Log</span>
+                  </h3>
+                  <p className="text-[11px] text-[#65676B]">
+                    দৈনিক সালাত, কুরআন, যিকির ও সদকার আমল ট্র্যাক করুন
+                  </p>
+                </div>
+                <span className="px-2.5 py-0.5 rounded-full bg-emerald-50 text-emerald-700 text-xs font-bold tabular-nums">
+                  {pageDeedsLog.filter((d) => d.completed).length}/{pageDeedsLog.length} Done
+                </span>
+              </div>
+
+              <div className="space-y-2">
+                {pageDeedsLog.map((deed) => (
+                  <div
+                    key={deed.id}
+                    className={`p-3 rounded-xl border flex items-center justify-between gap-2 transition-colors ${
+                      deed.completed
+                        ? 'bg-emerald-50/70 border-emerald-200'
+                        : 'bg-[#F7F8FA] border-[#E4E6EB]'
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPageDeedsLog((prev) => {
+                          const next = prev.map((d) =>
+                            d.id === deed.id
+                              ? { ...d, completed: !d.completed, count: d.completed ? d.count : Math.max(1, d.count) }
+                              : d
+                          );
+                          saveDeedsLog(next);
+                          return next;
+                        });
+                      }}
+                      className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
+                    >
+                      <span
+                        className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${
+                          deed.completed
+                            ? 'bg-emerald-600 border-emerald-600 text-white'
+                            : 'bg-white border-[#CED0D4]'
+                        }`}
+                      >
+                        {deed.completed && <Check className="w-3 h-3 stroke-[3]" />}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-[#050505] truncate">{deed.title}</p>
+                        <p className="text-[11px] text-[#65676B] tabular-nums">
+                          Recorded count: {deed.count}
+                        </p>
+                      </div>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPageDeedsLog((prev) => {
+                          const next = prev.map((d) =>
+                            d.id === deed.id ? { ...d, count: d.count + 1, completed: true } : d
+                          );
+                          saveDeedsLog(next);
+                          return next;
+                        });
+                        showToast('আলহামদুলিল্লাহ! আমল রেকর্ড আপডেট হয়েছে ✓');
+                      }}
+                      className="px-2.5 py-1 rounded-lg bg-white border border-[#E4E6EB] hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-bold text-[#050505] transition-colors cursor-pointer shrink-0 tabular-nums"
+                    >
+                      +1
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
         </div>
 
         {/* CREATOR DASHBOARD MODAL (Includes Overview, Moved Earnings & Reviews) */}
@@ -4597,8 +4682,20 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           >
                             <MessageCircle className="w-4 h-4" />
                             <span>
-                              {settings.statusFeedbackGiven ? 'Feedback submitted ✓ (Edit)' : 'Give feedback'}
+                              {settings.statusFeedbackGiven ? 'Edit feedback' : 'Give feedback'}
                             </span>
+                          </button>
+                        </div>
+
+                        {/* Sticky Floating Give feedback Pill CTA matching Facebook Page status screenshot */}
+                        <div className="sticky bottom-5 flex justify-center pointer-events-none pt-1">
+                          <button
+                            type="button"
+                            onClick={() => setPageStatusSubView('feedback')}
+                            className="pointer-events-auto px-5 py-2.5 rounded-full bg-white hover:bg-[#F7F8FA] text-[#050505] text-[14px] font-semibold border border-[#E4E6EB] shadow-[0_6px_20px_rgba(0,0,0,0.18)] flex items-center gap-2 transition-transform active:scale-95 cursor-pointer whitespace-nowrap"
+                          >
+                            <MessageCircle className="w-4 h-4 text-[#050505] stroke-[2.2]" />
+                            <span>Give feedback</span>
                           </button>
                         </div>
                       </div>

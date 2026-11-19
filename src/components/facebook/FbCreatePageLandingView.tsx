@@ -745,7 +745,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
               className="w-full py-3 rounded-2xl border-2 border-dashed border-[#0866FF]/40 hover:border-[#0866FF] bg-[#0866FF]/5 hover:bg-[#0866FF]/10 text-[#0866FF] font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer active:scale-[0.99]"
             >
               <Plus className="w-4 h-4 stroke-[3]" />
-              <span>+ আরেকটি ওয়েবসাইট বা সোশ্যাল লিংক যোগ করুন (+ Add Another Link)</span>
+              <span>আরেকটি ওয়েবসাইট বা সোশ্যাল লিংক যোগ করুন</span>
             </button>
           </div>
 
@@ -794,7 +794,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 <div className="flex-1 space-y-1.5">
                   <label className="inline-flex items-center gap-2 px-3.5 py-2 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-xs font-bold text-black cursor-pointer transition-colors shadow-xs">
                     <Camera className="w-4 h-4 text-[#0866FF]" />
-                    <span>+ লোগো যোগ করুন (Add Logo)</span>
+                    <span>লোগো যোগ করুন</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -852,7 +852,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
                 ) : (
                   <label className="px-4 py-2.5 rounded-xl bg-white hover:bg-[#F0F2F5] text-black text-xs font-bold flex items-center gap-2 cursor-pointer shadow-sm border border-[#E4E6EB] transition-all">
                     <Camera className="w-4 h-4 text-[#0866FF]" />
-                    <span>+ কভার ফটো যোগ করুন (Add Cover Photo)</span>
+                    <span>কভার ফটো যোগ করুন</span>
                     <input
                       type="file"
                       accept="image/*"
@@ -929,7 +929,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
               <span>
                 {isSubmitting
                   ? 'পেজটি তৈরি ও সংরক্ষণ হচ্ছে...'
-                  : 'Save & Create Page (পেজ তৈরি ও সংরক্ষণ করুন)'}
+                  : 'পেজ তৈরি ও সংরক্ষণ করুন'}
               </span>
             </button>
             <p className="text-[11px] text-center text-[#65676B] mt-2">

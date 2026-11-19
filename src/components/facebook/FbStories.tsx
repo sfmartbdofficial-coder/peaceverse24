@@ -9,7 +9,11 @@ interface FbStoriesProps {
 }
 
 export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory, onOpenCreateReel }) => {
-  const [selectedStory, setSelectedStory] = useState<StoryItem | null>(null);
+  const viewableStories = stories.filter((s) => s.id !== 'story-create');
+  const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState('');
+  const [replySentNotice, setReplySentNotice] = useState<string | null>(null);
+  const selectedStory = selectedStoryIndex !== null ? viewableStories[selectedStoryIndex] || null : null;
 
   return (
     <>
@@ -60,12 +64,15 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
         </div>
 
         {/* Remaining Stories */}
-        {stories.filter((s) => s.id !== 'story-create').map((story) => {
+        {viewableStories.map((story, idx) => {
 
           return (
             <div
               key={story.id}
-              onClick={() => setSelectedStory(story)}
+              onClick={() => {
+                setSelectedStoryIndex(idx);
+                setReplySentNotice(null);
+              }}
               className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-white border border-[#E4E6EB] hover:border-[#0866FF]/60 flex-shrink-0 cursor-pointer overflow-hidden relative group shadow-xs transition-all"
             >
               {/* Background preview image or gradient */}
@@ -134,7 +141,7 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
             <div className="z-10 space-y-3">
               {/* Progress bar line */}
               <div className="w-full h-1 bg-white/30 rounded-full overflow-hidden">
-                <div className="w-full h-full bg-emerald-400 animate-pulse" />
+                <div className="w-full h-full bg-emerald-400" />
               </div>
 
               <div className="flex items-center justify-between">
@@ -151,16 +158,42 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
                 </div>
 
                 <button
-                  onClick={() => setSelectedStory(null)}
-                  className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70"
+                  onClick={() => setSelectedStoryIndex(null)}
+                  className="p-1.5 rounded-full bg-black/50 text-white hover:bg-black/70 cursor-pointer"
                 >
                   <X className="w-5 h-5" />
                 </button>
               </div>
             </div>
 
+            {/* Prev / Next Navigation Arrows */}
+            {selectedStoryIndex !== null && selectedStoryIndex > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedStoryIndex((prev) => (prev !== null ? Math.max(0, prev - 1) : 0))}
+                className="absolute left-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
+                aria-label="Previous story"
+              >
+                <ChevronLeft className="w-5 h-5" />
+              </button>
+            )}
+            {selectedStoryIndex !== null && selectedStoryIndex < viewableStories.length - 1 && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedStoryIndex((prev) =>
+                    prev !== null ? Math.min(viewableStories.length - 1, prev + 1) : 0
+                  )
+                }
+                className="absolute right-2 top-1/2 -translate-y-1/2 z-20 w-8 h-8 rounded-full bg-black/55 hover:bg-black/80 text-white flex items-center justify-center cursor-pointer"
+                aria-label="Next story"
+              >
+                <ChevronRight className="w-5 h-5" />
+              </button>
+            )}
+
             {/* Middle: Arabic Calligraphy & Inspiration */}
-            <div className="z-10 text-center my-auto px-4 py-6">
+            <div className="z-10 text-center my-auto px-6 py-6">
               {selectedStory.arabicText && (
                 <p className="text-2xl font-arabic font-bold text-emerald-200 leading-relaxed drop-shadow-lg mb-3">
                   {selectedStory.arabicText}
@@ -170,22 +203,39 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
               <p className="text-base font-bengali font-semibold text-white drop-shadow">
                 &quot;{selectedStory.banglaText}&quot;
               </p>
+              {replySentNotice && (
+                <div className="mt-3 inline-block px-3 py-1 rounded-full bg-emerald-600/90 text-white text-xs font-bold">
+                  {replySentNotice}
+                </div>
+              )}
             </div>
 
             {/* Bottom: Quick Response Bar */}
-            <div className="z-10 flex items-center gap-2">
+            <form
+              onSubmit={(e) => {
+                e.preventDefault();
+                if (!replyText.trim()) return;
+                setReplySentNotice('দোয়া / উত্তর পাঠানো হয়েছে ✓');
+                setReplyText('');
+                setTimeout(() => setReplySentNotice(null), 2500);
+              }}
+              className="z-10 flex items-center gap-2"
+            >
               <input
                 type="text"
+                value={replyText}
+                onChange={(e) => setReplyText(e.target.value)}
                 placeholder="উত্তর দিন বা দোয়া লিখুন..."
                 className="flex-1 bg-black/60 border border-neutral-600 rounded-full px-4 py-2 text-xs text-white placeholder-neutral-400 focus:outline-none focus:border-emerald-500"
               />
               <button
-                onClick={() => setSelectedStory(null)}
-                className="px-4 py-2 rounded-full bg-emerald-600 text-white font-bold text-xs"
+                type="submit"
+                disabled={!replyText.trim()}
+                className="px-4 py-2 rounded-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs cursor-pointer whitespace-nowrap"
               >
                 পাঠান
               </button>
-            </div>
+            </form>
           </div>
         </div>
       )}

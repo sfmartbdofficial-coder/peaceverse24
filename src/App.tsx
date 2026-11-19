@@ -116,6 +116,7 @@ import {
   broadcastCreatorNotification,
 } from './lib/fcm';
 import { loadPeaceSettings } from './utils/settingsStorage';
+import { tickScreenTimeSeconds } from './utils/privacyMask';
 
 const VALID_MAIN_TABS: FacebookMainTab[] = [
   'home',
@@ -1556,9 +1557,20 @@ export default function App() {
     [firebaseUser?.uid, userProfile.id, userProfile.name, userProfile.avatar, sentFriendRequests]
   );
 
-  // Privacy filtered posts for Feed (Search bar now performs Facebook-style user search)
+  const [feedSortMode, setFeedSortMode] = useState<'for_you' | 'latest'>('for_you');
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => {
+      if (document.visibilityState === 'visible') {
+        tickScreenTimeSeconds(15);
+      }
+    }, 15000);
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  // Privacy filtered + For You / Latest ranked posts for Feed
   const filteredPosts = useMemo(() => {
-    return posts.filter((p) => {
+    const base = posts.filter((p) => {
       const privacy = p.privacy || (p.isPublic ? 'public' : 'friends');
       const isAuthor = p.author.name === userProfile.name;
 
@@ -1579,7 +1591,26 @@ export default function App() {
 
       return true;
     });
-  }, [posts, feedPrivacyFilter, userProfile.name]);
+
+    if (feedSortMode === 'latest') {
+      return [...base].sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
+    }
+
+    // "For You" ranking by engagement + recency
+    return [...base].sort((a, b) => {
+      const scoreA =
+        (a.reactions?.total || 0) * 2 +
+        (a.comments?.length || 0) * 3 +
+        (a.sharesCount || 0) * 4 +
+        ((a.createdAtMillis || 0) > 0 ? 5 : 0);
+      const scoreB =
+        (b.reactions?.total || 0) * 2 +
+        (b.comments?.length || 0) * 3 +
+        (b.sharesCount || 0) * 4 +
+        ((b.createdAtMillis || 0) > 0 ? 5 : 0);
+      return scoreB - scoreA;
+    });
+  }, [posts, feedPrivacyFilter, feedSortMode, userProfile.name]);
 
   // Infinite scroll visible posts slice (loads 10 at a time, scroll down loads next 10)
   const visiblePosts = useMemo(() => {
@@ -1652,7 +1683,7 @@ export default function App() {
       <div className="min-h-screen bg-white flex flex-col items-center justify-center p-4 text-black">
         <PeaceDoveEmblem size={130} className="mb-4" />
         <div className="flex items-center gap-2.5 text-[#0866FF] font-bold text-sm tracking-wide">
-          <span className="w-2.5 h-2.5 rounded-full bg-[#0866FF] animate-ping" />
+          <Loader2 className="w-4 h-4 animate-spin" />
           <span>Connecting to Peaceverse24.com...</span>
         </div>
       </div>
@@ -2042,63 +2073,97 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* Filter Tabs matching exact Facebook style */}
-                <div className="flex items-center gap-[15px] px-[15px] py-2.5 bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
-                  <button
-                    onClick={() => setFeedPrivacyFilter('all')}
-                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                      feedPrivacyFilter === 'all'
-                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                        : 'text-[#65676B] hover:text-black'
-                    }`}
-                  >
-                    সব পোস্ট
-                  </button>
-                  <button
-                    onClick={() => setFeedPrivacyFilter('public')}
-                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                      feedPrivacyFilter === 'public'
-                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                        : 'text-[#65676B] hover:text-black'
-                    }`}
-                  >
-                    পাবলিক
-                  </button>
-                  <button
-                    onClick={() => setFeedPrivacyFilter('friends')}
-                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                      feedPrivacyFilter === 'friends'
-                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                        : 'text-[#65676B] hover:text-black'
-                    }`}
-                  >
-                    বন্ধুরা
-                  </button>
-                  <button
-                    onClick={() => setFeedPrivacyFilter('private')}
-                    className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                      feedPrivacyFilter === 'private'
-                        ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                        : 'text-[#65676B] hover:text-black'
-                    }`}
-                  >
-                    শুধুমাত্র আমি
-                  </button>
+                {/* Filter Tabs + For You / Latest Toggle */}
+                <div className="flex items-center justify-between gap-2 px-[15px] py-2 bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
+                  <div className="flex items-center gap-[14px]">
+                    <button
+                      onClick={() => setFeedPrivacyFilter('all')}
+                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                        feedPrivacyFilter === 'all'
+                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                          : 'text-[#65676B] hover:text-black'
+                      }`}
+                    >
+                      সব পোস্ট
+                    </button>
+                    <button
+                      onClick={() => setFeedPrivacyFilter('public')}
+                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                        feedPrivacyFilter === 'public'
+                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                          : 'text-[#65676B] hover:text-black'
+                      }`}
+                    >
+                      পাবলিক
+                    </button>
+                    <button
+                      onClick={() => setFeedPrivacyFilter('friends')}
+                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                        feedPrivacyFilter === 'friends'
+                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                          : 'text-[#65676B] hover:text-black'
+                      }`}
+                    >
+                      বন্ধুরা
+                    </button>
+                    <button
+                      onClick={() => setFeedPrivacyFilter('private')}
+                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
+                        feedPrivacyFilter === 'private'
+                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
+                          : 'text-[#65676B] hover:text-black'
+                      }`}
+                    >
+                      শুধুমাত্র আমি
+                    </button>
+                  </div>
+
+                  <div className="flex items-center gap-1 bg-[#F0F2F5] p-0.5 rounded-full shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => setFeedSortMode('for_you')}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                        feedSortMode === 'for_you'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'text-[#65676B] hover:text-black'
+                      }`}
+                    >
+                      For You
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setFeedSortMode('latest')}
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
+                        feedSortMode === 'latest'
+                          ? 'bg-emerald-600 text-white shadow-2xs'
+                          : 'text-[#65676B] hover:text-black'
+                      }`}
+                    >
+                      Latest
+                    </button>
+                  </div>
                 </div>
 
-                {/* Posts Feed matching Screenshot 1 */}
+                {/* Posts Feed */}
                 <div className="space-y-2.5">
                   {filteredPosts.length === 0 ? (
                     <div className="bg-white rounded-[8px] border border-[#E4E6EB] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
-                      <div className="w-14 h-14 rounded-full bg-[#0866FF]/15 border border-[#0866FF]/30 flex items-center justify-center text-[#0866FF] mx-auto shadow-sm">
+                      <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto shadow-sm">
                         <Sparkles className="w-7 h-7" />
                       </div>
                       <h3 className="text-base font-bold text-black">
-                        No posts yet - Your genuine posts will appear here
+                        No posts yet - Create first halal post
                       </h3>
                       <p className="text-xs text-[#65676B] max-w-sm mx-auto">
-                        Share your genuine videos, thoughts, and moments using the box above.
+                        Share uplifting reminders, photos, videos, or Quran verses with the ummah.
                       </p>
+                      <button
+                        type="button"
+                        onClick={() => setShowCreatePost(true)}
+                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer whitespace-nowrap"
+                      >
+                        Create First Halal Post
+                      </button>
                     </div>
                   ) : (
                     <>

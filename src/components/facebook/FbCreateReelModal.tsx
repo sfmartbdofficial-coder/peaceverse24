@@ -79,6 +79,8 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 }) => {
   const [selectedVideo, setSelectedVideo] = useState<string | null>(null);
   const [caption, setCaption] = useState('');
+  const [selectedDuration, setSelectedDuration] = useState<'0:30' | '0:45' | '1:00' | '1:15'>('0:45');
+  const [selectedCategory, setSelectedCategory] = useState<string>('Makkah Live');
   const [uploadedVideos, setUploadedVideos] = useState<Array<{ url: string; title: string; duration: string }>>([]);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -90,7 +92,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       const newVideo = {
         url,
         title: file.name.replace(/\.[^/.]+$/, ''),
-        duration: '0:35',
+        duration: selectedDuration,
       };
       setUploadedVideos((prev) => [newVideo, ...prev]);
       handlePublishReel(url, newVideo.title);
@@ -104,7 +106,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         name: userProfile.name,
         avatar: userProfile.avatar,
         verified: true,
-        subtitle: 'Reels • 🌐',
+        subtitle: `Reels • ${selectedCategory}`,
       },
       timeAgo: 'Just now',
       isPublic: true,
@@ -112,19 +114,19 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       arabicVerse: arabicSnippet,
       mediaType: 'video',
       mediaUrl: videoUrl,
-      duration: '0:45',
-      category: 'Lecture',
+      duration: selectedDuration,
+      category: (selectedCategory === 'Quran Tilawat' ? 'Quran' : 'Lecture') as PostItem['category'],
       reactions: {
-        total: 1,
-        likeCount: 1,
+        total: 0,
+        likeCount: 0,
         loveCount: 0,
         subhanallahCount: 0,
         mashaallahCount: 0,
       },
-      userReaction: 'like',
       comments: [],
       sharesCount: 0,
       isSaved: false,
+      createdAtMillis: Date.now(),
     };
     onReelCreated(newReel);
     onClose();
@@ -271,7 +273,50 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         </button>
       </div>
 
-      {/* 4. Video Gallery Grid matching Screenshot 4 */}
+      {/* 3.5 Category & Duration Selector */}
+      <div className="px-4 py-2.5 bg-white border-b border-[#E4E6EB] space-y-2">
+        <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar">
+          {['Makkah Live', 'Madinah', 'Quran Tilawat', 'Rain Shukriya', 'Jumua Darud'].map((cat) => (
+            <button
+              key={cat}
+              type="button"
+              onClick={() => setSelectedCategory(cat)}
+              className={`px-3 py-1 rounded-full text-[11px] font-bold whitespace-nowrap cursor-pointer ${
+                selectedCategory === cat
+                  ? 'bg-emerald-600 text-white'
+                  : 'bg-[#F0F2F5] text-[#050505] hover:bg-[#E4E6EB]'
+              }`}
+            >
+              {cat}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center justify-between gap-2">
+          <input
+            type="text"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value)}
+            placeholder="রিলস ক্যাপশন লিখুন..."
+            className="flex-1 bg-[#F0F2F5] rounded-xl px-3 py-1.5 text-xs text-black placeholder-[#65676B] focus:outline-none"
+          />
+          <div className="flex items-center gap-1 shrink-0">
+            {(['0:30', '0:45', '1:00', '1:15'] as const).map((dur) => (
+              <button
+                key={dur}
+                type="button"
+                onClick={() => setSelectedDuration(dur)}
+                className={`px-2 py-1 rounded-lg text-[11px] font-bold tabular-nums cursor-pointer ${
+                  selectedDuration === dur ? 'bg-[#0866FF] text-white' : 'bg-[#F0F2F5] text-[#65676B]'
+                }`}
+              >
+                {dur}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* 4. Video Gallery Grid */}
       <div className="flex-1 overflow-y-auto no-scrollbar p-1 grid grid-cols-3 gap-1 bg-white">
         {/* Device Video Big Tile */}
         <button
@@ -282,7 +327,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
             <Upload className="w-5 h-5 stroke-[2.5]" />
           </div>
           <span className="text-[10px] font-bold text-black text-center leading-tight">
-            আপনার গ্যালারি<br />(Open Gallery)
+            ফোনের গ্যালারি
           </span>
         </button>
 

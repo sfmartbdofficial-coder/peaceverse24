@@ -33,12 +33,15 @@ import {
   Send,
   Eye,
   ExternalLink,
+  BadgeCheck,
+  BookOpen,
 } from 'lucide-react';
 import { UserProfile, PostItem, PageItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
 import { FbEditProfileModal } from './FbEditProfileModal';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
+import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
 import {
   getWhatsAppUrl,
   getImoDeepLink,
@@ -158,6 +161,34 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       return false;
     }
   });
+  const [deedsLog, setDeedsLog] = useState<DeedLogItem[]>(() => loadDeedsLog());
+
+  const handleToggleDeed = (id: string) => {
+    setDeedsLog((prev) => {
+      const next = prev.map((d) =>
+        d.id === id ? { ...d, completed: !d.completed, count: d.completed ? d.count : Math.max(1, d.count) } : d
+      );
+      saveDeedsLog(next);
+      return next;
+    });
+  };
+
+  const handleIncrementDeed = (id: string) => {
+    setDeedsLog((prev) => {
+      const next = prev.map((d) => (d.id === id ? { ...d, count: d.count + 1, completed: true } : d));
+      saveDeedsLog(next);
+      return next;
+    });
+  };
+
+  const handleToggleOwnProfileLock = () => {
+    const next = !isProfileLocked;
+    setIsProfileLocked(next);
+    try {
+      localStorage.setItem('peaceverse_profile_locked', String(next));
+      window.dispatchEvent(new Event('peaceverse_profile_lock_changed'));
+    } catch {}
+  };
 
   const [realFriendsCount, setRealFriendsCount] = useState<number>(0);
   const [realFriends, setRealFriends] = useState<UserFriendItem[]>([]);
@@ -357,15 +388,25 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
         {/* 4. NAME SECTION: */}
         <div className="mt-3 text-center space-y-1">
           <div className="relative flex items-center justify-center px-2">
-            <h1 className="text-[24px] font-bold text-black tracking-tight leading-tight">
-              {!isOwnProfile
-                ? activeProfile.name
-                : activeProfileId === 'main'
-                ? (activeProfile.name && activeProfile.name !== 'New Member' ? activeProfile.name : 'Siddik')
-                : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (activeProfile.name || 'Siddik'))}
-            </h1>
+            <div className="inline-flex items-center gap-1.5">
+              <h1 className="text-[24px] font-bold text-black tracking-tight leading-tight">
+                {!isOwnProfile
+                  ? activeProfile.name
+                  : activeProfileId === 'main'
+                  ? (activeProfile.name && activeProfile.name !== 'New Member' ? activeProfile.name : 'Siddik')
+                  : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (activeProfile.name || 'Siddik'))}
+              </h1>
+              {(activeProfile.verified || (activeProfile.goldenCoins ?? 0) >= 100) && (
+                <span
+                  title="Verified Halal Creator"
+                  className="inline-flex items-center justify-center text-[#0866FF] shrink-0"
+                >
+                  <BadgeCheck className="w-5 h-5 fill-[#0866FF] text-white" />
+                </span>
+              )}
+            </div>
 
-            {/* Right side dropdown arrow button: grey circle with red notification dot top-right */}
+            {/* Right side dropdown arrow button */}
             {isOwnProfile && (
               <button
                 onClick={() => setShowProfileSwitcher(true)}
@@ -424,24 +465,40 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           )}
         </div>
 
-        {/* Two buttons */}
+        {/* Action buttons + Public/Private Toggle */}
         {isOwnProfile && (
-          <div className="flex items-center gap-2 mt-4 w-full">
-            <button
-              onClick={onAddStory}
-              className="w-[60%] h-[36px] rounded-[8px] bg-[#0866FF] hover:bg-[#1877F2] text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 shadow-sm transition-colors"
-            >
-              <Plus className="w-4 h-4 stroke-[3]" />
-              <span>Add to story</span>
-            </button>
+          <div className="space-y-2 mt-4">
+            <div className="flex items-center gap-2 w-full">
+              <button
+                onClick={onAddStory}
+                className="flex-1 h-[36px] rounded-[8px] bg-[#0866FF] hover:bg-[#1877F2] text-white font-semibold text-[14px] flex items-center justify-center gap-1.5 shadow-sm transition-colors whitespace-nowrap"
+              >
+                <Plus className="w-4 h-4 stroke-[3]" />
+                <span>Add to story</span>
+              </button>
 
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="w-[38%] h-[36px] rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-semibold text-[14px] flex items-center justify-center gap-1.5 transition-colors"
-            >
-              <Edit2 className="w-4 h-4" />
-              <span>Edit profile</span>
-            </button>
+              <button
+                onClick={() => setShowEditModal(true)}
+                className="flex-1 h-[36px] rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-semibold text-[14px] flex items-center justify-center gap-1.5 transition-colors whitespace-nowrap"
+              >
+                <Edit2 className="w-4 h-4" />
+                <span>Edit profile</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleToggleOwnProfileLock}
+                title={isProfileLocked ? 'Switch to Public Profile' : 'Lock Profile (Private)'}
+                className={`h-[36px] px-3 rounded-[8px] font-semibold text-[13px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap ${
+                  isProfileLocked
+                    ? 'bg-emerald-600 text-white'
+                    : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-black'
+                }`}
+              >
+                {isProfileLocked ? <Lock className="w-4 h-4" /> : <Globe className="w-4 h-4" />}
+                <span>{isProfileLocked ? 'Private' : 'Public'}</span>
+              </button>
+            </div>
           </div>
         )}
 
@@ -565,6 +622,61 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
                 <span className="font-semibold text-black">{activeProfile.relationship || 'Married'}</span>
               </span>
             </div>
+          </div>
+        </div>
+
+        {/* 6.2 INTERACTIVE HALAL DEEDS LOG (আমলনামা) */}
+        <div className="mt-5 pt-4 border-t border-[#E4E6EB] space-y-2.5">
+          <div className="flex items-center justify-between">
+            <h3 className="font-bold text-[16px] text-black flex items-center gap-2">
+              <BookOpen className="w-4 h-4 text-emerald-600" />
+              <span>দৈনিক আমলনামা</span>
+            </h3>
+            <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-0.5 rounded-full tabular-nums">
+              {deedsLog.filter((d) => d.completed).length}/{deedsLog.length} সম্পন্ন
+            </span>
+          </div>
+
+          <div className="grid grid-cols-1 gap-2">
+            {deedsLog.map((deed) => (
+              <div
+                key={deed.id}
+                className={`p-2.5 rounded-xl border flex items-center justify-between gap-2 transition-colors ${
+                  deed.completed
+                    ? 'bg-emerald-50/70 border-emerald-200'
+                    : 'bg-[#F7F8FA] border-[#E4E6EB]'
+                }`}
+              >
+                <button
+                  type="button"
+                  onClick={() => handleToggleDeed(deed.id)}
+                  className="flex items-center gap-2.5 text-left flex-1 min-w-0 cursor-pointer"
+                >
+                  <span
+                    className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 border ${
+                      deed.completed
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-white border-[#CED0D4]'
+                    }`}
+                  >
+                    {deed.completed && <Check className="w-3 h-3 stroke-[3]" />}
+                  </span>
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-black truncate">{deed.title}</p>
+                    <p className="text-[11px] text-[#65676B] tabular-nums">
+                      মোট রেকর্ড: {deed.count}
+                    </p>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => handleIncrementDeed(deed.id)}
+                  className="px-2.5 py-1 rounded-lg bg-white border border-[#E4E6EB] hover:bg-emerald-600 hover:text-white hover:border-emerald-600 text-xs font-bold text-[#050505] transition-colors cursor-pointer shrink-0 tabular-nums"
+                >
+                  +১
+                </button>
+              </div>
+            ))}
           </div>
         </div>
 
@@ -811,7 +923,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
                   <Flag className="w-5 h-5" />
                 </div>
                 <div>
-                  <p className="font-bold text-black">Pages (পেইজসমূহ)</p>
+                  <p className="font-bold text-black">পেইজসমূহ</p>
                   <p className="text-xs text-[#65676B]">পেইজ তৈরি, ফলোয়ার ও ভিডিও পরিচালনা করুন</p>
                 </div>
               </button>

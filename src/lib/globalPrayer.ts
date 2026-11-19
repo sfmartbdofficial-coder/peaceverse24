@@ -663,3 +663,98 @@ export function getDailyQuranVerse(lang: SupportedLanguage): { surahRef: string;
     localized: verse.translations[key] || verse.translations.en,
   };
 }
+
+// Dhaka reference Qibla bearing (277.7° W towards Kaaba, Makkah)
+export const DHAKA_QIBLA_BEARING = 277.7;
+
+export interface HijriCalendarCell {
+  hijriDay: number;
+  gregorianLabel: string;
+  isToday: boolean;
+  isJumuah: boolean;
+  specialNote?: string;
+}
+
+export interface HijriMonthSummary {
+  monthTitle: string;
+  yearAH: string;
+  todayHijriText: string;
+  startWeekday: number; // 0 = Sun ... 6 = Sat
+  cells: HijriCalendarCell[];
+}
+
+export function getHijriMonthCalendar(baseDate = new Date()): HijriMonthSummary {
+  try {
+    const fmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    const numFmt = new Intl.DateTimeFormat('en-u-ca-islamic-umalqura', {
+      day: 'numeric',
+      month: 'numeric',
+      year: 'numeric',
+    });
+
+    const parts = fmt.formatToParts(baseDate);
+    const dayStr = parts.find((p) => p.type === 'day')?.value || '1';
+    const monthStr = parts.find((p) => p.type === 'month')?.value || 'Hijri';
+    const yearStr = parts.find((p) => p.type === 'year')?.value || '1447';
+
+    const numParts = numFmt.formatToParts(baseDate);
+    const currentHijriDay = Number(numParts.find((p) => p.type === 'day')?.value || 1);
+    const currentHijriMonth = Number(numParts.find((p) => p.type === 'month')?.value || 1);
+
+    // Find 1st day of current Hijri month by walking backward
+    const firstDayDate = new Date(baseDate);
+    firstDayDate.setDate(baseDate.getDate() - (currentHijriDay - 1));
+    const startWeekday = firstDayDate.getDay();
+
+    const cells: HijriCalendarCell[] = [];
+    for (let i = 0; i < 30; i += 1) {
+      const d = new Date(firstDayDate);
+      d.setDate(firstDayDate.getDate() + i);
+      const cellParts = numFmt.formatToParts(d);
+      const cellDay = Number(cellParts.find((p) => p.type === 'day')?.value || i + 1);
+      const cellMonth = Number(cellParts.find((p) => p.type === 'month')?.value || currentHijriMonth);
+      if (i > 0 && cellMonth !== currentHijriMonth) break;
+
+      let specialNote: string | undefined;
+      if (cellDay === 13 || cellDay === 14 || cellDay === 15) specialNote = 'Ayyam al-Bid';
+      if (cellMonth === 1 && cellDay === 10) specialNote = 'Ashura';
+      if (cellMonth === 9 && cellDay === 1) specialNote = '1st Ramadan';
+      if (cellMonth === 10 && cellDay === 1) specialNote = 'Eid ul-Fitr';
+      if (cellMonth === 12 && cellDay === 10) specialNote = 'Eid ul-Adha';
+
+      cells.push({
+        hijriDay: cellDay,
+        gregorianLabel: d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+        isToday: cellDay === currentHijriDay,
+        isJumuah: d.getDay() === 5,
+        specialNote,
+      });
+    }
+
+    return {
+      monthTitle: monthStr,
+      yearAH: `${yearStr} AH`,
+      todayHijriText: `${dayStr} ${monthStr} ${yearStr} AH`,
+      startWeekday,
+      cells,
+    };
+  } catch {
+    const cells: HijriCalendarCell[] = Array.from({ length: 29 }, (_, i) => ({
+      hijriDay: i + 1,
+      gregorianLabel: '',
+      isToday: i === 14,
+      isJumuah: i % 7 === 5,
+    }));
+    return {
+      monthTitle: 'Islamic Month',
+      yearAH: '1447 AH',
+      todayHijriText: 'Islamic Hijri Calendar',
+      startWeekday: 0,
+      cells,
+    };
+  }
+}

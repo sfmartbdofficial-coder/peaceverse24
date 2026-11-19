@@ -358,10 +358,12 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     { ...HALAL_REACTIONS[5], count: post.reactions.sadCount || 0 },
   ].filter((item) => item.count > 0);
 
-  const visibleSummaryItems =
-    reactionSummaryItems.length > 0
-      ? reactionSummaryItems.slice(0, 4)
-      : [{ ...HALAL_REACTIONS[0], count: post.reactions.total || 0 }];
+  const visibleSummaryItems = reactionSummaryItems.slice(0, 4);
+  const hasSummaryEngagement =
+    post.reactions.total > 0 ||
+    post.comments.length > 0 ||
+    post.sharesCount > 0 ||
+    Boolean(activeReactionMeta);
 
   return (
     <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] overflow-hidden space-y-2.5 transition-all text-black">
@@ -474,7 +476,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
                   <Edit3 className="w-4 h-4 text-[#0866FF]" />
-                  <span>Edit post (পোস্ট এডিট করুন)</span>
+                  <span>Edit post</span>
                 </button>
 
                 {/* Save post */}
@@ -488,12 +490,12 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   {post.isSaved ? (
                     <>
                       <BookmarkCheck className="w-4 h-4 text-emerald-600" />
-                      <span>সংরক্ষিত তালিকা থেকে মুছুন</span>
+                      <span>Unsave post</span>
                     </>
                   ) : (
                     <>
                       <Bookmark className="w-4 h-4 text-[#65676B]" />
-                      <span>Save post (সংরক্ষণ করুন)</span>
+                      <span>Save post</span>
                     </>
                   )}
                 </button>
@@ -509,7 +511,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
                   <Copy className="w-4 h-4 text-[#65676B]" />
-                  <span>Copy text (লেখা কপি করুন)</span>
+                  <span>Copy text</span>
                 </button>
 
                 {/* Share link */}
@@ -518,7 +520,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   className="w-full px-3 py-2 text-left hover:bg-[#F0F2F5] flex items-center gap-2.5 transition-colors"
                 >
                   <Share2 className="w-4 h-4 text-[#65676B]" />
-                  <span>Share (শেয়ার করুন)</span>
+                  <span>Share</span>
                 </button>
 
                 {/* Delete / Hide */}
@@ -535,7 +537,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   className="w-full px-3 py-2 text-left hover:bg-red-50 text-red-600 flex items-center gap-2.5 transition-colors"
                 >
                   <Trash2 className="w-4 h-4 text-red-600" />
-                  <span>Delete post (পোস্টটি মুছুন)</span>
+                  <span>Delete post</span>
                 </button>
               </div>
             </>
@@ -670,52 +672,62 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           />
         )}
 
-      {/* 5. Halal Reactions Summary Bar */}
-      <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B]">
-        <div className="flex items-center justify-between gap-2">
-          {/* Left: Overlapping Reaction Emojis + Counts [🤲15 ❤️3 🕋1] */}
-          <div className="flex items-center gap-1.5 min-w-0">
-            <div className="flex items-center gap-1 flex-wrap tabular-nums">
-              {visibleSummaryItems.map((item) => (
-                <span
-                  key={item.type}
-                  className="inline-flex items-center gap-0.5 text-xs font-medium text-black"
-                  title={item.label}
-                >
-                  <span className="text-sm">{item.emoji}</span>
-                  <span className="text-[#65676B]">{item.count}</span>
+      {/* 5. Halal Reactions Summary Bar (hidden when all counts are 0) */}
+      {hasSummaryEngagement && (
+        <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B]">
+          <div className="flex items-center justify-between gap-2">
+            {/* Left: Overlapping Reaction Emojis + Counts */}
+            <div className="flex items-center gap-1.5 min-w-0">
+              {visibleSummaryItems.length > 0 && (
+                <div className="flex items-center gap-1 flex-wrap tabular-nums">
+                  {visibleSummaryItems.map((item) => (
+                    <span
+                      key={item.type}
+                      className="inline-flex items-center gap-0.5 text-xs font-medium text-black"
+                      title={item.label}
+                    >
+                      <span className="text-sm">{item.emoji}</span>
+                      <span className="text-[#65676B]">{item.count}</span>
+                    </span>
+                  ))}
+                </div>
+              )}
+              {post.reactions.total > 0 && (
+                <span className="text-xs text-[#65676B] tabular-nums hidden sm:inline">
+                  · {post.reactions.total} total
                 </span>
-              ))}
+              )}
             </div>
-            {post.reactions.total > 0 && (
-              <span className="text-xs text-[#65676B] tabular-nums hidden sm:inline">
-                · {post.reactions.total} total
-              </span>
+
+            {/* Right: Comments & Shares (only show non-zero counts) */}
+            {(post.comments.length > 0 || post.sharesCount > 0) && (
+              <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] shrink-0 tabular-nums">
+                {post.comments.length > 0 && (
+                  <button
+                    onClick={() => setShowComments(!showComments)}
+                    className="hover:underline cursor-pointer"
+                  >
+                    {post.comments.length} {post.comments.length === 1 ? 'comment' : 'comments'}
+                  </button>
+                )}
+                {post.comments.length > 0 && post.sharesCount > 0 && <span>•</span>}
+                {post.sharesCount > 0 && (
+                  <button onClick={handleShare} className="hover:underline cursor-pointer">
+                    {post.sharesCount} {post.sharesCount === 1 ? 'share' : 'shares'}
+                  </button>
+                )}
+              </div>
             )}
           </div>
 
-          {/* Right: Comments & Shares */}
-          <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] shrink-0 tabular-nums">
-            <button
-              onClick={() => setShowComments(!showComments)}
-              className="hover:underline cursor-pointer"
-            >
-              {post.comments.length} comments
-            </button>
-            <span>•</span>
-            <button onClick={handleShare} className="hover:underline cursor-pointer">
-              {post.sharesCount} shares
-            </button>
-          </div>
+          {/* Personalized attribution line when user reacted */}
+          {activeReactionMeta && (
+            <p className="text-[11px] text-[#65676B] truncate">
+              You{post.reactions.total > 1 ? ` and ${post.reactions.total - 1} others` : ''} reacted with {activeReactionMeta.emoji} {activeReactionMeta.label}
+            </p>
+          )}
         </div>
-
-        {/* Personalized attribution line when user reacted */}
-        {activeReactionMeta && (
-          <p className="text-[11px] text-[#65676B] truncate">
-            You{post.reactions.total > 1 ? ` and ${post.reactions.total - 1} others` : ''} reacted with {activeReactionMeta.emoji} {activeReactionMeta.label}
-          </p>
-        )}
-      </div>
+      )}
 
       {/* 6. Facebook Action Bar: Dua/Like (with 6 Halal Reactions popup), Comment, Share, Hadiya */}
       <div className="border-t border-[#E4E6EB] mx-3 py-1 flex items-center justify-between relative">
@@ -885,13 +897,12 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
           {/* Realtime Typing Indicator */}
           {post.typingUsers && post.typingUsers.length > 0 && (
-            <div className="flex items-center gap-1.5 text-[11px] text-[#0866FF] animate-pulse px-2 py-0.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-[#0866FF] animate-ping" />
-              <span>{post.typingUsers.map((u) => u.name).join(', ')} লিখছেন... (typing)</span>
+            <div className="flex items-center gap-1.5 text-[11px] text-[#0866FF] px-2 py-0.5">
+              <span>{post.typingUsers.map((u) => u.name).join(', ')} লিখছেন...</span>
             </div>
           )}
 
-          {/* Existing comments */}
+          {/* Existing comments with inline Reply */}
           {post.comments.map((c) => (
             <div key={c.id} className="flex gap-2 text-xs pt-1">
               <img
@@ -899,9 +910,25 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 alt={c.author}
                 className="w-7 h-7 rounded-full object-cover mt-0.5"
               />
-              <div className="bg-[#F0F2F5] px-3 py-2 rounded-2xl max-w-[90%]">
-                <p className="font-bold text-black text-[11px]">{c.author}</p>
-                <p className="text-black text-xs font-bengali">{c.text}</p>
+              <div className="flex-1 min-w-0 space-y-1">
+                <div className="bg-[#F0F2F5] px-3 py-2 rounded-2xl max-w-[90%] inline-block">
+                  <p className="font-bold text-black text-[11px]">{c.author}</p>
+                  <p className="text-black text-xs font-bengali">{c.text}</p>
+                </div>
+                <div className="flex items-center gap-3 px-2 text-[11px] text-[#65676B]">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setCommentInput((prev) =>
+                        prev.startsWith(`@${c.author}`) ? prev : `@${c.author} `
+                      );
+                    }}
+                    className="font-semibold hover:text-[#0866FF] cursor-pointer"
+                  >
+                    Reply
+                  </button>
+                  <span>{c.timeAgo}</span>
+                </div>
               </div>
             </div>
           ))}
@@ -986,7 +1013,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 }}
                 className="px-4 py-1.5 rounded-lg bg-[#1877F2] hover:bg-[#166fe5] text-white font-bold text-xs shadow-sm"
               >
-                Save (সংরক্ষণ)
+                Save
               </button>
             </div>
           </div>

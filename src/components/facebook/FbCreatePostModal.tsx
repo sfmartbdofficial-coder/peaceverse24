@@ -717,16 +717,16 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           </button>
         </div>
 
-        {/* Bottom Footer: [ 🌐 Public (পাবলিক) ] and [ পোস্ট করুন (Post) ] */}
+        {/* Bottom Footer: Privacy & Submit */}
         <div className="flex items-center justify-between pt-1">
           <button
             type="button"
             onClick={() => setShowPrivacyMenu(!showPrivacyMenu)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white border border-[#CED0D4] text-xs font-semibold text-[#050505] hover:bg-[#E4E6EB] transition-colors cursor-pointer"
           >
-            {privacy === 'public' && <><Globe className="w-3.5 h-3.5 text-[#0866FF]" /><span>Public (পাবলিক)</span></>}
-            {privacy === 'friends' && <><Users className="w-3.5 h-3.5 text-emerald-600" /><span>Friends (বন্ধুরা)</span></>}
-            {privacy === 'private' && <><Lock className="w-3.5 h-3.5 text-amber-600" /><span>Only Me (গোপনীয়)</span></>}
+            {privacy === 'public' && <><Globe className="w-3.5 h-3.5 text-[#0866FF]" /><span>পাবলিক</span></>}
+            {privacy === 'friends' && <><Users className="w-3.5 h-3.5 text-emerald-600" /><span>বন্ধুরা</span></>}
+            {privacy === 'private' && <><Lock className="w-3.5 h-3.5 text-amber-600" /><span>শুধুমাত্র আমি</span></>}
           </button>
 
           <button
@@ -741,7 +741,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                 <span>যাচাই হচ্ছে...</span>
               </>
             ) : (
-              <span>পোস্ট করুন (Post)</span>
+              <span>পোস্ট করুন</span>
             )}
           </button>
         </div>

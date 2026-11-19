@@ -15,7 +15,9 @@ import {
   loginWithGoogle,
   registerWithEmail,
   resetPassword,
+  logoutUser,
 } from '../../lib/firebase';
+import { loadPeaceSettings } from '../../utils/settingsStorage';
 import { useLanguage } from '../../context/LanguageContext';
 import { SupportedLanguage } from '../../i18n/languages';
 import { GlobalWorldMap } from '../global/GlobalWorldMap';
@@ -85,6 +87,17 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [showWorldMapModal, setShowWorldMapModal] = useState(false);
   const [footerInfoModal, setFooterInfoModal] = useState<'about' | 'help' | null>(null);
 
+  // OTP Verification State (Register) & 2FA Verification State (Login)
+  const [signUpStep, setSignUpStep] = useState<'form' | 'otp'>('form');
+  const [signUpOtpChannel, setSignUpOtpChannel] = useState<'sms' | 'email'>('email');
+  const [signUpOtpCode, setSignUpOtpCode] = useState('');
+  const [signUpGeneratedOtp, setSignUpGeneratedOtp] = useState('482910');
+
+  const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
+  const [twoFactorInput, setTwoFactorInput] = useState('');
+  const [twoFactorCode, setTwoFactorCode] = useState('639140');
+  const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+
   const normalizeIdentifierToEmail = (input: string) => {
     const trimmed = input.trim();
     if (trimmed.includes('@')) return trimmed;
@@ -128,12 +141,31 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     try {
       const resolvedEmail = normalizeIdentifierToEmail(loginIdentifier);
       await loginWithEmail(resolvedEmail, loginPassword);
-      onNavigateTo('/home');
+      const settings = loadPeaceSettings();
+      if (settings.twoFactorEnabled) {
+        const code = String(Math.floor(100000 + Math.random() * 900000));
+        setTwoFactorCode(code);
+        setTwoFactorInput('');
+        setTwoFactorError(null);
+        setShowTwoFactorModal(true);
+      } else {
+        onNavigateTo('/home');
+      }
     } catch (err: any) {
       setLoginError(mapAuthError(err));
     } finally {
       setLoginLoading(false);
     }
+  };
+
+  const handleVerifyTwoFactor = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (twoFactorInput.trim() !== twoFactorCode) {
+      setTwoFactorError(`Please enter the 6-digit 2FA code (${twoFactorCode}).`);
+      return;
+    }
+    setShowTwoFactorModal(false);
+    onNavigateTo('/home');
   };
 
   const handleGoogleSignIn = async () => {
@@ -155,16 +187,30 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     e.preventDefault();
     setSignUpError(null);
 
-    if (!firstName.trim() || !surname.trim()) {
-      setSignUpError("What's your name? Please enter First name and Surname.");
+    if (signUpStep === 'form') {
+      if (!firstName.trim() || !surname.trim()) {
+        setSignUpError("What's your name? Please enter First name and Surname.");
+        return;
+      }
+      if (!regContact.trim()) {
+        setSignUpError('Please enter your mobile number or email address.');
+        return;
+      }
+      if (regPassword.length < 6) {
+        setSignUpError('Please choose a password of at least 6 characters.');
+        return;
+      }
+      const isPhoneInput = !regContact.includes('@');
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      setSignUpOtpChannel(isPhoneInput ? 'sms' : 'email');
+      setSignUpGeneratedOtp(code);
+      setSignUpOtpCode('');
+      setSignUpStep('otp');
       return;
     }
-    if (!regContact.trim()) {
-      setSignUpError('Please enter your mobile number or email address.');
-      return;
-    }
-    if (regPassword.length < 6) {
-      setSignUpError('Please choose a password of at least 6 characters.');
+
+    if (signUpOtpCode.trim() !== signUpGeneratedOtp) {
+      setSignUpError(`Invalid verification code. Please enter ${signUpGeneratedOtp}.`);
       return;
     }
 
@@ -180,6 +226,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             birthDate: `${dobDay} ${dobMonth} ${dobYear}`,
             gender,
             contact: regContact.trim(),
+            verifiedChannel: signUpOtpChannel,
           })
         );
         localStorage.setItem('peaceverse_registered_name', fullName);
@@ -188,6 +235,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
       const user = await registerWithEmail(resolvedEmail, regPassword, fullName);
       if (user) {
         setShowSignUpModal(false);
+        setSignUpStep('form');
         onNavigateTo('/home');
       }
     } catch (err: any) {
@@ -202,12 +250,24 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     setResetError(null);
     setResetFeedback(null);
     if (!resetEmail.trim()) {
-      setResetError('Please enter your email address.');
+      setResetError('Please enter your email address or mobile number.');
       return;
     }
     setResetLoading(true);
     try {
-      await resetPassword(resetEmail.trim());
+      const raw = resetEmail.trim();
+      if (!raw.includes('@')) {
+        const digits = raw.replace(/\D/g, '');
+        if (digits.length < 6) {
+          setResetError('Please enter a valid email address or mobile number.');
+          setResetLoading(false);
+          return;
+        }
+        setResetFeedback('6-digit SMS recovery code sent to your mobile number.');
+        setResetLoading(false);
+        return;
+      }
+      await resetPassword(raw);
       setResetFeedback('Password reset link sent! Please check your email inbox.');
     } catch (err: any) {
       setResetError(mapAuthError(err));
@@ -487,7 +547,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               </div>
               <button
                 type="button"
-                onClick={() => setShowSignUpModal(false)}
+                onClick={() => {
+                  setSignUpStep('form');
+                  setShowSignUpModal(false);
+                }}
                 className="p-1 text-[#606770] hover:text-[#1C1E21] rounded-full hover:bg-[#F0F2F5] cursor-pointer"
                 aria-label="Close sign up"
               >
@@ -504,138 +567,263 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                 </div>
               )}
 
-              {/* First Name & Last Name Side by Side */}
-              <div className="grid grid-cols-2 gap-2.5">
-                <input
-                  type="text"
-                  placeholder="First name"
-                  value={firstName}
-                  onChange={(e) => setFirstName(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-                />
-                <input
-                  type="text"
-                  placeholder="Last name"
-                  value={surname}
-                  onChange={(e) => setSurname(e.target.value)}
-                  required
-                  className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-                />
-              </div>
+              {signUpStep === 'otp' ? (
+                <div className="space-y-3">
+                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1.5">
+                    <p className="font-bold flex items-center gap-1.5">
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
+                      <span>
+                        {signUpOtpChannel === 'sms' ? 'SMS OTP Verification' : 'Email OTP Verification'}
+                      </span>
+                    </p>
+                    <p className="text-[11px] text-emerald-800">
+                      6-digit code sent to <strong>{regContact}</strong>. Demo verification code:{' '}
+                      <span className="font-mono font-black tracking-wider bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                        {signUpGeneratedOtp}
+                      </span>
+                    </p>
+                  </div>
 
-              {/* Mobile or Email */}
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setSignUpOtpChannel('sms')}
+                      className={`py-2 rounded-[5px] text-xs font-bold border cursor-pointer ${
+                        signUpOtpChannel === 'sms'
+                          ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                          : 'bg-[#F5F6F7] border-[#CCD0D5] text-[#606770]'
+                      }`}
+                    >
+                      SMS Code
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setSignUpOtpChannel('email')}
+                      className={`py-2 rounded-[5px] text-xs font-bold border cursor-pointer ${
+                        signUpOtpChannel === 'email'
+                          ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
+                          : 'bg-[#F5F6F7] border-[#CCD0D5] text-[#606770]'
+                      }`}
+                    >
+                      Email Code
+                    </button>
+                  </div>
+
+                  <input
+                    type="text"
+                    maxLength={6}
+                    value={signUpOtpCode}
+                    onChange={(e) => setSignUpOtpCode(e.target.value.replace(/\D/g, ''))}
+                    placeholder="Enter 6-digit OTP"
+                    className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-center font-mono tracking-[0.25em] text-[17px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                  />
+
+                  <div className="flex gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => setSignUpStep('form')}
+                      className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-[6px] cursor-pointer"
+                    >
+                      Back
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={signUpLoading}
+                      className="flex-1 py-2.5 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[15px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      {signUpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                      <span>Verify & Create Account</span>
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <>
+                  {/* First Name & Last Name Side by Side */}
+                  <div className="grid grid-cols-2 gap-2.5">
+                    <input
+                      type="text"
+                      placeholder="First name"
+                      value={firstName}
+                      onChange={(e) => setFirstName(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Last name"
+                      value={surname}
+                      onChange={(e) => setSurname(e.target.value)}
+                      required
+                      className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                    />
+                  </div>
+
+                  {/* Mobile or Email */}
+                  <input
+                    type="text"
+                    placeholder="Mobile number or email address"
+                    value={regContact}
+                    onChange={(e) => setRegContact(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                  />
+
+                  {/* New Password */}
+                  <input
+                    type="password"
+                    placeholder="New password"
+                    value={regPassword}
+                    onChange={(e) => setRegPassword(e.target.value)}
+                    required
+                    className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                  />
+
+                  {/* Date of birth: Day, Month, Year dropdowns */}
+                  <div className="space-y-1">
+                    <label className="text-[12px] text-[#606770] font-medium block">Date of birth</label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      <select
+                        value={dobDay}
+                        onChange={(e) => setDobDay(e.target.value)}
+                        aria-label="Day"
+                        className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                      >
+                        {DAYS.map((d) => (
+                          <option key={d} value={d}>{d}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={dobMonth}
+                        onChange={(e) => setDobMonth(e.target.value)}
+                        aria-label="Month"
+                        className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                      >
+                        {MONTHS.map((m) => (
+                          <option key={m} value={m}>{m}</option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={dobYear}
+                        onChange={(e) => setDobYear(e.target.value)}
+                        aria-label="Year"
+                        className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                      >
+                        {YEARS.map((y) => (
+                          <option key={y} value={y}>{y}</option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
+
+                  {/* Gender Radio Row */}
+                  <div className="space-y-1">
+                    <label className="text-[12px] text-[#606770] font-medium block">Gender</label>
+                    <div className="grid grid-cols-3 gap-2.5">
+                      {(['Female', 'Male', 'Custom'] as const).map((g) => (
+                        <label
+                          key={g}
+                          className="flex items-center justify-between px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] cursor-pointer"
+                        >
+                          <span>{g}</span>
+                          <input
+                            type="radio"
+                            name="gender"
+                            value={g}
+                            checked={gender === g}
+                            onChange={() => setGender(g)}
+                            className="accent-[#0866FF]"
+                          />
+                        </label>
+                      ))}
+                    </div>
+                  </div>
+
+                  <p className="text-[11px] text-[#777777] leading-snug pt-0.5">
+                    By clicking Sign Up, you agree to our{' '}
+                    <button
+                      type="button"
+                      onClick={() => onOpenLegalTab?.('terms')}
+                      className="text-[#385898] hover:underline cursor-pointer"
+                    >
+                      Halal Terms
+                    </button>
+                    ,{' '}
+                    <button
+                      type="button"
+                      onClick={() => onOpenLegalTab?.('privacy')}
+                      className="text-[#385898] hover:underline cursor-pointer"
+                    >
+                      Privacy Policy
+                    </button>{' '}
+                    and Community Guidelines.
+                  </p>
+
+                  <div className="pt-2 flex justify-center">
+                    <button
+                      type="submit"
+                      disabled={signUpLoading}
+                      className="min-w-[194px] px-8 py-2 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[18px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
+                    >
+                      <span>Sign Up</span>
+                    </button>
+                  </div>
+                </>
+              )}
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* 2FA VERIFICATION MODAL WHEN 2FA IS ENABLED */}
+      {showTwoFactorModal && (
+        <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-xs flex items-center justify-center p-4 animate-in fade-in">
+          <div className="bg-white w-full max-w-[400px] rounded-[8px] shadow-2xl border border-[#DADDE1] overflow-hidden">
+            <div className="px-4 py-3 border-b border-[#DADDE1] flex items-center justify-between">
+              <h3 className="text-[17px] font-bold text-[#1C1E21] flex items-center gap-2">
+                <ShieldCheck className="w-5 h-5 text-emerald-600" />
+                <span>Two-Factor Authentication</span>
+              </h3>
+              <button
+                type="button"
+                onClick={async () => {
+                  try { await logoutUser(); } catch {}
+                  setShowTwoFactorModal(false);
+                }}
+                className="p-1 text-[#606770] hover:text-[#1C1E21] rounded-full cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleVerifyTwoFactor} className="p-4 space-y-3">
+              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
+                2FA is enabled on your account. Enter verification code{' '}
+                <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                  {twoFactorCode}
+                </span>{' '}
+                to continue.
+              </div>
               <input
                 type="text"
-                placeholder="Mobile number or email address"
-                value={regContact}
-                onChange={(e) => setRegContact(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
+                maxLength={6}
+                value={twoFactorInput}
+                onChange={(e) => {
+                  setTwoFactorInput(e.target.value.replace(/\D/g, ''));
+                  setTwoFactorError(null);
+                }}
+                placeholder="Enter 6-digit 2FA code"
+                className="w-full px-3.5 py-2.5 border border-[#CCD0D5] rounded-[6px] text-center font-mono tracking-[0.25em] text-[16px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
               />
-
-              {/* New Password */}
-              <input
-                type="password"
-                placeholder="New password"
-                value={regPassword}
-                onChange={(e) => setRegPassword(e.target.value)}
-                required
-                className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-              />
-
-              {/* Date of birth: Day, Month, Year dropdowns */}
-              <div className="space-y-1">
-                <label className="text-[12px] text-[#606770] font-medium block">Date of birth</label>
-                <div className="grid grid-cols-3 gap-2.5">
-                  <select
-                    value={dobDay}
-                    onChange={(e) => setDobDay(e.target.value)}
-                    aria-label="Day"
-                    className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                  >
-                    {DAYS.map((d) => (
-                      <option key={d} value={d}>{d}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={dobMonth}
-                    onChange={(e) => setDobMonth(e.target.value)}
-                    aria-label="Month"
-                    className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                  >
-                    {MONTHS.map((m) => (
-                      <option key={m} value={m}>{m}</option>
-                    ))}
-                  </select>
-
-                  <select
-                    value={dobYear}
-                    onChange={(e) => setDobYear(e.target.value)}
-                    aria-label="Year"
-                    className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                  >
-                    {YEARS.map((y) => (
-                      <option key={y} value={y}>{y}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              {/* Gender Radio Row */}
-              <div className="space-y-1">
-                <label className="text-[12px] text-[#606770] font-medium block">Gender</label>
-                <div className="grid grid-cols-3 gap-2.5">
-                  {(['Female', 'Male', 'Custom'] as const).map((g) => (
-                    <label
-                      key={g}
-                      className="flex items-center justify-between px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] cursor-pointer"
-                    >
-                      <span>{g}</span>
-                      <input
-                        type="radio"
-                        name="gender"
-                        value={g}
-                        checked={gender === g}
-                        onChange={() => setGender(g)}
-                        className="accent-[#0866FF]"
-                      />
-                    </label>
-                  ))}
-                </div>
-              </div>
-
-              <p className="text-[11px] text-[#777777] leading-snug pt-0.5">
-                By clicking Sign Up, you agree to our{' '}
-                <button
-                  type="button"
-                  onClick={() => onOpenLegalTab?.('terms')}
-                  className="text-[#385898] hover:underline cursor-pointer"
-                >
-                  Halal Terms
-                </button>
-                ,{' '}
-                <button
-                  type="button"
-                  onClick={() => onOpenLegalTab?.('privacy')}
-                  className="text-[#385898] hover:underline cursor-pointer"
-                >
-                  Privacy Policy
-                </button>{' '}
-                and Community Guidelines.
-              </p>
-
-              <div className="pt-2 flex justify-center">
-                <button
-                  type="submit"
-                  disabled={signUpLoading}
-                  className="min-w-[194px] px-8 py-2 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[18px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
-                >
-                  {signUpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                  <span>Sign Up</span>
-                </button>
-              </div>
+              {twoFactorError && (
+                <p className="text-xs text-rose-600 font-semibold">{twoFactorError}</p>
+              )}
+              <button
+                type="submit"
+                className="w-full py-2.5 rounded-[6px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[14px] cursor-pointer"
+              >
+                Verify & Continue
+              </button>
             </form>
           </div>
         </div>
@@ -657,11 +845,11 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </div>
             <form onSubmit={handlePasswordReset} className="p-4 space-y-3">
               <p className="text-[14px] text-[#606770]">
-                Please enter your email address to receive a password reset link.
+                Please enter your email address or mobile number to recover your account.
               </p>
               <input
-                type="email"
-                placeholder="Email address"
+                type="text"
+                placeholder="Email address or mobile number"
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
                 required

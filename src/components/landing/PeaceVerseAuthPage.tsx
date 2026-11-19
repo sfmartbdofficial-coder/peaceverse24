@@ -23,6 +23,8 @@ import {
   activeFirebaseProjectId,
 } from '../../lib/firebase';
 import { PeaceDoveEmblem } from './PeaceDoveEmblem';
+import { maskEmailAddress } from '../../utils/privacyMask';
+import { loadPeaceSettings } from '../../utils/settingsStorage';
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
   'mailinator.com',
@@ -123,6 +125,11 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [otpChallenge, setOtpChallenge] = useState<{
+    purpose: 'signup' | '2fa';
+    expectedCode: string;
+    inputCode: string;
+  } | null>(null);
 
   const emailValidation = useMemo(() => validateEmail(email), [email]);
   const showEmailError = emailTouched && email.trim().length > 0 && !emailValidation.isValid;
@@ -165,17 +172,35 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
     try {
       if (mode === 'login') {
-        // Clear any prior stale session to guarantee password verification
-        try {
-          await logoutUser();
-        } catch {}
+        if (!otpChallenge) {
+          try {
+            await logoutUser();
+          } catch {}
 
-        const user = await loginWithEmail(email.trim(), password);
-        if (user) {
-          setSuccessMsg('সফলভাবে লগইন হয়েছে! হোম পেজে প্রবেশ করা হচ্ছে...');
+          const user = await loginWithEmail(email.trim(), password);
+          if (user) {
+            if (loadPeaceSettings().twoFactorEnabled) {
+              const code = String(Math.floor(100000 + Math.random() * 900000));
+              setOtpChallenge({ purpose: '2fa', expectedCode: code, inputCode: '' });
+              setLoading(false);
+              return;
+            }
+            setSuccessMsg('Signed in successfully. Opening Home...');
+            setTimeout(() => {
+              onNavigateHome();
+            }, 600);
+          }
+        } else {
+          if (otpChallenge.inputCode.trim() !== otpChallenge.expectedCode) {
+            setErrorMsg(`Invalid 2FA code. Enter ${otpChallenge.expectedCode}.`);
+            setLoading(false);
+            return;
+          }
+          setOtpChallenge(null);
+          setSuccessMsg('2FA verified! Opening Home...');
           setTimeout(() => {
             onNavigateHome();
-          }, 600);
+          }, 500);
         }
       } else if (mode === 'signup') {
         if (!displayName.trim()) {
@@ -188,13 +213,25 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           setLoading(false);
           return;
         }
+        if (!otpChallenge) {
+          const code = String(Math.floor(100000 + Math.random() * 900000));
+          setOtpChallenge({ purpose: 'signup', expectedCode: code, inputCode: '' });
+          setLoading(false);
+          return;
+        }
+        if (otpChallenge.inputCode.trim() !== otpChallenge.expectedCode) {
+          setErrorMsg(`Invalid OTP code. Enter ${otpChallenge.expectedCode}.`);
+          setLoading(false);
+          return;
+        }
         const cleanName = displayName.trim();
         try {
           localStorage.setItem('peaceverse_registered_name', cleanName);
         } catch {}
         const user = await registerWithEmail(email.trim(), password, cleanName);
         if (user) {
-          setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে! হোমে নিয়ে যাওয়া হচ্ছে...');
+          setOtpChallenge(null);
+          setSuccessMsg('Account created successfully. Opening Home...');
           setTimeout(() => {
             onNavigateHome();
           }, 800);
@@ -316,7 +353,9 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             <div className="mb-5 p-3 rounded-2xl bg-[#E7F3FF] border border-blue-200 text-xs flex items-center justify-between gap-3 animate-in fade-in">
               <div className="min-w-0">
                 <span className="text-[10px] uppercase font-bold text-[#0866FF] tracking-wider block">বর্তমানে সাইন-ইন আছেন:</span>
-                <p className="font-bold text-black truncate text-xs">{currentUser.displayName || currentUser.email}</p>
+                <p className="font-bold text-black truncate text-xs">
+                  {currentUser.displayName || maskEmailAddress(currentUser.email, true)}
+                </p>
               </div>
               <div className="flex items-center gap-1.5 shrink-0">
                 <button
@@ -490,6 +529,29 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
               </div>
             )}
 
+            {otpChallenge && (
+              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
+                <p className="text-xs font-bold text-emerald-800">
+                  {otpChallenge.purpose === '2fa' ? '2FA Verification Required' : 'Email OTP Verification'} — Code:{' '}
+                  <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                    {otpChallenge.expectedCode}
+                  </span>
+                </p>
+                <input
+                  type="text"
+                  maxLength={6}
+                  value={otpChallenge.inputCode}
+                  onChange={(e) =>
+                    setOtpChallenge((prev) =>
+                      prev ? { ...prev, inputCode: e.target.value.replace(/\D/g, '') } : prev
+                    )
+                  }
+                  placeholder="Enter 6-digit verification code"
+                  className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-center font-mono tracking-widest text-sm text-black outline-none focus:border-[#0866FF]"
+                />
+              </div>
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -503,9 +565,13 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
               ) : (
                 <>
                   <span>
-                    {mode === 'login' && 'Sign In to Peaceverse24.com'}
-                    {mode === 'signup' && 'Create Account'}
-                    {mode === 'forgot' && 'Send Reset Link'}
+                    {otpChallenge
+                      ? 'Verify Code'
+                      : mode === 'login'
+                      ? 'Sign In'
+                      : mode === 'signup'
+                      ? 'Create Account'
+                      : 'Send Reset Link'}
                   </span>
                   <ArrowRight className="w-4 h-4" />
                 </>

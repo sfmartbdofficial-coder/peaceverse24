@@ -144,7 +144,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 tab === 'login' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
               }`}
             >
-              লগইন (Sign In)
+              লগইন
             </button>
             <button
               onClick={() => { setTab('register'); setErrorMsg(''); setSuccessMsg(''); }}
@@ -152,7 +152,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 tab === 'register' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
               }`}
             >
-              নিবন্ধন (Sign Up)
+              নিবন্ধন
             </button>
             <button
               onClick={() => { setTab('forgot'); setErrorMsg(''); setSuccessMsg(''); }}

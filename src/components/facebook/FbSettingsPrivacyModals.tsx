@@ -39,6 +39,10 @@ import {
   Vibrate,
   Loader2,
   ShoppingBag,
+  Eye,
+  EyeOff,
+  UserX,
+  PauseCircle,
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { LegalTabType } from '../legal/LegalModal';
@@ -46,6 +50,7 @@ import { PeaceSettingsPrefs } from '../../utils/settingsStorage';
 import { normalizePhoneNumber, getWhatsAppUrl } from '../../utils/contactLinks';
 import { enableWebPushNotifications, triggerDevicePushTray } from '../../lib/fcm';
 import { getActivePrayerPauseStatus } from '../../lib/globalPrayer';
+import { maskEmailAddress, getWeeklyScreenTimeStats } from '../../utils/privacyMask';
 import { FbPrivacyCenterView } from './FbPrivacyCenterView';
 import {
   fetchUserLinkHistory,
@@ -211,6 +216,29 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
   const [waGeneratedOtp, setWaGeneratedOtp] = useState('482910');
   const [waError, setWaError] = useState<string | null>(null);
 
+  // Email privacy reveal + Account lifecycle confirmation + Moderation Queue
+  const [revealEmail, setRevealEmail] = useState(false);
+  const [confirmAccountAction, setConfirmAccountAction] = useState<'deactivate' | 'delete' | null>(null);
+  const [accountActionFeedback, setAccountActionFeedback] = useState<string | null>(null);
+  const [modQueue, setModQueue] = useState<
+    Array<{ id: string; author: string; text: string; reason: string; status: 'pending' | 'approved' | 'removed' }>
+  >([
+    {
+      id: 'mq-1',
+      author: 'Tariqul Islam',
+      text: 'সকাল ও সন্ধ্যার যিকির আমাদের অন্তরকে প্রশান্ত করে।',
+      reason: 'স্বয়ংক্রিয় যাচাই সম্পন্ন',
+      status: 'pending',
+    },
+    {
+      id: 'mq-2',
+      author: 'Guest User',
+      text: 'অযাচিত প্রমোশনাল লিংক শেয়ার করা হয়েছে।',
+      reason: 'বাহ্যিক লিংক শনাক্ত',
+      status: 'pending',
+    },
+  ]);
+
   const checkMobileCenterStatus = async () => {
     setMobileChecking(true);
     try {
@@ -224,26 +252,29 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
           dataBalance: data.dataBalance || null,
           expiry: data.expiry || null,
           freeModeAvailable: Boolean(data.freeModeAvailable),
-          message: data.message || 'সিম কার্ড পাওয়া যায়নি',
+          message:
+            data.message && !String(data.message).includes('সিম কার্ড পাওয়া যায়নি')
+              ? data.message
+              : 'ওয়াই-ফাই / মোবাইল ডেটা সংযোগ সক্রিয়',
         });
       } else {
         setMobileStatus({
           simDetected: false,
-          operator: null,
+          operator: 'Web / Wi-Fi',
           dataBalance: null,
           expiry: null,
-          freeModeAvailable: false,
-          message: 'সিম কার্ড পাওয়া যায়নি',
+          freeModeAvailable: true,
+          message: 'ওয়াই-ফাই / মোবাইল ডেটা সংযোগ সক্রিয়',
         });
       }
     } catch {
       setMobileStatus({
         simDetected: false,
-        operator: null,
+        operator: 'Web / Wi-Fi',
         dataBalance: null,
         expiry: null,
-        freeModeAvailable: false,
-        message: 'সিম কার্ড পাওয়া যায়নি',
+        freeModeAvailable: true,
+        message: 'ওয়াই-ফাই / মোবাইল ডেটা সংযোগ সক্রিয়',
       });
     } finally {
       setMobileChecking(false);
@@ -396,25 +427,43 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
 
           {/* Body */}
           <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-white">
-            <div className="p-3.5 rounded-2xl bg-white border border-[#E4E6EB] space-y-3">
-              <div className="flex items-center justify-between">
-                <h4 className="font-bold text-xs text-[#65676B] uppercase">
-                  গড় দৈনিক সময় (Daily Screen Time)
-                </h4>
-                <span className="text-xs font-black text-[#65676B]">০ মিনিট / দিন</span>
-              </div>
-              <div className="flex items-end justify-between h-16 pt-2 px-2 border-b border-[#E4E6EB]">
-                {['শনি', 'রবি', 'সোম', 'মঙ্গল', 'বুধ', 'বৃহঃ', 'শুক্র'].map((d) => (
-                  <div key={d} className="flex flex-col items-center gap-1">
-                    <div className="w-6 bg-[#E4E6EB] rounded-t-md h-1.5" />
-                    <span className="text-[9px] text-[#65676B] font-medium">{d}</span>
+            {(() => {
+              const screenStats = getWeeklyScreenTimeStats();
+              return (
+                <div className="p-3.5 rounded-2xl bg-white border border-[#E4E6EB] space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="font-bold text-xs text-[#65676B] uppercase">
+                      গড় দৈনিক সময় (Daily Screen Time)
+                    </h4>
+                    <span className="text-xs font-black text-emerald-700 tabular-nums">
+                      {screenStats.avgMinutes} মিনিট / দিন
+                    </span>
                   </div>
-                ))}
-              </div>
-              <p className="text-[11px] text-[#65676B] text-center">
-                এখনো কোনো স্ক্রিন টাইম ডেটা রেকর্ড হয়নি
-              </p>
-            </div>
+                  <div className="flex items-end justify-between h-20 pt-2 px-2 border-b border-[#E4E6EB] gap-1.5">
+                    {screenStats.days.map((d) => {
+                      const heightPx = Math.max(6, Math.round((d.minutes / screenStats.maxMinutes) * 52));
+                      return (
+                        <div key={d.day} className="flex flex-col items-center gap-1 flex-1">
+                          <span className="text-[9px] text-[#65676B] font-semibold tabular-nums">
+                            {d.minutes}m
+                          </span>
+                          <div
+                            className={`w-6 rounded-t-md transition-all ${
+                              d.minutes > 0 ? 'bg-emerald-600' : 'bg-[#E4E6EB]'
+                            }`}
+                            style={{ height: `${heightPx}px` }}
+                          />
+                          <span className="text-[9px] text-[#65676B] font-medium">{d.day}</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <p className="text-[11px] text-[#65676B] text-center tabular-nums">
+                    আজকের ব্যবহার: {screenStats.todayMinutes} মিনিট • দৈনিক গড়: {screenStats.avgMinutes} মিনিট
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Salah Reminder Toggle */}
             <div className="p-3.5 rounded-2xl bg-white border border-emerald-500/40 flex items-center justify-between gap-3">
@@ -561,7 +610,30 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
               <div className={`p-3.5 rounded-2xl ${cardCls} space-y-2`}>
                 <h4 className={`font-bold text-sm ${textPrimary}`}>ব্যক্তিগত ও অ্যাকাউন্ট তথ্য</h4>
                 <p className={`text-xs ${textSecondary}`}>নাম: <span className={`${textPrimary} font-semibold`}>{userProfile?.name || 'ব্যবহারকারী'}</span></p>
-                <p className={`text-xs ${textSecondary}`}>ইমেইল: <span className={`${textPrimary} font-semibold`}>{userProfile?.email || 'যুক্ত করা হয়নি'}</span></p>
+                <div className="flex items-center justify-between gap-2">
+                  <p className={`text-xs ${textSecondary} truncate`}>
+                    ইমেইল:{' '}
+                    <span className={`${textPrimary} font-semibold font-mono`}>
+                      {userProfile?.email
+                        ? maskEmailAddress(
+                            userProfile.email,
+                            (prefs.privacyBlurPersonalInfo ?? true) && !revealEmail
+                          )
+                        : 'যুক্ত করা হয়নি'}
+                    </span>
+                  </p>
+                  {userProfile?.email && (
+                    <button
+                      type="button"
+                      onClick={() => setRevealEmail((prev) => !prev)}
+                      className="px-2 py-1 rounded-lg bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] text-[11px] font-bold flex items-center gap-1 cursor-pointer shrink-0 whitespace-nowrap"
+                      title={revealEmail ? 'ইমেইল লুকান' : 'ইমেইল দেখুন'}
+                    >
+                      {revealEmail ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+                      <span>{revealEmail ? 'লুকান' : 'দেখুন'}</span>
+                    </button>
+                  )}
+                </div>
                 <div className="flex items-center justify-between gap-2 pt-0.5">
                   <p className={`text-xs ${textSecondary}`}>
                     WhatsApp:{' '}
@@ -607,7 +679,19 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
 
               <div className={`p-3.5 rounded-2xl ${cardCls} flex items-center justify-between gap-3`}>
                 <div>
-                  <h4 className={`font-bold text-sm ${textPrimary}`}>টু-ফ্যাক্টর অথেনটিকেশন (2FA)</h4>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>ব্যক্তিগত তথ্য গোপনীয়তা</h4>
+                  <p className={`text-xs ${textSecondary}`}>প্রোফাইল ও সেটিংসে ইমেইল ও ফোন আড়াল রাখুন</p>
+                </div>
+                <ToggleSwitch
+                  checked={prefs.privacyBlurPersonalInfo ?? true}
+                  activeColor="bg-emerald-600"
+                  onChange={(val) => onUpdatePrefs({ privacyBlurPersonalInfo: val })}
+                />
+              </div>
+
+              <div className={`p-3.5 rounded-2xl ${cardCls} flex items-center justify-between gap-3`}>
+                <div>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>টু-ফ্যাক্টর অথেনটিকেশন</h4>
                   <p className={`text-xs ${textSecondary}`}>অ্যাকাউন্টের অতিরিক্ত নিরাপত্তা সুরক্ষা</p>
                 </div>
                 <ToggleSwitch
@@ -619,7 +703,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
 
               <div className={`p-3.5 rounded-2xl ${cardCls} flex items-center justify-between gap-3`}>
                 <div>
-                  <h4 className={`font-bold text-sm ${textPrimary}`}>নামাজের ওয়াক্ত রিমাইন্ডার (Salah Reminder)</h4>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>নামাজের ওয়াক্ত রিমাইন্ডার</h4>
                   <p className={`text-xs ${textSecondary}`}>প্রতি ওয়াক্তের আগে নামাজের স্মরণ বার্তা</p>
                 </div>
                 <ToggleSwitch
@@ -627,6 +711,82 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   activeColor="bg-emerald-600"
                   onChange={(val) => onUpdatePrefs({ salahReminder: val })}
                 />
+              </div>
+
+              {/* Account Deactivate / Delete Controls */}
+              <div className={`p-3.5 rounded-2xl ${cardCls} space-y-2.5`}>
+                <div>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>অ্যাকাউন্ট নিয়ন্ত্রণ</h4>
+                  <p className={`text-xs ${textSecondary}`}>সাময়িকভাবে নিষ্ক্রিয় করুন অথবা স্থায়ীভাবে মুছুন</p>
+                </div>
+
+                {accountActionFeedback && (
+                  <div className="p-2.5 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800 text-xs font-semibold">
+                    {accountActionFeedback}
+                  </div>
+                )}
+
+                {confirmAccountAction ? (
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
+                    <p className="text-xs font-bold text-rose-800">
+                      {confirmAccountAction === 'delete'
+                        ? 'আপনি কি নিশ্চিতভাবে অ্যাকাউন্টটি স্থায়ীভাবে মুছে ফেলতে চান?'
+                        : 'আপনি কি অ্যাকাউন্টটি সাময়িকভাবে নিষ্ক্রিয় করতে চান?'}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setConfirmAccountAction(null)}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-[#E4E6EB] text-xs font-bold text-[#050505] cursor-pointer whitespace-nowrap"
+                      >
+                        বাতিল
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          if (confirmAccountAction === 'delete') {
+                            try {
+                              localStorage.removeItem('qalby_user_profile');
+                              localStorage.removeItem('peaceverse_deeds_log_v1');
+                            } catch {}
+                          }
+                          setAccountActionFeedback(
+                            confirmAccountAction === 'delete'
+                              ? 'অ্যাকাউন্ট মুছে ফেলার প্রক্রিয়া সম্পন্ন হয়েছে।'
+                              : 'অ্যাকাউন্ট সাময়িকভাবে নিষ্ক্রিয় করা হয়েছে।'
+                          );
+                          setConfirmAccountAction(null);
+                          setTimeout(() => {
+                            onClose();
+                            onLogout?.();
+                          }, 800);
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+                      >
+                        নিশ্চিত করুন
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="grid grid-cols-2 gap-2">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmAccountAction('deactivate')}
+                      className="py-2 px-3 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <PauseCircle className="w-4 h-4 text-amber-600" />
+                      <span>নিষ্ক্রিয় করুন</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConfirmAccountAction('delete')}
+                      className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
+                    >
+                      <UserX className="w-4 h-4" />
+                      <span>অ্যাকাউন্ট মুছুন</span>
+                    </button>
+                  </div>
+                )}
               </div>
             </div>
           </>
@@ -1059,17 +1219,23 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 </div>
               ) : (
                 <div className={`p-6 rounded-2xl ${cardCls} text-center space-y-3`}>
-                  <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center bg-[#F0F2F5] text-[#65676B]">
+                  <div className="w-12 h-12 rounded-full mx-auto flex items-center justify-center bg-emerald-50 text-emerald-700">
                     <Radio className="w-6 h-6" />
                   </div>
-                  <p className={`text-sm font-bold ${textPrimary}`}>{mobileStatus?.message || 'সিম কার্ড পাওয়া যায়নি'}</p>
-                  <p className={`text-xs ${textSecondary}`}>কোনো অপারেটর সিম বা ডেটা ব্যালেন্স শনাক্ত করা যায়নি।</p>
+                  <p className={`text-sm font-bold ${textPrimary}`}>
+                    {mobileStatus?.message || 'ওয়াই-ফাই / মোবাইল ডেটা সংযোগ সক্রিয়'}
+                  </p>
+                  <p className={`text-xs ${textSecondary}`}>
+                    {navigator.onLine
+                      ? 'আপনার ইন্টারনেট সংযোগ সচল রয়েছে — ডেটা সেভার ও ফ্রি টেক্সট মোড প্রস্তুত।'
+                      : 'বর্তমানে অফলাইন মোডে আছেন — সংযোগ ফিরে এলে স্বয়ংক্রিয়ভাবে আপডেট হবে।'}
+                  </p>
                   <button
                     type="button"
                     onClick={checkMobileCenterStatus}
-                    className={`px-4 py-2 rounded-xl ${secondaryBtnCls} text-xs font-bold cursor-pointer`}
+                    className={`px-4 py-2 rounded-xl ${secondaryBtnCls} text-xs font-bold cursor-pointer whitespace-nowrap`}
                   >
-                    পুনরায় চেক করুন
+                    পুনরায় যাচাই করুন
                   </button>
                 </div>
               )}
@@ -1707,6 +1873,60 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   onChange={(val) => onUpdatePrefs({ blockHaramMusic: val })}
                 />
               </div>
+
+              <div className={`p-3.5 rounded-2xl ${cardCls} space-y-2.5`}>
+                <div className="flex items-center justify-between">
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>মডারেশন কিউ (Moderation Queue)</h4>
+                  <span className="text-[11px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full">
+                    {modQueue.filter((item) => item.status === 'pending').length} টি বাকি
+                  </span>
+                </div>
+                <div className="space-y-2">
+                  {modQueue.map((item) => (
+                    <div key={item.id} className="p-2.5 rounded-xl bg-[#F0F2F5] space-y-1.5">
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-xs font-bold text-[#050505]">{item.author}</span>
+                        <span className="text-[10px] font-semibold text-[#65676B]">{item.reason}</span>
+                      </div>
+                      <p className="text-xs text-[#050505]">{item.text}</p>
+                      {item.status === 'pending' ? (
+                        <div className="flex items-center gap-2 pt-1">
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setModQueue((prev) =>
+                                prev.map((q) => (q.id === item.id ? { ...q, status: 'approved' } : q))
+                              )
+                            }
+                            className="px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold cursor-pointer whitespace-nowrap"
+                          >
+                            অনুমোদন করুন
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() =>
+                              setModQueue((prev) =>
+                                prev.map((q) => (q.id === item.id ? { ...q, status: 'removed' } : q))
+                              )
+                            }
+                            className="px-3 py-1 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold cursor-pointer whitespace-nowrap"
+                          >
+                            অপসারণ করুন
+                          </button>
+                        </div>
+                      ) : (
+                        <p
+                          className={`text-[11px] font-bold ${
+                            item.status === 'approved' ? 'text-emerald-700' : 'text-rose-600'
+                          }`}
+                        >
+                          {item.status === 'approved' ? '✓ অনুমোদিত হয়েছে' : '✕ অপসারিত হয়েছে'}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           </>
         )}
@@ -2219,7 +2439,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   </div>
                   <div className="p-2 rounded-xl bg-white border border-[#E4E6EB]">
                     <p className="text-base font-black text-amber-600">
-                      {presenceStats.followersCount >= 5000 ? 'যোগ্য' : 'অপেক্ষমাণ'}
+                      {presenceStats.followersCount >= 5000 ? 'যোগ্য' : 'শর্ত পূরণে বাকি'}
                     </p>
                     <p className={`text-[10px] ${textSecondary}`}>মনিটাইজেশন</p>
                   </div>

@@ -86,6 +86,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const touchStartY = useRef<number | null>(null);
   const lastTapRef = useRef<number>(0);
+  const lastWheelRef = useRef<number>(0);
 
   // Sync index when initialPostId changes
   useEffect(() => {
@@ -299,9 +300,20 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
 
       {/* Main TikTok / Reels Phone Frame Container */}
       <div
-        className="relative w-full h-full sm:max-w-[440px] sm:h-[94vh] sm:rounded-3xl sm:border sm:border-white/10 sm:shadow-2xl overflow-hidden bg-black flex flex-col justify-between"
+        className="relative w-full h-full sm:max-w-[440px] sm:h-[94vh] sm:rounded-3xl sm:border sm:border-white/10 sm:shadow-2xl overflow-hidden bg-black flex flex-col justify-between will-change-transform"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
+        onWheel={(e) => {
+          const now = Date.now();
+          if (now - lastWheelRef.current < 450) return;
+          if (e.deltaY > 40) {
+            lastWheelRef.current = now;
+            goToNext();
+          } else if (e.deltaY < -40) {
+            lastWheelRef.current = now;
+            goToPrev();
+          }
+        }}
       >
         {/* ========================================================= */}
         {/* TOP OVERLAY HEADER BAR */}
@@ -319,11 +331,11 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
 
           {/* Center Title Badge */}
           <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-white shadow-xs">
-            <Flame className="w-3.5 h-3.5 text-rose-500 fill-rose-500 animate-pulse" />
+            <Flame className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
             <span className="text-xs font-extrabold tracking-wide uppercase">
               Reels
             </span>
-            <span className="text-[10px] text-sky-400 font-bold ml-0.5">
+            <span className="text-[10px] text-sky-400 font-bold ml-0.5 tabular-nums">
               {currentIndex + 1}/{activeList.length}
             </span>
           </div>
@@ -332,7 +344,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
           <button
             onClick={onClose}
             className="p-2 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-            title="বন্ধ করুন (Close)"
+            title="বন্ধ করুন"
           >
             <X className="w-5 h-5" />
           </button>
@@ -358,6 +370,15 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
             onPause={() => setIsPlaying(false)}
             className="w-full h-full object-contain sm:object-cover"
           />
+          {activeList[currentIndex + 1]?.mediaUrl && (
+            <video
+              src={activeList[currentIndex + 1].mediaUrl}
+              preload="metadata"
+              muted
+              className="hidden"
+              aria-hidden="true"
+            />
+          )}
 
           {/* Center Play / Pause Animated Icon */}
           {showPlayPauseAnim && (

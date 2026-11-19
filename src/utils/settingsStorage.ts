@@ -35,7 +35,7 @@ export interface PeaceSettingsPrefs {
   blockedUsers: string[];
   blockedKeywords: string[];
 
-  // Section 5: Creator Broadcast & User Notification Settings (Default OFF for new users)
+  // Section 5: Creator Broadcast & User Notification Settings
   creatorNotifyFollowersOnPost: boolean;
   creatorSendPushToAllUsers: boolean;
   notifyFavoriteCreator: boolean;
@@ -43,13 +43,14 @@ export interface PeaceSettingsPrefs {
   notifSound: boolean;
   notifVibration: boolean;
   fcmPushSubscribed: boolean;
+  privacyBlurPersonalInfo?: boolean;
   settingsVersion?: number;
 }
 
 export const DEFAULT_PEACE_SETTINGS: PeaceSettingsPrefs = {
-  salahReminder: false,
+  salahReminder: true,
   quietModeSalah: false,
-  dailyReminderMins: 0,
+  dailyReminderMins: 30,
   twoFactorEnabled: false,
 
   dataSaver: false,
@@ -83,10 +84,11 @@ export const DEFAULT_PEACE_SETTINGS: PeaceSettingsPrefs = {
   creatorSendPushToAllUsers: false,
   notifyFavoriteCreator: false,
   notifyPriyoDada: false,
-  notifSound: false,
-  notifVibration: false,
-  fcmPushSubscribed: false,
-  settingsVersion: 2,
+  notifSound: true,
+  notifVibration: true,
+  fcmPushSubscribed: true,
+  privacyBlurPersonalInfo: true,
+  settingsVersion: 3,
 };
 
 const STORAGE_KEY = 'peaceverse_halal_settings';
@@ -111,7 +113,9 @@ export function loadPeaceSettings(): PeaceSettingsPrefs {
         ? parsed.nagadNumber
         : '';
 
-    const isLegacyV1 = !parsed.settingsVersion || Number(parsed.settingsVersion) < 2;
+    const version = Number(parsed.settingsVersion || 0);
+    const isLegacyV1 = !parsed.settingsVersion || version < 2;
+    const needsV3Upgrade = version < 3;
     const rawBlockedUsers = Array.isArray(parsed.blockedUsers) ? parsed.blockedUsers : [];
     const cleanBlockedUsers = isLegacyV1
       ? rawBlockedUsers.filter((u: string) => u !== 'SpamBot24' && u !== 'FakePromoBD')
@@ -138,9 +142,15 @@ export function loadPeaceSettings(): PeaceSettingsPrefs {
             creatorSendPushToAllUsers: false,
             notifyFavoriteCreator: false,
             notifyPriyoDada: false,
-            notifSound: false,
-            notifVibration: false,
-            settingsVersion: 2,
+          }
+        : {}),
+      ...(needsV3Upgrade
+        ? {
+            fcmPushSubscribed: true,
+            halalContentFilter: true,
+            familyBlock18Plus: true,
+            privacyBlurPersonalInfo: parsed.privacyBlurPersonalInfo ?? true,
+            settingsVersion: 3,
           }
         : {}),
     };
@@ -152,7 +162,7 @@ export function loadPeaceSettings(): PeaceSettingsPrefs {
 export function savePeaceSettings(next: PeaceSettingsPrefs): PeaceSettingsPrefs {
   const normalized: PeaceSettingsPrefs = {
     ...next,
-    settingsVersion: 2,
+    settingsVersion: 3,
   };
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized));
