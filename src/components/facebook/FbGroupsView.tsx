@@ -19,6 +19,7 @@ import {
   ArrowUpDown,
   MessageCircle,
 } from 'lucide-react';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbGroupsViewProps {
   onBack?: () => void;
@@ -265,6 +266,14 @@ export const FbGroupsView: React.FC<FbGroupsViewProps> = ({
 
   // Create Group Modal
   const [showCreateGroupModal, setShowCreateGroupModal] = useState(false);
+
+  useHistoryBack(activeTab !== 'for_you', () => setActiveTab('for_you'), 'groups-tab');
+  useHistoryBack(showHeaderSearch, () => {
+    setShowHeaderSearch(false);
+    setHeaderSearch('');
+  }, 'groups-search');
+  useHistoryBack(Boolean(selectedGroup), () => setSelectedGroup(null), 'groups-detail');
+  useHistoryBack(showCreateGroupModal, () => setShowCreateGroupModal(false), 'groups-create');
   const [newGroupName, setNewGroupName] = useState('');
   const [newGroupPrivacy, setNewGroupPrivacy] = useState<'public' | 'private'>('public');
   const [newGroupCategory, setNewGroupCategory] = useState('Islamic Group');

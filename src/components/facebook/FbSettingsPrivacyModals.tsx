@@ -749,31 +749,16 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 </div>
               </div>
 
-              {(onExportMyData || onOpenSecurityDashboard) && (
+              {onExportMyData && (
                 <div className={`p-3.5 rounded-2xl ${cardCls} flex flex-wrap items-center gap-2`}>
-                  {onExportMyData && (
-                    <button
-                      type="button"
-                      onClick={onExportMyData}
-                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <Download className="w-3.5 h-3.5" />
-                      <span>Export My Data</span>
-                    </button>
-                  )}
-                  {onOpenSecurityDashboard && (
-                    <button
-                      type="button"
-                      onClick={() => {
-                        onClose();
-                        onOpenSecurityDashboard();
-                      }}
-                      className="flex-1 py-2 px-3 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
-                    >
-                      <ShieldCheck className="w-3.5 h-3.5" />
-                      <span>Security Status</span>
-                    </button>
-                  )}
+                  <button
+                    type="button"
+                    onClick={onExportMyData}
+                    className="w-full py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <Download className="w-3.5 h-3.5" />
+                    <span>Export My Data</span>
+                  </button>
                 </div>
               )}
 

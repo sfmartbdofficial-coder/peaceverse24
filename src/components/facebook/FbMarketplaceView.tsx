@@ -19,6 +19,7 @@ import { MarketplaceItem, NotificationItem, UserProfile } from '../../types';
 import { broadcastCreatorNotification } from '../../lib/fcm';
 import { loadPeaceSettings } from '../../utils/settingsStorage';
 import { sanitizeInput, validateMediaUpload } from '../../utils/security';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbMarketplaceViewProps {
   onBack?: () => void;
@@ -124,6 +125,9 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
   const [newImage, setNewImage] = useState(PRESET_PRODUCT_IMAGES[0]);
 
   const [selectedProduct, setSelectedProduct] = useState<MarketplaceItem | null>(null);
+
+  useHistoryBack(Boolean(selectedProduct), () => setSelectedProduct(null), 'marketplace-product');
+  useHistoryBack(showSellModal, () => setShowSellModal(false), 'marketplace-sell');
 
   const showToast = (msg: string) => {
     setOrderedToast(msg);

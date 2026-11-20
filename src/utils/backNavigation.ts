@@ -189,6 +189,30 @@ export function initHistoryBase(path: string, tab: string, isAuthenticated: bool
 }
 
 /**
+ * Resets history root to Home (/home) at depth 0 (for example right after login)
+ * so pressing Back from deeper pages stops at Home before exiting the app.
+ */
+export function resetHistoryToHome(homePath = '/home'): void {
+  if (typeof window === 'undefined') return;
+  ensureBackNavigationListener();
+  modalStack.length = 0;
+  closedByPopTokens.clear();
+  pendingUiBackSteps = 0;
+
+  const baseState: PeaceverseHistoryState = {
+    pvInit: true,
+    pvBase: true,
+    pvDepth: 0,
+    pvToken: 'root',
+    pvKind: 'root',
+    pvPath: homePath,
+    pvTab: 'home',
+    pvLabel: 'home',
+  };
+  window.history.replaceState(baseState, '', homePath);
+}
+
+/**
  * Push a new tab or route entry into window.history (Facebook-style Back history).
  */
 export function pushAppNavigation(path: string, tab: string, nextUrl: string): void {

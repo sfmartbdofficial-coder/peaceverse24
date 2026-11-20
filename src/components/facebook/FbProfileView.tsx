@@ -156,6 +156,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [editingThought, setEditingThought] = useState(false);
 
+  useHistoryBack(profileTab !== 'all', () => setProfileTab('all'), 'profile-subtab');
   useHistoryBack(showEditModal, () => setShowEditModal(false), 'profile-edit');
   useHistoryBack(showMonetizationModal, () => setShowMonetizationModal(false), 'profile-monetization');
   useHistoryBack(showSettingsSheet, () => setShowSettingsSheet(false), 'profile-settings');

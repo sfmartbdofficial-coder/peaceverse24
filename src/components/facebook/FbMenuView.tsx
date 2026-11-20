@@ -860,23 +860,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   <ChevronRight className="w-4 h-4 text-neutral-400" />
                 </button>
 
-                {/* 1.2b Security Status Dashboard */}
-                {onOpenSecurityDashboard && (
-                  <button
-                    type="button"
-                    onClick={onOpenSecurityDashboard}
-                    className="w-full h-[42px] px-3 rounded-lg hover:bg-emerald-50 flex items-center justify-between text-left font-medium text-neutral-800 cursor-pointer"
-                  >
-                    <div className="flex items-center gap-3.5">
-                      <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
-                      <span className="text-[14.5px]">Security Status Dashboard</span>
-                    </div>
-                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                      OK
-                    </span>
-                  </button>
-                )}
-
                 {/* 1.2c Export My Data */}
                 {onExportMyData && (
                   <button

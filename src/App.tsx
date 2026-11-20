@@ -134,9 +134,9 @@ import {
   getAuthorizedAdminEmail,
   POST_MAX_LENGTH,
 } from './utils/security';
-import { SecurityStatusDashboard } from './components/security/SecurityStatusDashboard';
 import {
   initHistoryBase,
+  resetHistoryToHome,
   pushAppNavigation,
   goAppBack,
   registerRouteSyncHandler,
@@ -552,7 +552,6 @@ export default function App() {
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [emailVerifiedTick, setEmailVerifiedTick] = useState<number>(0);
   const [urlKeyBlockedMsg, setUrlKeyBlockedMsg] = useState<string | null>(null);
-  const [showSecurityDashboard, setShowSecurityDashboard] = useState<boolean>(false);
   const [disableCopyOnSensitive, setDisableCopyOnSensitive] = useState<boolean>(
     () => loadPeaceSettings().disableCopyOnSensitive !== false
   );
@@ -619,10 +618,19 @@ export default function App() {
   useEffect(() => {
     return registerRouteSyncHandler((state) => {
       const nextPath = state.pvPath || window.location.pathname || '/';
-      setCurrentPath(nextPath);
+      let pathOrTabChanged = false;
+
+      setCurrentPath((prev) => {
+        if (prev !== nextPath) pathOrTabChanged = true;
+        return nextPath;
+      });
+
       if (state.pvTab && VALID_MAIN_TABS.includes(state.pvTab as FacebookMainTab)) {
         const syncedTab = state.pvTab as FacebookMainTab;
-        setCurrentTab(syncedTab);
+        setCurrentTab((prev) => {
+          if (prev !== syncedTab) pathOrTabChanged = true;
+          return syncedTab;
+        });
         setTabHistory((prev) => {
           const last = prev[prev.length - 1];
           return last === syncedTab ? prev : [...prev.slice(-10), syncedTab];
@@ -634,11 +642,16 @@ export default function App() {
         const params = new URLSearchParams(window.location.search);
         const urlTab = params.get('tab') as FacebookMainTab | null;
         if (urlTab && VALID_MAIN_TABS.includes(urlTab)) {
-          setCurrentTab(urlTab);
+          setCurrentTab((prev) => {
+            if (prev !== urlTab) pathOrTabChanged = true;
+            return urlTab;
+          });
         }
       }
       setShowAdminPortal(checkIsAdmin());
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      if (pathOrTabChanged) {
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
     });
   }, []);
 
@@ -659,14 +672,21 @@ export default function App() {
   useHistoryBack(Boolean(activeReelPostId), () => setActiveReelPostId(null), 'reels-player');
   useHistoryBack(Boolean(selectedGiftPost), () => setSelectedGiftPost(null), 'golden-gift');
   useHistoryBack(showGoldenWallet, () => setShowGoldenWallet(false), 'golden-wallet');
-  useHistoryBack(showSecurityDashboard, () => setShowSecurityDashboard(false), 'security-dashboard');
 
   const navigateToPath = (path: string) => {
     const url = new URL(path, window.location.origin);
     const nextPath = url.pathname || '/';
     const nextFull = nextPath + url.search + url.hash;
     const curFull = window.location.pathname + window.location.search + window.location.hash;
-    if (curFull !== nextFull) {
+    const leavingAuth =
+      (currentPath === '/' || currentPath === '/login' || currentPath === '/signup') &&
+      nextPath === '/home';
+
+    if (leavingAuth) {
+      resetHistoryToHome('/home');
+      setCurrentTab('home');
+      setTabHistory(['home']);
+    } else if (curFull !== nextFull) {
       pushAppNavigation(nextPath, currentTab, nextFull);
     }
     setCurrentPath(nextPath);
@@ -2704,7 +2724,6 @@ export default function App() {
             unreadMessagesCount={unreadMessagesCount}
             onPublishReel={handleReelCreated}
             onNavigatePath={navigateToPath}
-            onOpenSecurityDashboard={() => setShowSecurityDashboard(true)}
             onExportMyData={handleExportMyData}
           />
         )}
@@ -3007,17 +3026,6 @@ export default function App() {
         </div>
       )}
 
-      <SecurityStatusDashboard
-        isOpen={showSecurityDashboard}
-        onClose={() => setShowSecurityDashboard(false)}
-        firebaseUser={firebaseUser}
-        disableCopyOnSensitive={disableCopyOnSensitive}
-        onToggleCopyProtection={(next) => {
-          setDisableCopyOnSensitive(next);
-          savePeaceSettings({ ...loadPeaceSettings(), disableCopyOnSensitive: next });
-        }}
-        onExportMyData={handleExportMyData}
-      />
     </div>
   );
 }
