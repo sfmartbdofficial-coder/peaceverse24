@@ -17,14 +17,70 @@ const PORT =
     ? Number(process.env.PORT) || 3000
     : Number(process.env.DEFAULT_APP_PORT) || 3000;
 
-app.use(express.json());
+app.use(express.json({ limit: '5mb' }));
 
-// Lazy-initialize Gemini SDK to avoid startup warnings if key is configured dynamically
+// Enable Cloudflare Bot Fight Mode + Rate Limit 10 req/sec in dashboard
+// Bunny.net CDN header enforcement: bunnynet.addHeader("X-Content-Type-Options: nosniff")
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'camera=(self), microphone=(self), geolocation=(self)');
+
+  // Check CF-Connecting-IP header when strict Cloudflare origin enforcement is enabled
+  const cfConnectingIp = req.headers['cf-connecting-ip'];
+  if (process.env.REQUIRE_CLOUDFLARE_ORIGIN === 'true' && !cfConnectingIp) {
+    return res.status(403).json({
+      error: 'Security Block: Direct access blocked. Traffic must route through Cloudflare.',
+    });
+  }
+  res.setHeader('X-Cloudflare-Protection', cfConnectingIp ? 'Verified' : 'Shield-Active');
+
+  if (req.path.startsWith('/admin') || req.path.startsWith('/config') || req.path.startsWith('/api')) {
+    res.setHeader('X-Robots-Tag', 'noindex, nofollow');
+  }
+
+  const rawUrl = req.originalUrl || '';
+  if (/(api[_-]?key|gemini[_-]?api[_-]?key|firebase[_-]?key|bunny[_-]?token)=|AIza[0-9A-Za-z_-]{20,}/i.test(rawUrl)) {
+    return res.status(403).json({
+      error: 'Security Block: API keys must never be passed in the URL.',
+    });
+  }
+  next();
+});
+
+// Explicit robots.txt route blocking /admin, /api, and /config
+app.get('/robots.txt', (_req, res) => {
+  res.type('text/plain');
+  res.send('User-agent: *\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api\nDisallow: /api/\nDisallow: /config\nDisallow: /config/\nDisallow: /asol-admin-secret\n');
+});
+
+// Server-side Rate Limiter for /api/* (Max 10 requests per minute per client IP/user)
+const apiRateMap = new Map<string, number[]>();
+app.use('/api', (req, res, next) => {
+  const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
+  const now = Date.now();
+  const windowMs = 60 * 1000;
+  const maxReq = 10;
+  const recent = (apiRateMap.get(clientIp) || []).filter((ts) => now - ts < windowMs);
+  if (recent.length >= maxReq) {
+    return res.status(429).json({ error: 'Rate limit exceeded: max 10 requests per minute.' });
+  }
+  recent.push(now);
+  apiRateMap.set(clientIp, recent);
+  next();
+});
+
+// Lazy-initialize Gemini SDK using process.env.API_KEY / process.env.GEMINI_API_KEY
 let aiClient: GoogleGenAI | null = null;
 function getAiClient(): GoogleGenAI {
+  const serverApiKey = process.env.API_KEY || process.env.GEMINI_API_KEY;
+  if (!serverApiKey) {
+    console.warn('Set API keys in Vercel Environment Variables, not in code');
+  }
   if (!aiClient) {
     aiClient = new GoogleGenAI({
-      apiKey: process.env.GEMINI_API_KEY,
+      apiKey: serverApiKey,
       httpOptions: {
         headers: {
           'User-Agent': 'aistudio-build',
@@ -480,7 +536,7 @@ app.post('/api/translate', async (req, res) => {
     }
 
     // 3. Gemini fallback if network translation fails
-    if (process.env.GEMINI_API_KEY) {
+    if (process.env.API_KEY || process.env.GEMINI_API_KEY) {
       try {
         const langNames: Record<string, string> = {
           en: 'English',

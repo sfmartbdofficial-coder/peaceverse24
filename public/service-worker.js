@@ -13,26 +13,19 @@ const SHELL_ASSETS = [
   '/icon.svg',
 ];
 
-// Attempt to initialize Firebase Messaging in background if CDN scripts are reachable
+// Attempt to initialize Firebase Messaging only when runtime config is provided by the app (never hardcode API keys)
 let messaging = null;
 try {
   importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
   importScripts('https://www.gstatic.com/firebasejs/10.12.2/firebase-messaging-compat.js');
 
-  if (typeof firebase !== 'undefined') {
-    if (!firebase.apps.length) {
-      firebase.initializeApp({
-        apiKey: 'AIzaSyDqvbDypsSdmuIiu70qxPHo3103cNwLk54',
-        authDomain: 'gen-lang-client-0936405543.firebaseapp.com',
-        projectId: 'gen-lang-client-0936405543',
-        storageBucket: 'gen-lang-client-0936405543.firebasestorage.app',
-        messagingSenderId: '499589609756',
-        appId: '1:499589609756:web:6b0e982f903121c07562d9',
-      });
-    }
-
-    messaging = firebase.messaging();
-    messaging.onBackgroundMessage((payload) => {
+  self.addEventListener('message', (event) => {
+    if (event.data && event.data.type === 'PEACEVERSE_INIT_SW_FIREBASE' && event.data.config) {
+      try {
+        if (typeof firebase !== 'undefined' && !firebase.apps.length && event.data.config.apiKey) {
+          firebase.initializeApp(event.data.config);
+          messaging = firebase.messaging();
+          messaging.onBackgroundMessage((payload) => {
       const notif = payload.notification || {};
       const data = payload.data || {};
       const title = notif.title || data.title || 'Peaceverse24 নতুন আপডেট';
@@ -50,8 +43,11 @@ try {
         },
       };
       return self.registration.showNotification(title, options);
-    });
-  }
+          });
+        }
+      } catch (_initErr) {}
+    }
+  });
 } catch (_err) {
   // Fallback seamlessly to native Web Push API events below
 }

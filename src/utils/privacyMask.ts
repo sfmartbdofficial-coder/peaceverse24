@@ -68,6 +68,7 @@ export function tickScreenTimeSeconds(deltaSeconds = 15): number {
 }
 
 export interface ScreenTimeDayPoint {
+  day: string;
   label: string;
   dateKey: string;
   minutes: number;
@@ -79,6 +80,8 @@ const BN_DAYS = ['রবি', 'সোম', 'মঙ্গল', 'বুধ', 'ব�
 export function getWeeklyScreenTimeStats(): {
   todayMinutes: number;
   dailyAvgMinutes: number;
+  avgMinutes: number;
+  maxMinutes: number;
   days: ScreenTimeDayPoint[];
 } {
   let daysMap: Record<string, number> = {};
@@ -100,8 +103,10 @@ export function getWeeklyScreenTimeStats(): {
     const key = getTodayDateKey(d);
     const secs = Number(daysMap[key]) || 0;
     const mins = secs > 0 ? Math.max(1, Math.round(secs / 60)) : 0;
+    const dayLabel = BN_DAYS[d.getDay()];
     points.push({
-      label: BN_DAYS[d.getDay()],
+      day: dayLabel,
+      label: dayLabel,
       dateKey: key,
       minutes: mins,
       isToday: offset === 0,
@@ -113,8 +118,15 @@ export function getWeeklyScreenTimeStats(): {
   const totalMinutes = points.reduce((sum, p) => sum + p.minutes, 0);
   const dailyAvgMinutes =
     activeDays.length > 0 ? Math.max(1, Math.round(totalMinutes / activeDays.length)) : 0;
+  const maxMinutes = Math.max(15, ...points.map((p) => p.minutes));
 
-  return { todayMinutes, dailyAvgMinutes, days: points };
+  return {
+    todayMinutes,
+    dailyAvgMinutes,
+    avgMinutes: dailyAvgMinutes,
+    maxMinutes,
+    days: points,
+  };
 }
 
 // Halal Deeds Log (আখিরাত / আমলনামা ট্র্যাকার)
@@ -122,8 +134,10 @@ export interface DeedLogItem {
   id: string;
   title: string;
   category: 'Salah' | 'Quran' | 'Dhikr' | 'Sadaqah' | 'Sunnah';
+  count: number;
   countToday: number;
   target: number;
+  completed: boolean;
   completedToday: boolean;
   updatedAt: string;
 }
@@ -135,8 +149,10 @@ const DEFAULT_DEEDS: DeedLogItem[] = [
     id: 'deed-salah-5',
     title: '৫ ওয়াক্ত জামাআতে / সময়মতো সালাত',
     category: 'Salah',
+    count: 0,
     countToday: 0,
     target: 5,
+    completed: false,
     completedToday: false,
     updatedAt: '',
   },
@@ -144,8 +160,10 @@ const DEFAULT_DEEDS: DeedLogItem[] = [
     id: 'deed-quran',
     title: 'কুরআন তিলাওয়াত (ন্যূনতম ১ রুকু)',
     category: 'Quran',
+    count: 0,
     countToday: 0,
     target: 1,
+    completed: false,
     completedToday: false,
     updatedAt: '',
   },
@@ -153,8 +171,10 @@ const DEFAULT_DEEDS: DeedLogItem[] = [
     id: 'deed-durood',
     title: 'দরুদ ও ইস্তিগফার (১০০ বার)',
     category: 'Dhikr',
+    count: 0,
     countToday: 0,
     target: 100,
+    completed: false,
     completedToday: false,
     updatedAt: '',
   },
@@ -162,8 +182,10 @@ const DEFAULT_DEEDS: DeedLogItem[] = [
     id: 'deed-sadaqah',
     title: 'সদকা / মানুষের কল্যাণমূলক কাজ',
     category: 'Sadaqah',
+    count: 0,
     countToday: 0,
     target: 1,
+    completed: false,
     completedToday: false,
     updatedAt: '',
   },
@@ -174,7 +196,15 @@ export function loadDeedsLog(scopeId = 'personal'): DeedLogItem[] {
     const raw = localStorage.getItem(`${DEEDS_STORAGE_KEY}_${scopeId}`);
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return parsed.map((d: any) => ({
+          ...d,
+          count: Number(d.count ?? d.countToday ?? 0),
+          countToday: Number(d.countToday ?? d.count ?? 0),
+          completed: Boolean(d.completed ?? d.completedToday),
+          completedToday: Boolean(d.completedToday ?? d.completed),
+        }));
+      }
     }
   } catch {}
   return DEFAULT_DEEDS;
@@ -182,6 +212,11 @@ export function loadDeedsLog(scopeId = 'personal'): DeedLogItem[] {
 
 export function saveDeedsLog(items: DeedLogItem[], scopeId = 'personal'): void {
   try {
-    localStorage.setItem(`${DEEDS_STORAGE_KEY}_${scopeId}`, JSON.stringify(items));
+    const normalized = items.map((d) => ({
+      ...d,
+      countToday: d.count,
+      completedToday: d.completed,
+    }));
+    localStorage.setItem(`${DEEDS_STORAGE_KEY}_${scopeId}`, JSON.stringify(normalized));
   } catch {}
 }

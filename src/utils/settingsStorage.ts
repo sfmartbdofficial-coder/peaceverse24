@@ -44,6 +44,7 @@ export interface PeaceSettingsPrefs {
   notifVibration: boolean;
   fcmPushSubscribed: boolean;
   privacyBlurPersonalInfo?: boolean;
+  disableCopyOnSensitive?: boolean;
   settingsVersion?: number;
 }
 
@@ -88,6 +89,7 @@ export const DEFAULT_PEACE_SETTINGS: PeaceSettingsPrefs = {
   notifVibration: true,
   fcmPushSubscribed: true,
   privacyBlurPersonalInfo: true,
+  disableCopyOnSensitive: true,
   settingsVersion: 3,
 };
 

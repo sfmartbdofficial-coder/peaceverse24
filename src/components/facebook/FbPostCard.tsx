@@ -29,6 +29,7 @@ import { FbVideoPlayer } from './FbVideoPlayer';
 import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
 import { useLanguage } from '../../context/LanguageContext';
 import { detectTextScript, shouldAutoTranslate, translateText } from '../../lib/translate';
+import { signBunnyCdnUrl } from '../../lib/bunnyCdn';
 
 interface HalalReactionMeta {
   type: ReactionType;
@@ -635,7 +636,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           title="ছবিটি পুরো স্ক্রিনে বড় করে দেখুন (View Fullscreen)"
         >
           <img
-            src={post.mediaUrl}
+            src={signBunnyCdnUrl(post.mediaUrl)}
             alt="media"
             className="w-full h-auto object-cover max-h-[500px] group-hover:opacity-95 transition-all group-active:scale-[0.99]"
           />
@@ -662,7 +663,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           Boolean(post.mediaUrl && post.mediaUrl.match(/\.(mp4|webm|mov|ogg|m4v)($|\?)/i))) &&
         post.mediaUrl && (
           <FbVideoPlayer
-            src={post.mediaUrl}
+            src={signBunnyCdnUrl(post.mediaUrl)}
             title={post.contentBangla}
             onOpenFullscreen={() => {
               if (onOpenReel) {
@@ -1026,7 +1027,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           isOpen={showPhotoLightbox}
           onClose={() => setShowPhotoLightbox(false)}
           post={post}
-          photoUrl={post.mediaUrl}
+          photoUrl={post.mediaUrl ? signBunnyCdnUrl(post.mediaUrl) : undefined}
           onToggleReaction={onToggleReaction}
           onAddComment={onAddComment}
           onToggleSave={onToggleSave}

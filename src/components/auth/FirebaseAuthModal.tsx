@@ -1,6 +1,8 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, User, Sparkles, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, logoutUser } from '../../lib/firebase';
+import { TurnstileCaptchaPlaceholder } from './TurnstileCaptchaPlaceholder';
+import { sanitizeInput } from '../../utils/security';
 
 interface FirebaseAuthModalProps {
   isOpen: boolean;
@@ -21,6 +23,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
+  const [turnstileVerified, setTurnstileVerified] = useState(false);
 
   if (!isOpen) return null;
 
@@ -47,6 +50,10 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
+    if ((tab === 'login' || tab === 'register') && !turnstileVerified) {
+      setErrorMsg('অনুগ্রহ করে Turnstile মানব যাচাইকরণ সম্পূর্ণ করুন।');
+      return;
+    }
     setLoading(true);
 
     try {
@@ -74,7 +81,8 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
           setLoading(false);
           return;
         }
-        const user = await registerWithEmail(email.trim(), password, displayName.trim());
+        const cleanDisplayName = sanitizeInput(displayName.trim());
+        const user = await registerWithEmail(email.trim(), password, cleanDisplayName);
         if (user) {
           setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং ভেরিফিকেশন ইমেইল পাঠানো হয়েছে!');
           setTimeout(() => {
@@ -289,6 +297,13 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                   </button>
                 </div>
               </div>
+            )}
+
+            {(tab === 'login' || tab === 'register') && (
+              <TurnstileCaptchaPlaceholder
+                verified={turnstileVerified}
+                onVerifyChange={(v) => setTurnstileVerified(v)}
+              />
             )}
 
             <button

@@ -1,4 +1,5 @@
 import { initializeApp, getApps, getApp } from 'firebase/app';
+import { initializeAppCheck, ReCaptchaV3Provider } from 'firebase/app-check';
 import {
   getFirestore,
   initializeFirestore,
@@ -32,33 +33,52 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile } from '../types';
+import {
+  getEnvApiKey,
+  emitApiKeyEnvWarning,
+  detectAndBlockExposedUrlKeys,
+  checkRateLimit,
+  checkDailyFriendRequestLimit,
+  sanitizeInput,
+  POST_MAX_LENGTH,
+  resetSessionStart,
+  clearSessionStart,
+} from '../utils/security';
 
-const defaultFirebaseConfig = {
-  projectId: 'gen-lang-client-0936405543',
-  appId: '1:499589609756:web:6b0e982f903121c07562d9',
-  apiKey: 'AIzaSyDqvbDypsSdmuIiu70qxPHo3103cNwLk54',
-  authDomain: 'gen-lang-client-0936405543.firebaseapp.com',
-  firestoreDatabaseId: 'ai-studio-peaceverse-d7a086ee-044c-4934-8539-89a03de39673',
-  storageBucket: 'gen-lang-client-0936405543.firebasestorage.app',
-  messagingSenderId: '499589609756',
-};
+emitApiKeyEnvWarning();
+detectAndBlockExposedUrlKeys();
 
-// Support both Cloudflare/Vite environment variables (VITE_FIREBASE_*) and inline fallback config
+// API keys loaded strictly from process.env.API_KEY / Vercel Environment Variables (never hardcoded)
 const resolvedFirebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || defaultFirebaseConfig.apiKey,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || defaultFirebaseConfig.authDomain,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || defaultFirebaseConfig.projectId,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || defaultFirebaseConfig.storageBucket,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || defaultFirebaseConfig.messagingSenderId,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID || defaultFirebaseConfig.appId,
+  apiKey: getEnvApiKey() || process.env.API_KEY || '',
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || 'gen-lang-client-0936405543.firebaseapp.com',
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || 'gen-lang-client-0936405543',
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || 'gen-lang-client-0936405543.firebasestorage.app',
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || '499589609756',
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || '1:499589609756:web:6b0e982f903121c07562d9',
   firestoreDatabaseId:
     import.meta.env.VITE_FIREBASE_DATABASE_ID ||
-    defaultFirebaseConfig.firestoreDatabaseId ||
-    '(default)',
+    'ai-studio-peaceverse-d7a086ee-044c-4934-8539-89a03de39673',
 };
 
 // Initialize Firebase App
 const app = getApps().length > 0 ? getApp() : initializeApp(resolvedFirebaseConfig);
+
+// Firebase App Check to prevent bot & automated script abuse
+export const firebaseAppCheck = (() => {
+  if (typeof window === 'undefined') return null;
+  try {
+    const appCheckKey = import.meta.env?.VITE_FIREBASE_APPCHECK_SITE_KEY || '';
+    if (!appCheckKey) return null;
+    return initializeAppCheck(app, {
+      provider: new ReCaptchaV3Provider(appCheckKey),
+      isTokenAutoRefreshEnabled: true,
+    });
+  } catch (err) {
+    console.warn('Firebase App Check notice:', err);
+    return null;
+  }
+})();
 
 // Initialize Firestore with specific database ID and auto-long-polling for reliable iframe/mobile connections
 export const db = (() => {
@@ -318,12 +338,37 @@ export async function seedInitialPostsIfEmpty(_initialPosts: PostItem[]) {
   return;
 }
 
+// Force Firebase email verification before creating posts/comments (phone accounts exempt)
+function isCurrentUserVerifiedForPosting(): boolean {
+  const u = auth.currentUser;
+  if (!u) return false;
+  if (u.emailVerified) return true;
+  if (u.email?.endsWith('@phone.peaceverse.app')) return true;
+  if (u.providerData?.some((p) => p.providerId === 'phone')) return true;
+  return false;
+}
+
 // Create a new post in Firestore with Real-time push
 export async function createRealtimePost(post: PostItem): Promise<boolean> {
+  if (!isCurrentUserVerifiedForPosting()) {
+    console.warn('Security Block: Email verification required before posting.');
+    return false;
+  }
+
+  const actorId = auth.currentUser?.uid || post.authorId || 'anonymous';
+  const rate = checkRateLimit(actorId);
+  if (!rate.allowed) {
+    console.warn(`Rate limit exceeded. Try again in ${rate.retryAfterSec}s.`);
+    return false;
+  }
+
   try {
     const postRef = doc(db, 'posts', post.id);
     await setDoc(postRef, {
       ...post,
+      contentBangla: sanitizeInput(post.contentBangla || '', POST_MAX_LENGTH),
+      arabicVerse: post.arabicVerse ? sanitizeInput(post.arabicVerse, POST_MAX_LENGTH) : undefined,
+      translation: post.translation ? sanitizeInput(post.translation, POST_MAX_LENGTH) : undefined,
       privacy: post.privacy || 'public',
       status: post.status || 'approved',
       createdAtMillis: Date.now(),
@@ -347,13 +392,30 @@ export async function addRealtimeComment(
   comment: PostComment,
   _postAuthorName?: string
 ): Promise<boolean> {
+  if (!isCurrentUserVerifiedForPosting()) {
+    console.warn('Security Block: Email verification required before commenting.');
+    return false;
+  }
+
+  const actorId = auth.currentUser?.uid || comment.author || 'anonymous';
+  const rate = checkRateLimit(actorId);
+  if (!rate.allowed) {
+    console.warn(`Rate limit exceeded. Try again in ${rate.retryAfterSec}s.`);
+    return false;
+  }
+
   try {
+    const safeComment: PostComment = {
+      ...comment,
+      author: sanitizeInput(comment.author || '', 80),
+      text: sanitizeInput(comment.text || '', POST_MAX_LENGTH),
+    };
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDocSafe(postRef);
     if (!postSnap || !postSnap.exists()) return false;
 
     const existingComments: PostComment[] = postSnap.data().comments || [];
-    const updatedComments = [comment, ...existingComments];
+    const updatedComments = [safeComment, ...existingComments];
 
     await updateDoc(postRef, {
       comments: updatedComments,
@@ -361,9 +423,9 @@ export async function addRealtimeComment(
     });
 
     // Also write to subcollection for individual snapshot listener
-    const commentDocRef = doc(db, `posts/${postId}/comments`, comment.id);
+    const commentDocRef = doc(db, `posts/${postId}/comments`, safeComment.id);
     await setDoc(commentDocRef, {
-      ...comment,
+      ...safeComment,
       createdAt: new Date().toISOString(),
     });
 
@@ -371,9 +433,9 @@ export async function addRealtimeComment(
     await sendRealtimeNotification({
       id: `notif-${Date.now()}`,
       type: 'comment',
-      avatar: comment.avatar,
-      title: `${comment.author} আপনার পোস্টে মন্তব্য করেছেন`,
-      subtitle: `"${comment.text.length > 35 ? comment.text.slice(0, 35) + '...' : comment.text}"`,
+      avatar: safeComment.avatar,
+      title: `${safeComment.author} আপনার পোস্টে মন্তব্য করেছেন`,
+      subtitle: `"${safeComment.text.length > 35 ? safeComment.text.slice(0, 35) + '...' : safeComment.text}"`,
       timeAgo: 'Just now',
       isUnread: true,
       badgeType: 'comment',
@@ -399,6 +461,13 @@ export async function toggleRealtimeReaction(
   reaction: ReactionType,
   currentReaction: ReactionType | null | undefined
 ): Promise<boolean> {
+  const actorId = auth.currentUser?.uid || userName || 'anonymous';
+  const rate = checkRateLimit(actorId);
+  if (!rate.allowed) {
+    console.warn(`Rate limit exceeded. Try again in ${rate.retryAfterSec}s.`);
+    return false;
+  }
+
   try {
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDocSafe(postRef);
@@ -879,9 +948,16 @@ export function subscribeToFollowersCount(
 // ==========================================
 
 export async function loginWithGoogle(): Promise<FirebaseUser | null> {
+  if (!resolvedFirebaseConfig.apiKey) {
+    emitApiKeyEnvWarning();
+    throw new Error('Firebase API key missing. Set API keys in Vercel Environment Variables, not in code.');
+  }
   try {
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
+    if (result.user) {
+      resetSessionStart();
+    }
     return result.user;
   } catch (err) {
     console.error('Google Sign-In Error:', err);
@@ -890,7 +966,14 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
 }
 
 export async function loginWithEmail(email: string, pass: string): Promise<FirebaseUser | null> {
-  const res = await signInWithEmailAndPassword(auth, email, pass);
+  if (!resolvedFirebaseConfig.apiKey) {
+    emitApiKeyEnvWarning();
+    throw new Error('Firebase API key missing. Set API keys in Vercel Environment Variables, not in code.');
+  }
+  const res = await signInWithEmailAndPassword(auth, email.trim(), pass);
+  if (res.user) {
+    resetSessionStart();
+  }
   return res.user;
 }
 
@@ -899,9 +982,15 @@ export async function registerWithEmail(
   pass: string,
   displayName: string
 ): Promise<FirebaseUser | null> {
-  const res = await createUserWithEmailAndPassword(auth, email, pass);
+  if (!resolvedFirebaseConfig.apiKey) {
+    emitApiKeyEnvWarning();
+    throw new Error('Firebase API key missing. Set API keys in Vercel Environment Variables, not in code.');
+  }
+  const cleanDisplayName = sanitizeInput(displayName.trim()) || email.split('@')[0];
+  const res = await createUserWithEmailAndPassword(auth, email.trim(), pass);
   if (res.user) {
-    const cleanName = displayName.trim() || email.split('@')[0];
+    resetSessionStart();
+    const cleanName = cleanDisplayName;
     try {
       await updateProfile(res.user, {
         displayName: cleanName,
@@ -918,7 +1007,7 @@ export async function registerWithEmail(
       const userRef = doc(db, 'users', res.user.uid);
       const generatedUsername =
         cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '') ||
-        (res.user.email ? res.user.email.split('@')[0].toLowerCase() : `user${res.user.uid.slice(0, 6)}`);
+        (res.user.email ? res.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : `user${res.user.uid.slice(0, 6)}`);
       await setDoc(
         userRef,
         {
@@ -948,10 +1037,11 @@ export async function registerWithEmail(
 }
 
 export async function resetPassword(email: string): Promise<void> {
-  await sendPasswordResetEmail(auth, email);
+  await sendPasswordResetEmail(auth, email.trim());
 }
 
 export async function logoutUser(): Promise<void> {
+  clearSessionStart();
   await signOut(auth);
 }
 
@@ -962,36 +1052,40 @@ export async function logoutUser(): Promise<void> {
 export async function saveUserProfileToFirestore(profile: UserProfile): Promise<boolean> {
   const targetId = auth.currentUser?.uid;
   if (!targetId) return false;
+  const rate = checkRateLimit(targetId);
+  if (!rate.allowed) return false;
+
   try {
     const userRef = doc(db, 'users', targetId);
+    const cleanName = sanitizeInput(profile.name || '');
     const resolvedUsername =
-      (profile.username && profile.username.trim()) ||
-      (profile.name ? profile.name.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') : '');
+      (profile.username && sanitizeInput(profile.username.trim())) ||
+      (cleanName ? cleanName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') : '');
     await setDoc(
       userRef,
       {
         id: targetId,
         uid: targetId,
-        name: profile.name,
-        displayName: profile.name,
+        name: cleanName,
+        displayName: cleanName,
         ...(resolvedUsername ? { username: resolvedUsername } : {}),
         email: profile.email || auth.currentUser?.email || '',
         avatar: profile.avatar || '',
         coverPhoto: profile.coverPhoto || '',
-        bio: profile.bio || '',
-        location: profile.location || '',
-        hometown: profile.hometown || '',
-        work: profile.work || '',
-        education: profile.education || '',
-        relationship: profile.relationship || '',
-        website: profile.website || '',
-        thoughtBubble: profile.thoughtBubble || '',
-        whatsapp: profile.whatsapp || '',
-        imo: profile.imo || '',
-        viber: profile.viber || '',
-        messengerLink: profile.messengerLink || '',
+        bio: sanitizeInput(profile.bio || ''),
+        location: sanitizeInput(profile.location || ''),
+        hometown: sanitizeInput(profile.hometown || ''),
+        work: sanitizeInput(profile.work || ''),
+        education: sanitizeInput(profile.education || ''),
+        relationship: sanitizeInput(profile.relationship || ''),
+        website: sanitizeInput(profile.website || ''),
+        thoughtBubble: sanitizeInput(profile.thoughtBubble || ''),
+        whatsapp: sanitizeInput(profile.whatsapp || ''),
+        imo: sanitizeInput(profile.imo || ''),
+        viber: sanitizeInput(profile.viber || ''),
+        messengerLink: sanitizeInput(profile.messengerLink || ''),
         contactPrivacy: profile.contactPrivacy || 'public',
-        hobbies: profile.hobbies || [],
+        hobbies: Array.isArray(profile.hobbies) ? profile.hobbies.map((h) => sanitizeInput(String(h))) : [],
         updatedAt: new Date().toISOString(),
         updatedAtMillis: Date.now(),
       },
@@ -1528,6 +1622,13 @@ export async function sendFriendRequestToUser(
   targetUser: SearchedUserProfile
 ): Promise<boolean> {
   if (!senderId || !targetUser.id || senderId === targetUser.id) return false;
+  const rate = checkRateLimit(senderId);
+  if (!rate.allowed) return false;
+  const dailyLimit = checkDailyFriendRequestLimit(senderId, true);
+  if (!dailyLimit.allowed) {
+    console.warn(dailyLimit.message || 'Max 20 friend requests per day reached.');
+    return false;
+  }
   const followDocId = `${senderId}_${targetUser.id}`;
   const notifDocId = `fr-${senderId}-${targetUser.id}`;
 

@@ -2,20 +2,10 @@ import { AdSlot } from '../types/admin';
 import { INITIAL_ADS } from '../data/adminData';
 import { PageItem } from '../types';
 
-export const ADMIN_CREDENTIALS_STORAGE_KEY = 'peaceverse_admin_credentials';
 export const AD_PLACEMENTS_CONFIG_KEY = 'peaceverse_ad_placements_config';
 export const PAGE_MONETIZATION_STORAGE_KEY = 'peaceverse_page_monetization';
 export const ADMIN_USER_OVERRIDES_KEY = 'peaceverse_admin_user_overrides';
 export const ADMIN_SYNC_EVENT = 'peaceverse:admin-sync';
-
-export const DEFAULT_ADMIN_USERNAME = 'peaceadmin';
-export const DEFAULT_ADMIN_PASSWORD = 'PeaceAdmin@2026';
-
-export interface AdminCredentials {
-  username: string;
-  password: string;
-  updatedAt?: string;
-}
 
 export interface AdPlacementConfig {
   home_feed_enabled: boolean;
@@ -61,52 +51,6 @@ export function emitAdminSyncEvent(): void {
   if (typeof window !== 'undefined') {
     window.dispatchEvent(new Event(ADMIN_SYNC_EVENT));
   }
-}
-
-export function loadAdminCredentials(): AdminCredentials {
-  try {
-    const raw = localStorage.getItem(ADMIN_CREDENTIALS_STORAGE_KEY);
-    if (raw) {
-      const parsed = JSON.parse(raw);
-      if (parsed?.username && parsed?.password) {
-        return {
-          username: String(parsed.username),
-          password: String(parsed.password),
-          updatedAt: parsed.updatedAt,
-        };
-      }
-    }
-  } catch {}
-  return {
-    username: DEFAULT_ADMIN_USERNAME,
-    password: DEFAULT_ADMIN_PASSWORD,
-  };
-}
-
-export function verifyAdminCredentials(username: string, password: string): boolean {
-  const stored = loadAdminCredentials();
-  const cleanUser = username.trim().toLowerCase();
-  const cleanPass = password.trim();
-  if (cleanUser === stored.username.toLowerCase() && cleanPass === stored.password) {
-    return true;
-  }
-  // Allow 'admin' alias only with the active password for convenience if using default credentials
-  if (stored.username === DEFAULT_ADMIN_USERNAME && cleanUser === 'admin' && cleanPass === stored.password) {
-    return true;
-  }
-  return false;
-}
-
-export function updateAdminCredentials(newUsername: string, newPassword: string): AdminCredentials {
-  const updated: AdminCredentials = {
-    username: newUsername.trim() || DEFAULT_ADMIN_USERNAME,
-    password: newPassword.trim() || DEFAULT_ADMIN_PASSWORD,
-    updatedAt: new Date().toISOString(),
-  };
-  try {
-    localStorage.setItem(ADMIN_CREDENTIALS_STORAGE_KEY, JSON.stringify(updated));
-  } catch {}
-  return updated;
 }
 
 export function loadAdPlacementConfig(): AdPlacementConfig {

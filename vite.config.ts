@@ -97,6 +97,11 @@ export default defineConfig(() => {
       react(),
       tailwindcss(),
     ],
+    define: {
+      'process.env.API_KEY': JSON.stringify(
+        process.env.API_KEY || process.env.VITE_FIREBASE_API_KEY || ''
+      ),
+    },
     resolve: {
       alias: {
         '@': rootDir,

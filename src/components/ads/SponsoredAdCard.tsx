@@ -1,6 +1,7 @@
 import React from 'react';
 import { ExternalLink, Megaphone } from 'lucide-react';
 import { AdSlot } from '../../types/admin';
+import { sanitizeUrl } from '../../utils/security';
 
 interface SponsoredAdCardProps {
   ad: AdSlot;
@@ -13,11 +14,10 @@ export const SponsoredAdCard: React.FC<SponsoredAdCardProps> = ({
   variant = 'feed',
   onAdClick,
 }) => {
-  const handleOpen = () => {
+  const safeTargetUrl = ad.targetUrl ? sanitizeUrl(ad.targetUrl) : '';
+
+  const handleTrackClick = () => {
     onAdClick?.(ad);
-    if (ad.targetUrl) {
-      window.open(ad.targetUrl, '_blank', 'noopener,noreferrer');
-    }
   };
 
   if (variant === 'banner') {
@@ -40,14 +40,27 @@ export const SponsoredAdCard: React.FC<SponsoredAdCardProps> = ({
             {ad.adDescription}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleOpen}
-          className="px-3 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold shrink-0 flex items-center gap-1 transition-colors cursor-pointer"
-        >
-          <span>দেখুন</span>
-          <ExternalLink className="w-3 h-3" />
-        </button>
+        {safeTargetUrl && safeTargetUrl !== '#' ? (
+          <a
+            href={safeTargetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleTrackClick}
+            className="px-3 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold shrink-0 flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <span>দেখুন</span>
+            <ExternalLink className="w-3 h-3" />
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={handleTrackClick}
+            className="px-3 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold shrink-0 flex items-center gap-1 transition-colors cursor-pointer"
+          >
+            <span>দেখুন</span>
+            <ExternalLink className="w-3 h-3" />
+          </button>
+        )}
       </div>
     );
   }
@@ -79,30 +92,46 @@ export const SponsoredAdCard: React.FC<SponsoredAdCardProps> = ({
       </div>
 
       {ad.imageUrl && (
-        <div
-          onClick={handleOpen}
-          className="w-full max-h-80 overflow-hidden bg-[#F0F2F5] cursor-pointer"
+        <a
+          href={safeTargetUrl && safeTargetUrl !== '#' ? safeTargetUrl : undefined}
+          target={safeTargetUrl && safeTargetUrl !== '#' ? '_blank' : undefined}
+          rel={safeTargetUrl && safeTargetUrl !== '#' ? 'noopener noreferrer' : undefined}
+          onClick={handleTrackClick}
+          className="block w-full max-h-80 overflow-hidden bg-[#F0F2F5] cursor-pointer"
         >
           <img
             src={ad.imageUrl}
             alt={ad.adTitle}
             className="w-full h-56 sm:h-64 object-cover hover:scale-[1.01] transition-transform"
           />
-        </div>
+        </a>
       )}
 
       <div className="px-3 py-2.5 bg-[#F0F2F5] border-t border-[#E4E6EB] flex items-center justify-between gap-2">
         <span className="text-[11px] text-[#65676B] truncate">
           {ad.targetUrl ? ad.targetUrl.replace(/^https?:\/\//, '') : 'peaceverse24.com'}
         </span>
-        <button
-          type="button"
-          onClick={handleOpen}
-          className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
-        >
-          <span>বিস্তারিত দেখুন</span>
-          <ExternalLink className="w-3.5 h-3.5" />
-        </button>
+        {safeTargetUrl && safeTargetUrl !== '#' ? (
+          <a
+            href={safeTargetUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            onClick={handleTrackClick}
+            className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <span>বিস্তারিত দেখুন</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </a>
+        ) : (
+          <button
+            type="button"
+            onClick={handleTrackClick}
+            className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-xs font-bold flex items-center gap-1.5 shrink-0 cursor-pointer"
+          >
+            <span>বিস্তারিত দেখুন</span>
+            <ExternalLink className="w-3.5 h-3.5" />
+          </button>
+        )}
       </div>
     </article>
   );

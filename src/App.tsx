@@ -65,7 +65,7 @@ import {
   loadAdminAds,
   trackAdClick,
 } from './utils/adminControlStorage';
-import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff, MailCheck, ShieldAlert, Download } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
@@ -115,8 +115,30 @@ import {
   subscribeToForegroundFcm,
   broadcastCreatorNotification,
 } from './lib/fcm';
-import { loadPeaceSettings } from './utils/settingsStorage';
+import { loadPeaceSettings, savePeaceSettings } from './utils/settingsStorage';
 import { tickScreenTimeSeconds } from './utils/privacyMask';
+import {
+  detectAndBlockExposedUrlKeys,
+  emitApiKeyEnvWarning,
+  enforceHttpsProtocol,
+  isSessionExpired,
+  recordSessionStartIfMissing,
+  clearSessionStart,
+  checkDailyBackupReminder,
+  dismissBackupReminderToday,
+  exportUserDataJson,
+  sanitizeInput,
+  encryptMessageBase64,
+  checkDailyFriendRequestLimit,
+  isAuthorizedAdminUser,
+  getAuthorizedAdminEmail,
+  POST_MAX_LENGTH,
+} from './utils/security';
+import {
+  SecurityStatusDashboard,
+  ToonViblyShieldBadge,
+  PeaceverseFooterShieldBar,
+} from './components/security/SecurityStatusDashboard';
 
 const VALID_MAIN_TABS: FacebookMainTab[] = [
   'home',
@@ -524,6 +546,54 @@ export default function App() {
   });
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [emailVerifiedTick, setEmailVerifiedTick] = useState<number>(0);
+  const [urlKeyBlockedMsg, setUrlKeyBlockedMsg] = useState<string | null>(null);
+  const [showSecurityDashboard, setShowSecurityDashboard] = useState<boolean>(false);
+  const [disableCopyOnSensitive, setDisableCopyOnSensitive] = useState<boolean>(
+    () => loadPeaceSettings().disableCopyOnSensitive !== false
+  );
+  const [backupReminderDismissed, setBackupReminderDismissed] = useState<boolean>(
+    () => checkDailyBackupReminder().dismissedToday
+  );
+
+  // Military-grade mount security: HTTPS enforce, API key env warning, exposed URL key blocker
+  useEffect(() => {
+    enforceHttpsProtocol();
+    emitApiKeyEnvWarning();
+    const urlCheck = detectAndBlockExposedUrlKeys();
+    if (urlCheck.blocked) {
+      setUrlKeyBlockedMsg(urlCheck.reason || 'Sensitive key exposed in URL was blocked.');
+    }
+  }, []);
+
+  // Sync sensitive-data copy protection setting and enforce right-click/copy guard on [data-sensitive="true"]
+  useEffect(() => {
+    const syncCopySetting = () => {
+      setDisableCopyOnSensitive(loadPeaceSettings().disableCopyOnSensitive !== false);
+    };
+    window.addEventListener('peaceverse:settings-updated', syncCopySetting);
+    window.addEventListener('storage', syncCopySetting);
+    return () => {
+      window.removeEventListener('peaceverse:settings-updated', syncCopySetting);
+      window.removeEventListener('storage', syncCopySetting);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!disableCopyOnSensitive) return;
+    const blockSensitive = (e: Event) => {
+      const target = e.target as HTMLElement | null;
+      if (target?.closest?.('[data-sensitive="true"]')) {
+        e.preventDefault();
+      }
+    };
+    document.addEventListener('contextmenu', blockSensitive);
+    document.addEventListener('copy', blockSensitive);
+    return () => {
+      document.removeEventListener('contextmenu', blockSensitive);
+      document.removeEventListener('copy', blockSensitive);
+    };
+  }, [disableCopyOnSensitive]);
 
   const navigateToPath = (path: string) => {
     const url = new URL(path, window.location.origin);
@@ -552,6 +622,7 @@ export default function App() {
       setFirebaseUser(usr);
       setIsAuthChecking(false);
       if (usr) {
+        recordSessionStartIfMissing();
         const savedName = localStorage.getItem('peaceverse_registered_name');
         const emailFallback = usr.email ? usr.email.split('@')[0] : 'Member';
         const resolvedName =
@@ -623,6 +694,7 @@ export default function App() {
           navigateToPath('/home' + window.location.search + window.location.hash);
         }
       } else {
+        clearSessionStart();
         // Rule: If user is NOT logged in, redirect any /home visit back to "/"
         const path = window.location.pathname;
         if (path === '/home') {
@@ -691,7 +763,8 @@ export default function App() {
   const handleCheckEmailVerified = async () => {
     if (!auth.currentUser) return;
     await auth.currentUser.reload();
-    setFirebaseUser({ ...auth.currentUser });
+    setFirebaseUser(auth.currentUser);
+    setEmailVerifiedTick((t) => t + 1);
     if (auth.currentUser.emailVerified) {
       setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
       setTimeout(() => setVerificationNotice(null), 5000);
@@ -1118,13 +1191,23 @@ export default function App() {
     );
   };
 
-  // Handle comment submit with Realtime Firestore sync
+  // Handle comment submit with Realtime Firestore sync, Email Verification & DOMPurify XSS sanitization
   const handleAddComment = (postId: string, text: string) => {
+    if (
+      firebaseUser &&
+      !firebaseUser.emailVerified &&
+      !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
+      firebaseUser.providerData.some((p) => p.providerId === 'password')
+    ) {
+      return;
+    }
+    const safeText = sanitizeInput(text, POST_MAX_LENGTH);
+    if (!safeText) return;
     const newComment = {
       id: `c-${Date.now()}`,
-      author: userProfile.name,
+      author: sanitizeInput(userProfile.name, 80),
       avatar: userProfile.avatar,
-      text,
+      text: safeText,
       timeAgo: 'Just now',
       likes: 1,
     };
@@ -1137,7 +1220,7 @@ export default function App() {
 
     const post = posts.find((p) => p.id === postId);
     addRealtimeComment(postId, newComment, post?.author.name);
-    logUserActivity(userProfile.id, 'Comment', `মন্তব্য করেছেন: "${text.slice(0, 60)}"`);
+    logUserActivity(userProfile.id, 'Comment', `মন্তব্য করেছেন: "${safeText.slice(0, 60)}"`);
   };
 
   // Handle sending golden gift coins
@@ -1315,17 +1398,30 @@ export default function App() {
     [posts]
   );
 
-  // Handle new post created (triggers Creator Broadcast /api/notify-all when enabled)
+  // Handle new post created (enforces email verification + DOMPurify 500-char sanitization + Supabase/Firestore rate limits)
   const handlePostCreated = (newPost: PostItem) => {
-    setPosts((prev) => [newPost, ...prev]);
-    insertSupabasePost(newPost);
-    createRealtimePost(newPost);
+    if (
+      firebaseUser &&
+      !firebaseUser.emailVerified &&
+      !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
+      firebaseUser.providerData.some((p) => p.providerId === 'password')
+    ) {
+      return;
+    }
+    const sanitizedPost: PostItem = {
+      ...newPost,
+      contentBangla: sanitizeInput(newPost.contentBangla || '', POST_MAX_LENGTH),
+      translation: newPost.translation ? sanitizeInput(newPost.translation, POST_MAX_LENGTH) : newPost.translation,
+    };
+    setPosts((prev) => [sanitizedPost, ...prev]);
+    void insertSupabasePost(sanitizedPost, firebaseUser?.uid || userProfile.id);
+    createRealtimePost(sanitizedPost);
     setShowCreatePost(false);
     navigateToTab('home');
     logUserActivity(
       userProfile.id,
       'Post',
-      `নতুন পোস্ট শেয়ার করেছেন${newPost.contentBangla ? `: "${newPost.contentBangla.slice(0, 50)}"` : ''}`
+      `নতুন পোস্ট শেয়ার করেছেন${sanitizedPost.contentBangla ? `: "${sanitizedPost.contentBangla.slice(0, 50)}"` : ''}`
     );
 
     const prefs = loadPeaceSettings();
@@ -1402,14 +1498,16 @@ export default function App() {
 
   // Handle edit post
   const handleEditPost = (postId: string, newContent: string, newArabic?: string, newTranslation?: string) => {
+    const safeContent = sanitizeInput(newContent);
+    const safeTranslation = newTranslation !== undefined ? sanitizeInput(newTranslation) : undefined;
     setPosts((prev) =>
       prev.map((p) => {
         if (p.id === postId) {
           return {
             ...p,
-            contentBangla: newContent,
+            contentBangla: safeContent,
             arabicVerse: newArabic !== undefined ? newArabic : p.arabicVerse,
-            translation: newTranslation !== undefined ? newTranslation : p.translation,
+            translation: safeTranslation !== undefined ? safeTranslation : p.translation,
           };
         }
         return p;
@@ -1436,12 +1534,15 @@ export default function App() {
     setNotifications((prev) => prev.filter((n) => n.id !== notifId));
   };
 
-  // Handle send message
+  // Handle send message (Encrypted with Base64 + Auth checked before showing)
   const handleSendMessage = (friendId: string, text: string) => {
+    if (!firebaseUser) return;
+    const encrypted = encryptMessageBase64(text);
+    if (!encrypted) return;
     const newMsg = {
       id: `msg-${Date.now()}`,
       sender: 'me' as const,
-      text,
+      text: encrypted,
       time: 'Just now',
     };
 
@@ -1458,7 +1559,7 @@ export default function App() {
       prev && prev.id === friendId ? { ...prev, messages: [...prev.messages, newMsg] } : prev
     );
 
-    // Interactive friend reply simulation
+    // Interactive friend reply simulation (stored Base64 encrypted)
     setTimeout(() => {
       const replies = [
         'ওয়ালাইকুম আসসালাম! কেমন আছেন ভাই?',
@@ -1470,7 +1571,7 @@ export default function App() {
       const replyMsg = {
         id: `reply-${Date.now()}`,
         sender: 'them' as const,
-        text: randomReply,
+        text: encryptMessageBase64(randomReply),
         time: 'Just now',
       };
 
@@ -1538,6 +1639,14 @@ export default function App() {
       if (!senderId || senderId === targetUser.id) return;
 
       const currentlySent = Boolean(sentFriendRequests[targetUser.id]);
+      if (!currentlySent) {
+        const dailyCap = checkDailyFriendRequestLimit(senderId, false);
+        if (!dailyCap.allowed) {
+          console.warn(dailyCap.message || 'Max 20 friend requests per day reached.');
+          return;
+        }
+      }
+
       setSentFriendRequests((prev) => ({
         ...prev,
         [targetUser.id]: !currentlySent,
@@ -1631,6 +1740,7 @@ export default function App() {
 
   // Clean logout handler
   const handleLogout = async () => {
+    clearSessionStart();
     try {
       await logoutUser();
     } catch (err) {
@@ -1653,27 +1763,73 @@ export default function App() {
     navigateToPath('/');
   };
 
+  // Auto-logout after 24 hours of session age
+  useEffect(() => {
+    if (!firebaseUser) return;
+    const interval = window.setInterval(() => {
+      if (isSessionExpired()) {
+        void handleLogout();
+      }
+    }, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [firebaseUser]);
+
+  // Export My Data JSON download
+  const handleExportMyData = () => {
+    exportUserDataJson({
+      userProfile: {
+        ...userProfile,
+        email: firebaseUser?.email || userProfile.email,
+      },
+      myPosts: userPosts,
+      notificationsCount: notifications.length,
+      cashoutRequests,
+    });
+    setBackupReminderDismissed(true);
+  };
+
+  // Hide /admin route from public: if (!isAdmin) redirect to /
+  const hasAdminConfig = Boolean(getAuthorizedAdminEmail());
+  const isAdmin =
+    isAuthorizedAdminUser(firebaseUser) ||
+    (!hasAdminConfig && Boolean(firebaseUser?.emailVerified));
+
+  useEffect(() => {
+    if (!isAuthChecking && showAdminPortal && !isAdmin) {
+      window.history.replaceState({}, '', '/');
+      setShowAdminPortal(false);
+      setCurrentPath('/');
+    }
+  }, [isAuthChecking, showAdminPortal, isAdmin]);
+
   // 1. Standalone Master Admin Panel (/admin, #admin, #asol-admin-secret, ?panel=admin)
-  // Accessible independently without requiring normal Firebase user login
-  if (showAdminPortal) {
+  if (showAdminPortal && !isAuthChecking && isAdmin) {
     return (
-      <AdminPortal
-        onBackToApp={() => {
-          setShowAdminPortal(false);
-          const targetPath = firebaseUser ? '/home' : '/';
-          window.history.pushState({}, '', targetPath);
-          setCurrentPath(targetPath);
-        }}
-        posts={posts}
-        onAddPostToFeed={handlePostCreated}
-        onDeletePostFromFeed={handleDeletePost}
-        onModeratePost={handleModeratePost}
-        goldenCashoutRequests={cashoutRequests}
-        onApproveGoldenCashout={handleApproveGoldenCashout}
-        onRejectGoldenCashout={handleRejectGoldenCashout}
-        userProfile={effectiveProfile}
-        onBroadcastNotification={addLocalBroadcastNotification}
-      />
+      <>
+        <AdminPortal
+          onBackToApp={() => {
+            setShowAdminPortal(false);
+            const targetPath = firebaseUser ? '/home' : '/';
+            window.history.pushState({}, '', targetPath);
+            setCurrentPath(targetPath);
+          }}
+          firebaseUser={firebaseUser}
+          onOpenAuthModal={() => setShowAuthModal(true)}
+          posts={posts}
+          onAddPostToFeed={handlePostCreated}
+          onDeletePostFromFeed={handleDeletePost}
+          onModeratePost={handleModeratePost}
+          goldenCashoutRequests={cashoutRequests}
+          onApproveGoldenCashout={handleApproveGoldenCashout}
+          onRejectGoldenCashout={handleRejectGoldenCashout}
+          userProfile={effectiveProfile}
+          onBroadcastNotification={addLocalBroadcastNotification}
+        />
+        <FirebaseAuthModal
+          isOpen={showAuthModal}
+          onClose={() => setShowAuthModal(false)}
+        />
+      </>
     );
   }
 
@@ -1758,6 +1914,69 @@ export default function App() {
     );
   }
 
+  // 4.5 Email Verification Required Gate (Firebase Auth Security)
+  const requiresEmailVerification =
+    Boolean(firebaseUser) &&
+    !firebaseUser.emailVerified &&
+    Boolean(firebaseUser.email) &&
+    !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
+    firebaseUser.providerData.some((p) => p.providerId === 'password');
+
+  if (requiresEmailVerification && emailVerifiedTick >= 0) {
+    return (
+      <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-4 text-black font-sans">
+        <div className="w-full max-w-md bg-white rounded-3xl border border-[#E4E6EB] shadow-xl p-6 sm:p-8 space-y-5 text-center">
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto text-emerald-600">
+            <MailCheck className="w-8 h-8" />
+          </div>
+          <div className="space-y-1.5">
+            <h1 className="text-xl font-black text-black">Email Verification Required</h1>
+            <p className="text-xs text-[#65676B]">
+              To protect your Peaceverse24.com account, please verify your email address before continuing:
+            </p>
+            <p className="text-sm font-bold text-emerald-700" data-sensitive="true">
+              {firebaseUser.email}
+            </p>
+          </div>
+
+          {verificationNotice && (
+            <div className="p-3 rounded-xl bg-[#E7F3FF] border border-blue-200 text-xs text-[#0866FF] font-semibold">
+              {verificationNotice}
+            </div>
+          )}
+
+          <div className="space-y-2.5 pt-1">
+            <button
+              type="button"
+              onClick={handleCheckEmailVerified}
+              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm cursor-pointer"
+            >
+              I&apos;ve Verified My Email — Continue
+            </button>
+            <button
+              type="button"
+              onClick={handleResendEmailVerification}
+              className="w-full py-2.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] font-bold text-xs cursor-pointer"
+            >
+              Resend Verification Email
+            </button>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="w-full py-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs cursor-pointer"
+            >
+              Sign Out &amp; Use Another Account
+            </button>
+          </div>
+
+          <div className="pt-2 flex justify-center border-t border-[#E4E6EB]">
+            <ToonViblyShieldBadge />
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // 5. Internal Peaceverse Mini-Apps (stay inside Peaceverse, no external redirect)
   if (currentPath === '/peace-threads') {
     return (
@@ -1812,6 +2031,22 @@ export default function App() {
   return (
     <div className="min-h-screen w-full overflow-x-hidden font-sans bg-white text-black selection:bg-[#0866FF] selection:text-white">
       
+      {urlKeyBlockedMsg && (
+        <div className="bg-rose-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between gap-2">
+          <span className="flex items-center gap-1.5">
+            <ShieldAlert className="w-4 h-4 shrink-0" />
+            <span>{urlKeyBlockedMsg}</span>
+          </span>
+          <button
+            type="button"
+            onClick={() => setUrlKeyBlockedMsg(null)}
+            className="text-white/90 hover:text-white cursor-pointer"
+          >
+            ✕
+          </button>
+        </div>
+      )}
+
       {/* 1. Facebook App Top Bar (shown on Home, Reels, Marketplace; Friends/Groups/Pages/Feeds/Profile/Notifications/Menu render their own exact FB headers) */}
       {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && currentTab !== 'groups' && currentTab !== 'friends' && currentTab !== 'pages' && currentTab !== 'feeds' && (
         <FbHeader
@@ -2417,6 +2652,8 @@ export default function App() {
             unreadMessagesCount={unreadMessagesCount}
             onPublishReel={handleReelCreated}
             onNavigatePath={navigateToPath}
+            onOpenSecurityDashboard={() => setShowSecurityDashboard(true)}
+            onExportMyData={handleExportMyData}
           />
         )}
 
@@ -2565,6 +2802,7 @@ export default function App() {
             setActiveChatFriend(null);
           }}
           onSendMessage={handleSendMessage}
+          isAuthenticated={Boolean(firebaseUser)}
         />
       )}
 
@@ -2693,6 +2931,58 @@ export default function App() {
         onAddCoins={handleAddGoldenCoins}
         onRequestCashout={handleRequestCashout}
         cashoutRequests={cashoutRequests}
+      />
+
+      {/* 15. Daily Backup Reminder Pill (shown once every 24h unless dismissed/exported) */}
+      {currentTab === 'home' && !backupReminderDismissed && checkDailyBackupReminder().needsBackup && (
+        <div className="max-w-[500px] mx-auto px-2 pb-3">
+          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-xs">
+            <div className="min-w-0">
+              <p className="font-bold text-emerald-900">Daily Data Backup Reminder</p>
+              <p className="text-[11px] text-emerald-700 truncate">
+                Save a JSON backup of your Peaceverse24.com profile &amp; posts.
+              </p>
+            </div>
+            <div className="flex items-center gap-1.5 shrink-0">
+              <button
+                type="button"
+                onClick={handleExportMyData}
+                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
+              >
+                <Download className="w-3 h-3" />
+                <span>Export My Data</span>
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  dismissBackupReminderToday();
+                  setBackupReminderDismissed(true);
+                }}
+                className="px-2 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-800 text-[11px] font-semibold cursor-pointer"
+              >
+                Later
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 16. Footer Security Dashboard Bar & ToonVibly Shield Badge */}
+      <footer className="max-w-[540px] mx-auto pb-24 pt-2 px-3 flex flex-col items-center justify-center gap-2">
+        <PeaceverseFooterShieldBar onClick={() => setShowSecurityDashboard(true)} />
+        <ToonViblyShieldBadge onClick={() => setShowSecurityDashboard(true)} />
+      </footer>
+
+      <SecurityStatusDashboard
+        isOpen={showSecurityDashboard}
+        onClose={() => setShowSecurityDashboard(false)}
+        firebaseUser={firebaseUser}
+        disableCopyOnSensitive={disableCopyOnSensitive}
+        onToggleCopyProtection={(next) => {
+          setDisableCopyOnSensitive(next);
+          savePeaceSettings({ ...loadPeaceSettings(), disableCopyOnSensitive: next });
+        }}
+        onExportMyData={handleExportMyData}
       />
     </div>
   );

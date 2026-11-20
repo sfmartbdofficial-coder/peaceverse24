@@ -24,6 +24,7 @@ import {
 import { PostItem, UserProfile } from '../../types';
 import { checkPost, runHalalContentFilter } from '../../lib/halalFilter';
 import { createRealtimePost } from '../../lib/firebase';
+import { validateMediaUpload, sanitizeInput } from '../../utils/security';
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
@@ -110,10 +111,20 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     }
   }, [initialPhoto]);
 
-  // Real device gallery selection handler
+  // Real device gallery selection handler (5MB limit, image/video only)
   const handleDeviceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateMediaUpload(file, ['image', 'video']);
+      if (!check.valid) {
+        setModerationError({
+          status: 'blocked',
+          reason: check.error || 'Only image/video files up to 5 MB are allowed.',
+        });
+        e.target.value = '';
+        return;
+      }
+      setModerationError(null);
       const isVid = file.type.startsWith('video');
       setIsVideo(isVid);
 
@@ -179,9 +190,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       isPublic: privacy === 'public',
       privacy,
       status: 'approved',
-      contentBangla: content.trim(),
-      arabicVerse: finalArabic,
-      translation: translationText.trim() || undefined,
+      contentBangla: sanitizeInput(content.trim()),
+      arabicVerse: finalArabic ? sanitizeInput(finalArabic) : undefined,
+      translation: translationText.trim() ? sanitizeInput(translationText.trim()) : undefined,
       mediaType: selectedPhoto ? (isVideo ? 'video' : 'image') : hasQuranVerse ? 'verseCard' : 'none',
       mediaUrl: selectedPhoto || undefined,
       category: hasQuranVerse ? 'Quran' : 'Community',

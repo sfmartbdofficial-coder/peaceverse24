@@ -64,7 +64,6 @@ import {
   RotateCcw,
   ChevronRight,
   UserCircle2,
-  Award,
   CircleDollarSign,
   Eye,
 } from 'lucide-react';
@@ -87,6 +86,7 @@ import {
 } from '../../utils/settingsStorage';
 import { getPageMonetizationById } from '../../utils/adminControlStorage';
 import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
+import { sanitizeInput, validateMediaUpload } from '../../utils/security';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -933,10 +933,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       return;
     }
 
+    const safeName = sanitizeInput(newName.trim());
+    const safeBio = sanitizeInput(newBio.trim());
     const createdPage: PageItem = {
       id: `page-${Date.now()}`,
-      name: newName.trim(),
-      category: newCategory,
+      name: safeName,
+      category: sanitizeInput(newCategory),
       likes: '১ লাইক',
       followersCount: 1,
       avatar: newAvatar,
@@ -944,8 +946,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       role: 'Admin',
       isOwner: true,
       isLiked: true,
-      description: newBio.trim() || `${newName} - দ্বীনি ও হালাল প্ল্যাটফর্ম।`,
-      bio: newBio.trim() || 'উম্মাহর সেবায় নিবেদিত।',
+      description: safeBio || `${safeName} - দ্বীনি ও হালাল প্ল্যাটফর্ম।`,
+      bio: safeBio || 'উম্মাহর সেবায় নিবেদিত।',
       phone: newPhone.trim() || undefined,
       whatsapp: newWhatsapp.trim() || newPhone.trim() || undefined,
       imo: newImo.trim() || undefined,
@@ -987,7 +989,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
     const newPost = {
       id: `pp-${Date.now()}`,
-      text: pagePostText.trim(),
+      text: sanitizeInput(pagePostText.trim()),
       image: pagePostImage || undefined,
       time: 'এখনই',
       dateLabel: todayStr,
@@ -1040,37 +1042,53 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     }
   };
 
-  // Custom photo upload handlers with permanent Base64 conversion
+  // Custom photo upload handlers with permanent Base64 conversion & 5MB image-only validation
   const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const base64 = await fileToBase64(file);
-        setNewAvatar(base64);
-        showToast('প্রোফাইল ছবি সফলভাবে যুক্ত হয়েছে!');
-      } catch {
-        showToast('ছবি রূপান্তর করতে সমস্যা হয়েছে');
-      }
+    e.target.value = '';
+    if (!file) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
+    try {
+      const base64 = await fileToBase64(file);
+      setNewAvatar(base64);
+      showToast('প্রোফাইল ছবি সফলভাবে যুক্ত হয়েছে!');
+    } catch {
+      showToast('ছবি রূপান্তর করতে সমস্যা হয়েছে');
     }
   };
 
   const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      try {
-        const base64 = await fileToBase64(file);
-        setNewCover(base64);
-        showToast('কভার ছবি সফলভাবে যুক্ত হয়েছে!');
-      } catch {
-        showToast('কভার রূপান্তর করতে সমস্যা হয়েছে');
-      }
+    e.target.value = '';
+    if (!file) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
+    try {
+      const base64 = await fileToBase64(file);
+      setNewCover(base64);
+      showToast('কভার ছবি সফলভাবে যুক্ত হয়েছে!');
+    } catch {
+      showToast('কভার রূপান্তর করতে সমস্যা হয়েছে');
     }
   };
 
   // Live in-page camera updater for Avatar
   const handleUpdatePageAvatar = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file || !selectedPage) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
     try {
       const base64 = await fileToBase64(file);
       const updated = { ...selectedPage, avatar: base64 };
@@ -1086,7 +1104,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   // Live in-page camera updater for Cover
   const handleUpdatePageCover = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file || !selectedPage) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
     try {
       const base64 = await fileToBase64(file);
       const updated = { ...selectedPage, cover: base64 };
@@ -2018,14 +2042,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                         className="hidden"
                         onChange={async (e) => {
                           const file = e.target.files?.[0];
+                          e.target.value = '';
                           if (!file) return;
+                          const check = validateMediaUpload(file, ['image']);
+                          if (!check.valid) {
+                            showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+                            return;
+                          }
                           try {
                             const b64 = await fileToBase64(file);
                             setPagePostImage(b64);
                             setShowPageComposer(true);
                             showToast('ফটো যুক্ত করা হয়েছে!');
                           } catch {}
-                          e.target.value = '';
                         }}
                       />
                     </label>
@@ -2072,13 +2101,18 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             className="hidden"
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
+                              e.target.value = '';
                               if (!file) return;
+                              const check = validateMediaUpload(file, ['image']);
+                              if (!check.valid) {
+                                showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+                                return;
+                              }
                               try {
                                 const b64 = await fileToBase64(file);
                                 setPagePostImage(b64);
                                 showToast('ফটো যুক্ত করা হয়েছে!');
                               } catch {}
-                              e.target.value = '';
                             }}
                           />
                         </label>
@@ -4509,7 +4543,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             className="w-full py-2 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-3.5">
-                              <Award className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <svg viewBox="0 0 24 24" className="w-6 h-6 text-[#050505] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+                                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                                <path d="m12 8.2 1.15 2.33 2.57.37-1.86 1.81.44 2.56L12 14.06l-2.3 1.21.44-2.56-1.86-1.81 2.57-.37L12 8.2z" fill="currentColor" stroke="none" />
+                              </svg>
                               <div>
                                 <p className="text-[15.5px] font-medium text-[#050505]">Recommendations</p>
                                 <p className="text-[13px] text-[#65676B]">
@@ -4568,7 +4605,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             className="w-full py-2.5 flex items-center justify-between gap-3 hover:bg-[#F0F2F5] rounded-xl px-1 text-left transition-colors cursor-pointer"
                           >
                             <div className="flex items-center gap-3.5">
-                              <SlidersHorizontal className="w-6 h-6 text-[#050505] shrink-0 stroke-[1.9]" />
+                              <svg viewBox="0 0 24 24" className="w-6 h-6 text-[#050505] shrink-0" fill="none" stroke="currentColor" strokeWidth="1.8">
+                                <ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(30 12 12)" />
+                                <ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(-30 12 12)" />
+                                <ellipse cx="12" cy="12" rx="9" ry="4" transform="rotate(90 12 12)" />
+                                <circle cx="12" cy="12" r="2.2" fill="currentColor" stroke="none" />
+                              </svg>
                               <span className="text-[15.5px] font-medium text-[#050505]">Moderation Assist</span>
                             </div>
                             <ChevronRight className="w-5 h-5 text-[#65676B] shrink-0" />
@@ -4678,9 +4720,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           <button
                             type="button"
                             onClick={() => setPageStatusSubView('feedback')}
-                            className="w-full py-2.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-bold flex items-center justify-center gap-2 cursor-pointer"
+                            className="w-full py-2.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-bold flex items-center justify-center cursor-pointer"
                           >
-                            <MessageCircle className="w-4 h-4" />
                             <span>
                               {settings.statusFeedbackGiven ? 'Edit feedback' : 'Give feedback'}
                             </span>
@@ -4768,14 +4809,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           <span className="text-[#0866FF] font-bold shrink-0">Choose File</span>
                           <input
                             type="file"
-                            accept="image/*,.pdf"
+                            accept="image/*"
                             className="hidden"
                             onChange={(e) => {
                               const file = e.target.files?.[0];
-                              if (file) {
-                                setVerifyDocNameDraft(file.name);
-                                showToast(`ডকুমেন্ট যুক্ত হয়েছে: ${file.name}`);
+                              e.target.value = '';
+                              if (!file) return;
+                              const check = validateMediaUpload(file, ['image']);
+                              if (!check.valid) {
+                                showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+                                return;
                               }
+                              setVerifyDocNameDraft(sanitizeInput(file.name));
+                              showToast(`ডকুমেন্ট যুক্ত হয়েছে: ${sanitizeInput(file.name)}`);
                             }}
                           />
                         </label>
@@ -5098,12 +5144,17 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             className="hidden"
                             onChange={async (e) => {
                               const file = e.target.files?.[0];
-                              if (file) {
-                                try {
-                                  const b64 = await fileToBase64(file);
-                                  setNewHighlightImage(b64);
-                                } catch {}
+                              e.target.value = '';
+                              if (!file) return;
+                              const check = validateMediaUpload(file, ['image']);
+                              if (!check.valid) {
+                                showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+                                return;
                               }
+                              try {
+                                const b64 = await fileToBase64(file);
+                                setNewHighlightImage(b64);
+                              } catch {}
                             }}
                           />
                         </label>

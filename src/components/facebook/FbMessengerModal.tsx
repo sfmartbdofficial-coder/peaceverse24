@@ -13,6 +13,7 @@ import {
   Plus
 } from 'lucide-react';
 import { ChatFriend } from '../../types';
+import { decryptMessageBase64 } from '../../utils/security';
 
 interface FbMessengerModalProps {
   chatFriends: ChatFriend[];
@@ -20,6 +21,7 @@ interface FbMessengerModalProps {
   onSelectFriend: (friend: ChatFriend | null) => void;
   onClose: () => void;
   onSendMessage: (friendId: string, text: string) => void;
+  isAuthenticated?: boolean;
 }
 
 export const FbMessengerModal: React.FC<FbMessengerModalProps> = ({
@@ -28,6 +30,7 @@ export const FbMessengerModal: React.FC<FbMessengerModalProps> = ({
   onSelectFriend,
   onClose,
   onSendMessage,
+  isAuthenticated = true,
 }) => {
   const [inputText, setInputText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
@@ -117,30 +120,37 @@ export const FbMessengerModal: React.FC<FbMessengerModalProps> = ({
               </div>
             </div>
 
-            {/* Messages Body */}
+            {/* Messages Body (Auth Guard + Base64 Decryption) */}
             <div className="flex-1 overflow-y-auto no-scrollbar p-3.5 space-y-2.5 text-xs bg-white">
-              {activeFriend.messages.map((m) => {
-                const isMe = m.sender === 'me';
-                return (
-                  <div
-                    key={m.id}
-                    className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
-                  >
+              {!isAuthenticated ? (
+                <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-center font-semibold">
+                  🔒 Please sign in with your verified Peaceverse24.com account to view encrypted messages.
+                </div>
+              ) : (
+                activeFriend.messages.map((m) => {
+                  const isMe = m.sender === 'me';
+                  const displayText = decryptMessageBase64(m.text, isAuthenticated);
+                  return (
                     <div
-                      className={`px-3.5 py-2 rounded-2xl max-w-[80%] font-bengali text-sm leading-relaxed shadow-xs ${
-                        isMe
-                          ? 'bg-[#0866FF] text-white rounded-br-xs'
-                          : 'bg-[#F0F2F5] text-black rounded-bl-xs border border-[#E4E6EB]'
-                      }`}
+                      key={m.id}
+                      className={`flex flex-col ${isMe ? 'items-end' : 'items-start'}`}
                     >
-                      <p>{m.text}</p>
+                      <div
+                        className={`px-3.5 py-2 rounded-2xl max-w-[80%] font-bengali text-sm leading-relaxed shadow-xs ${
+                          isMe
+                            ? 'bg-[#0866FF] text-white rounded-br-xs'
+                            : 'bg-[#F0F2F5] text-black rounded-bl-xs border border-[#E4E6EB]'
+                        }`}
+                      >
+                        <p>{displayText}</p>
+                      </div>
+                      <span className="text-[10px] text-[#65676B] mt-0.5 px-1.5 flex items-center gap-1">
+                        {m.time} {isMe && <CheckCheck className="w-3 h-3 text-[#0866FF]" />}
+                      </span>
                     </div>
-                    <span className="text-[10px] text-[#65676B] mt-0.5 px-1.5 flex items-center gap-1">
-                      {m.time} {isMe && <CheckCheck className="w-3 h-3 text-[#0866FF]" />}
-                    </span>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
 
             {/* Quick Greeting Pills */}
@@ -273,7 +283,7 @@ export const FbMessengerModal: React.FC<FbMessengerModalProps> = ({
                             {friend.name}
                           </p>
                           <p className={`text-xs truncate mt-0.5 font-bengali ${hasUnread ? 'font-bold text-[#0866FF]' : 'text-[#65676B]'}`}>
-                            {latestMsg ? latestMsg.text : 'No messages yet'}
+                            {latestMsg ? decryptMessageBase64(latestMsg.text, isAuthenticated) : 'No messages yet'}
                           </p>
                         </div>
                       </div>

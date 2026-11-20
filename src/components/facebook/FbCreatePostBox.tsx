@@ -1,6 +1,7 @@
-import React, { useRef } from 'react';
+import React, { useRef, useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { UserProfile, PageItem } from '../../types';
+import { validateMediaUpload } from '../../utils/security';
 
 interface FbCreatePostBoxProps {
   userProfile: UserProfile;
@@ -16,10 +17,18 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
   onOpenProfile,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateMediaUpload(file, ['image', 'video']);
+      if (!check.valid) {
+        setUploadError(check.error || 'Max 5MB image/video allowed.');
+        e.target.value = '';
+        return;
+      }
+      setUploadError(null);
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -31,7 +40,8 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
   };
 
   return (
-    <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] flex items-center gap-2.5">
+    <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
+    <div className="flex items-center gap-2.5">
       {/* Hidden file input for direct device gallery access */}
       <input
         type="file"
@@ -78,6 +88,10 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       >
         <ImageIcon className="w-6 h-6 stroke-[2]" />
       </button>
+    </div>
+    {uploadError && (
+      <p className="text-[11px] font-semibold text-rose-600 px-1">⚠️ {uploadError}</p>
+    )}
     </div>
   );
 };

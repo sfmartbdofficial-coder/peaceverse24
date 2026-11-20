@@ -69,6 +69,7 @@ export interface PostItem {
   typingUsers?: { id: string; name: string }[];
   goldenGiftsCount?: number;
   goldenGiftsAmount?: number;
+  createdAtMillis?: number;
 }
 
 export interface StoryItem {
@@ -206,6 +207,7 @@ export interface UserProfile {
   followingCount?: number;
   isCreator?: boolean;
   isFollowing?: boolean;
+  verified?: boolean;
   location: string;
   birthDate: string;
   thoughtBubble?: string;

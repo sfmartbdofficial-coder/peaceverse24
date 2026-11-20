@@ -26,6 +26,7 @@ import {
   Edit3,
 } from 'lucide-react';
 import { PageItem } from '../../types';
+import { sanitizeInput, validateMediaUpload } from '../../utils/security';
 
 interface FbCreatePageLandingViewProps {
   onBack: () => void;
@@ -206,7 +207,14 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
   // Helper: Image file upload
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
+    e.target.value = '';
     if (!file) return;
+
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      setValidationError(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
 
     const reader = new FileReader();
     reader.onload = () => {
@@ -235,11 +243,13 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       .map((w) => w.url.trim())
       .filter((url) => url.length > 0);
 
-    const finalCategory = customCategory.trim() || category;
+    const safePageName = sanitizeInput(pageName.trim());
+    const safeBio = sanitizeInput(bio.trim());
+    const finalCategory = sanitizeInput(customCategory.trim() || category);
 
     const newPage: PageItem = {
       id: `page-${Date.now()}`,
-      name: pageName.trim(),
+      name: safePageName,
       category: finalCategory,
       likes: '১ লাইক',
       followersCount: 1,
@@ -248,8 +258,8 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       role: 'Admin',
       isOwner: true,
       isLiked: true,
-      description: bio.trim() || `${pageName.trim()} - অফিসিয়াল Peaceverse24.com পেজ।`,
-      bio: bio.trim() || 'Welcome to our official Peaceverse24.com Page.',
+      description: safeBio || `${safePageName} - অফিসিয়াল Peaceverse24.com পেজ।`,
+      bio: safeBio || 'Welcome to our official Peaceverse24.com Page.',
       phone: phone.trim() || undefined,
       whatsapp: whatsapp.trim() || phone.trim() || undefined,
       imo: imo.trim() || undefined,

@@ -25,6 +25,9 @@ import {
 import { PeaceDoveEmblem } from './PeaceDoveEmblem';
 import { maskEmailAddress } from '../../utils/privacyMask';
 import { loadPeaceSettings } from '../../utils/settingsStorage';
+import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
+import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { sanitizeInput } from '../../utils/security';
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
   'mailinator.com',
@@ -130,6 +133,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     expectedCode: string;
     inputCode: string;
   } | null>(null);
+  const [turnstileVerified, setTurnstileVerified] = useState(false);
 
   const emailValidation = useMemo(() => validateEmail(email), [email]);
   const showEmailError = emailTouched && email.trim().length > 0 && !emailValidation.isValid;
@@ -165,6 +169,10 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     setEmailTouched(true);
     if (!emailValidation.isValid) {
       setErrorMsg(emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়');
+      return;
+    }
+    if ((mode === 'login' || mode === 'signup') && !turnstileVerified) {
+      setErrorMsg('Please verify the Cloudflare Turnstile human check first.');
       return;
     }
 
@@ -224,7 +232,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           setLoading(false);
           return;
         }
-        const cleanName = displayName.trim();
+        const cleanName = sanitizeInput(displayName.trim());
         try {
           localStorage.setItem('peaceverse_registered_name', cleanName);
         } catch {}
@@ -552,6 +560,13 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
               </div>
             )}
 
+            {(mode === 'login' || mode === 'signup') && (
+              <TurnstileCaptchaPlaceholder
+                verified={turnstileVerified}
+                onVerifyChange={(v) => setTurnstileVerified(v)}
+              />
+            )}
+
             <button
               type="submit"
               disabled={loading}
@@ -629,9 +644,12 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
       </main>
 
       {/* Footer */}
-      <footer className="w-full max-w-md mx-auto text-center text-[11px] text-[#65676B] z-10">
+      <footer className="w-full max-w-md mx-auto text-center text-[11px] text-[#65676B] z-10 space-y-2">
         <p>© 2026 Peaceverse24.com — World&apos;s Most Peaceful Social Network. All rights reserved.</p>
         <p className="mt-0.5">Secure Firebase Authentication • Privacy Protected</p>
+        <div className="flex justify-center pt-1">
+          <ToonViblyShieldBadge />
+        </div>
       </footer>
     </div>
   );

@@ -14,6 +14,7 @@ import {
   Play
 } from 'lucide-react';
 import { StoryItem, UserProfile } from '../../types';
+import { validateMediaUpload, sanitizeInput } from '../../utils/security';
 
 interface FbCreateStoryModalProps {
   userProfile: UserProfile;
@@ -124,12 +125,20 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
   const [arabicText, setArabicText] = useState('');
   const [selectedGradient, setSelectedGradient] = useState('from-emerald-950 via-teal-900 to-black');
   const [uploadedPhotos, setUploadedPhotos] = useState<string[]>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDeviceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateMediaUpload(file, ['image']);
+      if (!check.valid) {
+        setUploadError(check.error || 'Max 5MB image file allowed.');
+        e.target.value = '';
+        return;
+      }
+      setUploadError(null);
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -149,8 +158,8 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
       authorAvatar: userProfile.avatar,
       bgGradient: selectedGradient,
       previewImage: imgUrl || selectedPhoto || undefined,
-      banglaText: caption || storyText || 'নতুন স্টোরি আপডেট 🌸',
-      arabicText: arabic || arabicText || undefined,
+      banglaText: sanitizeInput(caption || storyText || 'নতুন স্টোরি আপডেট 🌸'),
+      arabicText: arabic || arabicText ? sanitizeInput(arabic || arabicText) : undefined,
       timestamp: 'এখনই',
     };
     onStoryCreated(newStory);
@@ -189,6 +198,12 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
           <Settings className="w-5 h-5" />
         </button>
       </div>
+
+      {uploadError && (
+        <div className="mx-4 mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+          ⚠️ {uploadError}
+        </div>
+      )}
 
       {/* 2. Top Interactive Tiles matching Screenshot 3: [ Aa Text (New) ] [ 🎵 Music ] [ ⚏ Collage ] [ Templates ] */}
       <div className="p-3 bg-white border-b border-[#E4E6EB]">

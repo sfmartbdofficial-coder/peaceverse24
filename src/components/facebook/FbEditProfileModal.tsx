@@ -18,6 +18,7 @@ import {
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { normalizePhoneNumber } from '../../utils/contactLinks';
+import { validateMediaUpload, sanitizeInput } from '../../utils/security';
 
 interface FbEditProfileModalProps {
   userProfile: UserProfile;
@@ -95,10 +96,18 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
 
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateMediaUpload(file, ['image']);
+      if (!check.valid) {
+        setUploadError(check.error || 'Max 5MB image file allowed.');
+        e.target.value = '';
+        return;
+      }
+      setUploadError(null);
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -113,6 +122,13 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
   const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateMediaUpload(file, ['image']);
+      if (!check.valid) {
+        setUploadError(check.error || 'Max 5MB image file allowed.');
+        e.target.value = '';
+        return;
+      }
+      setUploadError(null);
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
@@ -135,16 +151,16 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
   const handleSave = () => {
     const updated: UserProfile = {
       ...userProfile,
-      name: name.trim() || userProfile.name,
+      name: sanitizeInput(name.trim()) || userProfile.name,
       avatar,
       coverPhoto,
-      bio: bio.trim(),
-      thoughtBubble: thoughtBubble.trim(),
-      location: location.trim(),
-      hometown: hometown.trim(),
-      work: work.trim(),
-      education: education.trim(),
-      relationship: relationship.trim(),
+      bio: sanitizeInput(bio.trim()),
+      thoughtBubble: sanitizeInput(thoughtBubble.trim()),
+      location: sanitizeInput(location.trim()),
+      hometown: sanitizeInput(hometown.trim()),
+      work: sanitizeInput(work.trim()),
+      education: sanitizeInput(education.trim()),
+      relationship: sanitizeInput(relationship.trim()),
       website: website.trim(),
       whatsapp: whatsapp.trim(),
       imo: imo.trim(),
@@ -208,6 +224,11 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
 
         {/* Scrollable Body */}
         <div className="flex-1 overflow-y-auto no-scrollbar p-4 space-y-5 bg-white">
+          {uploadError && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+              ⚠️ {uploadError}
+            </div>
+          )}
           {/* 1. Name Edit Section */}
           <div className="bg-white border border-[#E4E6EB] rounded-xl p-3.5 space-y-1.5">
             <label className="text-xs font-bold text-[#65676B] block">নাম (Profile Name)</label>

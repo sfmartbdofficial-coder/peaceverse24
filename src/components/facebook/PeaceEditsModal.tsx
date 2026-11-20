@@ -27,6 +27,7 @@ import {
   RotateCcw,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
+import { sanitizeInput, validateMediaUpload } from '../../utils/security';
 
 export interface PeaceEditsModalProps {
   isOpen: boolean;
@@ -710,8 +711,14 @@ export const PeaceEditsModal: React.FC<PeaceEditsModalProps> = ({
     e.target.value = '';
     if (!file) return;
 
+    const check = validateMediaUpload(file, ['video']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ভিডিও ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
+
     const url = URL.createObjectURL(file);
-    const clipName = file.name.replace(/\.[^/.]+$/, '') || 'গ্যালারি ভিডিও';
+    const clipName = sanitizeInput(file.name.replace(/\.[^/.]+$/, '') || 'গ্যালারি ভিডিও');
     let settled = false;
 
     const commitImportedClip = (rawDuration?: number) => {
@@ -1163,7 +1170,7 @@ export const PeaceEditsModal: React.FC<PeaceEditsModalProps> = ({
       isPublic: true,
       privacy: 'public',
       status: 'approved',
-      contentBangla: `${reelCaption}${selectedNasheed ? `\n🎵 নাশিদ: ${selectedNasheed.title}` : ''}`,
+      contentBangla: `${sanitizeInput(reelCaption)}${selectedNasheed ? `\n🎵 নাশিদ: ${selectedNasheed.title}` : ''}`,
       arabicVerse: topArabic,
       translation: subtitles[0]?.banglaTranslit,
       mediaType: 'video',

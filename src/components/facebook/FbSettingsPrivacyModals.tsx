@@ -43,6 +43,7 @@ import {
   EyeOff,
   UserX,
   PauseCircle,
+  Download,
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { LegalTabType } from '../legal/LegalModal';
@@ -52,6 +53,7 @@ import { enableWebPushNotifications, triggerDevicePushTray } from '../../lib/fcm
 import { getActivePrayerPauseStatus } from '../../lib/globalPrayer';
 import { maskEmailAddress, getWeeklyScreenTimeStats } from '../../utils/privacyMask';
 import { FbPrivacyCenterView } from './FbPrivacyCenterView';
+import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
 import {
   fetchUserLinkHistory,
   clearUserLinkHistory,
@@ -107,6 +109,8 @@ interface FbSettingsPrivacyModalsProps {
   onSavePrivacyDefault?: (privacy: 'public' | 'friends' | 'private') => void;
   onOpenLegalTab?: (tab: LegalTabType) => void;
   onLogout?: () => void;
+  onOpenSecurityDashboard?: () => void;
+  onExportMyData?: () => void;
 }
 
 const ToggleSwitch: React.FC<{
@@ -141,6 +145,8 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
   onSavePrivacyDefault,
   onOpenLegalTab,
   onLogout,
+  onOpenSecurityDashboard,
+  onExportMyData,
 }) => {
 
   // Privacy Center State
@@ -611,7 +617,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 <h4 className={`font-bold text-sm ${textPrimary}`}>ব্যক্তিগত ও অ্যাকাউন্ট তথ্য</h4>
                 <p className={`text-xs ${textSecondary}`}>নাম: <span className={`${textPrimary} font-semibold`}>{userProfile?.name || 'ব্যবহারকারী'}</span></p>
                 <div className="flex items-center justify-between gap-2">
-                  <p className={`text-xs ${textSecondary} truncate`}>
+                  <p className={`text-xs ${textSecondary} truncate`} data-sensitive="true">
                     ইমেইল:{' '}
                     <span className={`${textPrimary} font-semibold font-mono`}>
                       {userProfile?.email
@@ -688,6 +694,46 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   onChange={(val) => onUpdatePrefs({ privacyBlurPersonalInfo: val })}
                 />
               </div>
+
+              <div className={`p-3.5 rounded-2xl ${cardCls} flex items-center justify-between gap-3`}>
+                <div>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>সংবেদনশীল তথ্যে রাইট-ক্লিক ও কপি সুরক্ষা</h4>
+                  <p className={`text-xs ${textSecondary}`}>ইমেইল, ওয়ালেট ও পেমেন্ট নম্বরে Right-Click/Copy ব্লক রাখুন</p>
+                </div>
+                <ToggleSwitch
+                  checked={prefs.disableCopyOnSensitive ?? true}
+                  activeColor="bg-emerald-600"
+                  onChange={(val) => onUpdatePrefs({ disableCopyOnSensitive: val })}
+                />
+              </div>
+
+              {(onExportMyData || onOpenSecurityDashboard) && (
+                <div className={`p-3.5 rounded-2xl ${cardCls} flex flex-wrap items-center gap-2`}>
+                  {onExportMyData && (
+                    <button
+                      type="button"
+                      onClick={onExportMyData}
+                      className="flex-1 py-2 px-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <Download className="w-3.5 h-3.5" />
+                      <span>Export My Data</span>
+                    </button>
+                  )}
+                  {onOpenSecurityDashboard && (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        onClose();
+                        onOpenSecurityDashboard();
+                      }}
+                      className="flex-1 py-2 px-3 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                    >
+                      <ShieldCheck className="w-3.5 h-3.5" />
+                      <span>Security Status</span>
+                    </button>
+                  )}
+                </div>
+              )}
 
               <div className={`p-3.5 rounded-2xl ${cardCls} flex items-center justify-between gap-3`}>
                 <div>
@@ -989,7 +1035,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
 
                 {(showPaymentForm || bkashInput || nagadInput) && (
                   <>
-                    <div className="space-y-2.5 pt-1">
+                    <div className="space-y-2.5 pt-1" data-sensitive="true">
                       <div>
                         <label className="text-[11px] font-bold flex items-center justify-between mb-1 text-pink-600">
                           <span>bKash (বিকাশ) নম্বর</span>
@@ -2518,7 +2564,10 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
         )}
 
         {/* Footer */}
-        <div className={footerCls}>
+        <div className={`${footerCls} space-y-2`}>
+          <div className="flex justify-center">
+            <ToonViblyShieldBadge onClick={onOpenSecurityDashboard ? () => { onClose(); onOpenSecurityDashboard(); } : undefined} />
+          </div>
           <button
             onClick={onClose}
             className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"

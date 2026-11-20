@@ -21,6 +21,9 @@ import { loadPeaceSettings } from '../../utils/settingsStorage';
 import { useLanguage } from '../../context/LanguageContext';
 import { SupportedLanguage } from '../../i18n/languages';
 import { GlobalWorldMap } from '../global/GlobalWorldMap';
+import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
+import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { sanitizeInput } from '../../utils/security';
 
 interface PeaceVerseLandingProps {
   onNavigateTo: (path: string) => void;
@@ -97,6 +100,8 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [twoFactorInput, setTwoFactorInput] = useState('');
   const [twoFactorCode, setTwoFactorCode] = useState('639140');
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+  const [loginTurnstileVerified, setLoginTurnstileVerified] = useState(false);
+  const [signUpTurnstileVerified, setSignUpTurnstileVerified] = useState(false);
 
   const normalizeIdentifierToEmail = (input: string) => {
     const trimmed = input.trim();
@@ -136,10 +141,14 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
       setLoginError('Please enter your email/phone and password.');
       return;
     }
+    if (!loginTurnstileVerified) {
+      setLoginError('Please complete the Cloudflare Turnstile verification first.');
+      return;
+    }
 
     setLoginLoading(true);
     try {
-      const resolvedEmail = normalizeIdentifierToEmail(loginIdentifier);
+      const resolvedEmail = normalizeIdentifierToEmail(sanitizeInput(loginIdentifier));
       await loginWithEmail(resolvedEmail, loginPassword);
       const settings = loadPeaceSettings();
       if (settings.twoFactorEnabled) {
@@ -200,6 +209,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
         setSignUpError('Please choose a password of at least 6 characters.');
         return;
       }
+      if (!signUpTurnstileVerified) {
+        setSignUpError('Please complete the Cloudflare Turnstile human check before signing up.');
+        return;
+      }
       const isPhoneInput = !regContact.includes('@');
       const code = String(Math.floor(100000 + Math.random() * 900000));
       setSignUpOtpChannel(isPhoneInput ? 'sms' : 'email');
@@ -216,7 +229,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
     setSignUpLoading(true);
     try {
-      const fullName = `${firstName.trim()} ${surname.trim()}`;
+      const fullName = sanitizeInput(`${firstName.trim()} ${surname.trim()}`);
       const resolvedEmail = normalizeIdentifierToEmail(regContact);
       try {
         localStorage.setItem(
@@ -357,6 +370,11 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                     {showLoginPass ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                   </button>
                 </div>
+
+                <TurnstileCaptchaPlaceholder
+                  verified={loginTurnstileVerified}
+                  onVerifyChange={(v) => setLoginTurnstileVerified(v)}
+                />
 
                 <button
                   type="submit"
@@ -531,7 +549,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </button>
           </div>
 
-          <p className="text-[11px] text-[#737373]">Peaceverse24.com — World&apos;s Most Peaceful Social Network © 2026</p>
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
+            <p className="text-[11px] text-[#737373]">Peaceverse24.com — World&apos;s Most Peaceful Social Network © 2026</p>
+            <ToonViblyShieldBadge />
+          </div>
         </div>
       </footer>
 
@@ -759,6 +780,11 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                     </button>{' '}
                     and Community Guidelines.
                   </p>
+
+                  <TurnstileCaptchaPlaceholder
+                    verified={signUpTurnstileVerified}
+                    onVerifyChange={(v) => setSignUpTurnstileVerified(v)}
+                  />
 
                   <div className="pt-2 flex justify-center">
                     <button

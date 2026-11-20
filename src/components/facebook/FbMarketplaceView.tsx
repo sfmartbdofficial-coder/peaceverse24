@@ -18,6 +18,7 @@ import { INITIAL_MARKETPLACE } from '../../data/islamicPosts';
 import { MarketplaceItem, NotificationItem, UserProfile } from '../../types';
 import { broadcastCreatorNotification } from '../../lib/fcm';
 import { loadPeaceSettings } from '../../utils/settingsStorage';
+import { sanitizeInput, validateMediaUpload } from '../../utils/security';
 
 interface FbMarketplaceViewProps {
   onBack?: () => void;
@@ -136,19 +137,19 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
       return;
     }
 
-    const sellerName = userProfile?.name || 'Peace Mart Global';
-    const cleanPrice = newPrice.startsWith('$') || newPrice.startsWith('৳')
-      ? newPrice
-      : `$${newPrice}`;
+    const sellerName = sanitizeInput(userProfile?.name || 'Peace Mart Global');
+    const cleanPrice = sanitizeInput(
+      newPrice.startsWith('$') || newPrice.startsWith('৳') ? newPrice : `$${newPrice}`
+    );
 
     const newItem: MarketplaceItem = {
       id: `item-${Date.now()}`,
-      title: newTitle.trim(),
+      title: sanitizeInput(newTitle.trim()),
       price: cleanPrice,
-      location: newLocation,
+      location: sanitizeInput(newLocation),
       image: newImage,
       sellerName,
-      category: newCategory,
+      category: sanitizeInput(newCategory),
     };
 
     setItems((prev) => [newItem, ...prev]);
@@ -177,10 +178,15 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
 
   const handleImageFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const url = URL.createObjectURL(file);
-      setNewImage(url);
+    e.target.value = '';
+    if (!file) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
     }
+    const url = URL.createObjectURL(file);
+    setNewImage(url);
   };
 
   const filtered = items.filter((item) => {

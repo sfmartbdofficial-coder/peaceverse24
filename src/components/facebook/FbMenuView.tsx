@@ -59,6 +59,7 @@ import {
   Image as ImageIcon,
   CheckCircle2,
   Upload,
+  Download,
 } from 'lucide-react';
 import { UserProfile, FacebookMainTab, NotificationItem, PageItem, PostItem } from '../../types';
 import { LegalTabType } from '../legal/LegalModal';
@@ -87,6 +88,8 @@ import { PeaceEditsModal } from './PeaceEditsModal';
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
 import { FbCreatePageLandingView } from './FbCreatePageLandingView';
+import { validateMediaUpload } from '../../utils/security';
+import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
 
 interface FbMenuViewProps {
   userProfile: UserProfile;
@@ -112,6 +115,8 @@ interface FbMenuViewProps {
   onPublishReel?: (newReel: PostItem) => void;
   onNavigatePath?: (path: string) => void;
   onBroadcastNotification?: (notif: NotificationItem) => void;
+  onOpenSecurityDashboard?: () => void;
+  onExportMyData?: () => void;
 }
 
 export const FbMenuView: React.FC<FbMenuViewProps> = ({
@@ -138,6 +143,8 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onPublishReel,
   onNavigatePath,
   onBroadcastNotification,
+  onOpenSecurityDashboard,
+  onExportMyData,
 }) => {
   const { currentLang, setLanguage, setShowLanguageModal } = useLanguage();
 
@@ -176,6 +183,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   const [broadcastSending, setBroadcastSending] = useState(false);
   const [broadcastProgress, setBroadcastProgress] = useState<{ sent: number; total: number } | null>(null);
   const [broadcastDone, setBroadcastDone] = useState(false);
+  const [broadcastUploadError, setBroadcastUploadError] = useState<string | null>(null);
 
   useEffect(() => {
     if (!userProfile?.id) return;
@@ -827,6 +835,40 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   <ChevronRight className="w-4 h-4 text-neutral-400" />
                 </button>
 
+                {/* 1.2b Security Status Dashboard */}
+                {onOpenSecurityDashboard && (
+                  <button
+                    type="button"
+                    onClick={onOpenSecurityDashboard}
+                    className="w-full h-[42px] px-3 rounded-lg hover:bg-emerald-50 flex items-center justify-between text-left font-medium text-neutral-800 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0" />
+                      <span className="text-[14.5px]">Security Status Dashboard</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
+                      OK
+                    </span>
+                  </button>
+                )}
+
+                {/* 1.2c Export My Data */}
+                {onExportMyData && (
+                  <button
+                    type="button"
+                    onClick={onExportMyData}
+                    className="w-full h-[42px] px-3 rounded-lg hover:bg-neutral-50 flex items-center justify-between text-left font-medium text-neutral-800 cursor-pointer"
+                  >
+                    <div className="flex items-center gap-3.5">
+                      <Download className="w-5 h-5 text-[#0866FF] shrink-0" />
+                      <span className="text-[14.5px]">Export My Data</span>
+                    </div>
+                    <span className="text-[10px] font-bold text-[#0866FF] bg-[#E7F3FF] px-2 py-0.5 rounded-full">
+                      JSON
+                    </span>
+                  </button>
+                )}
+
                 {/* 1.3 Time management (saves in localStorage and pauses notifications during Salah) */}
                 <div
                   onClick={() => setSettingsModalType('time_management')}
@@ -1430,13 +1472,17 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         </div>
 
         {/* Log out Button: clean light grey matching Facebook */}
-        <div className="pt-2">
+        <div className="pt-2 space-y-3">
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="w-full h-[40px] bg-[#E4E6EB] hover:bg-neutral-300 text-neutral-900 font-semibold text-[15px] rounded-[8px] flex items-center justify-center transition-colors cursor-pointer"
           >
             Log out
           </button>
+
+          <div className="flex justify-center pb-1">
+            <ToonViblyShieldBadge onClick={onOpenSecurityDashboard} />
+          </div>
         </div>
 
       </div>
@@ -1528,6 +1574,8 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         onUpdatePrefs={handleUpdatePrefs}
         onOpenLegalTab={onOpenLegalTab}
         onLogout={onLogout}
+        onOpenSecurityDashboard={onOpenSecurityDashboard}
+        onExportMyData={onExportMyData}
       />
 
       <FbAlsoFromPeaceModal
@@ -1701,6 +1749,13 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                       onChange={(e) => {
                         const file = e.target.files?.[0];
                         if (!file) return;
+                        const check = validateMediaUpload(file, ['image']);
+                        if (!check.valid) {
+                          setBroadcastUploadError(check.error || 'Max 5MB image file allowed.');
+                          e.target.value = '';
+                          return;
+                        }
+                        setBroadcastUploadError(null);
                         const reader = new FileReader();
                         reader.onload = () => {
                           if (typeof reader.result === 'string') {
@@ -1712,6 +1767,11 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                     />
                   </label>
                 </div>
+                {broadcastUploadError && (
+                  <p className="text-[11px] text-rose-600 font-semibold mb-1.5">
+                    ⚠️ {broadcastUploadError}
+                  </p>
+                )}
                 <input
                   type="text"
                   value={broadcastImage}

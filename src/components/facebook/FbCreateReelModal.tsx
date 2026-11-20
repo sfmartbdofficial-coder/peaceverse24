@@ -14,6 +14,7 @@ import {
   Film
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
+import { validateMediaUpload, sanitizeInput } from '../../utils/security';
 
 interface FbCreateReelModalProps {
   userProfile: UserProfile;
@@ -82,12 +83,20 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
   const [selectedDuration, setSelectedDuration] = useState<'0:30' | '0:45' | '1:00' | '1:15'>('0:45');
   const [selectedCategory, setSelectedCategory] = useState<string>('Makkah Live');
   const [uploadedVideos, setUploadedVideos] = useState<Array<{ url: string; title: string; duration: string }>>([]);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleDeviceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
+      const check = validateMediaUpload(file, ['video', 'image']);
+      if (!check.valid) {
+        setUploadError(check.error || 'Max 5MB video/image file allowed.');
+        e.target.value = '';
+        return;
+      }
+      setUploadError(null);
       const url = URL.createObjectURL(file);
       const newVideo = {
         url,
@@ -110,8 +119,8 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       },
       timeAgo: 'Just now',
       isPublic: true,
-      contentBangla: caption || reelTitle || 'নতুন হালাল রিলস ভিডিও',
-      arabicVerse: arabicSnippet,
+      contentBangla: sanitizeInput(caption || reelTitle || 'নতুন হালাল রিলস ভিডিও'),
+      arabicVerse: arabicSnippet ? sanitizeInput(arabicSnippet) : undefined,
       mediaType: 'video',
       mediaUrl: videoUrl,
       duration: selectedDuration,
@@ -164,6 +173,12 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           <Settings className="w-5 h-5" />
         </button>
       </div>
+
+      {uploadError && (
+        <div className="mx-4 mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+          ⚠️ {uploadError}
+        </div>
+      )}
 
       {/* 2. Circular Action Buttons matching Screenshot 4: [ Camera ] [ Music ] [ Templates ] [ Drafts ] [ Green screen ] */}
       <div className="px-3 py-4 bg-white border-b border-[#E4E6EB]">

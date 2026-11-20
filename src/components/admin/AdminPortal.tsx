@@ -46,11 +46,11 @@ import {
 import {
   fetchAdminPlatformData,
   AdminPlatformStats,
+  loginWithGoogle,
+  loginWithEmail,
+  logoutUser,
 } from '../../lib/firebase';
 import {
-  verifyAdminCredentials,
-  loadAdminCredentials,
-  updateAdminCredentials,
   loadAdPlacementConfig,
   saveAdPlacementConfig,
   AdPlacementConfig,
@@ -63,9 +63,19 @@ import {
   saveAdminUserOverrides,
   AdminUserOverride,
 } from '../../utils/adminControlStorage';
+import {
+  getAuthorizedAdminEmail,
+  setAuthorizedAdminEmail,
+  isAuthorizedAdminUser,
+  sanitizeInput,
+} from '../../utils/security';
+import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
 
 interface AdminPortalProps {
   onBackToApp: () => void;
+  firebaseUser?: { uid?: string; email?: string | null; emailVerified?: boolean } | null;
+  onOpenAuthModal?: () => void;
   posts: PostItem[];
   onAddPostToFeed: (post: PostItem) => void;
   onDeletePostFromFeed: (postId: string) => void;
@@ -91,6 +101,8 @@ type AdminTab =
 
 export const AdminPortal: React.FC<AdminPortalProps> = ({
   onBackToApp,
+  firebaseUser = null,
+  onOpenAuthModal,
   posts,
   onAddPostToFeed,
   onDeletePostFromFeed,
@@ -101,19 +113,17 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   userProfile,
   onBroadcastNotification,
 }) => {
-  // Authentication State
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(() => {
-    try {
-      return localStorage.getItem('qalby_admin_authenticated') === 'true';
-    } catch {
-      return false;
-    }
-  });
-
-  const [usernameInput, setUsernameInput] = useState('');
-  const [passwordInput, setPasswordInput] = useState('');
+  // Authorized Admin Email Guard (Firebase Auth Only — Zero hardcoded credentials)
+  const [authorizedEmail, setAuthorizedEmail] = useState<string>(() => getAuthorizedAdminEmail());
+  const [adminEmailInput, setAdminEmailInput] = useState<string>(() => getAuthorizedAdminEmail());
+  const [authEmailInput, setAuthEmailInput] = useState('');
+  const [authPasswordInput, setAuthPasswordInput] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [turnstileVerified, setTurnstileVerified] = useState(false);
+  const [authBusy, setAuthBusy] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+
+  const isAuthorizedAdmin = isAuthorizedAdminUser(firebaseUser) && Boolean(authorizedEmail);
 
   // Admin Active Tab
   const [activeTab, setActiveTab] = useState<AdminTab>('dashboard');
@@ -191,10 +201,8 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     }
   });
 
-  // Admin Credentials Update State
-  const [settingsUsername, setSettingsUsername] = useState(() => loadAdminCredentials().username);
-  const [settingsPassword, setSettingsPassword] = useState('');
-  const [settingsConfirmPassword, setSettingsConfirmPassword] = useState('');
+  // Admin Authorized Email Settings State
+  const [settingsAdminEmail, setSettingsAdminEmail] = useState(() => getAuthorizedAdminEmail());
 
   // AI Assistant State
   const [aiPrompt, setAiPrompt] = useState('');
@@ -244,10 +252,10 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   }, []);
 
   useEffect(() => {
-    if (isAuthenticated) {
+    if (isAuthorizedAdmin) {
       refreshLiveStats();
     }
-  }, [isAuthenticated, refreshLiveStats]);
+  }, [isAuthorizedAdmin, refreshLiveStats]);
 
   // Persist Ads, Placements, Pages, Creators, Payouts, User Overrides
   useEffect(() => {
@@ -278,50 +286,73 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
     } catch {}
   }, [payouts]);
 
-  // Handle Login
-  const handleLogin = (e: React.FormEvent) => {
+  // Configure Authorized Admin Email (No hardcoded admin password)
+  const handleSaveAdminEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (verifyAdminCredentials(usernameInput, passwordInput)) {
-      setIsAuthenticated(true);
-      setLoginError(null);
-      try {
-        localStorage.setItem('qalby_admin_authenticated', 'true');
-      } catch {}
-      showToast('Peaceverse24.com অ্যাডমিন প্যানেলে স্বাগতম!');
-    } else {
-      setLoginError('ইউজারনেম অথবা পাসওয়ার্ড সঠিক নয়। অনুগ্রহ করে সঠিক তথ্য দিন।');
+    const clean = sanitizeInput(adminEmailInput.trim().toLowerCase());
+    if (!clean || !clean.includes('@')) {
+      setLoginError('Please enter a valid admin email address.');
+      return;
     }
+    setAuthorizedAdminEmail(clean);
+    setAuthorizedEmail(clean);
+    setSettingsAdminEmail(clean);
+    setLoginError(null);
+    showToast(`Authorized admin email set to ${clean}`);
   };
 
-  const handleLogout = () => {
-    setIsAuthenticated(false);
-    setUsernameInput('');
-    setPasswordInput('');
+  // Firebase Auth Sign-In for Admin Portal
+  const handleFirebaseEmailLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setLoginError(null);
+    if (!turnstileVerified) {
+      setLoginError('Please complete the Turnstile human verification first.');
+      return;
+    }
+    setAuthBusy(true);
     try {
-      localStorage.removeItem('qalby_admin_authenticated');
-    } catch {}
-    showToast('অ্যাডমিন সেশন লগআউট হয়েছে');
+      await loginWithEmail(authEmailInput.trim(), authPasswordInput);
+      setAuthPasswordInput('');
+      showToast('Signed in via Firebase Auth');
+    } catch (err: any) {
+      setLoginError(err?.message || 'Firebase authentication failed.');
+    } finally {
+      setAuthBusy(false);
+    }
   };
 
-  // Update Admin Credentials
-  const handleUpdateCredentials = (e: React.FormEvent) => {
+  const handleFirebaseGoogleLogin = async () => {
+    setLoginError(null);
+    setAuthBusy(true);
+    try {
+      await loginWithGoogle();
+      showToast('Signed in with Google Firebase Auth');
+    } catch (err: any) {
+      setLoginError(err?.message || 'Google sign-in failed.');
+    } finally {
+      setAuthBusy(false);
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logoutUser();
+    } catch {}
+    showToast('Firebase Admin session signed out');
+  };
+
+  // Update Authorized Admin Email in Settings Tab
+  const handleUpdateAuthorizedEmail = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!settingsUsername.trim()) {
-      showToast('অ্যাডমিন ইউজারনেম খালি রাখা যাবে না');
+    const clean = sanitizeInput(settingsAdminEmail.trim().toLowerCase());
+    if (!clean || !clean.includes('@')) {
+      showToast('Valid Firebase admin email is required');
       return;
     }
-    if (!settingsPassword.trim() || settingsPassword.trim().length < 6) {
-      showToast('নতুন পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে');
-      return;
-    }
-    if (settingsPassword !== settingsConfirmPassword) {
-      showToast('পাসওয়ার্ড দুটি মিলছে না');
-      return;
-    }
-    updateAdminCredentials(settingsUsername.trim(), settingsPassword.trim());
-    setSettingsPassword('');
-    setSettingsConfirmPassword('');
-    showToast('✅ অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড আপডেট হয়েছে!');
+    setAuthorizedAdminEmail(clean);
+    setAuthorizedEmail(clean);
+    setAdminEmailInput(clean);
+    showToast(`✅ Authorized admin email updated to ${clean}`);
   };
 
   // User Controls (Verify / Suspend)
@@ -694,82 +725,181 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
   const pendingPagesCount = pageControls.filter((p) => p.status === 'pending').length;
 
   // -------------------------------------------------------------
-  // LOGIN SCREEN (Standalone Security Gate - NO public credentials hint)
+  // FIREBASE AUTH + AUTHORIZED ADMIN EMAIL SECURITY GATE (/admin)
   // -------------------------------------------------------------
-  if (!isAuthenticated) {
+  if (!isAuthorizedAdmin) {
     return (
       <div className="min-h-screen bg-[#F0F2F5] text-black flex items-center justify-center p-4">
-        <div className="w-full max-w-md bg-white rounded-3xl border border-[#E4E6EB] shadow-xl p-6 sm:p-8 space-y-6 animate-in fade-in zoom-in-95">
+        <div className="w-full max-w-md bg-white rounded-3xl border border-[#E4E6EB] shadow-xl p-6 sm:p-8 space-y-5 animate-in fade-in zoom-in-95">
           <div className="text-center space-y-2">
-            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 mx-auto flex items-center justify-center shadow-lg shadow-blue-500/20">
+            <div className="w-16 h-16 rounded-2xl bg-gradient-to-tr from-[#0866FF] to-emerald-500 mx-auto flex items-center justify-center shadow-lg shadow-emerald-500/20">
               <ShieldCheck className="w-9 h-9 text-white stroke-[2.5]" />
             </div>
             <h1 className="text-2xl font-black text-black tracking-tight">Peaceverse24.com</h1>
-            <p className="text-xs font-bold uppercase tracking-wider text-[#0866FF]">
-              Standalone Master Admin Panel
+            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">
+              Firebase Protected Admin Route (/admin)
             </p>
             <p className="text-xs text-[#65676B]">
-              ইউজার, পেজ, মনিটাইজেশন ও বিজ্ঞাপন প্লেসমেন্ট কন্ট্রোল সেন্টার
+              {!authorizedEmail
+                ? 'Configure your authorized Firebase admin email first to unlock /admin access.'
+                : `Restricted to verified Firebase account: ${authorizedEmail}`}
             </p>
           </div>
 
-          <form onSubmit={handleLogin} className="space-y-4">
-            <div>
-              <label className="block text-xs font-bold text-black mb-1">অ্যাডমিন ইউজারনেম (Admin Username)</label>
-              <div className="relative">
-                <input
-                  type="text"
-                  required
-                  autoComplete="username"
-                  placeholder="Enter admin username"
-                  value={usernameInput}
-                  onChange={(e) => setUsernameInput(e.target.value)}
-                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-4 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                />
-                <User className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
+          {!authorizedEmail ? (
+            <form onSubmit={handleSaveAdminEmail} className="space-y-4">
+              <div>
+                <label className="block text-xs font-bold text-black mb-1">
+                  Authorized Admin Email (Firebase Account)
+                </label>
+                <div className="relative">
+                  <input
+                    type="email"
+                    required
+                    placeholder="Enter your admin email address"
+                    value={adminEmailInput}
+                    onChange={(e) => setAdminEmailInput(e.target.value)}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-4 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-emerald-600 focus:bg-white"
+                  />
+                  <User className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
+                </div>
+                <p className="text-[11px] text-[#65676B] mt-1">
+                  Only a verified Firebase Auth session matching this email can open /admin.
+                </p>
               </div>
-            </div>
+              {loginError && (
+                <p className="text-xs text-rose-700 font-semibold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                  ⚠️ {loginError}
+                </p>
+              )}
+              <button
+                type="submit"
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-sm shadow-md cursor-pointer"
+              >
+                Save Authorized Admin Email
+              </button>
+            </form>
+          ) : !firebaseUser ? (
+            <div className="space-y-4">
+              <button
+                type="button"
+                onClick={handleFirebaseGoogleLogin}
+                disabled={authBusy}
+                className="w-full py-2.5 px-4 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] border border-[#E4E6EB] text-black font-bold text-xs flex items-center justify-center gap-2 cursor-pointer"
+              >
+                <span>Continue with Google (Firebase Auth)</span>
+              </button>
 
-            <div>
-              <label className="block text-xs font-bold text-black mb-1">অ্যাডমিন পাসওয়ার্ড (Password)</label>
-              <div className="relative">
-                <input
-                  type={showPassword ? 'text' : 'password'}
-                  required
-                  autoComplete="current-password"
-                  placeholder="Enter admin password"
-                  value={passwordInput}
-                  onChange={(e) => setPasswordInput(e.target.value)}
-                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-10 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
+              <div className="flex items-center gap-2 text-[11px] text-[#65676B]">
+                <div className="flex-1 h-px bg-[#E4E6EB]" />
+                <span>or Firebase Email Login</span>
+                <div className="flex-1 h-px bg-[#E4E6EB]" />
+              </div>
+
+              <form onSubmit={handleFirebaseEmailLogin} className="space-y-3">
+                <div>
+                  <label className="block text-xs font-bold text-black mb-1">Firebase Email</label>
+                  <div className="relative">
+                    <input
+                      type="email"
+                      required
+                      autoComplete="username"
+                      placeholder="admin@example.com"
+                      value={authEmailInput}
+                      onChange={(e) => setAuthEmailInput(e.target.value)}
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-4 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                    />
+                    <User className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-black mb-1">Password</label>
+                  <div className="relative">
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      autoComplete="current-password"
+                      placeholder="Enter Firebase password"
+                      value={authPasswordInput}
+                      onChange={(e) => setAuthPasswordInput(e.target.value)}
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-10 py-2.5 text-sm text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                    />
+                    <Lock className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((prev) => !prev)}
+                      className="absolute right-3 top-2.5 text-[#65676B] hover:text-black cursor-pointer"
+                      aria-label="Toggle password visibility"
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                </div>
+
+                <TurnstileCaptchaPlaceholder
+                  verified={turnstileVerified}
+                  onVerifyChange={(v) => setTurnstileVerified(v)}
                 />
-                <Lock className="w-4 h-4 text-[#65676B] absolute left-3 top-3" />
+
+                {loginError && (
+                  <p className="text-xs text-rose-700 font-semibold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
+                    ⚠️ {loginError}
+                  </p>
+                )}
+
+                <button
+                  type="submit"
+                  disabled={authBusy}
+                  className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-60 text-white font-bold text-sm shadow-md transition-all cursor-pointer"
+                >
+                  {authBusy ? 'Authenticating...' : 'Sign In via Firebase Auth'}
+                </button>
+              </form>
+
+              {onOpenAuthModal && (
                 <button
                   type="button"
-                  onClick={() => setShowPassword((prev) => !prev)}
-                  className="absolute right-3 top-2.5 text-[#65676B] hover:text-black cursor-pointer"
-                  aria-label="Toggle password visibility"
+                  onClick={onOpenAuthModal}
+                  className="w-full text-xs font-bold text-[#0866FF] hover:underline cursor-pointer"
                 >
-                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  Need to reset password or register? Open Auth Modal
                 </button>
-              </div>
+              )}
             </div>
+          ) : (
+            <div className="space-y-4">
+              <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2 text-xs text-rose-900">
+                <p className="font-extrabold text-sm flex items-center gap-1.5">
+                  <Ban className="w-4 h-4 text-rose-600" />
+                  <span>403 Access Blocked (/admin)</span>
+                </p>
+                <p>
+                  Signed in as: <strong data-sensitive="true">{firebaseUser.email || 'Unknown'}</strong>
+                </p>
+                <p>
+                  Email Verified: <strong>{firebaseUser.emailVerified ? 'Yes ✓' : 'No (Verification Required)'}</strong>
+                </p>
+                <p className="text-rose-700">
+                  Only the verified Firebase administrator account (<strong>{authorizedEmail}</strong>) can access /admin.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleLogout}
+                className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs cursor-pointer"
+              >
+                Sign Out &amp; Switch Account
+              </button>
+            </div>
+          )}
 
-            {loginError && (
-              <p className="text-xs text-rose-700 font-semibold bg-rose-50 p-2.5 rounded-xl border border-rose-200">
-                ⚠️ {loginError}
-              </p>
-            )}
-
+          <div className="pt-2 text-center border-t border-[#E4E6EB] space-y-2.5">
+            <div className="flex justify-center">
+              <ToonViblyShieldBadge />
+            </div>
             <button
-              type="submit"
-              className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm shadow-md active:scale-98 transition-all cursor-pointer"
-            >
-              অ্যাডমিন প্যানেলে প্রবেশ করুন (Sign In)
-            </button>
-          </form>
-
-          <div className="pt-2 text-center border-t border-[#E4E6EB]">
-            <button
+              type="button"
               onClick={onBackToApp}
               className="text-xs font-bold text-[#65676B] hover:text-black flex items-center justify-center gap-1.5 mx-auto transition-colors cursor-pointer"
             >
@@ -2450,57 +2580,43 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
             </div>
 
             <form
-              onSubmit={handleUpdateCredentials}
+              onSubmit={handleUpdateAuthorizedEmail}
               className="bg-white p-5 rounded-2xl border border-[#E4E6EB] space-y-4"
             >
-              <div className="flex items-center gap-2.5 border-b border-[#E4E6EB] pb-3">
-                <Key className="w-5 h-5 text-emerald-600" />
-                <div>
-                  <h3 className="text-sm font-bold text-black">অ্যাডমিন ইউজারনেম ও পাসওয়ার্ড পরিবর্তন</h3>
-                  <p className="text-xs text-[#65676B]">আপনার পছন্দমতো নতুন ইউজারনেম ও পাসওয়ার্ড সেট করুন</p>
+              <div className="flex items-center justify-between gap-2.5 border-b border-[#E4E6EB] pb-3">
+                <div className="flex items-center gap-2.5">
+                  <Key className="w-5 h-5 text-emerald-600" />
+                  <div>
+                    <h3 className="text-sm font-bold text-black">Firebase Admin Email Access Control</h3>
+                    <p className="text-xs text-[#65676B]">
+                      Custom password login disabled — Firebase Auth &amp; Email Verification only
+                    </p>
+                  </div>
                 </div>
+                <ToonViblyShieldBadge />
               </div>
 
               <div className="space-y-3 text-xs">
                 <div>
-                  <label className="block font-bold text-black mb-1">অ্যাডমিন ইউজারনেম</label>
+                  <label className="block font-bold text-black mb-1">Authorized Firebase Admin Email</label>
                   <input
-                    type="text"
+                    type="email"
                     required
-                    value={settingsUsername}
-                    onChange={(e) => setSettingsUsername(e.target.value)}
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
+                    value={settingsAdminEmail}
+                    onChange={(e) => setSettingsAdminEmail(e.target.value)}
+                    placeholder="admin@example.com"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-emerald-600 focus:bg-white"
                   />
                 </div>
-                <div>
-                  <label className="block font-bold text-black mb-1">নতুন পাসওয়ার্ড</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="কমপক্ষে ৬ অক্ষর লিখুন"
-                    value={settingsPassword}
-                    onChange={(e) => setSettingsPassword(e.target.value)}
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                  />
-                </div>
-                <div>
-                  <label className="block font-bold text-black mb-1">নতুন পাসওয়ার্ড নিশ্চিত করুন</label>
-                  <input
-                    type="password"
-                    required
-                    minLength={6}
-                    placeholder="পুনরায় পাসওয়ার্ড লিখুন"
-                    value={settingsConfirmPassword}
-                    onChange={(e) => setSettingsConfirmPassword(e.target.value)}
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-black focus:outline-none focus:border-[#0866FF] focus:bg-white"
-                  />
+                <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+                  <p className="font-bold">Active Admin Session (Firebase Verified ✓)</p>
+                  <p data-sensitive="true">Account: {firebaseUser?.email}</p>
                 </div>
                 <button
                   type="submit"
-                  className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold shadow-sm cursor-pointer"
+                  className="w-full py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold shadow-sm cursor-pointer"
                 >
-                  সেভ ও আপডেট করুন
+                  Update Authorized Admin Email
                 </button>
               </div>
             </form>

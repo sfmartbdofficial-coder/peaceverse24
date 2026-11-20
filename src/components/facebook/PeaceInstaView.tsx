@@ -1,6 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { ArrowLeft, Instagram, Heart, Bookmark, Plus, Camera, ShieldCheck } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
+import { sanitizeInput, validateMediaUpload } from '../../utils/security';
 
 interface PeaceInstaItem {
   id: string;
@@ -27,6 +28,7 @@ export const PeaceInstaView: React.FC<PeaceInstaViewProps> = ({
   const fileRef = useRef<HTMLInputElement | null>(null);
   const [captionDraft, setCaptionDraft] = useState('');
   const [selectedFileUrl, setSelectedFileUrl] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
 
   const initialPhotos: PeaceInstaItem[] = posts
     .filter((p) => p.mediaType === 'image' && p.mediaUrl)
@@ -46,6 +48,12 @@ export const PeaceInstaView: React.FC<PeaceInstaViewProps> = ({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      setUploadError(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return;
+    }
+    setUploadError(null);
     setSelectedFileUrl(URL.createObjectURL(file));
   };
 
@@ -54,9 +62,10 @@ export const PeaceInstaView: React.FC<PeaceInstaViewProps> = ({
     if (!selectedFileUrl) return;
     const newItem: PeaceInstaItem = {
       id: `insta-${Date.now()}`,
-      authorName:
-        userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan',
-      caption: captionDraft.trim() || 'হালাল ভিজ্যুয়াল স্টোরি • Peace Insta',
+      authorName: sanitizeInput(
+        userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan'
+      ),
+      caption: sanitizeInput(captionDraft.trim()) || 'হালাল ভিজ্যুয়াল স্টোরি • Peace Insta',
       imageUrl: selectedFileUrl,
       likes: 1,
       isLiked: true,
@@ -110,6 +119,11 @@ export const PeaceInstaView: React.FC<PeaceInstaViewProps> = ({
       </header>
 
       <div className="max-w-2xl mx-auto p-4 space-y-4">
+        {uploadError && (
+          <div className="px-3 py-2 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
+            {uploadError}
+          </div>
+        )}
         {selectedFileUrl && (
           <form
             onSubmit={handlePostPhoto}
