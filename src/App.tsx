@@ -71,6 +71,7 @@ import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
 import { PeaceDoveEmblem } from './components/landing/PeaceDoveEmblem';
 import { GlobalPrayerQiblaView } from './components/global/GlobalPrayerQiblaView';
+import { FbBlogView } from './components/facebook/FbBlogView';
 import {
   GLOBAL_CITIES,
   GlobalCity,
@@ -1956,6 +1957,17 @@ export default function App() {
     );
   }
 
+  if (currentPath === '/blog') {
+    return (
+      <FbBlogView
+        authorName={userProfile.name}
+        onBack={() =>
+          goAppBack(() => navigateToPath(firebaseUser ? '/home' : '/'))
+        }
+      />
+    );
+  }
+
   // 4. Protected Route Gate: If visitor is NOT logged in with Firebase, show Landing Page
   if (!firebaseUser) {
     return (
@@ -2551,6 +2563,32 @@ export default function App() {
                   </div>
                 </>
               )}
+
+              {/* Subtle Bottom-of-Home Blog Section (kept below feed, not at the top of Home) */}
+              <div className="mt-4 pt-3 border-t border-[#E4E6EB]">
+                <div className="bg-white border border-[#E4E6EB] rounded-xl p-3.5 flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2.5 min-w-0">
+                    <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
+                      <BookOpen className="w-4 h-4" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-xs font-bold text-black truncate">
+                        PeaceVerse24 Blog
+                      </p>
+                      <p className="text-[11px] text-[#65676B] truncate">
+                        শান্তি, ভালোবাসা আর পজিটিভ গল্প পড়ুন
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => navigateToPath('/blog')}
+                    className="px-3 py-1.5 rounded-lg bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#0866FF] text-xs font-bold shrink-0 cursor-pointer transition-colors"
+                  >
+                    ব্লগ দেখুন →
+                  </button>
+                </div>
+              </div>
             </div>
               </>
             )}

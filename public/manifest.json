@@ -1,9 +1,9 @@
 {
   "id": "/",
   "version": "2",
-  "name": "Peaceverse24 - Halal Social Network",
-  "short_name": "Peaceverse",
-  "description": "100% Halal Islamic social network",
+  "name": "PeaceVerse24 - শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি",
+  "short_name": "PeaceVerse24",
+  "description": "PeaceVerse24 হলো শান্তি আর ভালোবাসার কমিউনিটি। এখানে মনের কথা শেয়ার করো, নতুন বন্ধু বানাও, পজিটিভ থাকো।",
   "start_url": "/",
   "scope": "/",
   "display": "standalone",

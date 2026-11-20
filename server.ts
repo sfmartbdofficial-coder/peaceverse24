@@ -59,6 +59,7 @@ app.get('/robots.txt', (_req, res) => {
       'Allow: /home',
       'Allow: /login',
       'Allow: /signup',
+      'Allow: /blog',
       'Allow: /qibla',
       'Allow: /peace-threads',
       'Allow: /peace-insta',

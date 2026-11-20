@@ -473,6 +473,13 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => onNavigateTo('/blog')}
+              className="hover:underline cursor-pointer"
+            >
+              Blog
+            </button>
+            <button
+              type="button"
               onClick={() => setFooterInfoModal('about')}
               className="hover:underline cursor-pointer"
             >

@@ -731,6 +731,15 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           <span className="text-[15px] font-semibold text-neutral-900">Video</span>
         </button>
 
+        {/* 11. PeaceVerse24 Blog */}
+        <button
+          onClick={() => onNavigatePath?.('/blog')}
+          className="w-full h-[44px] flex items-center gap-3.5 px-3 hover:bg-neutral-50 active:bg-neutral-100 rounded-lg transition-colors text-left cursor-pointer"
+        >
+          <BookOpen className="w-6 h-6 text-emerald-700 shrink-0" />
+          <span className="text-[15px] font-semibold text-neutral-900">PeaceVerse24 Blog</span>
+        </button>
+
         {/* Section 2: See More / See Less (Avatars, Birthdays) */}
         {seeMore && (
           <div className="space-y-0.5 pt-0.5 animate-in fade-in">

@@ -3,6 +3,7 @@ Allow: /
 Allow: /home
 Allow: /login
 Allow: /signup
+Allow: /blog
 Allow: /qibla
 Allow: /peace-threads
 Allow: /peace-insta

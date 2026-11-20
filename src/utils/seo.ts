@@ -11,10 +11,11 @@ interface SeoMetadata {
   robots?: string;
 }
 
+const DEFAULT_TITLE = 'PeaceVerse24 - শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি';
 const DEFAULT_DESCRIPTION =
-  'PeaceVerse24 হলো বিশ্বের প্রথম ১০০% হালাল ও শান্তিপূর্ণ সোশ্যাল নেটওয়ার্ক। বন্ধুদের সাথে যোগাযোগ, হালাল ভিডিও, নামাজের সময় ও কিবলা দেখতে যোগ দিন। PeaceVerse24 is a peaceful, halal global social network to connect with friends, share positive content, check prayer times, and explore halal marketplace.';
+  'PeaceVerse24 হলো শান্তি আর ভালোবাসার কমিউনিটি। এখানে মনের কথা শেয়ার করো, নতুন বন্ধু বানাও, পজিটিভ থাকো।';
 
-const BASE_ORIGIN = 'https://peaceverse24.com';
+const CANONICAL_PRODUCTION_ORIGIN = 'https://peaceverse24.com';
 
 function resolveSeoMetadata({ path, tab, isAdminView }: PageSeoInput): SeoMetadata {
   if (isAdminView || path.startsWith('/admin')) {
@@ -26,20 +27,27 @@ function resolveSeoMetadata({ path, tab, isAdminView }: PageSeoInput): SeoMetada
     };
   }
 
+  if (path === '/blog') {
+    return {
+      title: 'PeaceVerse24 Blog - শান্তি, ভালোবাসা আর পজিটিভ গল্প | peaceverse24.com',
+      description:
+        'PeaceVerse24 ব্লগে শান্তি, ভালোবাসা, বন্ধুত্ব ও পজিটিভ জীবনের অনুপ্রেরণামূলক লেখা পড়ুন এবং নিজের মনের কথা শেয়ার করুন।',
+      canonicalPath: '/blog',
+    };
+  }
+
   if (path === '/login') {
     return {
-      title: 'PeaceVerse24 - লগইন | Log In',
-      description:
-        'PeaceVerse24 অ্যাকাউন্টে লগইন করুন এবং আপনার শান্তিময় হালাল কমিউনিটির সাথে যুক্ত থাকুন। Sign in to PeaceVerse24 to connect with friends and family worldwide.',
+      title: 'PeaceVerse24 - লগইন | শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি',
+      description: DEFAULT_DESCRIPTION,
       canonicalPath: '/login',
     };
   }
 
   if (path === '/signup') {
     return {
-      title: 'PeaceVerse24 - নতুন অ্যাকাউন্ট তৈরি করুন | Sign Up',
-      description:
-        'PeaceVerse24-এ ফ্রি নতুন অ্যাকাউন্ট খুলুন — নিরাপদ, হালাল ও শান্তিপূর্ণ সোশ্যাল নেটওয়ার্ক। Create a new PeaceVerse24 account step by step.',
+      title: 'PeaceVerse24 - নতুন অ্যাকাউন্ট তৈরি করুন | peaceverse24.com',
+      description: DEFAULT_DESCRIPTION,
       canonicalPath: '/signup',
     };
   }
@@ -48,69 +56,62 @@ function resolveSeoMetadata({ path, tab, isAdminView }: PageSeoInput): SeoMetada
     case 'reels':
     case 'watch':
       return {
-        title: 'PeaceVerse24 - হালাল ভিডিও ও রিলস | Halal Reels & Videos',
+        title: 'PeaceVerse24 - পজিটিভ ভিডিও ও রিলস | peaceverse24.com',
         description:
-          'মক্কা-মদিনা লাইভ, কুরআন তিলাওয়াত ও শিক্ষামূলক হালাল ভিডিও দেখুন PeaceVerse24-এ। Watch Makkah live, Quran recitation, and positive halal reels on PeaceVerse24.',
+          'PeaceVerse24-এ পজিটিভ, শিক্ষামূলক ও প্রশান্তিময় ভিডিও ও রিলস দেখুন। শান্তি আর ভালোবাসার কমিউনিটিতে যুক্ত থাকুন।',
         canonicalPath: '/?tab=reels',
       };
     case 'friends':
       return {
-        title: 'PeaceVerse24 - বন্ধু ও কমিউনিটি | Friends & Community',
-        description:
-          'PeaceVerse24-এ নতুন বন্ধু খুঁজুন এবং নিরাপদ ইসলামিক কমিউনিটিতে যুক্ত হোন। Find friends and build peaceful connections on PeaceVerse24.',
+        title: 'PeaceVerse24 - নতুন বন্ধু বানাও | শান্তি আর ভালোবাসার কমিউনিটি',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=friends',
       };
     case 'marketplace':
       return {
-        title: 'PeaceVerse24 - পিস মার্ট হালাল মার্কেটপ্লেস | Peace Mart',
-        description:
-          'PeaceVerse24 পিস মার্টে হালাল পণ্য কিনুন ও বিক্রি করুন। Buy and sell trusted halal products on PeaceVerse24 Peace Mart.',
+        title: 'PeaceVerse24 - পিস মার্ট | শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=marketplace',
       };
     case 'groups':
       return {
-        title: 'PeaceVerse24 - হালাল গ্রুপ ও কমিউনিটি | Groups',
-        description:
-          'জ্ঞান, দাওয়াহ ও সামাজিক কল্যাণমূলক হালাল গ্রুপে যোগ দিন PeaceVerse24-এ। Join positive study and community groups on PeaceVerse24.',
+        title: 'PeaceVerse24 - কমিউনিটি গ্রুপ | peaceverse24.com',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=groups',
       };
     case 'pages':
       return {
-        title: 'PeaceVerse24 - পেজ ও চ্যানেল | Pages',
-        description:
-          'মসজিদ, ইসলামিক প্রতিষ্ঠান ও হালাল ব্র্যান্ডের পেজ অনুসরণ করুন PeaceVerse24-এ। Follow verified Islamic creators, masjids, and halal brands on PeaceVerse24.',
+        title: 'PeaceVerse24 - পেজ ও চ্যানেল | peaceverse24.com',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=pages',
       };
     case 'notifications':
       return {
-        title: 'PeaceVerse24 - নোটিফিকেশন | Notifications',
-        description:
-          'আপনার পোস্ট, কমেন্ট, ফ্রেন্ড রিকোয়েস্ট ও কমিউনিটি আপডেট দেখুন। Stay updated with your PeaceVerse24 notifications.',
+        title: 'PeaceVerse24 - নোটিফিকেশন | peaceverse24.com',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=notifications',
       };
     case 'profile':
       return {
-        title: 'PeaceVerse24 - প্রোফাইল ও আখেরাত | Profile & Akherath',
-        description:
-          'আপনার PeaceVerse24 প্রোফাইল, পোস্ট এবং নেক আমলের হিসাব দেখুন। Manage your PeaceVerse24 profile, posts, and daily good deeds log.',
+        title: 'PeaceVerse24 - প্রোফাইল | শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=profile',
       };
     case 'menu':
       return {
-        title: 'PeaceVerse24 - মেনু, নামাজের সময় ও কিবলা | Menu & Tools',
-        description:
-          'নামাজের সময়সূচি, কিবলা কম্পাস, তাসবিহ ও সেটিংস ব্যবহার করুন PeaceVerse24 মেনু থেকে। Access prayer times, Qibla compass, tasbih, and settings.',
+        title: 'PeaceVerse24 - মেনু ও ব্লগ | peaceverse24.com',
+        description: DEFAULT_DESCRIPTION,
         canonicalPath: '/?tab=menu',
       };
     case 'home':
       return {
-        title: 'PeaceVerse24 - হোম ফিড | Halal Social Network',
+        title: DEFAULT_TITLE,
         description: DEFAULT_DESCRIPTION,
         canonicalPath: '/home',
       };
     default:
       return {
-        title: 'PeaceVerse24 - শান্তিময় ও হালাল সোশ্যাল নেটওয়ার্ক | Halal Social Network',
+        title: DEFAULT_TITLE,
         description: DEFAULT_DESCRIPTION,
         canonicalPath: '/',
       };
@@ -143,7 +144,7 @@ export function applyPageSeo(input: PageSeoInput): void {
   if (typeof document === 'undefined') return;
 
   const meta = resolveSeoMetadata(input);
-  const fullUrl = `${BASE_ORIGIN}${meta.canonicalPath}`;
+  const fullUrl = `${CANONICAL_PRODUCTION_ORIGIN}${meta.canonicalPath}`;
 
   document.title = meta.title;
   upsertMetaTag('name', 'description', meta.description);
