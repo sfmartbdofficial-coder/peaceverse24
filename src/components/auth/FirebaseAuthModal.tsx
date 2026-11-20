@@ -79,6 +79,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
         email: payload.contact,
         fullName: cleanDisplayName,
         purpose: 'signup',
+        allowExisting: true,
       });
       setPendingSignUpData(payload);
       setOtpInputCode('');
@@ -365,7 +366,7 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                   </button>
                   <button
                     type="submit"
-                    disabled={loading || otpInputCode.length !== 6}
+                    disabled={loading}
                     className="flex-1 py-2.5 rounded-xl bg-[#00A400] hover:bg-[#008C00] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                   >
                     {loading ? (

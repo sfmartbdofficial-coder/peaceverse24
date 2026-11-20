@@ -87,16 +87,16 @@ app.get('/sitemap.xml', (_req, res) => {
   res.sendFile(path.resolve(__dirname, 'public', 'sitemap.xml'));
 });
 
-// Server-side Rate Limiter for /api/* (Max 10 requests per minute per client IP/user)
+// Server-side Rate Limiter for /api/* (Max 60 requests per minute per client IP/user; OTP endpoints enforce tighter per-email limits)
 const apiRateMap = new Map<string, number[]>();
 app.use('/api', (req, res, next) => {
   const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
   const windowMs = 60 * 1000;
-  const maxReq = 10;
+  const maxReq = 60;
   const recent = (apiRateMap.get(clientIp) || []).filter((ts) => now - ts < windowMs);
   if (recent.length >= maxReq) {
-    return res.status(429).json({ error: 'Rate limit exceeded: max 10 requests per minute.' });
+    return res.status(429).json({ error: 'Rate limit exceeded: too many requests. Please wait a moment.' });
   }
   recent.push(now);
   apiRateMap.set(clientIp, recent);
@@ -123,11 +123,57 @@ const EMAIL_OTP_MAX_ATTEMPTS = 5;
 const EMAIL_OTP_MAX_SENDS_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const EMAIL_OTP_MAX_SENDS_PER_WINDOW = 5;
 
+const otpRuntimeFallbackSecret = crypto.randomBytes(32).toString('hex');
+
+function getOtpSigningSecret(): string {
+  return (
+    process.env.OTP_SIGNING_SECRET?.trim() ||
+    process.env.RESEND_API_KEY?.trim() ||
+    process.env.SMTP_PASS?.trim() ||
+    otpRuntimeFallbackSecret
+  );
+}
+
 function hashOtpCode(email: string, purpose: string, code: string): string {
   return crypto
     .createHash('sha256')
     .update(`${email.toLowerCase()}:${purpose}:${code}`)
     .digest('hex');
+}
+
+function createSignedOtpChallenge(email: string, purpose: string, code: string, expiresAt: number): string {
+  const payload = Buffer.from(JSON.stringify({ email: email.toLowerCase(), purpose, exp: expiresAt })).toString('base64url');
+  const sig = crypto
+    .createHmac('sha256', getOtpSigningSecret())
+    .update(`${payload}:${code}`)
+    .digest('base64url');
+  return `${payload}.${sig}`;
+}
+
+function verifySignedOtpChallenge(challengeToken: string, email: string, purpose: string, code: string): boolean {
+  try {
+    const parts = challengeToken.split('.');
+    if (parts.length !== 2) return false;
+    const [payloadB64, sigB64] = parts;
+    const parsed = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (
+      !parsed ||
+      parsed.email !== email.toLowerCase() ||
+      parsed.purpose !== purpose ||
+      typeof parsed.exp !== 'number' ||
+      Date.now() > parsed.exp
+    ) {
+      return false;
+    }
+    const expectedSig = crypto
+      .createHmac('sha256', getOtpSigningSecret())
+      .update(`${payloadB64}:${code}`)
+      .digest('base64url');
+    if (sigB64.length !== expectedSig.length) return false;
+    return crypto.timingSafeEqual(Buffer.from(sigB64), Buffer.from(expectedSig));
+  } catch {
+    return false;
+  }
 }
 
 function escapeHtmlBasic(str: string): string {
@@ -303,12 +349,24 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
       });
     }
 
+    const allowExisting = req.body?.allowExisting === true;
     const key = `${purpose}:${rawEmail}`;
     const now = Date.now();
     const existing = emailOtpStore.get(key);
 
     if (existing && now - existing.lastSentAt < EMAIL_OTP_COOLDOWN_MS) {
       const waitSec = Math.ceil((EMAIL_OTP_COOLDOWN_MS - (now - existing.lastSentAt)) / 1000);
+      if (allowExisting && now < existing.expiresAt && existing.attempts < EMAIL_OTP_MAX_ATTEMPTS) {
+        return res.json({
+          success: true,
+          alreadySent: true,
+          email: rawEmail,
+          provider: 'existing',
+          expiresInSeconds: Math.max(1, Math.floor((existing.expiresAt - now) / 1000)),
+          resendCooldownSeconds: waitSec,
+          message: `আপনার ${rawEmail} ইমেইলে ইতিমধ্যেই ৬ ডিজিটের কোড পাঠানো আছে। নিচে কোডটি লিখুন (অথবা ${waitSec} সেকেন্ড পর আবার পাঠান)।`,
+        });
+      }
       return res.status(429).json({
         success: false,
         error: `অনুগ্রহ করে ${waitSec} সেকেন্ড পর আবার কোড পাঠান।`,
@@ -333,19 +391,23 @@ app.post('/api/auth/send-email-otp', async (req, res) => {
       purpose,
     });
 
+    const expiresAt = now + EMAIL_OTP_TTL_MS;
     recentSends.push(now);
     emailOtpStore.set(key, {
       codeHash: hashOtpCode(rawEmail, purpose, otpCode),
-      expiresAt: now + EMAIL_OTP_TTL_MS,
+      expiresAt,
       attempts: 0,
       lastSentAt: now,
       sendHistory: recentSends,
     });
 
+    const challengeToken = createSignedOtpChallenge(rawEmail, purpose, otpCode, expiresAt);
+
     return res.json({
       success: true,
       email: rawEmail,
       provider,
+      challengeToken,
       expiresInSeconds: Math.floor(EMAIL_OTP_TTL_MS / 1000),
       resendCooldownSeconds: Math.floor(EMAIL_OTP_COOLDOWN_MS / 1000),
       message: `${rawEmail} ঠিকানায় ৬ ডিজিটের ভেরিফিকেশন কোড পাঠানো হয়েছে।`,
@@ -367,6 +429,7 @@ app.post('/api/auth/verify-email-otp', (req, res) => {
     const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
     const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
     const purpose = req.body?.purpose === '2fa' ? '2fa' : 'signup';
+    const challengeToken = typeof req.body?.challengeToken === 'string' ? req.body.challengeToken.trim() : '';
 
     if (!rawEmail || !/^\d{6}$/.test(code)) {
       return res.status(400).json({
@@ -380,6 +443,20 @@ app.post('/api/auth/verify-email-otp', (req, res) => {
     const now = Date.now();
 
     if (!record) {
+      if (challengeToken && verifySignedOtpChallenge(challengeToken, rawEmail, purpose, code)) {
+        const verificationToken = crypto.randomBytes(24).toString('hex');
+        verifiedEmailTokenStore.set(verificationToken, {
+          email: rawEmail,
+          purpose,
+          expiresAt: now + 15 * 60 * 1000,
+        });
+        return res.json({
+          verified: true,
+          email: rawEmail,
+          verificationToken,
+          message: 'ইমেইল সফলভাবে ভেরিফাই হয়েছে।',
+        });
+      }
       return res.status(400).json({
         verified: false,
         error: 'কোনো সক্রিয় কোড পাওয়া যায়নি। দয়া করে আবার কোড পাঠান।',

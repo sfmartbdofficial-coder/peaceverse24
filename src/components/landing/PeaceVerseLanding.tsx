@@ -234,6 +234,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
         email: payload.contact,
         fullName,
         purpose: 'signup',
+        allowExisting: true,
       });
       setPendingSignUpData(payload);
       setSignUpOtpCode('');
@@ -629,12 +630,18 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
       {/* SIGN UP MODAL (Facebook Step-by-Step Popup Style) */}
       {showSignUpModal && (
         <div className="fixed inset-0 z-50 bg-white/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
-          <div className="bg-white w-full max-w-[432px] rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.2)] border border-[#DADDE1] overflow-hidden animate-in zoom-in-95">
+          <div className="bg-white w-full max-w-[432px] max-h-[92vh] overflow-y-auto rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.2)] border border-[#DADDE1] animate-in zoom-in-95">
             {/* Modal Header */}
             <div className="px-4 py-3 border-b border-[#DADDE1] flex items-start justify-between">
               <div>
-                <h2 className="text-[26px] font-bold text-[#1C1E21] leading-tight">Sign Up</h2>
-                <p className="text-[14px] text-[#606770]">It&apos;s quick and easy.</p>
+                <h2 className="text-[24px] font-bold text-[#1C1E21] leading-tight">
+                  {signUpStep === 'otp' ? 'Email Verification' : 'Sign Up'}
+                </h2>
+                <p className="text-[14px] text-[#606770]">
+                  {signUpStep === 'otp'
+                    ? 'ইমেইলে পাঠানো ৬ ডিজিটের কোডটি লিখুন'
+                    : "It's quick and easy."}
+                </p>
               </div>
               <button
                 type="button"
@@ -684,6 +691,9 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                     </p>
                   </div>
 
+                  <label className="block text-xs font-bold text-[#1C1E21]">
+                    ৬ ডিজিটের ভেরিফিকেশন কোড (Verification Code)
+                  </label>
                   <input
                     type="text"
                     inputMode="numeric"
@@ -694,8 +704,8 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                       setSignUpOtpCode(e.target.value.replace(/\D/g, ''));
                       setSignUpError(null);
                     }}
-                    placeholder="Enter 6-digit Email OTP"
-                    className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-center font-mono tracking-[0.25em] text-[17px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+                    placeholder="______"
+                    className="w-full px-3 py-3 bg-[#F5F6F7] border-2 border-[#CCD0D5] rounded-[6px] text-center font-mono tracking-[0.35em] text-[20px] font-bold text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
                   />
 
                   <div className="flex items-center justify-between text-xs">
@@ -726,11 +736,11 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={signUpLoading || signUpOtpCode.length !== 6}
+                      disabled={signUpLoading}
                       className="flex-1 py-2.5 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[15px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {signUpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      <span>Verify & Create Account</span>
+                      <span>Verify &amp; Complete Sign Up</span>
                     </button>
                   </div>
                 </form>

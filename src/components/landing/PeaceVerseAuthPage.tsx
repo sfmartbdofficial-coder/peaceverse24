@@ -222,6 +222,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
         email: payload.contact,
         fullName: cleanName,
         purpose: 'signup',
+        allowExisting: true,
       });
       setPendingSignUpData(payload);
       setResendCooldown(otpRes.resendCooldownSeconds || 45);
@@ -592,7 +593,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={loading || otpChallenge.inputCode.length !== 6}
+                      disabled={loading}
                       className="flex-1 py-2.5 rounded-xl bg-[#00A400] hover:bg-[#008C00] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {loading ? (
