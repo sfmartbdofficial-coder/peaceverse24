@@ -552,6 +552,7 @@ export default function App() {
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
   const [emailVerifiedTick, setEmailVerifiedTick] = useState<number>(0);
+  const [remoteOtpVerified, setRemoteOtpVerified] = useState<boolean>(false);
   const [urlKeyBlockedMsg, setUrlKeyBlockedMsg] = useState<string | null>(null);
   const [disableCopyOnSensitive, setDisableCopyOnSensitive] = useState<boolean>(
     () => loadPeaceSettings().disableCopyOnSensitive !== false
@@ -754,6 +755,9 @@ export default function App() {
 
         fetchUserProfileFromFirestore(usr.uid).then((remote) => {
           if (!remote) return;
+          if (remote.emailOtpVerified) {
+            setRemoteOtpVerified(true);
+          }
           setUserProfile((prev) => ({
             ...prev,
             whatsapp: prev.whatsapp || remote.whatsapp || '',
@@ -773,6 +777,7 @@ export default function App() {
           navigateToPath('/home' + window.location.search + window.location.hash);
         }
       } else {
+        setRemoteOtpVerified(false);
         clearSessionStart();
         // Rule: If user is NOT logged in, redirect any /home visit back to "/"
         const path = window.location.pathname;
@@ -2004,10 +2009,27 @@ export default function App() {
     );
   }
 
-  // 4.5 Email Verification Required Gate (Firebase Auth Security)
+  // 4.5 Email Verification Required Gate (Firebase Auth Security + 6-digit Email OTP)
+  const isOtpVerifiedLocally = Boolean(
+    firebaseUser?.uid &&
+      firebaseUser?.email &&
+      (() => {
+        try {
+          return (
+            localStorage.getItem(`peaceverse_otp_verified_${firebaseUser.uid}`) ===
+            firebaseUser.email?.toLowerCase()
+          );
+        } catch {
+          return false;
+        }
+      })()
+  );
+
   const requiresEmailVerification =
     Boolean(firebaseUser) &&
     !firebaseUser.emailVerified &&
+    !isOtpVerifiedLocally &&
+    !remoteOtpVerified &&
     Boolean(firebaseUser.email) &&
     !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
     firebaseUser.providerData.some((p) => p.providerId === 'password');

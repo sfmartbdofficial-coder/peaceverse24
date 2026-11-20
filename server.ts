@@ -1,8 +1,10 @@
 import express from 'express';
 import http from 'http';
+import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
+import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
@@ -99,6 +101,347 @@ app.use('/api', (req, res, next) => {
   recent.push(now);
   apiRateMap.set(clientIp, recent);
   next();
+});
+
+// ==========================================
+// REAL 6-DIGIT EMAIL OTP SERVICE (NO DEMO CODE)
+// ==========================================
+interface OtpChallengeRecord {
+  codeHash: string;
+  expiresAt: number;
+  attempts: number;
+  lastSentAt: number;
+  sendHistory: number[];
+}
+
+const emailOtpStore = new Map<string, OtpChallengeRecord>();
+const verifiedEmailTokenStore = new Map<string, { email: string; purpose: string; expiresAt: number }>();
+
+const EMAIL_OTP_TTL_MS = 10 * 60 * 1000; // 10 minutes
+const EMAIL_OTP_COOLDOWN_MS = 45 * 1000; // 45 seconds between resends
+const EMAIL_OTP_MAX_ATTEMPTS = 5;
+const EMAIL_OTP_MAX_SENDS_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const EMAIL_OTP_MAX_SENDS_PER_WINDOW = 5;
+
+function hashOtpCode(email: string, purpose: string, code: string): string {
+  return crypto
+    .createHash('sha256')
+    .update(`${email.toLowerCase()}:${purpose}:${code}`)
+    .digest('hex');
+}
+
+function escapeHtmlBasic(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+async function dispatchRealOtpEmail(params: {
+  toEmail: string;
+  fullName: string;
+  code: string;
+  purpose: string;
+}): Promise<string> {
+  const { toEmail, fullName, code, purpose } = params;
+  const recipientName = escapeHtmlBasic(fullName || 'PeaceVerse Friend');
+  const isTwoFactor = purpose === '2fa';
+  const subject = isTwoFactor
+    ? `PeaceVerse24 Login Verification Code: ${code}`
+    : `PeaceVerse24 Sign Up Verification Code: ${code}`;
+
+  const textBody = [
+    `Assalamu Alaikum ${fullName || 'Friend'},`,
+    '',
+    `Your PeaceVerse24 6-digit verification code is: ${code}`,
+    '',
+    'এই কোডটি আগামী ১০ মিনিট পর্যন্ত কার্যকর থাকবে। নিরাপত্তার জন্য এই কোডটি কারো সাথে শেয়ার করবেন না।',
+    'This code expires in 10 minutes. Do not share it with anyone.',
+    '',
+    '— PeaceVerse24.com Security Team',
+  ].join('\n');
+
+  const htmlBody = `
+    <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background:#F0F2F5; padding:24px;">
+      <div style="max-width:480px; margin:0 auto; background:#ffffff; border-radius:14px; border:1px solid #DADDE1; overflow:hidden;">
+        <div style="background:#0866FF; padding:20px 24px; color:#ffffff;">
+          <h1 style="margin:0; font-size:20px; font-weight:800;">PeaceVerse24.com</h1>
+          <p style="margin:4px 0 0; font-size:12px; opacity:0.9;">শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি</p>
+        </div>
+        <div style="padding:24px; color:#1C1E21;">
+          <p style="margin:0 0 12px; font-size:14px;">আসসালামু আলাইকুম <strong>${recipientName}</strong>,</p>
+          <p style="margin:0 0 16px; font-size:14px; color:#4B4F56;">
+            ${
+              isTwoFactor
+                ? 'আপনার PeaceVerse24 অ্যাকাউন্টে লগইন সম্পন্ন করতে নিচের ৬ ডিজিটের ভেরিফিকেশন কোডটি ব্যবহার করুন:'
+                : 'PeaceVerse24.com-এ নতুন অ্যাকাউন্ট খুলতে নিচের ৬ ডিজিটের ইমেইল ভেরিফিকেশন কোডটি দিন:'
+            }
+          </p>
+          <div style="background:#F0F7FF; border:2px dashed #0866FF; border-radius:10px; padding:16px; text-align:center; margin:16px 0;">
+            <span style="font-family:monospace; font-size:32px; font-weight:900; letter-spacing:8px; color:#0866FF;">${code}</span>
+          </div>
+          <p style="margin:16px 0 0; font-size:12px; color:#65676B;">
+            এই কোডটি <strong>১০ মিনিট</strong> পর্যন্ত কার্যকর থাকবে। কোডটি কারো সাথে শেয়ার করবেন না।
+          </p>
+        </div>
+      </div>
+    </div>
+  `;
+
+  // Provider 1: Resend REST API
+  const resendKey = process.env.RESEND_API_KEY?.trim();
+  if (resendKey && resendKey !== 're_YOUR_RESEND_API_KEY') {
+    const fromEmail = process.env.RESEND_FROM_EMAIL?.trim() || 'PeaceVerse24 <noreply@peaceverse24.com>';
+    const resendRes = await fetch('https://api.resend.com/emails', {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${resendKey}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        from: fromEmail,
+        to: [toEmail],
+        subject,
+        html: htmlBody,
+        text: textBody,
+      }),
+    });
+
+    if (!resendRes.ok) {
+      const errJson: any = await resendRes.json().catch(() => ({}));
+      throw new Error(errJson?.message || `Resend email failed (HTTP ${resendRes.status})`);
+    }
+    return 'resend';
+  }
+
+  // Provider 2: Gmail / Custom SMTP via Nodemailer
+  const smtpUser = process.env.SMTP_USER?.trim();
+  const smtpPass = process.env.SMTP_PASS?.trim();
+  if (
+    smtpUser &&
+    smtpPass &&
+    smtpUser !== 'your-gmail@gmail.com' &&
+    smtpPass !== 'YOUR_16_CHAR_GMAIL_APP_PASSWORD'
+  ) {
+    const smtpHost = process.env.SMTP_HOST?.trim() || 'smtp.gmail.com';
+    const smtpPort = Number(process.env.SMTP_PORT) || 587;
+    const transporter = nodemailer.createTransport({
+      host: smtpHost,
+      port: smtpPort,
+      secure: smtpPort === 465,
+      auth: {
+        user: smtpUser,
+        pass: smtpPass,
+      },
+    });
+
+    await transporter.sendMail({
+      from: process.env.SMTP_FROM_EMAIL?.trim() || `PeaceVerse24 <${smtpUser}>`,
+      to: toEmail,
+      subject,
+      text: textBody,
+      html: htmlBody,
+    });
+    return 'smtp';
+  }
+
+  // Provider 3: EmailJS REST API
+  const ejsService = process.env.EMAILJS_SERVICE_ID?.trim();
+  const ejsTemplate = process.env.EMAILJS_TEMPLATE_ID?.trim();
+  const ejsPublicKey = process.env.EMAILJS_PUBLIC_KEY?.trim();
+  if (ejsService && ejsTemplate && ejsPublicKey) {
+    const ejsRes = await fetch('https://api.emailjs.com/api/v1.0/email/send', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        service_id: ejsService,
+        template_id: ejsTemplate,
+        user_id: ejsPublicKey,
+        ...(process.env.EMAILJS_PRIVATE_KEY?.trim()
+          ? { accessToken: process.env.EMAILJS_PRIVATE_KEY.trim() }
+          : {}),
+        template_params: {
+          to_email: toEmail,
+          user_email: toEmail,
+          email: toEmail,
+          to_name: fullName || 'Friend',
+          passcode: code,
+          otp_code: code,
+          code,
+          app_name: 'PeaceVerse24',
+        },
+      }),
+    });
+
+    if (!ejsRes.ok) {
+      const errText = await ejsRes.text().catch(() => '');
+      throw new Error(errText || `EmailJS request failed (HTTP ${ejsRes.status})`);
+    }
+    return 'emailjs';
+  }
+
+  const missingErr: any = new Error(
+    'ইমেইল সার্ভিস কনফিগার করা হয়নি। Vercel/Server Environment Variables-এ RESEND_API_KEY অথবা Gmail SMTP_USER ও SMTP_PASS সেট করুন।'
+  );
+  missingErr.statusCode = 503;
+  throw missingErr;
+}
+
+app.post('/api/auth/send-email-otp', async (req, res) => {
+  try {
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const fullName = typeof req.body?.fullName === 'string' ? req.body.fullName.trim().slice(0, 80) : '';
+    const purpose = req.body?.purpose === '2fa' ? '2fa' : 'signup';
+
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
+    if (!emailRegex.test(rawEmail) || rawEmail.endsWith('@phone.peaceverse.app')) {
+      return res.status(400).json({
+        success: false,
+        error: 'অনুগ্রহ করে আপনার সঠিক আসল Email (যেমন: name@gmail.com) লিখুন।',
+      });
+    }
+
+    const key = `${purpose}:${rawEmail}`;
+    const now = Date.now();
+    const existing = emailOtpStore.get(key);
+
+    if (existing && now - existing.lastSentAt < EMAIL_OTP_COOLDOWN_MS) {
+      const waitSec = Math.ceil((EMAIL_OTP_COOLDOWN_MS - (now - existing.lastSentAt)) / 1000);
+      return res.status(429).json({
+        success: false,
+        error: `অনুগ্রহ করে ${waitSec} সেকেন্ড পর আবার কোড পাঠান।`,
+      });
+    }
+
+    const recentSends = (existing?.sendHistory || []).filter(
+      (ts) => now - ts < EMAIL_OTP_MAX_SENDS_WINDOW_MS
+    );
+    if (recentSends.length >= EMAIL_OTP_MAX_SENDS_PER_WINDOW) {
+      return res.status(429).json({
+        success: false,
+        error: 'অনেকবার কোড পাঠানো হয়েছে। ১৫ মিনিট পর আবার চেষ্টা করুন।',
+      });
+    }
+
+    const otpCode = String(crypto.randomInt(100000, 1000000));
+    const provider = await dispatchRealOtpEmail({
+      toEmail: rawEmail,
+      fullName,
+      code: otpCode,
+      purpose,
+    });
+
+    recentSends.push(now);
+    emailOtpStore.set(key, {
+      codeHash: hashOtpCode(rawEmail, purpose, otpCode),
+      expiresAt: now + EMAIL_OTP_TTL_MS,
+      attempts: 0,
+      lastSentAt: now,
+      sendHistory: recentSends,
+    });
+
+    return res.json({
+      success: true,
+      email: rawEmail,
+      provider,
+      expiresInSeconds: Math.floor(EMAIL_OTP_TTL_MS / 1000),
+      resendCooldownSeconds: Math.floor(EMAIL_OTP_COOLDOWN_MS / 1000),
+      message: `${rawEmail} ঠিকানায় ৬ ডিজিটের ভেরিফিকেশন কোড পাঠানো হয়েছে।`,
+    });
+  } catch (error: any) {
+    const status = typeof error?.statusCode === 'number' ? error.statusCode : 500;
+    console.error('Send Email OTP Error:', error?.message || error);
+    return res.status(status).json({
+      success: false,
+      error:
+        error?.message ||
+        'ইমেইলে ভেরিফিকেশন কোড পাঠানো যায়নি। আবার চেষ্টা করুন।',
+    });
+  }
+});
+
+app.post('/api/auth/verify-email-otp', (req, res) => {
+  try {
+    const rawEmail = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    const code = typeof req.body?.code === 'string' ? req.body.code.trim() : '';
+    const purpose = req.body?.purpose === '2fa' ? '2fa' : 'signup';
+
+    if (!rawEmail || !/^\d{6}$/.test(code)) {
+      return res.status(400).json({
+        verified: false,
+        error: 'আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।',
+      });
+    }
+
+    const key = `${purpose}:${rawEmail}`;
+    const record = emailOtpStore.get(key);
+    const now = Date.now();
+
+    if (!record) {
+      return res.status(400).json({
+        verified: false,
+        error: 'কোনো সক্রিয় কোড পাওয়া যায়নি। দয়া করে আবার কোড পাঠান।',
+      });
+    }
+
+    if (now > record.expiresAt) {
+      emailOtpStore.delete(key);
+      return res.status(400).json({
+        verified: false,
+        error: 'কোডটির মেয়াদ শেষ হয়ে গেছে। দয়া করে নতুন কোড পাঠান।',
+      });
+    }
+
+    if (record.attempts >= EMAIL_OTP_MAX_ATTEMPTS) {
+      emailOtpStore.delete(key);
+      return res.status(429).json({
+        verified: false,
+        error: 'অনেকবার ভুল কোড দেওয়া হয়েছে। অনুগ্রহ করে নতুন কোড পাঠান।',
+      });
+    }
+
+    const incomingHash = hashOtpCode(rawEmail, purpose, code);
+    const matched = crypto.timingSafeEqual(
+      Buffer.from(incomingHash, 'hex'),
+      Buffer.from(record.codeHash, 'hex')
+    );
+
+    if (!matched) {
+      record.attempts += 1;
+      emailOtpStore.set(key, record);
+      const remaining = Math.max(0, EMAIL_OTP_MAX_ATTEMPTS - record.attempts);
+      return res.status(400).json({
+        verified: false,
+        error:
+          remaining > 0
+            ? `ভুল কোড! আপনার ইমেইলে পাঠানো ৬ ডিজিটের কোডটি লিখুন (আরো ${remaining} বার চেষ্টা করতে পারবেন)।`
+            : 'অনেকবার ভুল কোড দেওয়া হয়েছে। অনুগ্রহ করে নতুন কোড পাঠান।',
+      });
+    }
+
+    emailOtpStore.delete(key);
+    const verificationToken = crypto.randomBytes(24).toString('hex');
+    verifiedEmailTokenStore.set(verificationToken, {
+      email: rawEmail,
+      purpose,
+      expiresAt: now + 15 * 60 * 1000,
+    });
+
+    return res.json({
+      verified: true,
+      email: rawEmail,
+      verificationToken,
+      message: 'ইমেইল সফলভাবে ভেরিফাই হয়েছে।',
+    });
+  } catch (error: any) {
+    console.error('Verify Email OTP Error:', error);
+    return res.status(500).json({
+      verified: false,
+      error: 'কোড যাচাই করা যায়নি। আবার চেষ্টা করুন।',
+    });
+  }
 });
 
 // Lazy-initialize Gemini SDK using process.env.API_KEY / process.env.GEMINI_API_KEY

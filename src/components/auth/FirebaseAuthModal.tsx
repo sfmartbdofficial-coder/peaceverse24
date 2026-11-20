@@ -1,9 +1,10 @@
-import React, { useState } from 'react';
-import { X, Mail, Lock, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { X, Mail, Lock, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, logoutUser } from '../../lib/firebase';
 import { TurnstileCaptchaPlaceholder } from './TurnstileCaptchaPlaceholder';
 import { StepByStepSignUpForm, StepSignUpPayload } from './StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
+import { requestEmailOtp, verifyEmailOtp } from '../../utils/emailOtp';
 
 interface FirebaseAuthModalProps {
   isOpen: boolean;
@@ -21,10 +22,21 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [pendingSignUpData, setPendingSignUpData] = useState<StepSignUpPayload | null>(null);
+  const [otpInputCode, setOtpInputCode] = useState('');
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [turnstileVerified, setTurnstileVerified] = useState(false);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   if (!isOpen) return null;
 
@@ -63,34 +75,97 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
     setLoading(true);
     try {
       const cleanDisplayName = sanitizeInput(`${payload.firstName} ${payload.lastName}`);
-      const resolvedEmail = normalizeIdentifierToEmail(payload.contact);
+      const otpRes = await requestEmailOtp({
+        email: payload.contact,
+        fullName: cleanDisplayName,
+        purpose: 'signup',
+      });
+      setPendingSignUpData(payload);
+      setOtpInputCode('');
+      setResendCooldown(otpRes.resendCooldownSeconds || 45);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'ইমেইলে ৬ ডিজিটের কোড পাঠানো যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendModalOtp = async () => {
+    if (!pendingSignUpData || resendCooldown > 0 || loading) return;
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      const cleanDisplayName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
+      const otpRes = await requestEmailOtp({
+        email: pendingSignUpData.contact,
+        fullName: cleanDisplayName,
+        purpose: 'signup',
+      });
+      setResendCooldown(otpRes.resendCooldownSeconds || 45);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'আবার কোড পাঠানো যায়নি।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyModalOtpAndRegister = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    setSuccessMsg('');
+    if (!pendingSignUpData) return;
+
+    const cleanCode = otpInputCode.trim();
+    if (!/^\d{6}$/.test(cleanCode)) {
+      setErrorMsg('আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const verifiedRes = await verifyEmailOtp({
+        email: pendingSignUpData.contact,
+        code: cleanCode,
+        purpose: 'signup',
+      });
+
+      const cleanDisplayName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
+      const resolvedEmail = pendingSignUpData.contact.trim().toLowerCase();
       try {
         localStorage.setItem(
           'peaceverse_signup_meta',
           JSON.stringify({
             name: cleanDisplayName,
-            birthDate: `${payload.dobDay} ${payload.dobMonth} ${payload.dobYear}`,
-            gender: payload.gender,
-            contact: payload.contact,
+            birthDate: `${pendingSignUpData.dobDay} ${pendingSignUpData.dobMonth} ${pendingSignUpData.dobYear}`,
+            gender: pendingSignUpData.gender,
+            contact: resolvedEmail,
+            verifiedChannel: 'email',
           })
         );
         localStorage.setItem('peaceverse_registered_name', cleanDisplayName);
       } catch {}
 
-      const user = await registerWithEmail(resolvedEmail, payload.password, cleanDisplayName);
+      const user = await registerWithEmail(
+        resolvedEmail,
+        pendingSignUpData.password,
+        cleanDisplayName,
+        verifiedRes.verificationToken
+      );
       if (user) {
-        setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং ভেরিফিকেশন সম্পন্ন হয়েছে!');
+        setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং ইমেইল ভেরিফিকেশন সম্পন্ন হয়েছে!');
         setTimeout(() => {
+          setPendingSignUpData(null);
+          setOtpInputCode('');
           setWizardStep(1);
           onSuccess?.(user);
           onClose();
-        }, 1200);
+        }, 1000);
       }
     } catch (err: any) {
       let msg = err?.message || 'একটি ত্রুটি ঘটেছে।';
       const code = err?.code || '';
       if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
-        msg = 'ইমেইল বা ফোন নম্বরটি সঠিক নয়।';
+        msg = 'ইমেইল ঠিকানাটি সঠিক নয়।';
       } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
         msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে।';
       }
@@ -240,13 +315,82 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
           )}
 
           {tab === 'register' ? (
-            <StepByStepSignUpForm
-              step={wizardStep}
-              onStepChange={setWizardStep}
-              onComplete={handleWizardRegister}
-              loading={loading}
-              compact
-            />
+            pendingSignUpData ? (
+              <form onSubmit={handleVerifyModalOtpAndRegister} className="space-y-3">
+                <div className="p-3 rounded-xl bg-[#E7F3FF] border border-blue-200 space-y-2">
+                  <p className="text-xs font-bold text-[#0866FF]">Email Code Verification</p>
+                  <p className="text-[11px] text-[#4B4F56]">
+                    আপনার <strong>{pendingSignUpData.contact}</strong> ইমেইলে ৬ ডিজিটের ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স বা Spam ফোল্ডার চেক করে কোডটি লিখুন।
+                  </p>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoFocus
+                    value={otpInputCode}
+                    onChange={(e) => {
+                      setOtpInputCode(e.target.value.replace(/\D/g, ''));
+                      setErrorMsg('');
+                    }}
+                    placeholder="Enter 6-digit Email OTP"
+                    className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-center font-mono tracking-widest text-sm text-black outline-none focus:border-[#0866FF]"
+                  />
+                </div>
+
+                <div className="flex items-center justify-between text-xs">
+                  <span className="text-[#65676B]">কোড পাননি?</span>
+                  <button
+                    type="button"
+                    onClick={handleResendModalOtp}
+                    disabled={resendCooldown > 0 || loading}
+                    className="font-bold text-[#0866FF] hover:underline disabled:text-[#8D949E] cursor-pointer"
+                  >
+                    {resendCooldown > 0 ? `আবার পাঠান (${resendCooldown}s)` : 'আবার কোড পাঠান'}
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setPendingSignUpData(null);
+                      setOtpInputCode('');
+                      setErrorMsg('');
+                    }}
+                    disabled={loading}
+                    className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1"
+                  >
+                    <ArrowLeft className="w-3.5 h-3.5" />
+                    <span>Back</span>
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={loading || otpInputCode.length !== 6}
+                    className="flex-1 py-2.5 rounded-xl bg-[#00A400] hover:bg-[#008C00] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <>
+                        <RefreshCw className="w-4 h-4 animate-spin" />
+                        <span>যাচাই করা হচ্ছে...</span>
+                      </>
+                    ) : (
+                      <>
+                        <span>Verify &amp; Create Account</span>
+                        <ArrowRight className="w-4 h-4" />
+                      </>
+                    )}
+                  </button>
+                </div>
+              </form>
+            ) : (
+              <StepByStepSignUpForm
+                step={wizardStep}
+                onStepChange={setWizardStep}
+                onComplete={handleWizardRegister}
+                loading={loading}
+                compact
+              />
+            )
           ) : (
             <form onSubmit={handleEmailAuth} className="space-y-3">
               <div>
@@ -335,6 +479,8 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 onClick={() => {
                   setErrorMsg('');
                   setSuccessMsg('');
+                  setPendingSignUpData(null);
+                  setOtpInputCode('');
                   setWizardStep(1);
                   setTab('register');
                 }}

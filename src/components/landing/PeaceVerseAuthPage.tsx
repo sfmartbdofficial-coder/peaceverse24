@@ -25,6 +25,7 @@ import { loadPeaceSettings } from '../../utils/settingsStorage';
 import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
 import { StepByStepSignUpForm, StepSignUpPayload } from '../auth/StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
+import { requestEmailOtp, verifyEmailOtp } from '../../utils/emailOtp';
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
   'mailinator.com',
@@ -128,16 +129,26 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
   const [successMsg, setSuccessMsg] = useState('');
   const [otpChallenge, setOtpChallenge] = useState<{
     purpose: 'signup' | '2fa';
-    expectedCode: string;
+    email: string;
     inputCode: string;
   } | null>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
   const [turnstileVerified, setTurnstileVerified] = useState(false);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   useEffect(() => {
     setMode(initialMode);
     setErrorMsg('');
     setSuccessMsg('');
     setOtpChallenge(null);
+    setResendCooldown(0);
     setWizardStep(1);
     setPendingSignUpData(null);
   }, [initialMode]);
@@ -201,12 +212,50 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     }
   };
 
-  const handleStepSignUpComplete = (payload: StepSignUpPayload) => {
+  const handleStepSignUpComplete = async (payload: StepSignUpPayload) => {
     setErrorMsg('');
     setSuccessMsg('');
-    setPendingSignUpData(payload);
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setOtpChallenge({ purpose: 'signup', expectedCode: code, inputCode: '' });
+    setLoading(true);
+    try {
+      const cleanName = sanitizeInput(`${payload.firstName} ${payload.lastName}`);
+      const otpRes = await requestEmailOtp({
+        email: payload.contact,
+        fullName: cleanName,
+        purpose: 'signup',
+      });
+      setPendingSignUpData(payload);
+      setResendCooldown(otpRes.resendCooldownSeconds || 45);
+      setOtpChallenge({
+        purpose: 'signup',
+        email: payload.contact.trim().toLowerCase(),
+        inputCode: '',
+      });
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'ইমেইলে ৬ ডিজিটের কোড পাঠানো যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendAuthOtp = async () => {
+    if (!otpChallenge || resendCooldown > 0 || loading) return;
+    setErrorMsg('');
+    setLoading(true);
+    try {
+      const cleanName = pendingSignUpData
+        ? sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`)
+        : '';
+      const otpRes = await requestEmailOtp({
+        email: otpChallenge.email,
+        fullName: cleanName,
+        purpose: otpChallenge.purpose,
+      });
+      setResendCooldown(otpRes.resendCooldownSeconds || 45);
+    } catch (err: any) {
+      setErrorMsg(err?.message || 'আবার কোড পাঠানো যায়নি।');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleCompleteSignUpOtp = async (e: React.FormEvent) => {
@@ -214,15 +263,22 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     setErrorMsg('');
     if (!pendingSignUpData || !otpChallenge) return;
 
-    if (otpChallenge.inputCode.trim() !== otpChallenge.expectedCode) {
-      setErrorMsg(`Invalid OTP code. Enter ${otpChallenge.expectedCode}.`);
+    const cleanCode = otpChallenge.inputCode.trim();
+    if (!/^\d{6}$/.test(cleanCode)) {
+      setErrorMsg('আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।');
       return;
     }
 
     setLoading(true);
     try {
+      const verifiedRes = await verifyEmailOtp({
+        email: pendingSignUpData.contact,
+        code: cleanCode,
+        purpose: 'signup',
+      });
+
       const cleanName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
-      const resolvedEmail = normalizeIdentifierToEmail(pendingSignUpData.contact);
+      const resolvedEmail = pendingSignUpData.contact.trim().toLowerCase();
       try {
         localStorage.setItem(
           'peaceverse_signup_meta',
@@ -230,14 +286,19 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             name: cleanName,
             birthDate: `${pendingSignUpData.dobDay} ${pendingSignUpData.dobMonth} ${pendingSignUpData.dobYear}`,
             gender: pendingSignUpData.gender,
-            contact: pendingSignUpData.contact,
-            verifiedChannel: pendingSignUpData.contact.includes('@') ? 'email' : 'sms',
+            contact: resolvedEmail,
+            verifiedChannel: 'email',
           })
         );
         localStorage.setItem('peaceverse_registered_name', cleanName);
       } catch {}
 
-      const user = await registerWithEmail(resolvedEmail, pendingSignUpData.password, cleanName);
+      const user = await registerWithEmail(
+        resolvedEmail,
+        pendingSignUpData.password,
+        cleanName,
+        verifiedRes.verificationToken
+      );
       if (user) {
         setOtpChallenge(null);
         setPendingSignUpData(null);
@@ -281,8 +342,16 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
           const user = await loginWithEmail(email.trim(), password);
           if (user) {
             if (loadPeaceSettings().twoFactorEnabled) {
-              const code = String(Math.floor(100000 + Math.random() * 900000));
-              setOtpChallenge({ purpose: '2fa', expectedCode: code, inputCode: '' });
+              const otpRes = await requestEmailOtp({
+                email: email.trim(),
+                purpose: '2fa',
+              });
+              setResendCooldown(otpRes.resendCooldownSeconds || 45);
+              setOtpChallenge({
+                purpose: '2fa',
+                email: email.trim().toLowerCase(),
+                inputCode: '',
+              });
               setLoading(false);
               return;
             }
@@ -292,11 +361,16 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             }, 600);
           }
         } else {
-          if (otpChallenge.inputCode.trim() !== otpChallenge.expectedCode) {
-            setErrorMsg(`Invalid 2FA code. Enter ${otpChallenge.expectedCode}.`);
+          if (!/^\d{6}$/.test(otpChallenge.inputCode.trim())) {
+            setErrorMsg('আপনার ইমেইলে পাঠানো ৬ ডিজিটের কোডটি লিখুন।');
             setLoading(false);
             return;
           }
+          await verifyEmailOtp({
+            email: otpChallenge.email,
+            code: otpChallenge.inputCode.trim(),
+            purpose: '2fa',
+          });
           setOtpChallenge(null);
           setSuccessMsg('2FA verified! Opening Home...');
           setTimeout(() => {
@@ -466,25 +540,41 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
 
               {otpChallenge?.purpose === 'signup' && (
                 <form onSubmit={handleCompleteSignUpOtp} className="space-y-3">
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-                    <p className="text-xs font-bold text-emerald-800">
-                      OTP Verification Required ({pendingSignUpData?.contact}) — Code:{' '}
-                      <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
-                        {otpChallenge.expectedCode}
-                      </span>
+                  <div className="p-3 rounded-xl bg-[#E7F3FF] border border-blue-200 space-y-2">
+                    <p className="text-xs font-bold text-[#0866FF]">
+                      Email OTP Verification
+                    </p>
+                    <p className="text-[11px] text-[#4B4F56]">
+                      আপনার <strong>{pendingSignUpData?.contact}</strong> ইমেইলে ৬ ডিজিটের ভেরিফিকেশন কোড পাঠানো হয়েছে। ইনবক্স বা Spam ফোল্ডার চেক করে কোডটি লিখুন।
                     </p>
                     <input
                       type="text"
+                      inputMode="numeric"
                       maxLength={6}
+                      autoFocus
                       value={otpChallenge.inputCode}
                       onChange={(e) =>
                         setOtpChallenge((prev) =>
                           prev ? { ...prev, inputCode: e.target.value.replace(/\D/g, '') } : prev
                         )
                       }
-                      placeholder="Enter 6-digit verification code"
+                      placeholder="Enter 6-digit Email OTP"
                       className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-center font-mono tracking-widest text-sm text-black outline-none focus:border-[#0866FF]"
                     />
+                  </div>
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#65676B]">কোড পাননি?</span>
+                    <button
+                      type="button"
+                      onClick={handleResendAuthOtp}
+                      disabled={resendCooldown > 0 || loading}
+                      className="font-bold text-[#0866FF] hover:underline disabled:text-[#8D949E] cursor-pointer"
+                    >
+                      {resendCooldown > 0
+                        ? `আবার পাঠান (${resendCooldown}s)`
+                        : 'আবার কোড পাঠান'}
+                    </button>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -494,6 +584,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                         setOtpChallenge(null);
                         setErrorMsg('');
                       }}
+                      disabled={loading}
                       className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1"
                     >
                       <ArrowLeft className="w-3.5 h-3.5" />
@@ -501,7 +592,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                     </button>
                     <button
                       type="submit"
-                      disabled={loading}
+                      disabled={loading || otpChallenge.inputCode.length !== 6}
                       className="flex-1 py-2.5 rounded-xl bg-[#00A400] hover:bg-[#008C00] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
                     >
                       {loading ? (
@@ -617,15 +708,16 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                 )}
 
                 {otpChallenge && otpChallenge.purpose === '2fa' && (
-                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-                    <p className="text-xs font-bold text-emerald-800">
-                      2FA Verification Required — Code:{' '}
-                      <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
-                        {otpChallenge.expectedCode}
-                      </span>
+                  <div className="p-3 rounded-xl bg-[#E7F3FF] border border-blue-200 space-y-2">
+                    <p className="text-xs font-bold text-[#0866FF]">
+                      2FA Email Verification Required
+                    </p>
+                    <p className="text-[11px] text-[#4B4F56]">
+                      আপনার <strong>{otpChallenge.email}</strong> ইমেইলে ৬ ডিজিটের 2FA কোড পাঠানো হয়েছে।
                     </p>
                     <input
                       type="text"
+                      inputMode="numeric"
                       maxLength={6}
                       value={otpChallenge.inputCode}
                       onChange={(e) =>

@@ -980,11 +980,15 @@ export async function loginWithEmail(email: string, pass: string): Promise<Fireb
 export async function registerWithEmail(
   email: string,
   pass: string,
-  displayName: string
+  displayName: string,
+  otpVerificationToken?: string
 ): Promise<FirebaseUser | null> {
   if (!resolvedFirebaseConfig.apiKey) {
     emitApiKeyEnvWarning();
     throw new Error('Firebase API key missing. Set API keys in Vercel Environment Variables, not in code.');
+  }
+  if (!otpVerificationToken || !otpVerificationToken.trim()) {
+    throw new Error('Email OTP verification is required before creating an account.');
   }
   const cleanDisplayName = sanitizeInput(displayName.trim()) || email.split('@')[0];
   const res = await createUserWithEmailAndPassword(auth, email.trim(), pass);
@@ -1001,6 +1005,10 @@ export async function registerWithEmail(
 
     try {
       localStorage.setItem('peaceverse_registered_name', cleanName);
+      localStorage.setItem(
+        `peaceverse_otp_verified_${res.user.uid}`,
+        email.trim().toLowerCase()
+      );
     } catch {}
 
     try {
@@ -1017,6 +1025,7 @@ export async function registerWithEmail(
           displayName: cleanName,
           username: generatedUsername,
           email: res.user.email,
+          emailOtpVerified: true,
           friendsCount: 0,
           avatar:
             res.user.photoURL ||
@@ -1103,7 +1112,9 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
   }
 }
 
-export async function fetchUserProfileFromFirestore(uid: string): Promise<Partial<UserProfile> | null> {
+export async function fetchUserProfileFromFirestore(
+  uid: string
+): Promise<(Partial<UserProfile> & { emailOtpVerified?: boolean }) | null> {
   if (!uid) return null;
   try {
     const userRef = doc(db, 'users', uid);
@@ -1131,6 +1142,7 @@ export async function fetchUserProfileFromFirestore(uid: string): Promise<Partia
       contactPrivacy: data.contactPrivacy || 'public',
       friendsCount: typeof data.friendsCount === 'number' ? data.friendsCount : 0,
       hobbies: Array.isArray(data.hobbies) ? data.hobbies : undefined,
+      emailOtpVerified: data.emailOtpVerified === true,
     };
   } catch (err: any) {
     if (err?.code === 'permission-denied') {

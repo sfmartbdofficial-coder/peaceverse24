@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Eye,
   EyeOff,
@@ -6,7 +6,6 @@ import {
   Loader2,
   X,
   AlertCircle,
-  CheckCircle2,
   MailCheck,
   ShieldCheck,
 } from 'lucide-react';
@@ -25,6 +24,7 @@ import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder
 import { StepByStepSignUpForm, StepSignUpPayload } from '../auth/StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
 import { useHistoryBack } from '../../utils/backNavigation';
+import { requestEmailOtp, verifyEmailOtp } from '../../utils/emailOtp';
 
 interface PeaceVerseLandingProps {
   onNavigateTo: (path: string) => void;
@@ -77,17 +77,25 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [showWorldMapModal, setShowWorldMapModal] = useState(false);
   const [footerInfoModal, setFooterInfoModal] = useState<'about' | 'help' | null>(null);
 
-  // OTP Verification State (Register) & 2FA Verification State (Login)
+  // Email OTP Verification State (Register) & 2FA Verification State (Login)
   const [signUpStep, setSignUpStep] = useState<'form' | 'otp'>('form');
-  const [signUpOtpChannel, setSignUpOtpChannel] = useState<'sms' | 'email'>('email');
   const [signUpOtpCode, setSignUpOtpCode] = useState('');
-  const [signUpGeneratedOtp, setSignUpGeneratedOtp] = useState('482910');
+  const [signUpResendCooldown, setSignUpResendCooldown] = useState(0);
 
   const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
+  const [twoFactorEmail, setTwoFactorEmail] = useState('');
   const [twoFactorInput, setTwoFactorInput] = useState('');
-  const [twoFactorCode, setTwoFactorCode] = useState('639140');
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
+  const [twoFactorLoading, setTwoFactorLoading] = useState(false);
   const [loginTurnstileVerified, setLoginTurnstileVerified] = useState(false);
+
+  useEffect(() => {
+    if (signUpResendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setSignUpResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [signUpResendCooldown]);
 
   const openSignUpWizardModal = () => {
     setSignUpError(null);
@@ -95,6 +103,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     setWizardStep(1);
     setPendingSignUpData(null);
     setSignUpOtpCode('');
+    setSignUpResendCooldown(0);
     setShowSignUpModal(true);
   };
 
@@ -157,12 +166,17 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
       const resolvedEmail = normalizeIdentifierToEmail(sanitizeInput(loginIdentifier));
       await loginWithEmail(resolvedEmail, loginPassword);
       const settings = loadPeaceSettings();
-      if (settings.twoFactorEnabled) {
-        const code = String(Math.floor(100000 + Math.random() * 900000));
-        setTwoFactorCode(code);
-        setTwoFactorInput('');
-        setTwoFactorError(null);
-        setShowTwoFactorModal(true);
+      if (settings.twoFactorEnabled && resolvedEmail.includes('@') && !resolvedEmail.endsWith('@phone.peaceverse.app')) {
+        try {
+          await requestEmailOtp({ email: resolvedEmail, purpose: '2fa' });
+          setTwoFactorEmail(resolvedEmail);
+          setTwoFactorInput('');
+          setTwoFactorError(null);
+          setShowTwoFactorModal(true);
+        } catch (otpErr: any) {
+          try { await logoutUser(); } catch {}
+          setLoginError(otpErr?.message || '2FA verification code could not be sent.');
+        }
       } else {
         onNavigateTo('/home');
       }
@@ -173,14 +187,27 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     }
   };
 
-  const handleVerifyTwoFactor = (e: React.FormEvent) => {
+  const handleVerifyTwoFactor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (twoFactorInput.trim() !== twoFactorCode) {
-      setTwoFactorError(`Please enter the 6-digit 2FA code (${twoFactorCode}).`);
+    setTwoFactorError(null);
+    if (!/^\d{6}$/.test(twoFactorInput.trim())) {
+      setTwoFactorError('আপনার ইমেইলে পাঠানো ৬ ডিজিটের কোডটি লিখুন।');
       return;
     }
-    setShowTwoFactorModal(false);
-    onNavigateTo('/home');
+    setTwoFactorLoading(true);
+    try {
+      await verifyEmailOtp({
+        email: twoFactorEmail,
+        code: twoFactorInput.trim(),
+        purpose: '2fa',
+      });
+      setShowTwoFactorModal(false);
+      onNavigateTo('/home');
+    } catch (err: any) {
+      setTwoFactorError(err?.message || 'ভুল ২এফএ কোড! আবার চেষ্টা করুন।');
+    } finally {
+      setTwoFactorLoading(false);
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -198,15 +225,44 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     }
   };
 
-  const handleStepWizardComplete = (payload: StepSignUpPayload) => {
+  const handleStepWizardComplete = async (payload: StepSignUpPayload) => {
     setSignUpError(null);
-    setPendingSignUpData(payload);
-    const isPhoneInput = !payload.contact.includes('@');
-    const code = String(Math.floor(100000 + Math.random() * 900000));
-    setSignUpOtpChannel(isPhoneInput ? 'sms' : 'email');
-    setSignUpGeneratedOtp(code);
-    setSignUpOtpCode('');
-    setSignUpStep('otp');
+    setSignUpLoading(true);
+    try {
+      const fullName = sanitizeInput(`${payload.firstName} ${payload.lastName}`);
+      const otpRes = await requestEmailOtp({
+        email: payload.contact,
+        fullName,
+        purpose: 'signup',
+      });
+      setPendingSignUpData(payload);
+      setSignUpOtpCode('');
+      setSignUpResendCooldown(otpRes.resendCooldownSeconds || 45);
+      setSignUpStep('otp');
+    } catch (err: any) {
+      setSignUpError(err?.message || 'ইমেইলে ৬ ডিজিটের কোড পাঠানো যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setSignUpLoading(false);
+    }
+  };
+
+  const handleResendSignUpOtp = async () => {
+    if (!pendingSignUpData || signUpResendCooldown > 0 || signUpLoading) return;
+    setSignUpError(null);
+    setSignUpLoading(true);
+    try {
+      const fullName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
+      const otpRes = await requestEmailOtp({
+        email: pendingSignUpData.contact,
+        fullName,
+        purpose: 'signup',
+      });
+      setSignUpResendCooldown(otpRes.resendCooldownSeconds || 45);
+    } catch (err: any) {
+      setSignUpError(err?.message || 'আবার কোড পাঠানো যায়নি।');
+    } finally {
+      setSignUpLoading(false);
+    }
   };
 
   const handleVerifyOtpAndRegister = async (e: React.FormEvent) => {
@@ -218,15 +274,22 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
       return;
     }
 
-    if (signUpOtpCode.trim() !== signUpGeneratedOtp) {
-      setSignUpError(`Invalid verification code. Please enter ${signUpGeneratedOtp}.`);
+    const cleanOtp = signUpOtpCode.trim();
+    if (!/^\d{6}$/.test(cleanOtp)) {
+      setSignUpError('আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।');
       return;
     }
 
     setSignUpLoading(true);
     try {
+      const verifiedRes = await verifyEmailOtp({
+        email: pendingSignUpData.contact,
+        code: cleanOtp,
+        purpose: 'signup',
+      });
+
       const fullName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
-      const resolvedEmail = normalizeIdentifierToEmail(pendingSignUpData.contact);
+      const resolvedEmail = pendingSignUpData.contact.trim().toLowerCase();
       try {
         localStorage.setItem(
           'peaceverse_signup_meta',
@@ -234,19 +297,25 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             name: fullName,
             birthDate: `${pendingSignUpData.dobDay} ${pendingSignUpData.dobMonth} ${pendingSignUpData.dobYear}`,
             gender: pendingSignUpData.gender,
-            contact: pendingSignUpData.contact,
-            verifiedChannel: signUpOtpChannel,
+            contact: resolvedEmail,
+            verifiedChannel: 'email',
           })
         );
         localStorage.setItem('peaceverse_registered_name', fullName);
       } catch {}
 
-      const user = await registerWithEmail(resolvedEmail, pendingSignUpData.password, fullName);
+      const user = await registerWithEmail(
+        resolvedEmail,
+        pendingSignUpData.password,
+        fullName,
+        verifiedRes.verificationToken
+      );
       if (user) {
         setShowSignUpModal(false);
         setSignUpStep('form');
         setWizardStep(1);
         setPendingSignUpData(null);
+        setSignUpOtpCode('');
         onNavigateTo('/home');
       }
     } catch (err: any) {
@@ -605,54 +674,43 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                     </div>
                   )}
 
-                  <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1.5">
-                    <p className="font-bold flex items-center gap-1.5">
-                      <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                      <span>
-                        {signUpOtpChannel === 'sms' ? 'SMS OTP Verification' : 'Email OTP Verification'}
-                      </span>
+                  <div className="p-3 rounded-lg bg-[#E7F3FF] border border-blue-200 text-xs text-[#1C1E21] space-y-1.5">
+                    <p className="font-bold flex items-center gap-1.5 text-[#0866FF]">
+                      <MailCheck className="w-4 h-4 text-[#0866FF]" />
+                      <span>Email Code Verification</span>
                     </p>
-                    <p className="text-[11px] text-emerald-800">
-                      6-digit code sent to <strong>{pendingSignUpData?.contact}</strong>. Demo verification code:{' '}
-                      <span className="font-mono font-black tracking-wider bg-white px-1.5 py-0.5 rounded border border-emerald-300">
-                        {signUpGeneratedOtp}
-                      </span>
+                    <p className="text-[12px] text-[#4B4F56]">
+                      আমরা আপনার <strong>{pendingSignUpData?.contact}</strong> ইমেইলে একটি ৬ ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি। অনুগ্রহ করে ইনবক্স (অথবা Spam ফোল্ডার) চেক করে কোডটি নিচে লিখুন।
                     </p>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setSignUpOtpChannel('sms')}
-                      className={`py-2 rounded-[5px] text-xs font-bold border cursor-pointer ${
-                        signUpOtpChannel === 'sms'
-                          ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
-                          : 'bg-[#F5F6F7] border-[#CCD0D5] text-[#606770]'
-                      }`}
-                    >
-                      SMS Code
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setSignUpOtpChannel('email')}
-                      className={`py-2 rounded-[5px] text-xs font-bold border cursor-pointer ${
-                        signUpOtpChannel === 'email'
-                          ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
-                          : 'bg-[#F5F6F7] border-[#CCD0D5] text-[#606770]'
-                      }`}
-                    >
-                      Email Code
-                    </button>
                   </div>
 
                   <input
                     type="text"
+                    inputMode="numeric"
                     maxLength={6}
+                    autoFocus
                     value={signUpOtpCode}
-                    onChange={(e) => setSignUpOtpCode(e.target.value.replace(/\D/g, ''))}
-                    placeholder="Enter 6-digit OTP"
+                    onChange={(e) => {
+                      setSignUpOtpCode(e.target.value.replace(/\D/g, ''));
+                      setSignUpError(null);
+                    }}
+                    placeholder="Enter 6-digit Email OTP"
                     className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-center font-mono tracking-[0.25em] text-[17px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
                   />
+
+                  <div className="flex items-center justify-between text-xs">
+                    <span className="text-[#606770]">কোড পাননি?</span>
+                    <button
+                      type="button"
+                      onClick={handleResendSignUpOtp}
+                      disabled={signUpResendCooldown > 0 || signUpLoading}
+                      className="font-bold text-[#0866FF] hover:underline disabled:text-[#8D949E] disabled:no-underline cursor-pointer"
+                    >
+                      {signUpResendCooldown > 0
+                        ? `আবার পাঠান (${signUpResendCooldown}s)`
+                        : 'আবার কোড পাঠান (Resend)'}
+                    </button>
+                  </div>
 
                   <div className="flex gap-2 pt-1">
                     <button
@@ -661,13 +719,14 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                         setSignUpError(null);
                         setSignUpStep('form');
                       }}
+                      disabled={signUpLoading}
                       className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-[6px] cursor-pointer"
                     >
                       Back
                     </button>
                     <button
                       type="submit"
-                      disabled={signUpLoading}
+                      disabled={signUpLoading || signUpOtpCode.length !== 6}
                       className="flex-1 py-2.5 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[15px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
                     >
                       {signUpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
@@ -702,15 +761,12 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               </button>
             </div>
             <form onSubmit={handleVerifyTwoFactor} className="p-4 space-y-3">
-              <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900">
-                2FA is enabled on your account. Enter verification code{' '}
-                <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
-                  {twoFactorCode}
-                </span>{' '}
-                to continue.
+              <div className="p-3 rounded-lg bg-[#E7F3FF] border border-blue-200 text-xs text-[#1C1E21]">
+                আপনার <strong>{twoFactorEmail}</strong> ইমেইলে ৬ ডিজিটের 2FA ভেরিফিকেশন কোড পাঠানো হয়েছে। লগইন সম্পন্ন করতে কোডটি লিখুন।
               </div>
               <input
                 type="text"
+                inputMode="numeric"
                 maxLength={6}
                 value={twoFactorInput}
                 onChange={(e) => {
@@ -725,9 +781,11 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               )}
               <button
                 type="submit"
-                className="w-full py-2.5 rounded-[6px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-[14px] cursor-pointer"
+                disabled={twoFactorLoading || twoFactorInput.length !== 6}
+                className="w-full py-2.5 rounded-[6px] bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-[14px] cursor-pointer flex items-center justify-center gap-2"
               >
-                Verify & Continue
+                {twoFactorLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Verify & Continue</span>
               </button>
             </form>
           </div>

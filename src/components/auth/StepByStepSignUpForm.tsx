@@ -44,7 +44,7 @@ const YEARS = Array.from({ length: 90 }, (_, i) => String(CURRENT_YEAR - 13 - i)
 
 const STEP_META: Record<1 | 2 | 3 | 4 | 5, { title: string; subtitle: string }> = {
   1: { title: 'Step 1 - নাম', subtitle: 'আপনার First Name এবং Last Name দিন' },
-  2: { title: 'Step 2 - যোগাযোগ', subtitle: 'Email অথবা Phone Number দিন' },
+  2: { title: 'Step 2 - ইমেইল', subtitle: 'আপনার আসল Email ঠিকানা দিন (৬ ডিজিটের কোড যাবে)' },
   3: { title: 'Step 3 - পাসওয়ার্ড', subtitle: 'একটি শক্তিশালী Password দিন' },
   4: { title: 'Step 4 - জন্ম তারিখ', subtitle: 'আপনার জন্ম তারিখ নির্বাচন করুন' },
   5: { title: 'Step 5 - Gender', subtitle: 'আপনার Gender নির্বাচন করুন এবং Sign Up করুন' },
@@ -119,18 +119,11 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
       if (!lastName.trim()) errors.lastName = REQUIRED_MSG;
     } else if (currentStep === 2) {
       const trimmed = contact.trim();
+      const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
       if (!trimmed) {
         errors.contact = REQUIRED_MSG;
-      } else if (trimmed.includes('@')) {
-        const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-        if (!emailRegex.test(trimmed)) {
-          errors.contact = 'সঠিক Email ঠিকানা দিন';
-        }
-      } else {
-        const digits = trimmed.replace(/\D/g, '');
-        if (digits.length < 6) {
-          errors.contact = 'সঠিক Email অথবা Phone Number দিন';
-        }
+      } else if (!emailRegex.test(trimmed)) {
+        errors.contact = 'সঠিক Email ঠিকানা দিন (যেমন: name@gmail.com)';
       }
     } else if (currentStep === 3) {
       if (!password) {
@@ -306,12 +299,12 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
       {currentStep === 2 && (
         <div className="space-y-2 animate-in fade-in">
           <label className="block text-xs font-bold text-[#1C1E21]">
-            Email অথবা Phone Number
+            Email Address
           </label>
           <input
-            type="text"
+            type="email"
             autoFocus
-            placeholder="Mobile number or email address"
+            placeholder="name@gmail.com"
             value={contact}
             onChange={(e) => {
               setContact(e.target.value);
