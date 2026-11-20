@@ -1,7 +1,8 @@
 import React, { useState } from 'react';
-import { X, Mail, Lock, User, Sparkles, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
+import { X, Mail, Lock, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
 import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, logoutUser } from '../../lib/firebase';
 import { TurnstileCaptchaPlaceholder } from './TurnstileCaptchaPlaceholder';
+import { StepByStepSignUpForm, StepSignUpPayload } from './StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
 
 interface FirebaseAuthModalProps {
@@ -19,13 +20,23 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [displayName, setDisplayName] = useState('');
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [turnstileVerified, setTurnstileVerified] = useState(false);
 
   if (!isOpen) return null;
+
+  const normalizeIdentifierToEmail = (input: string) => {
+    const trimmed = input.trim();
+    if (trimmed.includes('@')) return trimmed;
+    const digits = trimmed.replace(/[^0-9+]/g, '');
+    if (digits.length >= 6) {
+      return `${digits.replace(/\+/g, '')}@phone.peaceverse.app`;
+    }
+    return trimmed;
+  };
 
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
@@ -46,11 +57,54 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
     }
   };
 
+  const handleWizardRegister = async (payload: StepSignUpPayload) => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    setLoading(true);
+    try {
+      const cleanDisplayName = sanitizeInput(`${payload.firstName} ${payload.lastName}`);
+      const resolvedEmail = normalizeIdentifierToEmail(payload.contact);
+      try {
+        localStorage.setItem(
+          'peaceverse_signup_meta',
+          JSON.stringify({
+            name: cleanDisplayName,
+            birthDate: `${payload.dobDay} ${payload.dobMonth} ${payload.dobYear}`,
+            gender: payload.gender,
+            contact: payload.contact,
+          })
+        );
+        localStorage.setItem('peaceverse_registered_name', cleanDisplayName);
+      } catch {}
+
+      const user = await registerWithEmail(resolvedEmail, payload.password, cleanDisplayName);
+      if (user) {
+        setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং ভেরিফিকেশন সম্পন্ন হয়েছে!');
+        setTimeout(() => {
+          setWizardStep(1);
+          onSuccess?.(user);
+          onClose();
+        }, 1200);
+      }
+    } catch (err: any) {
+      let msg = err?.message || 'একটি ত্রুটি ঘটেছে।';
+      const code = err?.code || '';
+      if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
+        msg = 'ইমেইল বা ফোন নম্বরটি সঠিক নয়।';
+      } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
+        msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে।';
+      }
+      setErrorMsg(msg);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
-    if ((tab === 'login' || tab === 'register') && !turnstileVerified) {
+    if (tab === 'login' && !turnstileVerified) {
       setErrorMsg('অনুগ্রহ করে Turnstile মানব যাচাইকরণ সম্পূর্ণ করুন।');
       return;
     }
@@ -69,26 +123,6 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
             onSuccess?.(user);
             onClose();
           }, 1000);
-        }
-      } else if (tab === 'register') {
-        if (!displayName.trim()) {
-          setErrorMsg('অনুগ্রহ করে আপনার নাম লিখুন।');
-          setLoading(false);
-          return;
-        }
-        if (password.length < 6) {
-          setErrorMsg('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
-          setLoading(false);
-          return;
-        }
-        const cleanDisplayName = sanitizeInput(displayName.trim());
-        const user = await registerWithEmail(email.trim(), password, cleanDisplayName);
-        if (user) {
-          setSuccessMsg('অ্যাকাউন্ট সফলভাবে তৈরি হয়েছে এবং ভেরিফিকেশন ইমেইল পাঠানো হয়েছে!');
-          setTimeout(() => {
-            onSuccess?.(user);
-            onClose();
-          }, 1500);
         }
       } else if (tab === 'forgot') {
         await resetPassword(email.trim());
@@ -110,8 +144,6 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
         msg = 'অনেকবার ভুল চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।';
       } else if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
         msg = 'ইমেইল অ্যাড্রেসটি সঠিক নয়।';
-      } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
-        msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে।';
       }
       setErrorMsg(msg);
     } finally {
@@ -126,7 +158,11 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
         {/* Header */}
         <div className="p-5 border-b border-[#E4E6EB] bg-white relative">
           <button
-            onClick={onClose}
+            onClick={() => {
+              setTab('login');
+              setWizardStep(1);
+              onClose();
+            }}
             className="absolute top-4 right-4 p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
@@ -138,38 +174,12 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
             </div>
             <div>
               <h2 className="font-extrabold text-lg text-black">
-                {tab === 'login' ? 'Peaceverse24.com-এ লগইন করুন' : tab === 'register' ? 'নতুন অ্যাকাউন্ট খুলুন' : 'পাসওয়ার্ড পুনরুদ্ধার'}
+                {tab === 'login' ? 'Peaceverse24.com-এ লগইন করুন' : tab === 'register' ? 'Sign Up — নতুন অ্যাকাউন্ট খুলুন' : 'পাসওয়ার্ড পুনরুদ্ধার'}
               </h2>
-              <p className="text-xs text-[#65676B]">১০০% সুরক্ষিত ফায়ারবেস অথেনটিকেশন</p>
+              <p className="text-xs text-[#65676B]">
+                {tab === 'register' ? 'ধাপে ধাপে আপনার তথ্য দিন' : '১০০% সুরক্ষিত ফায়ারবেস অথেনটিকেশন'}
+              </p>
             </div>
-          </div>
-
-          {/* Tab Selector */}
-          <div className="flex items-center gap-1 mt-4 bg-[#F0F2F5] p-1 rounded-xl border border-[#E4E6EB]">
-            <button
-              onClick={() => { setTab('login'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                tab === 'login' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
-              }`}
-            >
-              লগইন
-            </button>
-            <button
-              onClick={() => { setTab('register'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                tab === 'register' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
-              }`}
-            >
-              নিবন্ধন
-            </button>
-            <button
-              onClick={() => { setTab('forgot'); setErrorMsg(''); setSuccessMsg(''); }}
-              className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                tab === 'forgot' ? 'bg-[#0866FF] text-white shadow-sm' : 'text-[#65676B] hover:text-black'
-              }`}
-            >
-              পাসওয়ার্ড রিকভার
-            </button>
           </div>
         </div>
 
@@ -191,8 +201,8 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
             </div>
           )}
 
-          {/* Quick Google Sign-In */}
-          {tab !== 'forgot' && (
+          {/* Quick Google Sign-In (Login Only) */}
+          {tab === 'login' && (
             <>
               <button
                 type="button"
@@ -229,124 +239,120 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
             </>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleEmailAuth} className="space-y-3">
-            {tab === 'register' && (
+          {tab === 'register' ? (
+            <StepByStepSignUpForm
+              step={wizardStep}
+              onStepChange={setWizardStep}
+              onComplete={handleWizardRegister}
+              loading={loading}
+              compact
+            />
+          ) : (
+            <form onSubmit={handleEmailAuth} className="space-y-3">
               <div>
-                <label className="text-[11px] font-bold text-black mb-1 block">আপনার নাম</label>
+                <label className="text-[11px] font-bold text-black mb-1 block">ইমেইল ঠিকানা</label>
                 <div className="relative flex items-center">
-                  <User className="w-4 h-4 text-[#65676B] absolute left-3" />
+                  <Mail className="w-4 h-4 text-[#65676B] absolute left-3" />
                   <input
-                    type="text"
+                    type="email"
                     required
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="যেমন: শরিফ হাসান"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="name@example.com"
                     className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
                   />
                 </div>
               </div>
-            )}
 
-            <div>
-              <label className="text-[11px] font-bold text-black mb-1 block">ইমেইল ঠিকানা</label>
-              <div className="relative flex items-center">
-                <Mail className="w-4 h-4 text-[#65676B] absolute left-3" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  placeholder="name@example.com"
-                  className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-3 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
-                />
-              </div>
-            </div>
-
-            {tab !== 'forgot' && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-bold text-black">পাসওয়ার্ড</label>
-                  {tab === 'login' && (
+              {tab === 'login' && (
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="text-[11px] font-bold text-black">পাসওয়ার্ড</label>
                     <button
                       type="button"
-                      onClick={() => setTab('forgot')}
-                      className="text-[10px] text-[#0866FF] hover:underline font-semibold"
+                      onClick={() => { setTab('forgot'); setErrorMsg(''); setSuccessMsg(''); }}
+                      className="text-[10px] text-[#0866FF] hover:underline font-semibold cursor-pointer"
                     >
                       পাসওয়ার্ড ভুলে গেছেন?
                     </button>
-                  )}
+                  </div>
+                  <div className="relative flex items-center">
+                    <Lock className="w-4 h-4 text-[#65676B] absolute left-3" />
+                    <input
+                      type={showPassword ? 'text' : 'password'}
+                      required
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="কমপক্ষে ৬ অক্ষর"
+                      className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-9 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute right-2.5 p-1 text-[#65676B] hover:text-black transition-colors cursor-pointer"
+                      title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                    >
+                      {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
                 </div>
-                <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 text-[#65676B] absolute left-3" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="কমপক্ষে ৬ অক্ষর"
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-9 pr-9 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF]"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-2.5 p-1 text-[#65676B] hover:text-black transition-colors cursor-pointer"
-                    title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
-                  >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {(tab === 'login' || tab === 'register') && (
-              <TurnstileCaptchaPlaceholder
-                verified={turnstileVerified}
-                onVerifyChange={(v) => setTurnstileVerified(v)}
-              />
-            )}
-
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>অনুগ্রহ করে অপেক্ষা করুন...</span>
-                </>
-              ) : (
-                <>
-                  <span>
-                    {tab === 'login' ? 'লগইন করুন' : tab === 'register' ? 'অ্যাকাউন্ট নিশ্চিত করুন' : 'রিসেট লিংক পাঠান'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
               )}
-            </button>
-          </form>
+
+              {tab === 'login' && (
+                <TurnstileCaptchaPlaceholder
+                  verified={turnstileVerified}
+                  onVerifyChange={(v) => setTurnstileVerified(v)}
+                />
+              )}
+
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#166fe5] active:scale-[0.99] text-white font-bold text-xs shadow-sm transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-2"
+              >
+                {loading ? (
+                  <>
+                    <RefreshCw className="w-4 h-4 animate-spin" />
+                    <span>অনুগ্রহ করে অপেক্ষা করুন...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>
+                      {tab === 'login' ? 'লগইন করুন' : 'রিসেট লিংক পাঠান'}
+                    </span>
+                    <ArrowRight className="w-4 h-4" />
+                  </>
+                )}
+              </button>
+            </form>
+          )}
 
           {/* Bottom Switcher */}
-          <div className="pt-2 text-center text-xs text-[#65676B]">
+          <div className="pt-3 border-t border-[#E4E6EB] text-center text-xs text-[#65676B]">
             {tab === 'login' ? (
-              <p>
-                নতুন ব্যবহারকারী?{' '}
-                <button
-                  type="button"
-                  onClick={() => setTab('register')}
-                  className="text-[#0866FF] font-bold hover:underline"
-                >
-                  এখনই রেজিস্টার করুন
-                </button>
-              </p>
+              <button
+                type="button"
+                onClick={() => {
+                  setErrorMsg('');
+                  setSuccessMsg('');
+                  setWizardStep(1);
+                  setTab('register');
+                }}
+                className="px-5 py-2 bg-[#42B72A] hover:bg-[#36A420] text-white font-bold text-xs rounded-xl transition-all cursor-pointer"
+              >
+                Create new account
+              </button>
             ) : tab === 'register' ? (
               <p>
                 ইতিমধ্যে অ্যাকাউন্ট আছে?{' '}
                 <button
                   type="button"
-                  onClick={() => setTab('login')}
-                  className="text-[#0866FF] font-bold hover:underline"
+                  onClick={() => {
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                    setTab('login');
+                  }}
+                  className="text-[#0866FF] font-bold hover:underline cursor-pointer"
                 >
                   লগইন করুন
                 </button>
@@ -356,8 +362,12 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
                 পাসওয়ার্ড মনে পড়েছে?{' '}
                 <button
                   type="button"
-                  onClick={() => setTab('login')}
-                  className="text-[#0866FF] font-bold hover:underline"
+                  onClick={() => {
+                    setErrorMsg('');
+                    setSuccessMsg('');
+                    setTab('login');
+                  }}
+                  className="text-[#0866FF] font-bold hover:underline cursor-pointer"
                 >
                   লগইনে ফিরে যান
                 </button>

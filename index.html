@@ -3,6 +3,26 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <script>
+      (function() {
+        try {
+          var saved = window.localStorage.getItem('peaceverse-theme');
+          var mode = (saved === 'light' || saved === 'dark' || saved === 'system') ? saved : 'system';
+          var prefersDark = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+          var resolved = mode === 'dark' ? 'dark' : (mode === 'light' ? 'light' : (prefersDark ? 'dark' : 'light'));
+          var root = document.documentElement;
+          if (resolved === 'dark') {
+            root.classList.add('dark');
+            root.classList.remove('light');
+          } else {
+            root.classList.remove('dark');
+            root.classList.add('light');
+          }
+          root.setAttribute('data-theme', resolved);
+          root.style.colorScheme = resolved;
+        } catch (e) {}
+      })();
+    </script>
     <meta
       http-equiv="Content-Security-Policy"
       content="default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://apis.google.com https://www.gstatic.com https://challenges.cloudflare.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' data: blob: https:; connect-src 'self' https://*.googleapis.com https://*.firebaseio.com https://*.firebaseapp.com wss://*.firebaseio.com https://*.supabase.co https://api.aladhan.com https://translate.googleapis.com https://challenges.cloudflare.com; frame-src 'self' https://*.firebaseapp.com https://accounts.google.com https://www.youtube.com https://challenges.cloudflare.com; object-src 'none'; base-uri 'self';"
@@ -83,17 +103,74 @@
         window.dispatchEvent(new CustomEvent('peaceverse:appinstalled'));
       });
     </script>
-    <title>Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People</title>
-    <meta name="description" content="Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People. Connect across 196+ countries with 6+ languages, auto-translate, global prayer times, Qibla compass, Peace Mart Global, and creator monetization." />
-    <meta property="og:title" content="Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People" />
-    <meta property="og:description" content="Peaceverse24.com — World's Most Peaceful Social Network for 8 Billion People. Connect across 196+ countries worldwide with peaceful social feed, prayer times, Qibla, and global marketplace." />
+    <title>PeaceVerse24 - শান্তিময় ও হালাল সোশ্যাল নেটওয়ার্ক | Halal Social Network</title>
+    <meta
+      name="description"
+      content="PeaceVerse24 হলো বিশ্বের প্রথম ১০০% হালাল ও শান্তিপূর্ণ সোশ্যাল নেটওয়ার্ক। বন্ধুদের সাথে যোগাযোগ, হালাল ভিডিও, নামাজের সময় ও কিবলা দেখতে যোগ দিন। PeaceVerse24 is a peaceful, halal global social network to connect with friends, share positive content, check prayer times, and explore halal marketplace."
+    />
+    <meta
+      name="keywords"
+      content="PeaceVerse24, peaceverse24.com, পিসভার্স২৪, Halal Social Network, Islamic Social Media, Bangla Social Network, হালাল সোশ্যাল মিডিয়া, Peace Mart, Prayer Times, Qibla Compass"
+    />
+    <meta name="robots" content="index, follow, max-image-preview:large, max-snippet:-1, max-video-preview:-1" />
+    <!-- Google Search Console Verification: নিচের YOUR_GOOGLE_SEARCH_CONSOLE_VERIFICATION_CODE এর জায়গায় Google Search Console থেকে পাওয়া কোড বসান -->
+    <meta name="google-site-verification" content="YOUR_GOOGLE_SEARCH_CONSOLE_VERIFICATION_CODE" />
+    <link rel="canonical" href="https://peaceverse24.com/" />
+
+    <!-- OpenGraph Tags (Facebook / WhatsApp / Telegram / LinkedIn Share Card) -->
     <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="PeaceVerse24" />
+    <meta property="og:url" content="https://peaceverse24.com/" />
+    <meta property="og:title" content="PeaceVerse24 - শান্তিময় ও হালাল সোশ্যাল নেটওয়ার্ক | Halal Social Network" />
+    <meta
+      property="og:description"
+      content="PeaceVerse24 হলো নিরাপদ ও হালাল সোশ্যাল নেটওয়ার্ক। বন্ধুদের সাথে যুক্ত থাকুন, হালাল ভিডিও দেখুন, নামাজের সময় ও কিবলা জানুন। Connect peacefully worldwide with PeaceVerse24."
+    />
+    <meta property="og:image" content="https://peaceverse24.com/screenshot-wide.png" />
+    <meta property="og:image:secure_url" content="https://peaceverse24.com/screenshot-wide.png" />
+    <meta property="og:image:type" content="image/png" />
+    <meta property="og:image:width" content="1280" />
+    <meta property="og:image:height" content="720" />
+    <meta property="og:image:alt" content="PeaceVerse24 - শান্তিময় ও হালাল সোশ্যাল নেটওয়ার্ক" />
+    <meta property="og:locale" content="bn_BD" />
+    <meta property="og:locale:alternate" content="en_US" />
+
+    <!-- Twitter / X Social Card -->
     <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="PeaceVerse24 - শান্তিময় ও হালাল সোশ্যাল নেটওয়ার্ক | Halal Social Network" />
+    <meta
+      name="twitter:description"
+      content="PeaceVerse24 হলো ১০০% হালাল ও শান্তিপূর্ণ সোশ্যাল নেটওয়ার্ক। Connect with friends worldwide, watch halal reels, check prayer times & Qibla."
+    />
+    <meta name="twitter:image" content="https://peaceverse24.com/screenshot-wide.png" />
+    <meta name="twitter:image:alt" content="PeaceVerse24 - Halal Social Network" />
+
+    <!-- Schema.org Structured Data (JSON-LD) for Google Rich Results -->
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "WebApplication",
+        "name": "PeaceVerse24",
+        "alternateName": ["Peaceverse24.com", "পিসভার্স২৪"],
+        "url": "https://peaceverse24.com/",
+        "applicationCategory": "SocialNetworkingApplication",
+        "operatingSystem": "All",
+        "inLanguage": ["bn", "en", "ar"],
+        "description": "PeaceVerse24 হলো বিশ্বের প্রথম ১০০% হালাল ও শান্তিপূর্ণ সোশ্যাল নেটওয়ার্ক। Connect with family and friends worldwide, share halal posts and videos, check prayer times and Qibla.",
+        "image": "https://peaceverse24.com/screenshot-wide.png",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "USD"
+        }
+      }
+    </script>
+
     <meta name="theme-color" content="#0a4a2a" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-    <meta name="apple-mobile-web-app-title" content="Peaceverse24" />
+    <meta name="apple-mobile-web-app-title" content="PeaceVerse24" />
     <link rel="manifest" href="/manifest.json?v=2" />
     <link rel="icon" type="image/png" href="/icon-192.png" />
     <link rel="apple-touch-icon" href="/apple-touch-icon.png" />

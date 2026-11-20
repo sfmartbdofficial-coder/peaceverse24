@@ -25,43 +25,6 @@ import {
 } from '../../utils/security';
 import { setSupabaseCredentials, getSupabaseSecurityStatus } from '../../lib/supabase';
 
-interface ToonViblyShieldBadgeProps {
-  onClick?: () => void;
-  className?: string;
-}
-
-export const ToonViblyShieldBadge: React.FC<ToonViblyShieldBadgeProps> = ({
-  onClick,
-  className = '',
-}) => {
-  const Tag = onClick ? 'button' : 'span';
-  return (
-    <Tag
-      {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-600 text-white text-[11px] font-bold shadow-xs hover:bg-emerald-700 transition-colors ${
-        onClick ? 'cursor-pointer' : ''
-      } ${className}`}
-      title="View Military-Grade Security Status"
-    >
-      <span>🔒 Secured by ToonVibly Shield</span>
-    </Tag>
-  );
-};
-
-export const PeaceverseFooterShieldBar: React.FC<{ onClick?: () => void }> = ({ onClick }) => {
-  const Tag = onClick ? 'button' : 'div';
-  return (
-    <Tag
-      {...(onClick ? { type: 'button' as const, onClick } : {})}
-      className={`px-3.5 py-2 rounded-2xl bg-emerald-950 text-emerald-100 border border-emerald-700/60 text-[11px] font-semibold tracking-tight text-center shadow-sm ${
-        onClick ? 'cursor-pointer hover:bg-emerald-900 transition-colors' : ''
-      }`}
-    >
-      🔒 Peaceverse24 Shield Active | Supabase RLS: ON | Bunny CDN: Secured | Cloudflare: ON
-    </Tag>
-  );
-};
-
 interface SecurityStatusDashboardProps {
   isOpen: boolean;
   onClose: () => void;
@@ -147,7 +110,7 @@ export const SecurityStatusDashboard: React.FC<SecurityStatusDashboardProps> = (
                 Peaceverse24 Security Dashboard
               </h2>
               <p className="text-[11px] text-emerald-700 font-semibold">
-                🔒 Peaceverse24 Shield Active • Supabase • Firebase • Bunny CDN • Cloudflare
+                একাউন্ট নিরাপত্তা ও ডেটা গোপনীয়তা সেটিংস
               </p>
             </div>
           </div>
@@ -387,8 +350,7 @@ export const SecurityStatusDashboard: React.FC<SecurityStatusDashboardProps> = (
         </div>
 
         {/* Footer */}
-        <div className="p-3 border-t border-[#E4E6EB] bg-white flex items-center justify-between gap-2">
-          <ToonViblyShieldBadge />
+        <div className="p-3 border-t border-[#E4E6EB] bg-white flex items-center justify-end gap-2">
           <button
             type="button"
             onClick={onClose}

@@ -10,10 +10,16 @@ import {
   PlusCircle,
   Film,
   Video,
-  Compass
+  Compass,
+  Sun,
+  Moon,
+  Monitor,
+  Check
 } from 'lucide-react';
 import { UserProfile, FacebookMainTab } from '../../types';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme, ThemeMode } from '../../context/ThemeContext';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 export type FacebookTab = FacebookMainTab;
 
@@ -51,10 +57,19 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   unreadMessagesCount,
 }) => {
   const { t } = useLanguage();
+  const { themeMode, resolvedTheme, setThemeMode } = useTheme();
   const [isSearching, setIsSearching] = useState(false);
   const [showPlusMenu, setShowPlusMenu] = useState(false);
+  const [showThemeMenu, setShowThemeMenu] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  useHistoryBack(isSearching, () => {
+    setIsSearching(false);
+    onSearchChange('');
+  }, 'header-search');
+  useHistoryBack(showPlusMenu, () => setShowPlusMenu(false), 'header-plus-menu');
+  useHistoryBack(showThemeMenu, () => setShowThemeMenu(false), 'header-theme-menu');
 
   useEffect(() => {
     if (isSearching && inputRef.current) {
@@ -151,7 +166,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           </span>
         </div>
 
-        {/* Right: Qibla, Plus (+), Search, Messenger */}
+        {/* Right: Qibla, Theme, Plus (+), Search, Messenger */}
         <div className="flex items-center gap-1.5 sm:gap-2 relative shrink-0">
           {onOpenQibla && (
             <button
@@ -164,6 +179,77 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
               <span className="hidden sm:inline">Qibla</span>
             </button>
           )}
+
+          {/* Theme: Light / Dark / System */}
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => {
+                setShowPlusMenu(false);
+                setShowThemeMenu((prev) => !prev);
+              }}
+              className={`h-9 px-2.5 rounded-full transition-colors flex items-center gap-1.5 text-xs font-bold shadow-xs cursor-pointer whitespace-nowrap ${
+                showThemeMenu
+                  ? 'bg-[#0866FF] text-white'
+                  : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-black'
+              }`}
+              title="Theme: Light / Dark / System"
+              aria-label="Theme: Light / Dark / System"
+            >
+              {themeMode === 'system' ? (
+                <Monitor className="w-4 h-4 shrink-0" />
+              ) : resolvedTheme === 'dark' ? (
+                <Moon className="w-4 h-4 shrink-0" />
+              ) : (
+                <Sun className="w-4 h-4 shrink-0 text-amber-500" />
+              )}
+              <span className="hidden md:inline capitalize">
+                Theme: {themeMode}
+              </span>
+            </button>
+
+            {showThemeMenu && (
+              <>
+                <div
+                  className="fixed inset-0 z-40"
+                  onClick={() => setShowThemeMenu(false)}
+                />
+                <div className="absolute right-0 top-11 z-50 w-52 bg-white rounded-2xl shadow-2xl border border-[#E4E6EB] py-2 overflow-hidden animate-in fade-in zoom-in-95 text-black">
+                  <div className="px-3.5 py-1.5 text-[11px] font-bold uppercase tracking-wider text-[#65676B] border-b border-[#E4E6EB]">
+                    Theme: Light / Dark / System
+                  </div>
+                  {(
+                    [
+                      { mode: 'light', label: 'Light', Icon: Sun },
+                      { mode: 'dark', label: 'Dark', Icon: Moon },
+                      { mode: 'system', label: 'System', Icon: Monitor },
+                    ] as Array<{ mode: ThemeMode; label: string; Icon: React.ElementType }>
+                  ).map(({ mode, label, Icon }) => {
+                    const active = themeMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => {
+                          setThemeMode(mode);
+                          setShowThemeMenu(false);
+                        }}
+                        className={`w-full px-3.5 py-2.5 flex items-center justify-between transition-colors text-left cursor-pointer ${
+                          active ? 'bg-[#E7F3FF] text-[#0866FF]' : 'hover:bg-[#F0F2F5]'
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <Icon className="w-4 h-4 stroke-[2]" />
+                          <span className="text-sm font-semibold">{label}</span>
+                        </div>
+                        {active && <Check className="w-4 h-4 text-[#0866FF]" />}
+                      </button>
+                    );
+                  })}
+                </div>
+              </>
+            )}
+          </div>
 
           {/* Create (+) */}
           <div className="relative">

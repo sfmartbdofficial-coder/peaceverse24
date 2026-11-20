@@ -163,3 +163,170 @@
   animation: peaceRedirectProgress 2.2s ease-out forwards;
 }
 
+/* ==========================================================================
+   Peaceverse24 Persistent Dark Mode Overrides (Only active when html.dark)
+   Light mode stays 100% pure white (#FFFFFF) with zero overrides.
+   ========================================================================== */
+html.dark,
+html.dark body {
+  background-color: #18191A;
+  color: #E4E6EB;
+}
+
+html.dark .fb-container {
+  background: #18191A;
+}
+
+html.dark .story-card,
+html.dark .post-box {
+  background: #242526;
+  border-color: #3A3B3C;
+  color: #E4E6EB;
+}
+
+html.dark .post-input {
+  background: #3A3B3C;
+  color: #E4E6EB;
+}
+
+html.dark .filter-tabs {
+  border-bottom-color: #3A3B3C;
+}
+
+/* Surface Backgrounds */
+html.dark .bg-white {
+  background-color: #242526;
+}
+html.dark .bg-white\/95 {
+  background-color: rgba(36, 37, 38, 0.96);
+}
+html.dark .bg-white\/90 {
+  background-color: rgba(36, 37, 38, 0.92);
+}
+html.dark .bg-white\/85 {
+  background-color: rgba(36, 37, 38, 0.88);
+}
+html.dark .bg-white\/80 {
+  background-color: rgba(36, 37, 38, 0.82);
+}
+
+html.dark .bg-\[\#F0F2F5\],
+html.dark .bg-\[\#F7F8FA\],
+html.dark .bg-\[\#F8FAFC\],
+html.dark .bg-neutral-50,
+html.dark .bg-slate-50,
+html.dark .bg-gray-50 {
+  background-color: #18191A;
+}
+
+html.dark .bg-neutral-100,
+html.dark .bg-slate-100,
+html.dark .bg-gray-100 {
+  background-color: #2C2D2E;
+}
+
+html.dark .bg-\[\#E4E6EB\],
+html.dark .bg-neutral-200,
+html.dark .bg-neutral-200\/80,
+html.dark .bg-slate-200,
+html.dark .bg-gray-200 {
+  background-color: #3A3B3C;
+}
+
+html.dark .bg-\[\#E7F3FF\] {
+  background-color: rgba(8, 102, 255, 0.2);
+}
+html.dark .bg-emerald-50 {
+  background-color: rgba(16, 185, 129, 0.16);
+}
+html.dark .bg-pink-50 {
+  background-color: rgba(236, 72, 153, 0.16);
+}
+html.dark .bg-amber-50 {
+  background-color: rgba(245, 158, 11, 0.16);
+}
+html.dark .bg-rose-50 {
+  background-color: rgba(244, 63, 94, 0.16);
+}
+html.dark .bg-blue-50 {
+  background-color: rgba(59, 130, 246, 0.16);
+}
+
+/* Interactive Hover Backgrounds */
+html.dark .hover\:bg-\[\#F0F2F5\]:hover,
+html.dark .hover\:bg-neutral-50:hover,
+html.dark .hover\:bg-neutral-100:hover,
+html.dark .hover\:bg-slate-50:hover,
+html.dark .hover\:bg-slate-100:hover,
+html.dark .hover\:bg-gray-50:hover,
+html.dark .hover\:bg-gray-100:hover {
+  background-color: #3A3B3C;
+}
+
+html.dark .hover\:bg-\[\#D8DADF\]:hover,
+html.dark .hover\:bg-\[\#E4E6EB\]:hover,
+html.dark .hover\:bg-neutral-200:hover {
+  background-color: #4E4F50;
+}
+
+/* Text Colors */
+html.dark .text-black,
+html.dark .text-\[\#050505\],
+html.dark .text-\[\#1C1E21\],
+html.dark .text-neutral-900,
+html.dark .text-neutral-800,
+html.dark .text-slate-900,
+html.dark .text-slate-800,
+html.dark .text-gray-900,
+html.dark .text-gray-800 {
+  color: #E4E6EB;
+}
+
+html.dark .text-\[\#65676B\],
+html.dark .text-neutral-700,
+html.dark .text-neutral-600,
+html.dark .text-neutral-500,
+html.dark .text-slate-700,
+html.dark .text-slate-600,
+html.dark .text-slate-500,
+html.dark .text-gray-700,
+html.dark .text-gray-600,
+html.dark .text-gray-500 {
+  color: #B0B3B8;
+}
+
+/* Keep white label inside primary blue / green / red action buttons crisp */
+html.dark .text-white {
+  color: #FFFFFF;
+}
+
+/* Borders & Dividers */
+html.dark .border-\[\#E4E6EB\],
+html.dark .border-\[\#CED0D4\],
+html.dark .border-\[\#DADDE1\],
+html.dark .border-neutral-100,
+html.dark .border-neutral-200,
+html.dark .border-neutral-200\/80,
+html.dark .border-neutral-300,
+html.dark .border-slate-100,
+html.dark .border-slate-200,
+html.dark .border-gray-100,
+html.dark .border-gray-200,
+html.dark .border-gray-300 {
+  border-color: #3A3B3C;
+}
+
+html.dark .divide-\[\#E4E6EB\] > :not(:last-child),
+html.dark .divide-neutral-200 > :not(:last-child),
+html.dark .divide-gray-200 > :not(:last-child) {
+  border-color: #3A3B3C;
+}
+
+html.dark .ring-white {
+  --tw-ring-color: #242526;
+}
+
+html.dark input::placeholder,
+html.dark textarea::placeholder {
+  color: #B0B3B8;
+}

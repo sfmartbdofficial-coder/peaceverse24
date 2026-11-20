@@ -22,22 +22,15 @@ import { useLanguage } from '../../context/LanguageContext';
 import { SupportedLanguage } from '../../i18n/languages';
 import { GlobalWorldMap } from '../global/GlobalWorldMap';
 import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
-import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { StepByStepSignUpForm, StepSignUpPayload } from '../auth/StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface PeaceVerseLandingProps {
   onNavigateTo: (path: string) => void;
   onOpenDownloadModal?: () => void;
   onOpenLegalTab?: (tab: string) => void;
 }
-
-const MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-  'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
-];
-const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
-const CURRENT_YEAR = 2026;
-const YEARS = Array.from({ length: 90 }, (_, i) => String(CURRENT_YEAR - 13 - i));
 
 const FOOTER_LANGS: { code: SupportedLanguage; label: string }[] = [
   { code: 'en', label: 'English (UK)' },
@@ -73,16 +66,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
 
-  // Facebook-style Sign Up Modal State
+  // Facebook-style Step-by-Step Sign Up Modal State
   const [showSignUpModal, setShowSignUpModal] = useState(false);
-  const [firstName, setFirstName] = useState('');
-  const [surname, setSurname] = useState('');
-  const [regContact, setRegContact] = useState('');
-  const [regPassword, setRegPassword] = useState('');
-  const [dobDay, setDobDay] = useState('15');
-  const [dobMonth, setDobMonth] = useState('Jan');
-  const [dobYear, setDobYear] = useState('1998');
-  const [gender, setGender] = useState<'Female' | 'Male' | 'Custom'>('Male');
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [pendingSignUpData, setPendingSignUpData] = useState<StepSignUpPayload | null>(null);
   const [signUpLoading, setSignUpLoading] = useState(false);
   const [signUpError, setSignUpError] = useState<string | null>(null);
 
@@ -101,7 +88,26 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [twoFactorCode, setTwoFactorCode] = useState('639140');
   const [twoFactorError, setTwoFactorError] = useState<string | null>(null);
   const [loginTurnstileVerified, setLoginTurnstileVerified] = useState(false);
-  const [signUpTurnstileVerified, setSignUpTurnstileVerified] = useState(false);
+
+  const openSignUpWizardModal = () => {
+    setSignUpError(null);
+    setSignUpStep('form');
+    setWizardStep(1);
+    setPendingSignUpData(null);
+    setSignUpOtpCode('');
+    setShowSignUpModal(true);
+  };
+
+  useHistoryBack(showResetModal, () => setShowResetModal(false), 'landing-reset');
+  useHistoryBack(showSignUpModal, () => {
+    setSignUpStep('form');
+    setWizardStep(1);
+    setPendingSignUpData(null);
+    setShowSignUpModal(false);
+  }, 'landing-signup');
+  useHistoryBack(showWorldMapModal, () => setShowWorldMapModal(false), 'landing-world-map');
+  useHistoryBack(Boolean(footerInfoModal), () => setFooterInfoModal(null), 'landing-footer-info');
+  useHistoryBack(showTwoFactorModal, () => setShowTwoFactorModal(false), 'landing-2fa');
 
   const normalizeIdentifierToEmail = (input: string) => {
     const trimmed = input.trim();
@@ -192,33 +198,23 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     }
   };
 
-  const handleSignUpSubmit = async (e: React.FormEvent) => {
+  const handleStepWizardComplete = (payload: StepSignUpPayload) => {
+    setSignUpError(null);
+    setPendingSignUpData(payload);
+    const isPhoneInput = !payload.contact.includes('@');
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    setSignUpOtpChannel(isPhoneInput ? 'sms' : 'email');
+    setSignUpGeneratedOtp(code);
+    setSignUpOtpCode('');
+    setSignUpStep('otp');
+  };
+
+  const handleVerifyOtpAndRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setSignUpError(null);
 
-    if (signUpStep === 'form') {
-      if (!firstName.trim() || !surname.trim()) {
-        setSignUpError("What's your name? Please enter First name and Surname.");
-        return;
-      }
-      if (!regContact.trim()) {
-        setSignUpError('Please enter your mobile number or email address.');
-        return;
-      }
-      if (regPassword.length < 6) {
-        setSignUpError('Please choose a password of at least 6 characters.');
-        return;
-      }
-      if (!signUpTurnstileVerified) {
-        setSignUpError('Please complete the Cloudflare Turnstile human check before signing up.');
-        return;
-      }
-      const isPhoneInput = !regContact.includes('@');
-      const code = String(Math.floor(100000 + Math.random() * 900000));
-      setSignUpOtpChannel(isPhoneInput ? 'sms' : 'email');
-      setSignUpGeneratedOtp(code);
-      setSignUpOtpCode('');
-      setSignUpStep('otp');
+    if (!pendingSignUpData) {
+      setSignUpStep('form');
       return;
     }
 
@@ -229,26 +225,28 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
     setSignUpLoading(true);
     try {
-      const fullName = sanitizeInput(`${firstName.trim()} ${surname.trim()}`);
-      const resolvedEmail = normalizeIdentifierToEmail(regContact);
+      const fullName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
+      const resolvedEmail = normalizeIdentifierToEmail(pendingSignUpData.contact);
       try {
         localStorage.setItem(
           'peaceverse_signup_meta',
           JSON.stringify({
             name: fullName,
-            birthDate: `${dobDay} ${dobMonth} ${dobYear}`,
-            gender,
-            contact: regContact.trim(),
+            birthDate: `${pendingSignUpData.dobDay} ${pendingSignUpData.dobMonth} ${pendingSignUpData.dobYear}`,
+            gender: pendingSignUpData.gender,
+            contact: pendingSignUpData.contact,
             verifiedChannel: signUpOtpChannel,
           })
         );
         localStorage.setItem('peaceverse_registered_name', fullName);
       } catch {}
 
-      const user = await registerWithEmail(resolvedEmail, regPassword, fullName);
+      const user = await registerWithEmail(resolvedEmail, pendingSignUpData.password, fullName);
       if (user) {
         setShowSignUpModal(false);
         setSignUpStep('form');
+        setWizardStep(1);
+        setPendingSignUpData(null);
         onNavigateTo('/home');
       }
     } catch (err: any) {
@@ -409,10 +407,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               <div className="flex flex-col items-center gap-2.5 pt-1">
                 <button
                   type="button"
-                  onClick={() => {
-                    setSignUpError(null);
-                    setShowSignUpModal(true);
-                  }}
+                  onClick={openSignUpWizardModal}
                   className="px-6 py-3 bg-[#42B72A] hover:bg-[#36A420] active:scale-[0.99] text-white font-bold text-[17px] rounded-[6px] transition-all cursor-pointer shadow-xs"
                 >
                   Create new account
@@ -471,7 +466,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5">
             <button
               type="button"
-              onClick={() => setShowSignUpModal(true)}
+              onClick={openSignUpWizardModal}
               className="hover:underline cursor-pointer"
             >
               Sign Up
@@ -551,25 +546,26 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
           <div className="flex flex-wrap items-center justify-between gap-2 pt-1">
             <p className="text-[11px] text-[#737373]">Peaceverse24.com — World&apos;s Most Peaceful Social Network © 2026</p>
-            <ToonViblyShieldBadge />
           </div>
         </div>
       </footer>
 
-      {/* SIGN UP MODAL (Facebook Popup Style) */}
+      {/* SIGN UP MODAL (Facebook Step-by-Step Popup Style) */}
       {showSignUpModal && (
         <div className="fixed inset-0 z-50 bg-white/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-[432px] rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.2)] border border-[#DADDE1] overflow-hidden animate-in zoom-in-95">
             {/* Modal Header */}
             <div className="px-4 py-3 border-b border-[#DADDE1] flex items-start justify-between">
               <div>
-                <h2 className="text-[28px] font-bold text-[#1C1E21] leading-tight">Sign Up</h2>
-                <p className="text-[15px] text-[#606770]">It&apos;s quick and easy.</p>
+                <h2 className="text-[26px] font-bold text-[#1C1E21] leading-tight">Sign Up</h2>
+                <p className="text-[14px] text-[#606770]">It&apos;s quick and easy.</p>
               </div>
               <button
                 type="button"
                 onClick={() => {
                   setSignUpStep('form');
+                  setWizardStep(1);
+                  setPendingSignUpData(null);
                   setShowSignUpModal(false);
                 }}
                 className="p-1 text-[#606770] hover:text-[#1C1E21] rounded-full hover:bg-[#F0F2F5] cursor-pointer"
@@ -579,17 +575,29 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               </button>
             </div>
 
-            {/* Modal Form */}
-            <form onSubmit={handleSignUpSubmit} className="p-4 space-y-3 text-left">
-              {signUpError && (
-                <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                  <span>{signUpError}</span>
-                </div>
-              )}
+            {/* Modal Body */}
+            <div className="p-4 text-left">
+              <div className={signUpStep === 'otp' ? 'hidden' : 'block'}>
+                <StepByStepSignUpForm
+                  step={wizardStep}
+                  onStepChange={setWizardStep}
+                  onComplete={handleStepWizardComplete}
+                  loading={signUpLoading}
+                  externalError={signUpError}
+                  onClearExternalError={() => setSignUpError(null)}
+                  onOpenLegalTab={onOpenLegalTab}
+                />
+              </div>
 
-              {signUpStep === 'otp' ? (
-                <div className="space-y-3">
+              {signUpStep === 'otp' && (
+                <form onSubmit={handleVerifyOtpAndRegister} className="space-y-3 text-left">
+                  {signUpError && (
+                    <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
+                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                      <span>{signUpError}</span>
+                    </div>
+                  )}
+
                   <div className="p-3 rounded-lg bg-emerald-50 border border-emerald-200 text-xs text-emerald-900 space-y-1.5">
                     <p className="font-bold flex items-center gap-1.5">
                       <CheckCircle2 className="w-4 h-4 text-emerald-600" />
@@ -598,7 +606,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                       </span>
                     </p>
                     <p className="text-[11px] text-emerald-800">
-                      6-digit code sent to <strong>{regContact}</strong>. Demo verification code:{' '}
+                      6-digit code sent to <strong>{pendingSignUpData?.contact}</strong>. Demo verification code:{' '}
                       <span className="font-mono font-black tracking-wider bg-white px-1.5 py-0.5 rounded border border-emerald-300">
                         {signUpGeneratedOtp}
                       </span>
@@ -642,7 +650,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                   <div className="flex gap-2 pt-1">
                     <button
                       type="button"
-                      onClick={() => setSignUpStep('form')}
+                      onClick={() => {
+                        setSignUpError(null);
+                        setSignUpStep('form');
+                      }}
                       className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-[6px] cursor-pointer"
                     >
                       Back
@@ -656,148 +667,9 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                       <span>Verify & Create Account</span>
                     </button>
                   </div>
-                </div>
-              ) : (
-                <>
-                  {/* First Name & Last Name Side by Side */}
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <input
-                      type="text"
-                      placeholder="First name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                      required
-                      className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-                    />
-                    <input
-                      type="text"
-                      placeholder="Last name"
-                      value={surname}
-                      onChange={(e) => setSurname(e.target.value)}
-                      required
-                      className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-                    />
-                  </div>
-
-                  {/* Mobile or Email */}
-                  <input
-                    type="text"
-                    placeholder="Mobile number or email address"
-                    value={regContact}
-                    onChange={(e) => setRegContact(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-                  />
-
-                  {/* New Password */}
-                  <input
-                    type="password"
-                    placeholder="New password"
-                    value={regPassword}
-                    onChange={(e) => setRegPassword(e.target.value)}
-                    required
-                    className="w-full px-3 py-2.5 bg-[#F5F6F7] border border-[#CCD0D5] rounded-[5px] text-[15px] text-[#1C1E21] placeholder-[#8D949E] focus:outline-none focus:border-[#0866FF]"
-                  />
-
-                  {/* Date of birth: Day, Month, Year dropdowns */}
-                  <div className="space-y-1">
-                    <label className="text-[12px] text-[#606770] font-medium block">Date of birth</label>
-                    <div className="grid grid-cols-3 gap-2.5">
-                      <select
-                        value={dobDay}
-                        onChange={(e) => setDobDay(e.target.value)}
-                        aria-label="Day"
-                        className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                      >
-                        {DAYS.map((d) => (
-                          <option key={d} value={d}>{d}</option>
-                        ))}
-                      </select>
-
-                      <select
-                        value={dobMonth}
-                        onChange={(e) => setDobMonth(e.target.value)}
-                        aria-label="Month"
-                        className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                      >
-                        {MONTHS.map((m) => (
-                          <option key={m} value={m}>{m}</option>
-                        ))}
-                      </select>
-
-                      <select
-                        value={dobYear}
-                        onChange={(e) => setDobYear(e.target.value)}
-                        aria-label="Year"
-                        className="px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                      >
-                        {YEARS.map((y) => (
-                          <option key={y} value={y}>{y}</option>
-                        ))}
-                      </select>
-                    </div>
-                  </div>
-
-                  {/* Gender Radio Row */}
-                  <div className="space-y-1">
-                    <label className="text-[12px] text-[#606770] font-medium block">Gender</label>
-                    <div className="grid grid-cols-3 gap-2.5">
-                      {(['Female', 'Male', 'Custom'] as const).map((g) => (
-                        <label
-                          key={g}
-                          className="flex items-center justify-between px-2.5 py-2 bg-white border border-[#CCD0D5] rounded-[4px] text-[15px] text-[#1C1E21] cursor-pointer"
-                        >
-                          <span>{g}</span>
-                          <input
-                            type="radio"
-                            name="gender"
-                            value={g}
-                            checked={gender === g}
-                            onChange={() => setGender(g)}
-                            className="accent-[#0866FF]"
-                          />
-                        </label>
-                      ))}
-                    </div>
-                  </div>
-
-                  <p className="text-[11px] text-[#777777] leading-snug pt-0.5">
-                    By clicking Sign Up, you agree to our{' '}
-                    <button
-                      type="button"
-                      onClick={() => onOpenLegalTab?.('terms')}
-                      className="text-[#385898] hover:underline cursor-pointer"
-                    >
-                      Halal Terms
-                    </button>
-                    ,{' '}
-                    <button
-                      type="button"
-                      onClick={() => onOpenLegalTab?.('privacy')}
-                      className="text-[#385898] hover:underline cursor-pointer"
-                    >
-                      Privacy Policy
-                    </button>{' '}
-                    and Community Guidelines.
-                  </p>
-
-                  <TurnstileCaptchaPlaceholder
-                    verified={signUpTurnstileVerified}
-                    onVerifyChange={(v) => setSignUpTurnstileVerified(v)}
-                  />
-
-                  <div className="pt-2 flex justify-center">
-                    <button
-                      type="submit"
-                      disabled={signUpLoading}
-                      className="min-w-[194px] px-8 py-2 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[18px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      <span>Sign Up</span>
-                    </button>
-                  </div>
-                </>
+                </form>
               )}
-            </form>
+            </div>
           </div>
         </div>
       )}

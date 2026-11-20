@@ -87,6 +87,7 @@ import {
 import { getPageMonetizationById } from '../../utils/adminControlStorage';
 import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
 import { sanitizeInput, validateMediaUpload } from '../../utils/security';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -713,6 +714,35 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [setupNameDraft, setSetupNameDraft] = useState('');
   const [setupBioDraft, setSetupBioDraft] = useState('');
   const [newBlockedUserName, setNewBlockedUserName] = useState('');
+
+  // Hardware & browser Back button stack for FbPagesView hierarchy
+  useHistoryBack(hubSection !== 'home', () => setHubSection('home'), 'pages-hub-section');
+  useHistoryBack(showHubSearch, () => {
+    setShowHubSearch(false);
+    setSearchQuery('');
+  }, 'pages-hub-search');
+  useHistoryBack(Boolean(selectedPage), () => setSelectedPage(null), 'pages-selected-page');
+  useHistoryBack(pageSearchOpen, () => {
+    setPageSearchOpen(false);
+    setPageSearchQuery('');
+  }, 'pages-page-search');
+  useHistoryBack(showPageSettings, () => setShowPageSettings(false), 'pages-settings');
+  useHistoryBack(Boolean(activeSettingKey), () => setActiveSettingKey(null), 'pages-setting-detail');
+  useHistoryBack(Boolean(privacySubView), () => setPrivacySubView(null), 'pages-privacy-sub');
+  useHistoryBack(showCreatePageLanding, () => setShowCreatePageLanding(false), 'pages-create-landing');
+  useHistoryBack(Boolean(sheetPage), () => setSheetPage(null), 'pages-switch-sheet');
+  useHistoryBack(showCreateModal, () => setShowCreateModal(false), 'pages-create-modal');
+  useHistoryBack(showEditModal, () => setShowEditModal(false), 'pages-edit-modal');
+  useHistoryBack(showCreatorDashboard, () => setShowCreatorDashboard(false), 'pages-creator-dashboard');
+  useHistoryBack(showMonetizationModal, () => setShowMonetizationModal(false), 'pages-monetization');
+  useHistoryBack(showAdvertiseModal, () => setShowAdvertiseModal(false), 'pages-advertise');
+  useHistoryBack(Boolean(boostTargetPost), () => setBoostTargetPost(null), 'pages-boost-post');
+  useHistoryBack(Boolean(insightsPost), () => setInsightsPost(null), 'pages-post-insights');
+  useHistoryBack(showPageComposer, () => setShowPageComposer(false), 'pages-composer');
+  useHistoryBack(showExtraDetailsModal, () => setShowExtraDetailsModal(false), 'pages-extra-details');
+  useHistoryBack(showPageReelModal, () => setShowPageReelModal(false), 'pages-reel-modal');
+  useHistoryBack(showPageLiveModal, () => setShowPageLiveModal(false), 'pages-live-modal');
+  useHistoryBack(confirmDeletePage, () => setConfirmDeletePage(false), 'pages-confirm-delete');
   const [customSlugDraft, setCustomSlugDraft] = useState('');
   const [connWhatsapp, setConnWhatsapp] = useState('');
   const [connPhone, setConnPhone] = useState('');

@@ -134,11 +134,15 @@ import {
   getAuthorizedAdminEmail,
   POST_MAX_LENGTH,
 } from './utils/security';
+import { SecurityStatusDashboard } from './components/security/SecurityStatusDashboard';
 import {
-  SecurityStatusDashboard,
-  ToonViblyShieldBadge,
-  PeaceverseFooterShieldBar,
-} from './components/security/SecurityStatusDashboard';
+  initHistoryBase,
+  pushAppNavigation,
+  goAppBack,
+  registerRouteSyncHandler,
+  useHistoryBack,
+} from './utils/backNavigation';
+import { applyPageSeo } from './utils/seo';
 
 const VALID_MAIN_TABS: FacebookMainTab[] = [
   'home',
@@ -595,26 +599,80 @@ export default function App() {
     };
   }, [disableCopyOnSensitive]);
 
+  // Initialize Browser History Base once Firebase auth state resolves so Back always
+  // steps back through History entries to Home before exiting the app.
+  useEffect(() => {
+    if (isAuthChecking) return;
+    initHistoryBase(currentPath, currentTab, Boolean(firebaseUser));
+  }, [isAuthChecking, firebaseUser]);
+
+  // Dynamic per-page SEO title, meta description, OpenGraph, and canonical URL
+  useEffect(() => {
+    applyPageSeo({
+      path: currentPath,
+      tab: currentTab,
+      isAdminView: showAdminPortal,
+    });
+  }, [currentPath, currentTab, showAdminPortal]);
+
+  // Sync top-level route & tab state whenever popstate fires (Android Hardware Back / Browser Back)
+  useEffect(() => {
+    return registerRouteSyncHandler((state) => {
+      const nextPath = state.pvPath || window.location.pathname || '/';
+      setCurrentPath(nextPath);
+      if (state.pvTab && VALID_MAIN_TABS.includes(state.pvTab as FacebookMainTab)) {
+        const syncedTab = state.pvTab as FacebookMainTab;
+        setCurrentTab(syncedTab);
+        setTabHistory((prev) => {
+          const last = prev[prev.length - 1];
+          return last === syncedTab ? prev : [...prev.slice(-10), syncedTab];
+        });
+        if (syncedTab !== 'profile') {
+          setViewedProfile(null);
+        }
+      } else {
+        const params = new URLSearchParams(window.location.search);
+        const urlTab = params.get('tab') as FacebookMainTab | null;
+        if (urlTab && VALID_MAIN_TABS.includes(urlTab)) {
+          setCurrentTab(urlTab);
+        }
+      }
+      setShowAdminPortal(checkIsAdmin());
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
+  }, []);
+
+  // Register every App-level Modal, Drawer & Viewer on the History Back stack
+  useHistoryBack(Boolean(viewedProfile), () => setViewedProfile(null), 'viewed-profile');
+  useHistoryBack(showCreatePost, () => {
+    setShowCreatePost(false);
+    setInitialPostPhoto(null);
+  }, 'create-post');
+  useHistoryBack(showCreateStory, () => setShowCreateStory(false), 'create-story');
+  useHistoryBack(showCreateReel, () => setShowCreateReel(false), 'create-reel');
+  useHistoryBack(showLive, () => setShowLive(false), 'live-modal');
+  useHistoryBack(showHalalPolicy, () => setShowHalalPolicy(false), 'halal-policy');
+  useHistoryBack(Boolean(legalModalTab), () => setLegalModalTab(null), 'legal-modal');
+  useHistoryBack(showInstallModal, () => setShowInstallModal(false), 'install-modal');
+  useHistoryBack(showMonetizationModal, () => setShowMonetizationModal(false), 'monetization-modal');
+  useHistoryBack(showAuthModal, () => setShowAuthModal(false), 'auth-modal');
+  useHistoryBack(Boolean(activeReelPostId), () => setActiveReelPostId(null), 'reels-player');
+  useHistoryBack(Boolean(selectedGiftPost), () => setSelectedGiftPost(null), 'golden-gift');
+  useHistoryBack(showGoldenWallet, () => setShowGoldenWallet(false), 'golden-wallet');
+  useHistoryBack(showSecurityDashboard, () => setShowSecurityDashboard(false), 'security-dashboard');
+
   const navigateToPath = (path: string) => {
     const url = new URL(path, window.location.origin);
-    const nextFull = url.pathname + url.search + url.hash;
+    const nextPath = url.pathname || '/';
+    const nextFull = nextPath + url.search + url.hash;
     const curFull = window.location.pathname + window.location.search + window.location.hash;
     if (curFull !== nextFull) {
-      window.history.pushState({}, '', nextFull);
+      pushAppNavigation(nextPath, currentTab, nextFull);
     }
-    setCurrentPath(url.pathname || '/');
+    setCurrentPath(nextPath);
     setShowAdminPortal(checkIsAdmin());
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
-
-  useEffect(() => {
-    const handlePopState = () => {
-      setCurrentPath(window.location.pathname || '/');
-      setShowAdminPortal(checkIsAdmin());
-    };
-    window.addEventListener('popstate', handlePopState);
-    return () => window.removeEventListener('popstate', handlePopState);
-  }, []);
 
   // Sync Firebase Auth State & Enforce Landing / Home redirection rules
   useEffect(() => {
@@ -869,18 +927,18 @@ export default function App() {
   const [showMessengerModal, setShowMessengerModal] = useState<boolean>(false);
   const [activeChatFriend, setActiveChatFriend] = useState<ChatFriend | null>(null);
 
+  useHistoryBack(showMessengerModal, () => {
+    setShowMessengerModal(false);
+    setActiveChatFriend(null);
+  }, 'messenger-modal');
+  useHistoryBack(Boolean(activeChatFriend), () => setActiveChatFriend(null), 'messenger-chat');
+
   // Dynamic unread messages count
   const unreadMessagesCount = useMemo(() => {
     return chatFriends.reduce((sum, f) => sum + (f.unreadCount || 0), 0);
   }, [chatFriends]);
 
-  // Light Mode Only: ensure no dark class or cached dark flag remains
-  useEffect(() => {
-    document.documentElement.classList.remove('dark');
-    try {
-      localStorage.removeItem('peaceverse_dark_mode');
-    } catch {}
-  }, []);
+  // Persistent theme state is managed by ThemeProvider (localStorage 'peaceverse-theme')
 
   // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
   const [stories, setStories] = useState<StoryItem[]>([]);
@@ -1101,30 +1159,37 @@ export default function App() {
     } catch {}
   }, [chatFriends]);
 
-  // Navigate to tab with history tracking
+  // Navigate to tab with real Browser History (pushState) + local stack tracking
   const navigateToTab = (newTab: FacebookMainTab) => {
     if (newTab !== 'profile') {
       setViewedProfile(null);
     }
-    if (newTab === currentTab) return;
+    if (newTab === currentTab && (currentPath === '/home' || currentPath === '/')) return;
+
+    const basePath = firebaseUser ? '/home' : '/';
+    const targetUrl = newTab === 'home' ? basePath : `${basePath}?tab=${newTab}`;
+    pushAppNavigation(basePath, newTab, targetUrl);
+    setCurrentPath(basePath);
     setTabHistory((prev) => [...prev, newTab]);
     setCurrentTab(newTab);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  // Back button handler
+  // Back button handler synced with window.history / Android hardware Back
   const goBack = () => {
-    if (tabHistory.length > 1) {
-      const nextHistory = [...tabHistory];
-      nextHistory.pop(); // remove current tab
-      const previous = nextHistory[nextHistory.length - 1] || 'home';
-      setTabHistory(nextHistory);
-      setCurrentTab(previous);
-    } else {
-      setCurrentTab('home');
-      setTabHistory(['home']);
-    }
-    window.scrollTo({ top: 0, behavior: 'smooth' });
+    goAppBack(() => {
+      if (tabHistory.length > 1) {
+        const nextHistory = [...tabHistory];
+        nextHistory.pop();
+        const previous = nextHistory[nextHistory.length - 1] || 'home';
+        setTabHistory(nextHistory);
+        setCurrentTab(previous);
+      } else {
+        setCurrentTab('home');
+        setTabHistory(['home']);
+      }
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    });
   };
 
   // Handle post reaction toggle with Realtime Firestore sync
@@ -1808,10 +1873,10 @@ export default function App() {
       <>
         <AdminPortal
           onBackToApp={() => {
-            setShowAdminPortal(false);
-            const targetPath = firebaseUser ? '/home' : '/';
-            window.history.pushState({}, '', targetPath);
-            setCurrentPath(targetPath);
+            goAppBack(() => {
+              setShowAdminPortal(false);
+              navigateToPath(firebaseUser ? '/home' : '/');
+            });
           }}
           firebaseUser={firebaseUser}
           onOpenAuthModal={() => setShowAuthModal(true)}
@@ -1882,7 +1947,6 @@ export default function App() {
           }}
           onOpenLegalTab={(tab) => {
             setLegalModalTab(tab as LegalTabType);
-            window.location.hash = `#${tab}`;
           }}
         />
 
@@ -1891,9 +1955,6 @@ export default function App() {
           <PWAInstallModal
             onClose={() => {
               setShowInstallModal(false);
-              if (window.location.hash === '#install') {
-                history.pushState('', document.title, window.location.pathname + window.location.search);
-              }
             }}
           />
         )}
@@ -1904,9 +1965,6 @@ export default function App() {
             initialTab={legalModalTab}
             onClose={() => {
               setLegalModalTab(null);
-              if (window.location.hash) {
-                history.pushState('', document.title, window.location.pathname + window.location.search);
-              }
             }}
           />
         )}
@@ -1968,10 +2026,6 @@ export default function App() {
               Sign Out &amp; Use Another Account
             </button>
           </div>
-
-          <div className="pt-2 flex justify-center border-t border-[#E4E6EB]">
-            <ToonViblyShieldBadge />
-          </div>
         </div>
       </div>
     );
@@ -1982,7 +2036,7 @@ export default function App() {
     return (
       <PeaceThreadsView
         userProfile={effectiveProfile}
-        onBack={() => navigateToPath('/home')}
+        onBack={() => goAppBack(() => navigateToPath('/home'))}
       />
     );
   }
@@ -1992,7 +2046,7 @@ export default function App() {
       <PeaceInstaView
         userProfile={effectiveProfile}
         posts={posts}
-        onBack={() => navigateToPath('/home')}
+        onBack={() => goAppBack(() => navigateToPath('/home'))}
       />
     );
   }
@@ -2000,7 +2054,7 @@ export default function App() {
   if (currentPath === '/business-suite' || currentPath === '/peace-business') {
     return (
       <PeaceBusinessSuiteView
-        onBack={() => navigateToPath('/home')}
+        onBack={() => goAppBack(() => navigateToPath('/home'))}
         userProfile={effectiveProfile}
         onSwitchToPage={(page) => {
           handleSwitchToPage(page);
@@ -2014,7 +2068,7 @@ export default function App() {
     return (
       <PeaceEditsModal
         isOpen={true}
-        onClose={() => navigateToPath('/home')}
+        onClose={() => goAppBack(() => navigateToPath('/home'))}
         userProfile={userProfile}
         onPublishReel={(newReel) => {
           handleReelCreated(newReel);
@@ -2025,7 +2079,7 @@ export default function App() {
   }
 
   if (currentPath === '/qibla') {
-    return <GlobalPrayerQiblaView onBack={() => navigateToPath('/home')} />;
+    return <GlobalPrayerQiblaView onBack={() => goAppBack(() => navigateToPath('/home'))} />;
   }
 
   return (
@@ -2628,15 +2682,13 @@ export default function App() {
             }}
             onOpenHalalPolicy={() => setShowHalalPolicy(true)}
             onOpenAdminPortal={() => {
+              navigateToPath('/admin');
               setShowAdminPortal(true);
-              window.history.pushState({}, '', '/admin');
-              setCurrentPath('/admin');
             }}
             onOpenMonetization={() => setShowMonetizationModal(true)}
             onOpenGoldenWallet={() => setShowGoldenWallet(true)}
             onOpenLegalTab={(tab) => {
               setLegalModalTab(tab);
-              window.location.hash = `#${tab}`;
             }}
             onOpenInstallModal={() => {
               void installApp(() => setShowInstallModal(true));
@@ -2817,9 +2869,6 @@ export default function App() {
           initialTab={legalModalTab}
           onClose={() => {
             setLegalModalTab(null);
-            if (window.location.hash && window.location.hash !== '#admin') {
-              history.pushState('', document.title, window.location.pathname + window.location.search);
-            }
           }}
         />
       )}
@@ -2854,9 +2903,6 @@ export default function App() {
         <PWAInstallModal
           onClose={() => {
             setShowInstallModal(false);
-            if (window.location.hash === '#install') {
-              history.pushState('', document.title, window.location.pathname + window.location.search);
-            }
           }}
         />
       )}
@@ -2867,9 +2913,6 @@ export default function App() {
           userProfile={userProfile}
           onClose={() => {
             setShowMonetizationModal(false);
-            if (window.location.hash === '#monetization' || window.location.hash === '#creator-studio') {
-              history.pushState('', document.title, window.location.pathname + window.location.search);
-            }
           }}
         />
       )}
@@ -2879,9 +2922,6 @@ export default function App() {
         isOpen={showAuthModal}
         onClose={() => {
           setShowAuthModal(false);
-          if (window.location.hash === '#login' || window.location.hash === '#auth') {
-            history.pushState('', document.title, window.location.pathname + window.location.search);
-          }
         }}
         onSuccess={(usr) => {
           setUserProfile((prev) => ({
@@ -2966,12 +3006,6 @@ export default function App() {
           </div>
         </div>
       )}
-
-      {/* 16. Footer Security Dashboard Bar & ToonVibly Shield Badge */}
-      <footer className="max-w-[540px] mx-auto pb-24 pt-2 px-3 flex flex-col items-center justify-center gap-2">
-        <PeaceverseFooterShieldBar onClick={() => setShowSecurityDashboard(true)} />
-        <ToonViblyShieldBadge onClick={() => setShowSecurityDashboard(true)} />
-      </footer>
 
       <SecurityStatusDashboard
         isOpen={showSecurityDashboard}

@@ -44,16 +44,20 @@ import {
   UserX,
   PauseCircle,
   Download,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { UserProfile } from '../../types';
 import { LegalTabType } from '../legal/LegalModal';
 import { PeaceSettingsPrefs } from '../../utils/settingsStorage';
+import { useTheme, ThemeMode } from '../../context/ThemeContext';
 import { normalizePhoneNumber, getWhatsAppUrl } from '../../utils/contactLinks';
 import { enableWebPushNotifications, triggerDevicePushTray } from '../../lib/fcm';
 import { getActivePrayerPauseStatus } from '../../lib/globalPrayer';
 import { maskEmailAddress, getWeeklyScreenTimeStats } from '../../utils/privacyMask';
 import { FbPrivacyCenterView } from './FbPrivacyCenterView';
-import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { useHistoryBack } from '../../utils/backNavigation';
 import {
   fetchUserLinkHistory,
   clearUserLinkHistory,
@@ -148,6 +152,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
   onOpenSecurityDashboard,
   onExportMyData,
 }) => {
+  const { themeMode, setThemeMode } = useTheme();
 
   // Privacy Center State
   const [defaultAudience, setDefaultAudience] = useState<'public' | 'friends' | 'private'>('public');
@@ -221,6 +226,8 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
   const [waOtpCode, setWaOtpCode] = useState('');
   const [waGeneratedOtp, setWaGeneratedOtp] = useState('482910');
   const [waError, setWaError] = useState<string | null>(null);
+
+  useHistoryBack(showWhatsappConnectModal, () => setShowWhatsappConnectModal(false), 'settings-whatsapp-modal');
 
   // Email privacy reveal + Account lifecycle confirmation + Moderation Queue
   const [revealEmail, setRevealEmail] = useState(false);
@@ -705,6 +712,41 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   activeColor="bg-emerald-600"
                   onChange={(val) => onUpdatePrefs({ disableCopyOnSensitive: val })}
                 />
+              </div>
+
+              <div className={`p-3.5 rounded-2xl ${cardCls} space-y-2.5`}>
+                <div>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>Theme: Light / Dark / System</h4>
+                  <p className={`text-xs ${textSecondary}`}>
+                    আপনার পছন্দের থিম সেভ থাকবে (রিফ্রেশ বা ব্রাউজার রিস্টার্টেও পরিবর্তন হবে না)
+                  </p>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  {(
+                    [
+                      { mode: 'light', label: 'Light', Icon: Sun },
+                      { mode: 'dark', label: 'Dark', Icon: Moon },
+                      { mode: 'system', label: 'System', Icon: Monitor },
+                    ] as Array<{ mode: ThemeMode; label: string; Icon: React.ElementType }>
+                  ).map(({ mode, label, Icon }) => {
+                    const active = themeMode === mode;
+                    return (
+                      <button
+                        key={mode}
+                        type="button"
+                        onClick={() => setThemeMode(mode)}
+                        className={`py-2 px-3 rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 border transition-colors cursor-pointer ${
+                          active
+                            ? 'bg-[#0866FF] text-white border-[#0866FF]'
+                            : 'bg-[#F0F2F5] text-black border-[#E4E6EB] hover:bg-[#E4E6EB]'
+                        }`}
+                      >
+                        <Icon className="w-3.5 h-3.5" />
+                        <span>{label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
               </div>
 
               {(onExportMyData || onOpenSecurityDashboard) && (
@@ -2564,10 +2606,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
         )}
 
         {/* Footer */}
-        <div className={`${footerCls} space-y-2`}>
-          <div className="flex justify-center">
-            <ToonViblyShieldBadge onClick={onOpenSecurityDashboard ? () => { onClose(); onOpenSecurityDashboard(); } : undefined} />
-          </div>
+        <div className={`${footerCls}`}>
           <button
             onClick={onClose}
             className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-xs shadow-sm transition-colors cursor-pointer"

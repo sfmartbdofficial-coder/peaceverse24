@@ -69,7 +69,6 @@ import {
   isAuthorizedAdminUser,
   sanitizeInput,
 } from '../../utils/security';
-import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
 import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
 
 interface AdminPortalProps {
@@ -895,9 +894,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
           )}
 
           <div className="pt-2 text-center border-t border-[#E4E6EB] space-y-2.5">
-            <div className="flex justify-center">
-              <ToonViblyShieldBadge />
-            </div>
             <button
               type="button"
               onClick={onBackToApp}
@@ -2593,7 +2589,6 @@ export const AdminPortal: React.FC<AdminPortalProps> = ({
                     </p>
                   </div>
                 </div>
-                <ToonViblyShieldBadge />
               </div>
 
               <div className="space-y-3 text-xs">

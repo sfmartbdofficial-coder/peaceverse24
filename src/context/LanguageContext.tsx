@@ -8,6 +8,7 @@ import {
   COUNTRY_TO_LANGUAGE_MAP,
   LanguageInfo,
 } from '../i18n/languages';
+import { useHistoryBack } from '../utils/backNavigation';
 
 interface LanguageContextType {
   currentLang: SupportedLanguage;
@@ -29,6 +30,8 @@ export const LanguageProvider: React.FC<{ children: React.ReactNode }> = ({ chil
   const [detectedFlag, setDetectedFlag] = useState<string>(initial.detectedFlag);
   const [showLanguageModal, setShowLanguageModal] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+
+  useHistoryBack(showLanguageModal, () => setShowLanguageModal(false), 'language-modal');
 
   // 1. Asynchronous IP Geolocation fallback for exact global country & language detection
   useEffect(() => {

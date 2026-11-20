@@ -42,6 +42,7 @@ import { FbEditProfileModal } from './FbEditProfileModal';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
+import { useHistoryBack } from '../../utils/backNavigation';
 import {
   getWhatsAppUrl,
   getImoDeepLink,
@@ -154,6 +155,12 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   const [switchFeedback, setSwitchFeedback] = useState<string | null>(null);
   const [copyFeedback, setCopyFeedback] = useState(false);
   const [editingThought, setEditingThought] = useState(false);
+
+  useHistoryBack(showEditModal, () => setShowEditModal(false), 'profile-edit');
+  useHistoryBack(showMonetizationModal, () => setShowMonetizationModal(false), 'profile-monetization');
+  useHistoryBack(showSettingsSheet, () => setShowSettingsSheet(false), 'profile-settings');
+  useHistoryBack(showProfileSwitcher, () => setShowProfileSwitcher(false), 'profile-switcher');
+  useHistoryBack(showAccountsCenterModal, () => setShowAccountsCenterModal(false), 'profile-accounts-center');
   const [isProfileLocked, setIsProfileLocked] = useState<boolean>(() => {
     try {
       return localStorage.getItem('peaceverse_profile_locked') === 'true';

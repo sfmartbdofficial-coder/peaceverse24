@@ -60,10 +60,14 @@ import {
   CheckCircle2,
   Upload,
   Download,
+  Sun,
+  Moon,
+  Monitor,
 } from 'lucide-react';
 import { UserProfile, FacebookMainTab, NotificationItem, PageItem, PostItem } from '../../types';
 import { LegalTabType } from '../legal/LegalModal';
 import { useLanguage } from '../../context/LanguageContext';
+import { useTheme, ThemeMode } from '../../context/ThemeContext';
 import {
   loadPeaceSettings,
   savePeaceSettings,
@@ -89,7 +93,7 @@ import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
 import { FbCreatePageLandingView } from './FbCreatePageLandingView';
 import { validateMediaUpload } from '../../utils/security';
-import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbMenuViewProps {
   userProfile: UserProfile;
@@ -147,6 +151,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
   onExportMyData,
 }) => {
   const { currentLang, setLanguage, setShowLanguageModal } = useLanguage();
+  const { themeMode, resolvedTheme, setThemeMode } = useTheme();
 
   // Accordion toggles: Settings and privacy & Upgrades OPEN BY DEFAULT
   const [showSettingsAccordion, setShowSettingsAccordion] = useState(true);
@@ -192,6 +197,26 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       setPeacePrefs((prev) => savePeaceSettings({ ...prev, ...remote }));
     });
   }, [userProfile?.id]);
+
+  // Android / browser hardware Back support for every modal & drawer in Menu
+  useHistoryBack(showAvatarsModal, () => setShowAvatarsModal(false), 'menu-avatars');
+  useHistoryBack(showBirthdaysModal, () => setShowBirthdaysModal(false), 'menu-birthdays');
+  useHistoryBack(showEventsModal, () => setShowEventsModal(false), 'menu-events');
+  useHistoryBack(showFindsModal, () => setShowFindsModal(false), 'menu-finds');
+  useHistoryBack(showGamesModal, () => setShowGamesModal(false), 'menu-games');
+  useHistoryBack(showKidsModal, () => setShowKidsModal(false), 'menu-kids');
+  useHistoryBack(showPeaceAiModal, () => setShowPeaceAiModal(false), 'menu-peace-ai');
+  useHistoryBack(showPokesModal, () => setShowPokesModal(false), 'menu-pokes');
+  useHistoryBack(Boolean(settingsModalType), () => setSettingsModalType(null), 'menu-settings');
+  useHistoryBack(Boolean(alsoAppType), () => setAlsoAppType(null), 'menu-also-apps');
+  useHistoryBack(showPeaceEdits, () => setShowPeaceEdits(false), 'menu-peace-edits');
+  useHistoryBack(showLogoutConfirm, () => setShowLogoutConfirm(false), 'menu-logout-confirm');
+  useHistoryBack(showProfileSwitcher, () => setShowProfileSwitcher(false), 'menu-profile-switcher');
+  useHistoryBack(Boolean(selectedSwitchPage), () => setSelectedSwitchPage(null), 'menu-switch-sheet');
+  useHistoryBack(showCreatePageLanding, () => setShowCreatePageLanding(false), 'menu-create-page');
+  useHistoryBack(showBroadcastModal, () => {
+    if (!broadcastSending) setShowBroadcastModal(false);
+  }, 'menu-broadcast');
 
   const handleUpdatePrefs = (patch: Partial<PeaceSettingsPrefs>) => {
     setPeacePrefs((prev) => {
@@ -978,6 +1003,45 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                   <ChevronRight className="w-4 h-4 text-neutral-400" />
                 </button>
 
+                {/* 2.5 Theme: Light / Dark / System */}
+                <div className="w-full min-h-[44px] px-3 py-1.5 rounded-lg hover:bg-neutral-50 flex items-center justify-between font-medium text-neutral-800 gap-2">
+                  <div className="flex items-center gap-3.5 shrink-0">
+                    {themeMode === 'system' ? (
+                      <Monitor className="w-5 h-5 text-[#0866FF] shrink-0" />
+                    ) : resolvedTheme === 'dark' ? (
+                      <Moon className="w-5 h-5 text-[#0866FF] shrink-0" />
+                    ) : (
+                      <Sun className="w-5 h-5 text-amber-500 shrink-0" />
+                    )}
+                    <span className="text-[14.5px]">Theme</span>
+                  </div>
+                  <div className="flex items-center gap-1 flex-wrap justify-end">
+                    {(
+                      [
+                        { mode: 'light', label: 'Light' },
+                        { mode: 'dark', label: 'Dark' },
+                        { mode: 'system', label: 'System' },
+                      ] as Array<{ mode: ThemeMode; label: string }>
+                    ).map(({ mode, label }) => {
+                      const active = themeMode === mode;
+                      return (
+                        <button
+                          key={mode}
+                          type="button"
+                          onClick={() => setThemeMode(mode)}
+                          className={`px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer ${
+                            active
+                              ? 'bg-[#0866FF] text-white'
+                              : 'bg-neutral-100 text-neutral-600 hover:bg-neutral-200'
+                          }`}
+                        >
+                          {label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
                 {/* 2.6 Language -> বাংলা / English / العربية + All 18+ Global Languages */}
                 <div
                   onClick={() => setShowLanguageModal(true)}
@@ -1471,18 +1535,14 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           )}
         </div>
 
-        {/* Log out Button: clean light grey matching Facebook */}
-        <div className="pt-2 space-y-3">
+        {/* Log out Button: clean light grey matching Facebook (nothing below Log out) */}
+        <div className="pt-2 pb-2">
           <button
             onClick={() => setShowLogoutConfirm(true)}
             className="w-full h-[40px] bg-[#E4E6EB] hover:bg-neutral-300 text-neutral-900 font-semibold text-[15px] rounded-[8px] flex items-center justify-center transition-colors cursor-pointer"
           >
             Log out
           </button>
-
-          <div className="flex justify-center pb-1">
-            <ToonViblyShieldBadge onClick={onOpenSecurityDashboard} />
-          </div>
         </div>
 
       </div>

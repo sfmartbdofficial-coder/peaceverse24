@@ -49,10 +49,39 @@ app.use((req, res, next) => {
   next();
 });
 
-// Explicit robots.txt route blocking /admin, /api, and /config
+// Explicit robots.txt route telling Google what to crawl and blocking private routes
 app.get('/robots.txt', (_req, res) => {
-  res.type('text/plain');
-  res.send('User-agent: *\nDisallow: /admin\nDisallow: /admin/\nDisallow: /api\nDisallow: /api/\nDisallow: /config\nDisallow: /config/\nDisallow: /asol-admin-secret\n');
+  res.type('text/plain; charset=utf-8');
+  res.send(
+    [
+      'User-agent: *',
+      'Allow: /',
+      'Allow: /home',
+      'Allow: /login',
+      'Allow: /signup',
+      'Allow: /qibla',
+      'Allow: /peace-threads',
+      'Allow: /peace-insta',
+      'Allow: /business-suite',
+      'Allow: /peace-edits-editor',
+      'Disallow: /admin',
+      'Disallow: /admin/',
+      'Disallow: /api',
+      'Disallow: /api/',
+      'Disallow: /config',
+      'Disallow: /config/',
+      'Disallow: /asol-admin-secret',
+      '',
+      'Sitemap: https://peaceverse24.com/sitemap.xml',
+      '',
+    ].join('\n')
+  );
+});
+
+// Explicit sitemap.xml route for Google Search Console & crawlers
+app.get('/sitemap.xml', (_req, res) => {
+  res.type('application/xml; charset=utf-8');
+  res.sendFile(path.resolve(__dirname, 'public', 'sitemap.xml'));
 });
 
 // Server-side Rate Limiter for /api/* (Max 10 requests per minute per client IP/user)

@@ -1,15 +1,12 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import {
   Mail,
   Lock,
-  User,
   ArrowRight,
   RefreshCw,
   AlertCircle,
   CheckCircle2,
   ArrowLeft,
-  ShieldCheck,
-  Sparkles,
   Eye,
   EyeOff,
   LogOut,
@@ -26,7 +23,7 @@ import { PeaceDoveEmblem } from './PeaceDoveEmblem';
 import { maskEmailAddress } from '../../utils/privacyMask';
 import { loadPeaceSettings } from '../../utils/settingsStorage';
 import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
-import { ToonViblyShieldBadge } from '../security/SecurityStatusDashboard';
+import { StepByStepSignUpForm, StepSignUpPayload } from '../auth/StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
 
 const DISPOSABLE_EMAIL_DOMAINS = new Set([
@@ -124,7 +121,8 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
   const [emailTouched, setEmailTouched] = useState(false);
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [displayName, setDisplayName] = useState('');
+  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [pendingSignUpData, setPendingSignUpData] = useState<StepSignUpPayload | null>(null);
   const [loading, setLoading] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
@@ -135,8 +133,51 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
   } | null>(null);
   const [turnstileVerified, setTurnstileVerified] = useState(false);
 
+  useEffect(() => {
+    setMode(initialMode);
+    setErrorMsg('');
+    setSuccessMsg('');
+    setOtpChallenge(null);
+    setWizardStep(1);
+    setPendingSignUpData(null);
+  }, [initialMode]);
+
+  const normalizeIdentifierToEmail = (input: string) => {
+    const trimmed = input.trim();
+    if (trimmed.includes('@')) return trimmed;
+    const digits = trimmed.replace(/[^0-9+]/g, '');
+    if (digits.length >= 6) {
+      return `${digits.replace(/\+/g, '')}@phone.peaceverse.app`;
+    }
+    return trimmed;
+  };
+
   const emailValidation = useMemo(() => validateEmail(email), [email]);
   const showEmailError = emailTouched && email.trim().length > 0 && !emailValidation.isValid;
+
+  const mapFirebaseAuthError = (err: any): string => {
+    let msg = err?.message || 'লগইন করার সময় একটি সমস্যা হয়েছে।';
+    const code = err?.code || '';
+    if (
+      code === 'auth/wrong-password' ||
+      code === 'auth/invalid-credential' ||
+      msg.includes('auth/invalid-credential') ||
+      msg.includes('auth/wrong-password')
+    ) {
+      msg = 'ভুল পাসওয়ার্ড অথবা ভুল ইমেইল! অনুগ্রহ করে আপনার সঠিক পাসওয়ার্ডটি দিন।';
+    } else if (code === 'auth/user-not-found' || msg.includes('auth/user-not-found')) {
+      msg = 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সাইন-আপ করুন।';
+    } else if (code === 'auth/too-many-requests' || msg.includes('auth/too-many-requests')) {
+      msg = 'অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। সাময়িকভাবে অ্যাকাউন্ট লক করা হয়েছে, কিছুক্ষণ পর আবার চেষ্টা করুন।';
+    } else if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
+      msg = 'আপনার ইমেইল অ্যাড্রেসটি সঠিক নয়।';
+    } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
+      msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে। অনুগ্রহ করে লগইন করুন।';
+    } else if (msg.includes('auth/operation-not-allowed')) {
+      msg = `Firebase Email/Password সাইন-ইন চালু নেই। Firebase Console-এ গিয়ে Email/Password এনাবল করুন।`;
+    }
+    return msg;
+  };
 
   const handleGoogleSignIn = async () => {
     setErrorMsg('');
@@ -160,18 +201,70 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     }
   };
 
+  const handleStepSignUpComplete = (payload: StepSignUpPayload) => {
+    setErrorMsg('');
+    setSuccessMsg('');
+    setPendingSignUpData(payload);
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    setOtpChallenge({ purpose: 'signup', expectedCode: code, inputCode: '' });
+  };
+
+  const handleCompleteSignUpOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setErrorMsg('');
+    if (!pendingSignUpData || !otpChallenge) return;
+
+    if (otpChallenge.inputCode.trim() !== otpChallenge.expectedCode) {
+      setErrorMsg(`Invalid OTP code. Enter ${otpChallenge.expectedCode}.`);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const cleanName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
+      const resolvedEmail = normalizeIdentifierToEmail(pendingSignUpData.contact);
+      try {
+        localStorage.setItem(
+          'peaceverse_signup_meta',
+          JSON.stringify({
+            name: cleanName,
+            birthDate: `${pendingSignUpData.dobDay} ${pendingSignUpData.dobMonth} ${pendingSignUpData.dobYear}`,
+            gender: pendingSignUpData.gender,
+            contact: pendingSignUpData.contact,
+            verifiedChannel: pendingSignUpData.contact.includes('@') ? 'email' : 'sms',
+          })
+        );
+        localStorage.setItem('peaceverse_registered_name', cleanName);
+      } catch {}
+
+      const user = await registerWithEmail(resolvedEmail, pendingSignUpData.password, cleanName);
+      if (user) {
+        setOtpChallenge(null);
+        setPendingSignUpData(null);
+        setWizardStep(1);
+        setSuccessMsg('Account created successfully. Opening Home...');
+        setTimeout(() => {
+          onNavigateHome();
+        }, 800);
+      }
+    } catch (err: any) {
+      setErrorMsg(mapFirebaseAuthError(err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setErrorMsg('');
     setSuccessMsg('');
 
-    // Instant AI / pattern email validation check
     setEmailTouched(true);
     if (!emailValidation.isValid) {
       setErrorMsg(emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়');
       return;
     }
-    if ((mode === 'login' || mode === 'signup') && !turnstileVerified) {
+    if (mode === 'login' && !turnstileVerified) {
       setErrorMsg('Please verify the Cloudflare Turnstile human check first.');
       return;
     }
@@ -210,66 +303,12 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             onNavigateHome();
           }, 500);
         }
-      } else if (mode === 'signup') {
-        if (!displayName.trim()) {
-          setErrorMsg('অনুগ্রহ করে আপনার পুরো নাম লিখুন।');
-          setLoading(false);
-          return;
-        }
-        if (password.length < 6) {
-          setErrorMsg('পাসওয়ার্ড কমপক্ষে ৬ অক্ষরের হতে হবে।');
-          setLoading(false);
-          return;
-        }
-        if (!otpChallenge) {
-          const code = String(Math.floor(100000 + Math.random() * 900000));
-          setOtpChallenge({ purpose: 'signup', expectedCode: code, inputCode: '' });
-          setLoading(false);
-          return;
-        }
-        if (otpChallenge.inputCode.trim() !== otpChallenge.expectedCode) {
-          setErrorMsg(`Invalid OTP code. Enter ${otpChallenge.expectedCode}.`);
-          setLoading(false);
-          return;
-        }
-        const cleanName = sanitizeInput(displayName.trim());
-        try {
-          localStorage.setItem('peaceverse_registered_name', cleanName);
-        } catch {}
-        const user = await registerWithEmail(email.trim(), password, cleanName);
-        if (user) {
-          setOtpChallenge(null);
-          setSuccessMsg('Account created successfully. Opening Home...');
-          setTimeout(() => {
-            onNavigateHome();
-          }, 800);
-        }
       } else if (mode === 'forgot') {
         await resetPassword(email.trim());
         setSuccessMsg('পাসওয়ার্ড রিসেট লিংক আপনার ইমেইলে পাঠানো হয়েছে! অনুগ্রহ করে ইনবক্স চেক করুন।');
       }
     } catch (err: any) {
-      let msg = err?.message || 'লগইন করার সময় একটি সমস্যা হয়েছে।';
-      const code = err?.code || '';
-      if (
-        code === 'auth/wrong-password' ||
-        code === 'auth/invalid-credential' ||
-        msg.includes('auth/invalid-credential') ||
-        msg.includes('auth/wrong-password')
-      ) {
-        msg = 'ভুল পাসওয়ার্ড অথবা ভুল ইমেইল! অনুগ্রহ করে আপনার সঠিক পাসওয়ার্ডটি দিন।';
-      } else if (code === 'auth/user-not-found' || msg.includes('auth/user-not-found')) {
-        msg = 'এই ইমেইল দিয়ে কোনো অ্যাকাউন্ট পাওয়া যায়নি। অনুগ্রহ করে সাইন-আপ করুন।';
-      } else if (code === 'auth/too-many-requests' || msg.includes('auth/too-many-requests')) {
-        msg = 'অনেকবার ভুল পাসওয়ার্ড দেওয়া হয়েছে। সাময়িকভাবে অ্যাকাউন্ট লক করা হয়েছে, কিছুক্ষণ পর আবার চেষ্টা করুন।';
-      } else if (code === 'auth/invalid-email' || msg.includes('auth/invalid-email')) {
-        msg = 'আপনার ইমেইল অ্যাড্রেসটি সঠিক নয়।';
-      } else if (code === 'auth/email-already-in-use' || msg.includes('auth/email-already-in-use')) {
-        msg = 'এই ইমেইল দিয়ে ইতিমধ্যে একটি অ্যাকাউন্ট তৈরি করা হয়েছে। অনুগ্রহ করে লগইন করুন।';
-      } else if (msg.includes('auth/operation-not-allowed')) {
-        msg = `Firebase Email/Password সাইন-ইন চালু নেই। Firebase Console-এ গিয়ে Email/Password এনাবল করুন।`;
-      }
-      setErrorMsg(msg);
+      setErrorMsg(mapFirebaseAuthError(err));
     } finally {
       setLoading(false);
     }
@@ -312,48 +351,14 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             </span>
             <h1 className="text-xl sm:text-2xl font-black text-black tracking-tight">
               {mode === 'login' && 'Sign in to Peaceverse24.com'}
-              {mode === 'signup' && 'Create Your Peaceverse24.com Account'}
+              {mode === 'signup' && 'Create a new account'}
               {mode === 'forgot' && 'Reset Your Password'}
             </h1>
             <p className="text-xs text-[#65676B] mt-1 max-w-xs">
               {mode === 'login' && 'Welcome back! Connect with your peaceful community worldwide.'}
-              {mode === 'signup' && 'Join millions sharing positive, safe, and helpful content.'}
+              {mode === 'signup' && 'ধাপে ধাপে আপনার নতুন Peaceverse24 অ্যাকাউন্ট তৈরি করুন।'}
               {mode === 'forgot' && 'Enter your registered email to receive recovery instructions.'}
             </p>
-          </div>
-
-          {/* Mode Switcher Tabs */}
-          <div className="flex p-1 bg-[#F0F2F5] rounded-2xl border border-[#E4E6EB] mb-5">
-            <button
-              type="button"
-              onClick={() => {
-                setMode('login');
-                setErrorMsg('');
-                setSuccessMsg('');
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-                mode === 'login'
-                  ? 'bg-[#0866FF] text-white shadow-xs'
-                  : 'text-[#65676B] hover:text-black'
-              }`}
-            >
-              Sign In
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setMode('signup');
-                setErrorMsg('');
-                setSuccessMsg('');
-              }}
-              className={`flex-1 py-2 rounded-xl text-xs font-bold transition-all ${
-                mode === 'signup'
-                  ? 'bg-[#0866FF] text-white shadow-xs'
-                  : 'text-[#65676B] hover:text-black'
-              }`}
-            >
-              Sign Up
-            </button>
           </div>
 
           {/* Active Logged-In User Banner (if opened while already signed in) */}
@@ -407,8 +412,8 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             </div>
           )}
 
-          {/* 1-Click Google Sign-In */}
-          {mode !== 'forgot' && (
+          {/* 1-Click Google Sign-In (Login Page Only) */}
+          {mode === 'login' && (
             <div className="mb-4">
               <button
                 type="button"
@@ -419,7 +424,7 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
                 <svg className="w-4 h-4" viewBox="0 0 24 24">
                   <path
                     fill="#4285F4"
-                    d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
+                    d="M22.56 12.25c0-.7-.06-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                   />
                   <path
                     fill="#34A853"
@@ -445,211 +450,266 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
             </div>
           )}
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-3.5">
-            {mode === 'signup' && (
-              <div>
-                <label className="text-[11px] font-semibold text-black mb-1 block">Full Name</label>
-                <div className="relative flex items-center">
-                  <User className="w-4 h-4 text-[#65676B] absolute left-3.5" />
-                  <input
-                    type="text"
-                    required
-                    value={displayName}
-                    onChange={(e) => setDisplayName(e.target.value)}
-                    placeholder="e.g. Alex Johnson"
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-10 pr-3 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
-                  />
-                </div>
-              </div>
-            )}
-
-            <div>
-              <label className="text-[11px] font-semibold text-black mb-1 block">Email Address</label>
-              <div className="relative flex items-center">
-                <Mail className="w-4 h-4 text-[#65676B] absolute left-3.5" />
-                <input
-                  type="email"
-                  required
-                  value={email}
-                  onChange={(e) => {
-                    setEmail(e.target.value);
-                    if (!emailTouched) setEmailTouched(true);
-                  }}
-                  onBlur={() => setEmailTouched(true)}
-                  placeholder="name@example.com"
-                  className={`w-full bg-[#F0F2F5] border rounded-xl pl-10 pr-3 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none transition-colors ${
-                    showEmailError
-                      ? 'border-rose-500 focus:border-rose-600 bg-rose-50'
-                      : 'border-[#E4E6EB] focus:border-[#0866FF]'
-                  }`}
+          {/* SEPARATE SIGN UP PAGE: 5-STEP WIZARD */}
+          {mode === 'signup' ? (
+            <div className="space-y-4">
+              <div className={otpChallenge?.purpose === 'signup' ? 'hidden' : 'block'}>
+                <StepByStepSignUpForm
+                  step={wizardStep}
+                  onStepChange={setWizardStep}
+                  onComplete={handleStepSignUpComplete}
+                  loading={loading}
+                  externalError={errorMsg || null}
+                  onClearExternalError={() => setErrorMsg('')}
                 />
               </div>
 
-              {/* Real-time Email Validation: Shows immediately under the email input */}
-              {showEmailError && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-rose-600 animate-in fade-in">
-                  <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
-                  <span className="font-semibold">{emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়'}</span>
-                </div>
-              )}
-              {emailTouched && email.trim().length > 0 && emailValidation.isValid && (
-                <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-700 animate-in fade-in">
-                  <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
-                  <span>ইমেইলটি সঠিক ও সক্রিয় ✓</span>
-                </div>
-              )}
-            </div>
+              {otpChallenge?.purpose === 'signup' && (
+                <form onSubmit={handleCompleteSignUpOtp} className="space-y-3">
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
+                    <p className="text-xs font-bold text-emerald-800">
+                      OTP Verification Required ({pendingSignUpData?.contact}) — Code:{' '}
+                      <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                        {otpChallenge.expectedCode}
+                      </span>
+                    </p>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpChallenge.inputCode}
+                      onChange={(e) =>
+                        setOtpChallenge((prev) =>
+                          prev ? { ...prev, inputCode: e.target.value.replace(/\D/g, '') } : prev
+                        )
+                      }
+                      placeholder="Enter 6-digit verification code"
+                      className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-center font-mono tracking-widest text-sm text-black outline-none focus:border-[#0866FF]"
+                    />
+                  </div>
 
-            {mode !== 'forgot' && (
-              <div>
-                <div className="flex items-center justify-between mb-1">
-                  <label className="text-[11px] font-semibold text-black">Password</label>
-                  {mode === 'login' && (
+                  <div className="flex items-center gap-2">
                     <button
                       type="button"
-                      onClick={() => setMode('forgot')}
-                      className="text-[10px] text-[#0866FF] hover:underline"
+                      onClick={() => {
+                        setOtpChallenge(null);
+                        setErrorMsg('');
+                      }}
+                      className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-xl cursor-pointer flex items-center gap-1"
                     >
-                      Forgot password?
+                      <ArrowLeft className="w-3.5 h-3.5" />
+                      <span>Back</span>
                     </button>
-                  )}
-                </div>
-                <div className="relative flex items-center">
-                  <Lock className="w-4 h-4 text-[#65676B] absolute left-3.5" />
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    required
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-10 pr-10 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
-                  />
+                    <button
+                      type="submit"
+                      disabled={loading}
+                      className="flex-1 py-2.5 rounded-xl bg-[#00A400] hover:bg-[#008C00] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
+                    >
+                      {loading ? (
+                        <>
+                          <RefreshCw className="w-4 h-4 animate-spin" />
+                          <span>Creating Account...</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>Verify &amp; Create Account</span>
+                          <ArrowRight className="w-4 h-4" />
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </form>
+              )}
+
+              <div className="mt-5 pt-4 border-t border-[#E4E6EB] text-center text-xs text-[#65676B]">
+                <p>
+                  Already have an account?{' '}
                   <button
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute right-3 p-1 text-[#65676B] hover:text-black transition-colors cursor-pointer"
-                    title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                    onClick={() => {
+                      setErrorMsg('');
+                      setSuccessMsg('');
+                      setOtpChallenge(null);
+                      setMode('login');
+                      onNavigateTo('/login');
+                    }}
+                    className="text-[#0866FF] font-bold hover:underline cursor-pointer"
                   >
-                    {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    Sign In
                   </button>
-                </div>
-              </div>
-            )}
-
-            {otpChallenge && (
-              <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
-                <p className="text-xs font-bold text-emerald-800">
-                  {otpChallenge.purpose === '2fa' ? '2FA Verification Required' : 'Email OTP Verification'} — Code:{' '}
-                  <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
-                    {otpChallenge.expectedCode}
-                  </span>
                 </p>
-                <input
-                  type="text"
-                  maxLength={6}
-                  value={otpChallenge.inputCode}
-                  onChange={(e) =>
-                    setOtpChallenge((prev) =>
-                      prev ? { ...prev, inputCode: e.target.value.replace(/\D/g, '') } : prev
-                    )
-                  }
-                  placeholder="Enter 6-digit verification code"
-                  className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-center font-mono tracking-widest text-sm text-black outline-none focus:border-[#0866FF]"
-                />
               </div>
-            )}
+            </div>
+          ) : (
+            /* SEPARATE LOGIN / FORGOT FORM */
+            <>
+              <form onSubmit={handleSubmit} className="space-y-3.5">
+                <div>
+                  <label className="text-[11px] font-semibold text-black mb-1 block">Email Address</label>
+                  <div className="relative flex items-center">
+                    <Mail className="w-4 h-4 text-[#65676B] absolute left-3.5" />
+                    <input
+                      type="email"
+                      required
+                      value={email}
+                      onChange={(e) => {
+                        setEmail(e.target.value);
+                        if (!emailTouched) setEmailTouched(true);
+                      }}
+                      onBlur={() => setEmailTouched(true)}
+                      placeholder="name@example.com"
+                      className={`w-full bg-[#F0F2F5] border rounded-xl pl-10 pr-3 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none transition-colors ${
+                        showEmailError
+                          ? 'border-rose-500 focus:border-rose-600 bg-rose-50'
+                          : 'border-[#E4E6EB] focus:border-[#0866FF]'
+                      }`}
+                    />
+                  </div>
 
-            {(mode === 'login' || mode === 'signup') && (
-              <TurnstileCaptchaPlaceholder
-                verified={turnstileVerified}
-                onVerifyChange={(v) => setTurnstileVerified(v)}
-              />
-            )}
+                  {showEmailError && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-rose-600 animate-in fade-in">
+                      <AlertCircle className="w-3.5 h-3.5 shrink-0 text-rose-600" />
+                      <span className="font-semibold">{emailValidation.message || 'আপনার ইমেইলটি সঠিক নয়'}</span>
+                    </div>
+                  )}
+                  {emailTouched && email.trim().length > 0 && emailValidation.isValid && (
+                    <div className="mt-1.5 flex items-center gap-1.5 text-xs text-emerald-700 animate-in fade-in">
+                      <CheckCircle2 className="w-3.5 h-3.5 shrink-0 text-emerald-600" />
+                      <span>ইমেইলটি সঠিক ও সক্রিয় ✓</span>
+                    </div>
+                  )}
+                </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-blue-600 active:scale-[0.99] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
-            >
-              {loading ? (
-                <>
-                  <RefreshCw className="w-4 h-4 animate-spin" />
-                  <span>Processing...</span>
-                </>
-              ) : (
-                <>
-                  <span>
-                    {otpChallenge
-                      ? 'Verify Code'
-                      : mode === 'login'
-                      ? 'Sign In'
-                      : mode === 'signup'
-                      ? 'Create Account'
-                      : 'Send Reset Link'}
-                  </span>
-                  <ArrowRight className="w-4 h-4" />
-                </>
-              )}
-            </button>
-          </form>
+                {mode !== 'forgot' && (
+                  <div>
+                    <div className="flex items-center justify-between mb-1">
+                      <label className="text-[11px] font-semibold text-black">Password</label>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setErrorMsg('');
+                          setMode('forgot');
+                        }}
+                        className="text-[10px] text-[#0866FF] hover:underline cursor-pointer"
+                      >
+                        Forgot password?
+                      </button>
+                    </div>
+                    <div className="relative flex items-center">
+                      <Lock className="w-4 h-4 text-[#65676B] absolute left-3.5" />
+                      <input
+                        type={showPassword ? 'text' : 'password'}
+                        required
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        placeholder="কমপক্ষে ৬ অক্ষরের পাসওয়ার্ড"
+                        className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl pl-10 pr-10 py-2.5 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 p-1 text-[#65676B] hover:text-black transition-colors cursor-pointer"
+                        title={showPassword ? 'পাসওয়ার্ড লুকান' : 'পাসওয়ার্ড দেখুন'}
+                      >
+                        {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                      </button>
+                    </div>
+                  </div>
+                )}
 
-          {/* Card Footer Switcher */}
-          <div className="mt-5 pt-4 border-t border-[#E4E6EB] text-center text-xs text-[#65676B]">
-            {mode === 'login' ? (
-              <p>
-                Don't have an account yet?{' '}
+                {otpChallenge && otpChallenge.purpose === '2fa' && (
+                  <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 space-y-2">
+                    <p className="text-xs font-bold text-emerald-800">
+                      2FA Verification Required — Code:{' '}
+                      <span className="font-mono font-black bg-white px-1.5 py-0.5 rounded border border-emerald-300">
+                        {otpChallenge.expectedCode}
+                      </span>
+                    </p>
+                    <input
+                      type="text"
+                      maxLength={6}
+                      value={otpChallenge.inputCode}
+                      onChange={(e) =>
+                        setOtpChallenge((prev) =>
+                          prev ? { ...prev, inputCode: e.target.value.replace(/\D/g, '') } : prev
+                        )
+                      }
+                      placeholder="Enter 6-digit verification code"
+                      className="w-full bg-white border border-[#E4E6EB] rounded-lg px-3 py-2 text-center font-mono tracking-widest text-sm text-black outline-none focus:border-[#0866FF]"
+                    />
+                  </div>
+                )}
+
+                {mode === 'login' && (
+                  <TurnstileCaptchaPlaceholder
+                    verified={turnstileVerified}
+                    onVerifyChange={(v) => setTurnstileVerified(v)}
+                  />
+                )}
+
                 <button
-                  type="button"
-                  onClick={() => {
-                    setMode('signup');
-                    setErrorMsg('');
-                  }}
-                  className="text-[#0866FF] font-bold hover:underline"
+                  type="submit"
+                  disabled={loading}
+                  className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-blue-600 active:scale-[0.99] text-white font-bold text-xs shadow-xs transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50 mt-3"
                 >
-                  Sign Up for Free
+                  {loading ? (
+                    <>
+                      <RefreshCw className="w-4 h-4 animate-spin" />
+                      <span>Processing...</span>
+                    </>
+                  ) : (
+                    <>
+                      <span>
+                        {otpChallenge
+                          ? 'Verify Code'
+                          : mode === 'login'
+                          ? 'Sign In'
+                          : 'Send Reset Link'}
+                      </span>
+                      <ArrowRight className="w-4 h-4" />
+                    </>
+                  )}
                 </button>
-              </p>
-            ) : mode === 'signup' ? (
-              <p>
-                Already have an account?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setErrorMsg('');
-                  }}
-                  className="text-[#0866FF] font-bold hover:underline"
-                >
-                  Sign In
-                </button>
-              </p>
-            ) : (
-              <p>
-                Remembered your password?{' '}
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMode('login');
-                    setErrorMsg('');
-                  }}
-                  className="text-[#0866FF] font-bold hover:underline"
-                >
-                  Back to Sign In
-                </button>
-              </p>
-            )}
-          </div>
+              </form>
+
+              <div className="mt-5 pt-4 border-t border-[#E4E6EB] text-center space-y-3">
+                {mode === 'login' ? (
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setErrorMsg('');
+                      setSuccessMsg('');
+                      setWizardStep(1);
+                      setMode('signup');
+                      onNavigateTo('/signup');
+                    }}
+                    className="px-5 py-2.5 bg-[#42B72A] hover:bg-[#36A420] text-white font-bold text-xs rounded-xl transition-all cursor-pointer shadow-xs"
+                  >
+                    Create new account
+                  </button>
+                ) : (
+                  <p className="text-xs text-[#65676B]">
+                    Remembered your password?{' '}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('login');
+                        setErrorMsg('');
+                      }}
+                      className="text-[#0866FF] font-bold hover:underline cursor-pointer"
+                    >
+                      Back to Sign In
+                    </button>
+                  </p>
+                )}
+              </div>
+            </>
+          )}
         </div>
       </main>
 
       {/* Footer */}
       <footer className="w-full max-w-md mx-auto text-center text-[11px] text-[#65676B] z-10 space-y-2">
         <p>© 2026 Peaceverse24.com — World&apos;s Most Peaceful Social Network. All rights reserved.</p>
-        <p className="mt-0.5">Secure Firebase Authentication • Privacy Protected</p>
-        <div className="flex justify-center pt-1">
-          <ToonViblyShieldBadge />
-        </div>
       </footer>
     </div>
   );

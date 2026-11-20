@@ -1,4 +1,13 @@
 User-agent: *
+Allow: /
+Allow: /home
+Allow: /login
+Allow: /signup
+Allow: /qibla
+Allow: /peace-threads
+Allow: /peace-insta
+Allow: /business-suite
+Allow: /peace-edits-editor
 Disallow: /admin
 Disallow: /admin/
 Disallow: /api
@@ -6,3 +15,5 @@ Disallow: /api/
 Disallow: /config
 Disallow: /config/
 Disallow: /asol-admin-secret
+
+Sitemap: https://peaceverse24.com/sitemap.xml
