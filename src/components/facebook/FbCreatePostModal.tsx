@@ -17,6 +17,10 @@ import {
   ShieldAlert,
   Loader2,
   Plus,
+  ChevronLeft,
+  ChevronRight,
+  Share2,
+  PlusCircle,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
 import {
@@ -72,6 +76,41 @@ const LOCATIONS = [
   'Dhaka, Bangladesh',
 ];
 
+const QUICK_MUSIC_SUGGESTIONS = [
+  {
+    id: 'm1',
+    title: 'সময় চলে যায়, থেকে যা...',
+    thumb: 'https://images.unsplash.com/photo-1507525428034-b723cf961d3e?auto=format&fit=crop&w=100&q=80',
+  },
+  {
+    id: 'm2',
+    title: 'হালাল উপার্জন',
+    thumb: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=100&q=80',
+  },
+  {
+    id: 'm3',
+    title: 'সূরা আর-রহমান তিলাওয়াত',
+    thumb: 'https://images.unsplash.com/photo-1584551246679-0daf3d275d0f?auto=format&fit=crop&w=100&q=80',
+  },
+  {
+    id: 'm4',
+    title: 'আয়াতুল কুরসি তিলাওয়াত',
+    thumb: 'https://images.unsplash.com/photo-1542816417-0983c9c9ad53?auto=format&fit=crop&w=100&q=80',
+  },
+  {
+    id: 'm5',
+    title: 'তাওবার পবিত্র দোয়া',
+    thumb: 'https://images.unsplash.com/photo-1518609878373-06d740f60d8b?auto=format&fit=crop&w=100&q=80',
+  },
+];
+
+const SHAREABLE_GROUPS = [
+  { id: 'g1', name: 'Peaceverse24 Global Ummah', members: '48K members' },
+  { id: 'g2', name: 'কুরআন ও হাদিস শিক্ষা', members: '32K members' },
+  { id: 'g3', name: 'হালাল বিজনেস ও উদ্যোক্তা ফোরাম', members: '19K members' },
+  { id: 'g4', name: 'যুব সমাজ ও দাওয়াহ', members: '24K members' },
+];
+
 export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   userProfile,
   initialPhoto = null,
@@ -80,11 +119,13 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   onPostCreated,
   onOpenLive,
 }) => {
+  const [step, setStep] = useState<'compose' | 'options'>('compose');
   const [content, setContent] = useState('');
   
   // Privacy selector: public | friends | private
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
   const [showPrivacyMenu, setShowPrivacyMenu] = useState(false);
+  const [showStep2Audience, setShowStep2Audience] = useState(false);
 
   // Moderation & submission state
   const [isVerifyingHalal, setIsVerifyingHalal] = useState(false);
@@ -116,9 +157,10 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   const [arabicText, setArabicText] = useState('');
   const [translationText, setTranslationText] = useState('');
 
-  // Pills state
+  // Pills & Step 2 options state
   const [selectedMusic, setSelectedMusic] = useState<string | null>(null);
   const [showMusicPicker, setShowMusicPicker] = useState(false);
+  const [showStep2MusicSheet, setShowStep2MusicSheet] = useState(false);
 
   const [taggedFriends, setTaggedFriends] = useState<string[]>([]);
   const [showTagModal, setShowTagModal] = useState(false);
@@ -128,6 +170,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
   const [selectedFeeling, setSelectedFeeling] = useState<string | null>(null);
   const [showFeelingModal, setShowFeelingModal] = useState(false);
+
+  const [selectedGroups, setSelectedGroups] = useState<string[]>([]);
+  const [showGroupsPicker, setShowGroupsPicker] = useState(false);
+  const [shareToApps, setShareToApps] = useState(false);
+  const [aiLabeled, setAiLabeled] = useState(false);
+  const [showAiLearnMore, setShowAiLearnMore] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -343,8 +391,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       const hasQuranVerse = filterResult.isQuranVerse || !!arabicText.trim();
       const finalArabic = arabicText.trim() || (filterResult.isQuranVerse ? content.trim() : undefined);
 
+      const nowMillis = Date.now();
       const newPost: PostItem = {
-        id: `post-${Date.now()}`,
+        id: `post-${nowMillis}`,
         authorId: userProfile.id || userProfile.name,
         author: {
           name: userProfile.name,
@@ -353,6 +402,8 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           subtitle: `Just now • ${privacyIcons[privacy]}`,
         },
         timeAgo: 'Just now',
+        createdAtMillis: nowMillis,
+        isFreshUpload: true,
         isPublic: privacy === 'public',
         privacy,
         status: 'approved',
@@ -372,6 +423,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         location: selectedLocation || undefined,
         feeling: selectedFeeling || undefined,
         taggedFriends: taggedFriends.length > 0 ? taggedFriends : undefined,
+        musicTitle: selectedMusic || undefined,
+        aiLabeled: aiLabeled || undefined,
+        sharedGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
         reactions: {
           total: 1,
           likeCount: 1,
@@ -386,6 +440,16 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       };
 
       await onPostCreated(newPost);
+
+      if (shareToApps && typeof navigator !== 'undefined' && navigator.share) {
+        navigator
+          .share({
+            title: `${userProfile.name} on PeaceVerse`,
+            text: newPost.contentBangla || 'নতুন পোস্ট দেখুন PeaceVerse24.com এ',
+            url: window.location.href,
+          })
+          .catch(() => {});
+      }
     } catch (err: any) {
       setModerationError({
         status: 'error',
@@ -403,6 +467,409 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     !isVerifyingHalal &&
     !isSubmitting &&
     !isProcessingMedia;
+
+  const handleGoNextStep = () => {
+    if (!canSubmit) return;
+    setModerationError(null);
+    setShowMusicPicker(false);
+    setShowTagModal(false);
+    setShowLocationModal(false);
+    setShowFeelingModal(false);
+    setShowPrivacyMenu(false);
+    setStep('options');
+  };
+
+  if (step === 'options') {
+    const audienceLabel =
+      privacy === 'public' ? 'Public' : privacy === 'friends' ? 'Friends' : 'Only Me';
+
+    return (
+      <div className="fixed inset-0 z-50 bg-white text-[#050505] flex flex-col justify-between animate-in fade-in font-sans">
+        {/* Step 2 Top Header: [ < ]  "New post" */}
+        <div className="flex items-center justify-between px-3 py-3 border-b border-[#E4E6EB] bg-white">
+          <button
+            type="button"
+            onClick={() => setStep('compose')}
+            className="p-1.5 rounded-full text-[#050505] hover:bg-[#F0F2F5] transition-colors cursor-pointer"
+            title="পিছনে যান"
+            aria-label="Back"
+          >
+            <ChevronLeft className="w-6 h-6 stroke-[2.2]" />
+          </button>
+
+          <h1 className="text-[17px] font-bold text-[#050505]">New post</h1>
+
+          <div className="w-9" aria-hidden="true" />
+        </div>
+
+        {/* Step 2 Scrollable Options Matching Screenshot 1 */}
+        <div className="flex-1 overflow-y-auto no-scrollbar bg-white divide-y divide-[#E4E6EB]">
+          {/* Media / Post Preview */}
+          <div className="px-4 py-3.5 bg-white">
+            {selectedVideo ? (
+              <div className="max-w-[340px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
+                <video src={selectedVideo} controls className="w-full max-h-64 object-cover" />
+              </div>
+            ) : selectedPhotos.length === 1 ? (
+              <div className="max-w-[340px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
+                <img
+                  src={selectedPhotos[0]}
+                  alt="Post preview"
+                  className="w-full max-h-64 object-cover"
+                />
+              </div>
+            ) : selectedPhotos.length > 1 ? (
+              <div className="max-w-[340px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA] p-1.5 grid grid-cols-2 gap-1.5 relative">
+                {selectedPhotos.slice(0, 4).map((src, i) => (
+                  <img
+                    key={i}
+                    src={src}
+                    alt={`Preview ${i + 1}`}
+                    className="w-full h-28 object-cover rounded-lg"
+                  />
+                ))}
+                {selectedPhotos.length > 4 && (
+                  <span className="absolute bottom-3 right-3 px-2 py-0.5 rounded-full bg-black/75 text-white text-xs font-bold">
+                    +{selectedPhotos.length - 4} more
+                  </span>
+                )}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-[#E4E6EB] bg-[#F7F8FA] p-4 space-y-2">
+                {content.trim() && (
+                  <p className="text-[15px] text-[#050505] leading-relaxed line-clamp-4">
+                    {content.trim()}
+                  </p>
+                )}
+                {arabicText.trim() && (
+                  <p className="text-base font-arabic text-emerald-800 text-right leading-relaxed">
+                    {arabicText.trim()}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {hasMedia && content.trim() && (
+              <p className="mt-2.5 text-[13px] text-[#65676B] text-center line-clamp-2 px-2">
+                {content.trim()}
+              </p>
+            )}
+          </div>
+
+          {/* Error / Safety Banner if any */}
+          {moderationError && (
+            <div className="px-4 py-3 bg-amber-50 flex items-center gap-2.5 text-xs text-amber-900">
+              <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
+              <span className="font-semibold text-[13px]">{moderationError.reason}</span>
+            </div>
+          )}
+
+          {/* Post audience */}
+          <div className="bg-white">
+            <button
+              type="button"
+              onClick={() => setShowStep2Audience((prev) => !prev)}
+              className="w-full px-4 py-3.5 flex items-center justify-between hover:bg-[#F7F8FA] transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3.5">
+                {privacy === 'public' ? (
+                  <Globe className="w-6 h-6 text-[#050505] stroke-[1.9]" />
+                ) : privacy === 'friends' ? (
+                  <Users className="w-6 h-6 text-emerald-600 stroke-[1.9]" />
+                ) : (
+                  <Lock className="w-6 h-6 text-amber-600 stroke-[1.9]" />
+                )}
+                <div>
+                  <p className="text-[15px] font-bold text-[#050505] leading-snug">Post audience</p>
+                  <p className="text-[13px] text-[#65676B]">{audienceLabel}</p>
+                </div>
+              </div>
+              <ChevronRight
+                className={`w-5 h-5 text-[#65676B] transition-transform ${
+                  showStep2Audience ? 'rotate-90' : ''
+                }`}
+              />
+            </button>
+
+            {showStep2Audience && (
+              <div className="px-4 pb-3 space-y-1.5 animate-in fade-in">
+                {[
+                  {
+                    key: 'public' as const,
+                    title: 'Public',
+                    desc: 'Peaceverse24.com এর যেকোনো ব্যক্তি দেখতে পারবে',
+                    icon: <Globe className="w-4 h-4 text-[#0866FF]" />,
+                  },
+                  {
+                    key: 'friends' as const,
+                    title: 'Friends',
+                    desc: 'শুধুমাত্র আপনার বন্ধুরা দেখতে পারবে',
+                    icon: <Users className="w-4 h-4 text-emerald-600" />,
+                  },
+                  {
+                    key: 'private' as const,
+                    title: 'Only Me',
+                    desc: 'শুধুমাত্র আপনি নিজে দেখতে পারবেন',
+                    icon: <Lock className="w-4 h-4 text-amber-600" />,
+                  },
+                ].map((opt) => (
+                  <button
+                    key={opt.key}
+                    type="button"
+                    onClick={() => {
+                      setPrivacy(opt.key);
+                      setShowStep2Audience(false);
+                    }}
+                    className={`w-full flex items-center justify-between p-2.5 rounded-xl border text-left cursor-pointer ${
+                      privacy === opt.key
+                        ? 'bg-[#E7F3FF] border-[#0866FF]/40'
+                        : 'bg-[#F7F8FA] border-[#E4E6EB] hover:bg-[#F0F2F5]'
+                    }`}
+                  >
+                    <div className="flex items-center gap-2.5">
+                      {opt.icon}
+                      <div>
+                        <p className="text-[13px] font-bold text-[#050505]">{opt.title}</p>
+                        <p className="text-[11px] text-[#65676B]">{opt.desc}</p>
+                      </div>
+                    </div>
+                    {privacy === opt.key && <Check className="w-4 h-4 text-[#0866FF]" />}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Add music + horizontal pill suggestions */}
+          <div className="bg-white pb-3.5">
+            <button
+              type="button"
+              onClick={() => setShowStep2MusicSheet((prev) => !prev)}
+              className="w-full px-4 pt-3.5 pb-2.5 flex items-center justify-between hover:bg-[#F7F8FA] transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3.5">
+                <Music className="w-6 h-6 text-[#050505] stroke-[1.9]" />
+                <div>
+                  <p className="text-[15px] font-bold text-[#050505] leading-snug">Add music</p>
+                  {selectedMusic && (
+                    <p className="text-[12px] font-semibold text-[#0866FF]">{selectedMusic}</p>
+                  )}
+                </div>
+              </div>
+              <ChevronRight
+                className={`w-5 h-5 text-[#65676B] transition-transform ${
+                  showStep2MusicSheet ? 'rotate-90' : ''
+                }`}
+              />
+            </button>
+
+            <div className="flex items-center gap-2 overflow-x-auto no-scrollbar px-4 pt-0.5">
+              {QUICK_MUSIC_SUGGESTIONS.map((item) => {
+                const isActive = selectedMusic === item.title;
+                return (
+                  <button
+                    key={item.id}
+                    type="button"
+                    onClick={() => setSelectedMusic(isActive ? null : item.title)}
+                    className={`flex items-center gap-2 pl-1.5 pr-3 py-1 rounded-full border text-[13px] font-medium shrink-0 transition-colors cursor-pointer ${
+                      isActive
+                        ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF] font-semibold'
+                        : 'bg-white border-[#CED0D4] text-[#050505] hover:bg-[#F0F2F5]'
+                    }`}
+                  >
+                    <img
+                      src={item.thumb}
+                      alt={item.title}
+                      className="w-6 h-6 rounded-full object-cover border border-[#E4E6EB] shrink-0"
+                    />
+                    <span className="max-w-[170px] truncate">{item.title}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {showStep2MusicSheet && (
+              <div className="mx-4 mt-2.5 p-2.5 rounded-xl bg-[#F7F8FA] border border-[#E4E6EB] flex items-center justify-between gap-2">
+                <span className="text-xs text-[#65676B]">
+                  {selectedMusic ? `নির্বাচিত: ${selectedMusic}` : 'উপরের তালিকা থেকে অডিও সিলেক্ট করুন'}
+                </span>
+                {selectedMusic && (
+                  <button
+                    type="button"
+                    onClick={() => setSelectedMusic(null)}
+                    className="text-xs font-bold text-rose-600 cursor-pointer"
+                  >
+                    সরান
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Also share to... (Groups / Apps) */}
+          <div className="bg-white py-2">
+            <p className="px-4 pt-1.5 pb-1 text-[13px] font-semibold text-[#65676B]">
+              Also share to...
+            </p>
+
+            {/* Groups */}
+            <button
+              type="button"
+              onClick={() => setShowGroupsPicker((prev) => !prev)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#F7F8FA] transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3.5">
+                <Users className="w-6 h-6 text-[#050505] stroke-[1.9]" />
+                <div>
+                  <p className="text-[15px] font-bold text-[#050505]">Groups</p>
+                  {selectedGroups.length > 0 && (
+                    <p className="text-[12px] text-[#0866FF] font-semibold">
+                      {selectedGroups.length} group(s) selected
+                    </p>
+                  )}
+                </div>
+              </div>
+              <ChevronRight
+                className={`w-5 h-5 text-[#65676B] transition-transform ${
+                  showGroupsPicker ? 'rotate-90' : ''
+                }`}
+              />
+            </button>
+
+            {showGroupsPicker && (
+              <div className="px-4 pb-2.5 space-y-1.5 animate-in fade-in">
+                {SHAREABLE_GROUPS.map((grp) => {
+                  const checked = selectedGroups.includes(grp.name);
+                  return (
+                    <button
+                      key={grp.id}
+                      type="button"
+                      onClick={() =>
+                        setSelectedGroups((prev) =>
+                          checked ? prev.filter((g) => g !== grp.name) : [...prev, grp.name]
+                        )
+                      }
+                      className={`w-full p-2.5 rounded-xl border flex items-center justify-between text-left cursor-pointer ${
+                        checked
+                          ? 'bg-[#E7F3FF] border-[#0866FF]/40'
+                          : 'bg-[#F7F8FA] border-[#E4E6EB] hover:bg-[#F0F2F5]'
+                      }`}
+                    >
+                      <div>
+                        <p className="text-[13px] font-bold text-[#050505]">{grp.name}</p>
+                        <p className="text-[11px] text-[#65676B]">{grp.members}</p>
+                      </div>
+                      <span
+                        className={`w-5 h-5 rounded-md border flex items-center justify-center ${
+                          checked
+                            ? 'bg-[#0866FF] border-[#0866FF] text-white'
+                            : 'bg-white border-[#CED0D4]'
+                        }`}
+                      >
+                        {checked && <Check className="w-3.5 h-3.5" />}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Apps */}
+            <button
+              type="button"
+              onClick={() => setShareToApps((prev) => !prev)}
+              className="w-full px-4 py-3 flex items-center justify-between hover:bg-[#F7F8FA] transition-colors cursor-pointer text-left"
+            >
+              <div className="flex items-center gap-3.5">
+                <Share2 className="w-6 h-6 text-[#050505] stroke-[1.9]" />
+                <div>
+                  <p className="text-[15px] font-bold text-[#050505]">Apps</p>
+                  {shareToApps && (
+                    <p className="text-[12px] text-[#0866FF] font-semibold">
+                      পোস্ট করার পর শেয়ার মেনু খুলবে
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                {shareToApps && (
+                  <span className="px-2 py-0.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold">
+                    ON
+                  </span>
+                )}
+                <ChevronRight className="w-5 h-5 text-[#65676B]" />
+              </div>
+            </button>
+          </div>
+
+          {/* AI label Toggle Row */}
+          <div className="bg-white px-4 py-3.5 space-y-1.5">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-3.5">
+                <PlusCircle className="w-6 h-6 text-[#050505] stroke-[1.9]" />
+                <span className="text-[15px] font-bold text-[#050505]">AI label</span>
+              </div>
+
+              <button
+                type="button"
+                role="switch"
+                aria-checked={aiLabeled}
+                aria-label="Toggle AI label"
+                onClick={() => setAiLabeled((prev) => !prev)}
+                className={`w-12 h-7 rounded-full p-0.5 transition-colors cursor-pointer flex items-center ${
+                  aiLabeled ? 'bg-[#0866FF] justify-end' : 'bg-[#CED0D4] justify-start'
+                }`}
+              >
+                <span className="w-6 h-6 rounded-full bg-white shadow-sm flex items-center justify-center text-[10px] font-bold text-[#65676B]">
+                  {aiLabeled ? '✓' : '✕'}
+                </span>
+              </button>
+            </div>
+
+            <p className="text-[13px] text-[#65676B] leading-snug">
+              We require you to label certain realistic content that&apos;s made with AI.{' '}
+              <button
+                type="button"
+                onClick={() => setShowAiLearnMore((prev) => !prev)}
+                className="text-[#0866FF] font-semibold hover:underline cursor-pointer"
+              >
+                Learn more
+              </button>
+            </p>
+
+            {showAiLearnMore && (
+              <div className="p-2.5 rounded-xl bg-[#F0F2F5] text-[12px] text-[#050505] leading-relaxed">
+                ছবি বা ভিডিও যদি এআই (AI) দিয়ে তৈরি বা সম্পাদিত হয়ে থাকে, তবে স্বচ্ছতার জন্য AI label চালু রাখুন।
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Bottom Full-Width Blue "Post" Button matching Screenshot 1 */}
+        <div className="bg-white border-t border-[#E4E6EB] px-4 py-3">
+          <button
+            type="button"
+            onClick={handleSubmit}
+            disabled={!canSubmit}
+            className={`w-full h-[44px] rounded-[8px] font-bold text-[15px] transition-colors flex items-center justify-center gap-2 cursor-pointer ${
+              canSubmit
+                ? 'bg-[#0866FF] hover:bg-[#1877F2] text-white shadow-xs'
+                : 'bg-[#E4E6EB] text-[#BCC0C4] cursor-not-allowed'
+            }`}
+          >
+            {isVerifyingHalal || isSubmitting ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>Posting...</span>
+              </>
+            ) : (
+              <span>Post</span>
+            )}
+          </button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="fixed inset-0 z-50 bg-white text-[#050505] flex flex-col justify-between animate-in fade-in font-sans">
@@ -964,10 +1431,10 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           </button>
         </div>
 
-        {/* Facebook-identical Submit button on bottom right */}
+        {/* Facebook-identical Step 1 "Next" button on bottom right */}
         <button
           type="button"
-          onClick={handleSubmit}
+          onClick={handleGoNextStep}
           disabled={!canSubmit}
           className={`h-[38px] min-w-[84px] px-5 rounded-[8px] font-bold text-[14px] transition-colors flex items-center justify-center gap-1.5 cursor-pointer ${
             canSubmit
@@ -975,14 +1442,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               : 'bg-[#E4E6EB] text-[#BCC0C4] cursor-not-allowed'
           }`}
         >
-          {isVerifyingHalal || isSubmitting ? (
-            <>
-              <Loader2 className="w-4 h-4 animate-spin" />
-              <span>Posting...</span>
-            </>
-          ) : (
-            <span>Post</span>
-          )}
+          <span>Next</span>
         </button>
       </div>
 

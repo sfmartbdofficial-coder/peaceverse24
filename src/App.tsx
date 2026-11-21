@@ -1081,6 +1081,25 @@ export default function App() {
   const hasMoreSupabaseRef = React.useRef<boolean>(true);
   const isFetchingMoreRef = React.useRef<boolean>(false);
 
+  // Facebook-style "Posting..." charging upload progress + 3-minute #1 top pin window
+  const FRESH_PIN_WINDOW_MS = 3 * 60 * 1000;
+  const [pendingUploadPost, setPendingUploadPost] = useState<{
+    post: PostItem;
+    progress: number;
+  } | null>(null);
+  const [freshNowTick, setFreshNowTick] = useState<number>(() => Date.now());
+
+  useEffect(() => {
+    const hasFreshPost = posts.some(
+      (p) => (p.createdAtMillis || 0) > 0 && Date.now() - (p.createdAtMillis || 0) < FRESH_PIN_WINDOW_MS
+    );
+    if (!hasFreshPost) return;
+    const timer = window.setInterval(() => {
+      setFreshNowTick(Date.now());
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [posts, FRESH_PIN_WINDOW_MS]);
+
   // Notifications with Real-time synchronization
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
 
@@ -1594,17 +1613,55 @@ export default function App() {
       throw new Error('পোস্ট করার আগে অনুগ্রহ করে আপনার ইমেইল ভেরিফাই করুন।');
     }
 
+    const nowMillis = newPost.createdAtMillis || Date.now();
     const sanitizedPost: PostItem = {
       ...newPost,
+      createdAtMillis: nowMillis,
+      isFreshUpload: true,
       contentBangla: sanitizeInput(newPost.contentBangla || '', POST_MAX_LENGTH),
       translation: newPost.translation ? sanitizeInput(newPost.translation, POST_MAX_LENGTH) : newPost.translation,
     };
-    setPosts((prev) => [sanitizedPost, ...prev]);
-    void insertSupabasePost(sanitizedPost, firebaseUser?.uid || userProfile.id);
-    void createRealtimePost(sanitizedPost);
+
+    // Close modal & immediately show Facebook-identical "Posting..." charging ring below Stories
     setShowCreatePost(false);
     setInitialPostPhotos([]);
     navigateToTab('home');
+    try {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    } catch {}
+
+    setPendingUploadPost({ post: sanitizedPost, progress: 14 });
+
+    const stageTimer1 = window.setTimeout(() => {
+      setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 42 } : cur));
+    }, 280);
+    const stageTimer2 = window.setTimeout(() => {
+      setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 74 } : cur));
+    }, 680);
+    const stageTimer3 = window.setTimeout(() => {
+      setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 92 } : cur));
+    }, 1050);
+
+    const minVisualDelay = new Promise<void>((resolve) => window.setTimeout(resolve, 1300));
+    await Promise.all([
+      minVisualDelay,
+      Promise.allSettled([
+        insertSupabasePost(sanitizedPost, firebaseUser?.uid || userProfile.id),
+        createRealtimePost(sanitizedPost),
+      ]),
+    ]);
+
+    window.clearTimeout(stageTimer1);
+    window.clearTimeout(stageTimer2);
+    window.clearTimeout(stageTimer3);
+
+    setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 100 } : cur));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
+
+    setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? null : cur));
+    setFreshNowTick(Date.now());
+    setPosts((prev) => [sanitizedPost, ...prev.filter((p) => p.id !== sanitizedPost.id)]);
+
     logUserActivity(
       userProfile.id,
       'Post',
@@ -1864,11 +1921,15 @@ export default function App() {
     return () => window.clearInterval(intervalId);
   }, []);
 
-  // Privacy filtered + For You / Latest ranked posts for Feed
+  // Privacy filtered + Fresh #1 Top Pin (3 mins) + For You / Latest ranked posts for Feed
   const filteredPosts = useMemo(() => {
     const base = posts.filter((p) => {
+      if (pendingUploadPost?.post.id === p.id) {
+        return false;
+      }
+
       const privacy = p.privacy || (p.isPublic ? 'public' : 'friends');
-      const isAuthor = p.author.name === userProfile.name;
+      const isAuthor = p.author.name === userProfile.name || p.author.name === effectiveProfile.name;
 
       // Rejected posts are hidden from feed
       if (p.status === 'rejected' && !isAuthor) {
@@ -1888,12 +1949,22 @@ export default function App() {
       return true;
     });
 
+    const isFresh = (p: PostItem) =>
+      (p.createdAtMillis || 0) > 0 && freshNowTick - (p.createdAtMillis || 0) < FRESH_PIN_WINDOW_MS;
+
     if (feedSortMode === 'latest') {
       return [...base].sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
     }
 
-    // "For You" ranking by engagement + recency
+    // "For You" ranking: freshly uploaded posts (< 3 mins) ALWAYS sit at #1 at the top,
+    // then transition into normal engagement + recency ranking after a few minutes
     return [...base].sort((a, b) => {
+      const aFresh = isFresh(a);
+      const bFresh = isFresh(b);
+      if (aFresh && !bFresh) return -1;
+      if (!aFresh && bFresh) return 1;
+      if (aFresh && bFresh) return (b.createdAtMillis || 0) - (a.createdAtMillis || 0);
+
       const scoreA =
         (a.reactions?.total || 0) * 2 +
         (a.comments?.length || 0) * 3 +
@@ -1906,12 +1977,34 @@ export default function App() {
         ((b.createdAtMillis || 0) > 0 ? 5 : 0);
       return scoreB - scoreA;
     });
-  }, [posts, feedPrivacyFilter, feedSortMode, userProfile.name]);
+  }, [
+    posts,
+    pendingUploadPost?.post.id,
+    feedPrivacyFilter,
+    feedSortMode,
+    userProfile.name,
+    effectiveProfile.name,
+    freshNowTick,
+    FRESH_PIN_WINDOW_MS,
+  ]);
 
-  // Infinite scroll visible posts slice (loads 10 at a time, scroll down loads next 10)
+  // Freshly uploaded posts (< 3 minutes old) shown directly below Stories at #1 like Facebook
+  const freshTopPosts = useMemo(() => {
+    return filteredPosts.filter(
+      (p) => (p.createdAtMillis || 0) > 0 && freshNowTick - (p.createdAtMillis || 0) < FRESH_PIN_WINDOW_MS
+    );
+  }, [filteredPosts, freshNowTick, FRESH_PIN_WINDOW_MS]);
+
+  // Infinite scroll visible posts slice (loads 10 at a time, excluding freshTopPosts already rendered above)
   const visiblePosts = useMemo(() => {
     return filteredPosts.slice(0, visibleCount);
   }, [filteredPosts, visibleCount]);
+
+  const regularVisiblePosts = useMemo(() => {
+    if (freshTopPosts.length === 0) return visiblePosts;
+    const freshIds = new Set(freshTopPosts.map((p) => p.id));
+    return visiblePosts.filter((p) => !freshIds.has(p.id));
+  }, [visiblePosts, freshTopPosts]);
 
   const userPosts = useMemo(() => {
     return posts.filter((p) => p.author.name === userProfile.name);
@@ -2505,6 +2598,110 @@ export default function App() {
                   />
                 </div>
 
+                {/* Facebook-identical "Posting..." Circular Charging Banner right below Stories */}
+                {pendingUploadPost && (
+                  <div className="bg-white border border-[#E4E6EB] rounded-[8px] px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-between gap-3 animate-in fade-in">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-[6px] overflow-hidden bg-[#F0F2F5] border border-[#E4E6EB] shrink-0 flex items-center justify-center">
+                        {(pendingUploadPost.post.mediaUrls?.[0] || pendingUploadPost.post.mediaUrl) &&
+                        pendingUploadPost.post.mediaType !== 'video' ? (
+                          <img
+                            src={pendingUploadPost.post.mediaUrls?.[0] || pendingUploadPost.post.mediaUrl}
+                            alt="Uploading"
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <img
+                            src={pendingUploadPost.post.author?.avatar || effectiveProfile.avatar}
+                            alt={pendingUploadPost.post.author?.name || 'Post'}
+                            className="w-full h-full object-cover"
+                          />
+                        )}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-bold text-[#050505] leading-tight">
+                          Posting...
+                        </p>
+                        <p className="text-[12px] text-[#65676B] truncate mt-0.5">
+                          Keep PeaceVerse open.
+                        </p>
+                      </div>
+                    </div>
+
+                    <svg
+                      className="w-6 h-6 -rotate-90 shrink-0"
+                      viewBox="0 0 24 24"
+                      aria-label="Upload progress"
+                    >
+                      <circle cx="12" cy="12" r="9.5" fill="none" stroke="#E4E6EB" strokeWidth="2.5" />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="9.5"
+                        fill="none"
+                        stroke="#0866FF"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 9.5}
+                        strokeDashoffset={
+                          2 * Math.PI * 9.5 * (1 - pendingUploadPost.progress / 100)
+                        }
+                        className="transition-all duration-300 ease-out"
+                      />
+                    </svg>
+                  </div>
+                )}
+
+                {/* Freshly uploaded post(s) (< 3 mins) pinned #1 directly below Stories matching Facebook */}
+                {freshTopPosts.length > 0 && (
+                  <div className="space-y-2.5 animate-in fade-in">
+                    {freshTopPosts.map((post) => (
+                      <div key={post.id} id={`post-${post.id}`}>
+                        <FbPostCard
+                          post={post}
+                          onToggleReaction={handleToggleReaction}
+                          onToggleSave={handleToggleSave}
+                          onAddComment={handleAddComment}
+                          onEditPost={handleEditPost}
+                          onDeletePost={handleDeletePost}
+                          onOpenProfile={async (authorName) => {
+                            if (!authorName || authorName === userProfile.name) {
+                              setViewedProfile(null);
+                              navigateToTab('profile');
+                              return;
+                            }
+                            const baseAuthorProfile: UserProfile = {
+                              id: post.authorId || `author-${authorName}`,
+                              name: authorName,
+                              avatar: post.author.avatar,
+                              coverPhoto:
+                                'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                              friendsCount: 0,
+                              location: 'Dhaka, Bangladesh',
+                              hometown: 'Bangladesh',
+                              birthDate: '1994',
+                              contactPrivacy: 'public',
+                            };
+                            setViewedProfile(baseAuthorProfile);
+                            navigateToTab('profile');
+                            const remote = await fetchUserProfileByNameFromFirestore(authorName);
+                            if (remote) {
+                              setViewedProfile((prev) =>
+                                prev && prev.name === authorName ? { ...prev, ...remote } : prev
+                              );
+                            }
+                          }}
+                          onTypingChange={handleTypingChange}
+                          currentUserId={userProfile.id || 'user-me'}
+                          currentUserName={userProfile.name}
+                          onOpenReel={(p) => setActiveReelPostId(p.id)}
+                          onOpenGiftModal={(p) => setSelectedGiftPost(p)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+
                 {/* Admin-Controlled Story Banner Ad */}
                 {adPlacementConfig.story_ad_enabled && storyAds.length > 0 && (
                   <SponsoredAdCard
@@ -2648,7 +2845,7 @@ export default function App() {
 
                 {/* Posts Feed */}
                 <div className="space-y-2.5">
-                  {filteredPosts.length === 0 ? (
+                  {filteredPosts.length === 0 && !pendingUploadPost ? (
                     <div className="bg-white rounded-[8px] border border-[#E4E6EB] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
                       <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto shadow-sm">
                         <Sparkles className="w-7 h-7" />
@@ -2669,7 +2866,7 @@ export default function App() {
                     </div>
                   ) : (
                     <>
-                  {visiblePosts.map((post, postIndex) => {
+                  {regularVisiblePosts.map((post, postIndex) => {
                     const adFreq = Math.max(1, adPlacementConfig.home_feed_frequency || 3);
                     const shouldShowFeedAd =
                       adPlacementConfig.home_feed_enabled &&
@@ -3022,6 +3219,13 @@ export default function App() {
         )}
 
       </main>
+
+      {/* Bottom dark "Posting..." pill toast while upload charging ring is running */}
+      {pendingUploadPost && (
+        <div className="fixed bottom-16 inset-x-3 max-w-[660px] mx-auto z-40 bg-[#242526] text-white text-[13px] font-medium px-4 py-3 rounded-[8px] shadow-xl animate-in fade-in">
+          Posting...
+        </div>
+      )}
 
       {/* 3. Exact 6-Icon Bottom Navigation Bar (Screenshots 1, 2, 4, 5) */}
       <FbBottomNav

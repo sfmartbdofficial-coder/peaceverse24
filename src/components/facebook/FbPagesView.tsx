@@ -713,6 +713,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [pagePostText, setPagePostText] = useState('');
   const [pagePostImage, setPagePostImage] = useState('');
   const [showPageComposer, setShowPageComposer] = useState(false);
+  const [pendingPageUpload, setPendingPageUpload] = useState<{
+    pageId: string;
+    id: string;
+    text: string;
+    image?: string;
+    progress: number;
+  } | null>(null);
+  const [pageFreshNowTick, setPageFreshNowTick] = useState<number>(() => Date.now());
   const [viewAsVisitor, setViewAsVisitor] = useState(false);
   const [openCommentPostId, setOpenCommentPostId] = useState<string | null>(null);
   const [postCommentDraft, setPostCommentDraft] = useState('');
@@ -898,6 +906,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         image?: string;
         time: string;
         dateLabel?: string;
+        createdAtMillis?: number;
         likes: number;
         isLikedByMe?: boolean;
         comments: number;
@@ -916,6 +925,18 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       return {};
     }
   });
+
+  useEffect(() => {
+    const allPosts = Object.values(pagePostsList).flat();
+    const hasFresh = allPosts.some(
+      (p) => (p.createdAtMillis || 0) > 0 && Date.now() - (p.createdAtMillis || 0) < 3 * 60 * 1000
+    );
+    if (!hasFresh) return;
+    const timer = window.setInterval(() => {
+      setPageFreshNowTick(Date.now());
+    }, 20000);
+    return () => window.clearInterval(timer);
+  }, [pagePostsList]);
 
   useEffect(() => {
     try {
@@ -1080,18 +1101,20 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       }
     }
 
-    const todayStr = new Date().toLocaleDateString('en-US', {
+    const nowMillis = Date.now();
+    const todayStr = new Date(nowMillis).toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
       year: 'numeric',
     });
 
     const newPost = {
-      id: `pp-${Date.now()}`,
+      id: `pp-${nowMillis}`,
       text: sanitizeInput(pagePostText.trim()),
       image: pagePostImage || undefined,
-      time: 'এখনই',
+      time: 'Just now',
       dateLabel: todayStr,
+      createdAtMillis: nowMillis,
       likes: 1,
       isLikedByMe: false,
       comments: 0,
@@ -1102,9 +1125,38 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       clicks: 14,
     };
 
+    // Close composer immediately & show Facebook-style "Posting..." charging ring at top of Page feed
+    const currentPageId = selectedPage.id;
+    setPagePostText('');
+    setPagePostImage('');
+    setShowPageComposer(false);
+    setPendingPageUpload({
+      pageId: currentPageId,
+      id: newPost.id,
+      text: newPost.text,
+      image: newPost.image,
+      progress: 16,
+    });
+
+    const t1 = window.setTimeout(() => {
+      setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 48 } : cur));
+    }, 260);
+    const t2 = window.setTimeout(() => {
+      setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 82 } : cur));
+    }, 680);
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1150));
+    window.clearTimeout(t1);
+    window.clearTimeout(t2);
+
+    setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 100 } : cur));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
+    setPendingPageUpload((cur) => (cur?.id === newPost.id ? null : cur));
+
+    setPageFreshNowTick(Date.now());
     setPagePostsList((prev) => ({
       ...prev,
-      [selectedPage.id]: [newPost, ...(prev[selectedPage.id] || [])],
+      [currentPageId]: [newPost, ...(prev[currentPageId] || [])],
     }));
 
     logPageActivity(
@@ -1113,10 +1165,6 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       'Published a new post',
       newPost.text ? newPost.text.slice(0, 80) : 'Photo post'
     );
-
-    setPagePostText('');
-    setPagePostImage('');
-    setShowPageComposer(false);
 
     if (creatorPrefs.creatorNotifyFollowersOnPost) {
       showToast('পেজে পোস্ট প্রকাশিত ও সব ফলোয়ারকে নোটিফিকেশন পাঠানো হচ্ছে!');
@@ -1810,7 +1858,16 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             const filteredPosts = activePosts.filter((p) =>
               postFilterMode === 'pinned' ? Boolean(p.pinned) : true
             );
+            const PAGE_FRESH_MS = 3 * 60 * 1000;
             const sortedPosts = [...filteredPosts].sort((a, b) => {
+              const aFresh =
+                (a.createdAtMillis || 0) > 0 && pageFreshNowTick - (a.createdAtMillis || 0) < PAGE_FRESH_MS;
+              const bFresh =
+                (b.createdAtMillis || 0) > 0 && pageFreshNowTick - (b.createdAtMillis || 0) < PAGE_FRESH_MS;
+              if (aFresh && !bFresh) return -1;
+              if (!aFresh && bFresh) return 1;
+              if (aFresh && bFresh) return (b.createdAtMillis || 0) - (a.createdAtMillis || 0);
+
               if (postFilterMode === 'top') return b.likes + b.comments - (a.likes + a.comments);
               return a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1;
             });
@@ -2346,9 +2403,60 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </div>
               )}
 
-              {/* Feed of Posts for this Page (Pinned posts sorted first) */}
+              {/* Facebook-identical "Posting..." Charging Progress Card at Top of Page Posts */}
+              {pendingPageUpload && pendingPageUpload.pageId === selectedPage.id && (
+                <>
+                  <div className="bg-white border border-[#E4E6EB] rounded-xl px-3 py-2.5 shadow-2xs flex items-center justify-between gap-3 animate-in fade-in">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="w-10 h-10 rounded-[6px] overflow-hidden bg-[#F0F2F5] border border-[#E4E6EB] shrink-0">
+                        <img
+                          src={pendingPageUpload.image || selectedPage.avatar}
+                          alt={selectedPage.name}
+                          className="w-full h-full object-cover"
+                        />
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-[14px] font-bold text-[#050505] leading-tight">
+                          Posting...
+                        </p>
+                        <p className="text-[12px] text-[#65676B] truncate mt-0.5">
+                          Keep PeaceVerse open.
+                        </p>
+                      </div>
+                    </div>
+
+                    <svg
+                      className="w-6 h-6 -rotate-90 shrink-0"
+                      viewBox="0 0 24 24"
+                      aria-label="Page post upload progress"
+                    >
+                      <circle cx="12" cy="12" r="9.5" fill="none" stroke="#E4E6EB" strokeWidth="2.5" />
+                      <circle
+                        cx="12"
+                        cy="12"
+                        r="9.5"
+                        fill="none"
+                        stroke="#0866FF"
+                        strokeWidth="2.5"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 9.5}
+                        strokeDashoffset={
+                          2 * Math.PI * 9.5 * (1 - pendingPageUpload.progress / 100)
+                        }
+                        className="transition-all duration-300 ease-out"
+                      />
+                    </svg>
+                  </div>
+
+                  <div className="fixed bottom-16 inset-x-3 max-w-[660px] mx-auto z-40 bg-[#242526] text-white text-[13px] font-medium px-4 py-3 rounded-[8px] shadow-xl animate-in fade-in">
+                    Posting...
+                  </div>
+                </>
+              )}
+
+              {/* Feed of Posts for this Page (Fresh < 3 mins #1 at top, then pinned/top posts) */}
               <div className="space-y-3">
-                {sortedPosts.length === 0 ? (
+                {sortedPosts.length === 0 && !(pendingPageUpload && pendingPageUpload.pageId === selectedPage.id) ? (
                   <div className="bg-white rounded-xl p-6 text-center border border-[#E4E6EB]">
                     <Flag className="w-8 h-8 text-[#65676B] mx-auto mb-2 opacity-50" />
                     <p className="text-xs font-semibold text-[#65676B]">

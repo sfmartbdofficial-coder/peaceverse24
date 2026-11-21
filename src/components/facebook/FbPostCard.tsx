@@ -23,6 +23,7 @@ import {
   Loader2,
   Gift,
   Coins,
+  Music,
 } from 'lucide-react';
 import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
 import { FbVideoPlayer } from './FbVideoPlayer';
@@ -417,7 +418,13 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               )}
             </div>
 
-            <div className="flex items-center gap-1 text-[13px] text-[#65676B]">
+            <div className="flex items-center gap-1 text-[13px] text-[#65676B] flex-wrap">
+              {post.aiLabeled && (
+                <>
+                  <span className="font-medium text-[#65676B]">AI content</span>
+                  <span>•</span>
+                </>
+              )}
               {post.author.subtitle && (
                 <span>{post.author.subtitle}</span>
               )}
@@ -444,6 +451,12 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 </>
               )}
             </div>
+            {post.musicTitle && (
+              <p className="text-[11px] font-medium text-[#65676B] flex items-center gap-1 mt-0.5">
+                <Music className="w-3 h-3 text-[#0866FF] shrink-0" />
+                <span className="truncate max-w-[230px]">{post.musicTitle}</span>
+              </p>
+            )}
           </div>
         </div>
 

@@ -71,6 +71,10 @@ export interface PostItem {
   goldenGiftsCount?: number;
   goldenGiftsAmount?: number;
   createdAtMillis?: number;
+  musicTitle?: string;
+  aiLabeled?: boolean;
+  sharedGroups?: string[];
+  isFreshUpload?: boolean;
 }
 
 export interface StoryItem {
