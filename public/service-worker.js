@@ -1,7 +1,7 @@
 /* Peaceverse24 Offline Caching + Firebase Cloud Messaging & Instant Push Service Worker */
 
-const STATIC_CACHE = 'peaceverse24-shell-v4';
-const RUNTIME_CACHE = 'peaceverse24-runtime-v4';
+const STATIC_CACHE = 'peaceverse24-shell-v5';
+const RUNTIME_CACHE = 'peaceverse24-runtime-v5';
 const ACTIVE_CACHES = [STATIC_CACHE, RUNTIME_CACHE];
 
 const SHELL_ASSETS = [
@@ -94,11 +94,19 @@ self.addEventListener('fetch', (event) => {
 
   const url = new URL(request.url);
 
-  // Skip browser-extension, Vite internal dev HMR sockets, and third-party/API calls
+  // Skip browser-extension, Vite internal dev HMR sockets, source files, and API calls
   if (!url.protocol.startsWith('http')) return;
   if (url.origin !== self.location.origin) return;
   if (url.pathname.startsWith('/api/')) return;
-  if (url.pathname.includes('/@vite/') || url.pathname.includes('__vite')) return;
+  if (
+    url.pathname.startsWith('/src/') ||
+    url.pathname.startsWith('/node_modules/') ||
+    url.pathname.includes('/@vite/') ||
+    url.pathname.includes('/@react-refresh') ||
+    url.pathname.includes('__vite')
+  ) {
+    return;
+  }
 
   // Navigation requests (SPA pages): Always bypass HTTP cache to pick up new deployments immediately
   if (request.mode === 'navigate') {
@@ -125,15 +133,37 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Same-origin hashed assets & icons: Stale-While-Revalidate
-  const isStaticDestination =
-    ['script', 'style', 'image', 'font', 'manifest'].includes(request.destination) ||
+  // Same-origin JS/CSS/manifest: Network-First so new deployments load immediately
+  if (
+    ['script', 'style', 'manifest'].includes(request.destination) ||
+    url.pathname.endsWith('.js') ||
+    url.pathname.endsWith('.css')
+  ) {
+    event.respondWith(
+      fetch(request)
+        .then((response) => {
+          if (response && response.ok && response.type === 'basic') {
+            const copy = response.clone();
+            caches.open(RUNTIME_CACHE).then((cache) => cache.put(request, copy)).catch(() => {});
+          }
+          return response;
+        })
+        .catch(async () => {
+          const cached = await caches.match(request);
+          return cached || Response.error();
+        })
+    );
+    return;
+  }
+
+  // Same-origin icons & images: Stale-While-Revalidate
+  const isMediaDestination =
+    ['image', 'font'].includes(request.destination) ||
     url.pathname.startsWith('/assets/') ||
     url.pathname.endsWith('.png') ||
-    url.pathname.endsWith('.svg') ||
-    url.pathname.endsWith('.json');
+    url.pathname.endsWith('.svg');
 
-  if (isStaticDestination) {
+  if (isMediaDestination) {
     event.respondWith(
       caches.match(request).then((cached) => {
         const networkFetch = fetch(request)

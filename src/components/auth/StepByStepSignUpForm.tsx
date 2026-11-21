@@ -52,7 +52,7 @@ const STEP_META: Record<SignUpWizardStep, { title: string; subtitle: string }> =
   3: { title: 'Step 3 - পাসওয়ার্ড', subtitle: 'একটি শক্তিশালী Password দিন' },
   4: { title: 'Step 4 - জন্ম তারিখ', subtitle: 'আপনার জন্ম তারিখ নির্বাচন করুন' },
   5: { title: 'Step 5 - Gender', subtitle: 'আপনার Gender নির্বাচন করুন এবং Next চাপুন' },
-  6: { title: 'Step 6 - কোড ভেরিফিকেশন', subtitle: 'ইমেইলে পাঠানো ৬ ডিজিটের কোডটি দিয়ে Sign Up করুন' },
+  6: { title: 'Step 6 - কোড ভেরিফিকেশন', subtitle: 'আপনার ইমেইলে ৬ সংখ্যার কোডটি পাঠানো হয়েছে, অনুগ্রহপূর্বক এখানে ফিলাপ করুন' },
 };
 
 const REQUIRED_MSG = 'এইটা লাগবে';
@@ -581,13 +581,13 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
               <span>Email Code Verification</span>
             </p>
             <p className="text-[12px] text-[#4B4F56]">
-              আমরা আপনার <strong>{contact.trim()}</strong> ইমেইলে একটি ৬ ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি। ইনবক্স (বা Spam ফোল্ডার) চেক করে কোডটি নিচে লিখে <strong>Sign Up</strong> চাপুন।
+              আপনার <strong>{contact.trim()}</strong> ইমেইলে ৬ সংখ্যার কোডটি পাঠানো হয়েছে। অনুগ্রহপূর্বক এখানে কোডটি ফিলাপ করুন এবং নিচে <strong>Sign Up</strong> চাপুন (ইনবক্সে না পেলে Spam ফোল্ডার চেক করুন)।
             </p>
           </div>
 
           <div>
             <label className="block text-xs font-bold text-[#1C1E21] mb-1.5">
-              Sign Up Verification Code (৬ ডিজিটের কোড)
+              আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোডটি এখানে ফিলাপ করুন
             </label>
             <input
               type="text"
