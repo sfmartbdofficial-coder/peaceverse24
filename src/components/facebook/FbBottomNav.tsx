@@ -5,20 +5,33 @@ import { FacebookMainTab, UserProfile, PageItem } from '../../types';
 interface FbBottomNavProps {
   currentTab: FacebookMainTab;
   onTabChange: (tab: FacebookMainTab) => void;
+  onOpenOwnProfile?: () => void;
   userProfile: UserProfile;
   activeSwitchedPage?: PageItem | null;
   friendRequestsCount: number;
   notificationsCount: number;
 }
 
+const getInitials = (name?: string): string => {
+  const parts = (name || '').trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'U';
+  if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+  return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+};
+
 export const FbBottomNav: React.FC<FbBottomNavProps> = ({
   currentTab,
   onTabChange,
+  onOpenOwnProfile,
   userProfile,
   activeSwitchedPage = null,
   friendRequestsCount,
   notificationsCount,
 }) => {
+  const isProfileActive =
+    currentTab === 'profile' || Boolean(activeSwitchedPage && currentTab === 'pages');
+  const initials = getInitials(userProfile.name);
+
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-40 bg-white/95 backdrop-blur-md supports-[backdrop-filter]:bg-white/90 border-t border-[#E4E6EB] px-1 pt-1 pb-[max(0.25rem,env(safe-area-inset-bottom))] shadow-md">
       <div className="max-w-[500px] mx-auto flex items-center justify-between">
@@ -84,7 +97,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
           <Store className="w-6 h-6 stroke-[2]" />
         </button>
 
-        {/* 5. Notifications (🔔) with badge 28 */}
+        {/* 5. Notifications (🔔) */}
         <button
           onClick={() => {
             onTabChange('notifications');
@@ -105,16 +118,21 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
           </div>
         </button>
 
-        {/* 6. Profile / Menu (Shows Page Avatar when switched to page matching Screenshot 3, else SI Blue circle) */}
+        {/* 6. Profile Avatar (Matches Facebook: opens Profile or active Switched Page) */}
         <button
           onClick={() => {
-            onTabChange('menu');
+            if (onOpenOwnProfile) {
+              onOpenOwnProfile();
+            } else {
+              onTabChange('profile');
+            }
             window.scrollTo({ top: 0, behavior: 'smooth' });
           }}
           className={`flex-1 flex flex-col items-center justify-center py-1 transition-all cursor-pointer ${
-            currentTab === 'profile' || currentTab === 'menu' ? 'scale-105' : 'opacity-85'
+            isProfileActive ? 'scale-105' : 'opacity-90 hover:opacity-100'
           }`}
-          title="Profile / Menu"
+          title={activeSwitchedPage ? activeSwitchedPage.name : 'Profile'}
+          aria-label="Open Profile"
         >
           {activeSwitchedPage ? (
             <div className="relative">
@@ -123,17 +141,17 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
                   src={activeSwitchedPage.avatar}
                   alt={activeSwitchedPage.name}
                   className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
-                    currentTab === 'profile' || currentTab === 'menu'
+                    isProfileActive
                       ? 'border-white ring-2 ring-[#0866FF]'
-                      : 'border-transparent'
+                      : 'border-[#E4E6EB]'
                   }`}
                 />
               ) : (
                 <div
                   className={`w-7 h-7 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center text-[11px] font-black border-2 shadow-xs ${
-                    currentTab === 'profile' || currentTab === 'menu'
+                    isProfileActive
                       ? 'border-white ring-2 ring-[#0866FF]'
-                      : 'border-transparent'
+                      : 'border-[#E4E6EB]'
                   }`}
                 >
                   {activeSwitchedPage.name.trim().charAt(0).toUpperCase()}
@@ -141,15 +159,25 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
               )}
               <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 bg-emerald-500 rounded-full ring-1 ring-white" />
             </div>
+          ) : userProfile.avatar ? (
+            <img
+              src={userProfile.avatar}
+              alt={userProfile.name}
+              className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
+                isProfileActive
+                  ? 'border-white ring-2 ring-[#0866FF]'
+                  : 'border-[#E4E6EB]'
+              }`}
+            />
           ) : (
             <div
               className={`w-7 h-7 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-[11px] font-black border-2 shadow-xs ${
-                currentTab === 'profile' || currentTab === 'menu'
+                isProfileActive
                   ? 'border-white ring-2 ring-[#0866FF]'
                   : 'border-transparent'
               }`}
             >
-              SI
+              {initials}
             </div>
           )}
         </button>

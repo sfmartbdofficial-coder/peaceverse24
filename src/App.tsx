@@ -3247,10 +3247,19 @@ export default function App() {
         </div>
       )}
 
-      {/* 3. Exact 6-Icon Bottom Navigation Bar (Screenshots 1, 2, 4, 5) */}
+      {/* 3. Exact 6-Icon Bottom Navigation Bar */}
       <FbBottomNav
         currentTab={currentTab}
         onTabChange={navigateToTab}
+        onOpenOwnProfile={() => {
+          if (activeSwitchedPage) {
+            setSelectedPageIdToOpen(activeSwitchedPage.id);
+            navigateToTab('pages');
+          } else {
+            setViewedProfile(null);
+            navigateToTab('profile');
+          }
+        }}
         userProfile={userProfile}
         activeSwitchedPage={activeSwitchedPage}
         friendRequestsCount={pendingFriendRequestsCount || 2}

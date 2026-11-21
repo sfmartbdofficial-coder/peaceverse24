@@ -140,7 +140,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
 
   return (
     <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 border-b border-[#E4E6EB] shadow-xs">
-      <div className="max-w-[700px] mx-auto px-2.5 sm:px-4 py-2 flex items-center justify-between gap-1.5 sm:gap-2">
+      <div className="max-w-[700px] mx-auto px-2 sm:px-4 py-2 flex items-center justify-between gap-1 sm:gap-2">
         {/* Left: Optional Back Arrow or Menu + Logo */}
         <div className="flex items-center gap-1 sm:gap-2 min-w-0">
           {showBackButton && onBack && (
@@ -161,18 +161,18 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
             <Menu className="w-6 h-6 stroke-[2.5]" />
           </button>
 
-          <span className="font-black text-lg sm:text-2xl tracking-tight text-[#0866FF] flex items-center select-none font-sans truncate">
+          <span className="font-black text-[15px] min-[390px]:text-[17px] sm:text-2xl tracking-tight text-[#0866FF] flex items-center select-none font-sans whitespace-nowrap">
             Peaceverse24.com
           </span>
         </div>
 
         {/* Right: Qibla, Theme, Plus (+), Search, Messenger */}
-        <div className="flex items-center gap-1.5 sm:gap-2 relative shrink-0">
+        <div className="flex items-center gap-1 sm:gap-2 relative shrink-0">
           {onOpenQibla && (
             <button
               type="button"
               onClick={onOpenQibla}
-              className="h-9 px-2.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center gap-1 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
+              className="h-8 sm:h-9 px-2 sm:px-2.5 rounded-full bg-emerald-50 hover:bg-emerald-100 text-emerald-700 flex items-center gap-1 text-xs font-bold transition-colors cursor-pointer whitespace-nowrap"
               title="Global Qibla & Prayer Times"
             >
               <Compass className="w-4 h-4 text-emerald-600" />
@@ -188,7 +188,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
                 setShowPlusMenu(false);
                 setShowThemeMenu((prev) => !prev);
               }}
-              className={`h-9 px-2.5 rounded-full transition-colors flex items-center gap-1.5 text-xs font-bold shadow-xs cursor-pointer whitespace-nowrap ${
+              className={`h-8 sm:h-9 px-2 sm:px-2.5 rounded-full transition-colors flex items-center gap-1.5 text-xs font-bold shadow-xs cursor-pointer whitespace-nowrap ${
                 showThemeMenu
                   ? 'bg-[#0866FF] text-white'
                   : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-black'
@@ -255,7 +255,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           <div className="relative">
             <button
               onClick={() => setShowPlusMenu(!showPlusMenu)}
-              className={`w-9 h-9 rounded-full transition-colors flex items-center justify-center shadow-xs cursor-pointer ${
+              className={`w-8 h-8 sm:w-9 sm:h-9 rounded-full transition-colors flex items-center justify-center shadow-xs cursor-pointer ${
                 showPlusMenu
                   ? 'bg-[#0866FF] text-white'
                   : 'bg-[#E4E6EB] hover:bg-[#D8DADF] text-black'
@@ -328,19 +328,19 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
           {/* Search */}
           <button
             onClick={() => setIsSearching(true)}
-            className="w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-black flex items-center justify-center transition-colors shadow-xs cursor-pointer"
+            className="w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-black flex items-center justify-center transition-colors shadow-xs cursor-pointer"
             title="Search"
           >
-            <Search className="w-5 h-5" />
+            <Search className="w-4 h-4 sm:w-5 sm:h-5" />
           </button>
 
           {/* Messenger */}
           <button
             onClick={onOpenMessenger}
-            className="relative w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-black flex items-center justify-center transition-colors shadow-xs cursor-pointer"
+            className="relative w-8 h-8 sm:w-9 sm:h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] text-black flex items-center justify-center transition-colors shadow-xs cursor-pointer"
             title="Messenger"
           >
-            <MessageCircle className="w-5 h-5" />
+            <MessageCircle className="w-4 h-4 sm:w-5 sm:h-5" />
             {unreadMessagesCount > 0 && (
               <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 shadow-xs ring-2 ring-white">
                 {unreadMessagesCount}

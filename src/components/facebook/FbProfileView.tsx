@@ -257,123 +257,156 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
     setTimeout(() => setCopyFeedback(false), 2000);
   };
 
+  const profileInitials = (() => {
+    const parts = (activeProfile.name || '').trim().split(/\s+/).filter(Boolean);
+    if (parts.length === 0) return 'U';
+    if (parts.length === 1) return parts[0].charAt(0).toUpperCase();
+    return `${parts[0].charAt(0)}${parts[parts.length - 1].charAt(0)}`.toUpperCase();
+  })();
+
   return (
     <div className="max-w-[500px] mx-auto min-h-screen bg-white text-black pb-24 font-sans selection:bg-[#0866FF]/30">
       
-      {/* 1. Top Header Bar (Matching Facebook Katana) */}
-      <div className="sticky top-0 z-30 bg-white border-b border-[#E4E6EB] px-3 py-2 flex items-center justify-between">
-        <div className="flex items-center gap-1">
+      {/* 1 & 2. Cover Photo with Transparent Facebook-Style Overlay Top Bar (≡, ✏️, 🔍, •••) */}
+      <div className="relative h-[210px] w-full bg-[#E4E6EB] rounded-none overflow-hidden">
+        {activeProfile.coverPhoto ? (
+          <img
+            src={activeProfile.coverPhoto}
+            alt="Cover"
+            className="w-full h-full object-cover"
+          />
+        ) : (
+          <div className="w-full h-full bg-gradient-to-br from-[#D8EAFE] via-[#EEF3F8] to-[#E4E6EB]" />
+        )}
+        <div className="absolute inset-x-0 top-0 h-20 bg-gradient-to-b from-black/45 via-black/15 to-transparent pointer-events-none" />
+
+        {/* Overlay Header Icons matching Screenshot 4 */}
+        <div className="absolute top-0 inset-x-0 z-30 px-2.5 pt-2 flex items-center justify-between">
           <button
+            type="button"
             onClick={onOpenMenu}
-            className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
+            className="p-2 rounded-full text-white hover:bg-black/25 transition-colors cursor-pointer"
             title="Menu"
+            aria-label="Menu"
           >
-            <Menu className="w-6 h-6 stroke-[2.2]" />
-          </button>
-        </div>
-
-        <div className="flex items-center gap-1.5 text-black">
-          {/* Edit / Pencil icon */}
-          <button
-            onClick={() => setShowEditModal(true)}
-            className="p-2 rounded-full hover:bg-[#F0F2F5] text-black transition-colors"
-            title="Edit profile"
-          >
-            <Edit2 className="w-5 h-5" />
+            <Menu className="w-6 h-6 stroke-[2.3] drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" />
           </button>
 
-          {/* Search icon */}
-          <button
-            onClick={onOpenMenu}
-            className="p-2 rounded-full hover:bg-[#F0F2F5] text-black transition-colors cursor-pointer"
-            title="Search & Menu"
-          >
-            <Search className="w-5 h-5" />
-          </button>
-
-          {/* Three dots menu */}
-          <button
-            onClick={() => setShowSettingsSheet(true)}
-            className="p-2 rounded-full hover:bg-[#F0F2F5] text-black transition-colors"
-            title="Profile settings"
-          >
-            <MoreHorizontal className="w-5 h-5" />
-          </button>
-        </div>
-      </div>
-
-      {/* 2. Cover Photo Section: Height 180px, border-radius 0, with camera icon bottom-right (white circle, black icon) */}
-      <div className="relative h-[180px] w-full bg-[#F0F2F5] rounded-none overflow-hidden">
-        <img
-          src={userProfile.coverPhoto || "https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80"}
-          alt="Cover"
-          className="w-full h-full object-cover"
-        />
-        {/* White circle, black camera icon bottom-right */}
-        <button
-          onClick={() => setShowEditModal(true)}
-          className="absolute bottom-3 right-3 w-9 h-9 rounded-full bg-white flex items-center justify-center text-black shadow-md hover:bg-neutral-100 transition-colors"
-          title="Update cover photo"
-        >
-          <Camera className="w-5 h-5 text-black" />
-        </button>
-      </div>
-
-      {/* 3. Profile Picture & Thought Bubble Section */}
-      <div className="bg-white px-4 pb-4">
-        
-        {/* Container overlapping cover photo by -40px, center aligned */}
-        <div className="relative flex flex-col items-center -mt-[40px]">
-          
-          {/* "Drop a thought..." bubble above profile pic: white background, grey text, rounded 20px */}
-          {editingThought ? (
-            <div className="mb-2 bg-white text-neutral-800 p-2 rounded-[20px] shadow-xl flex items-center gap-1.5 z-20">
-              <input
-                type="text"
-                value={thought}
-                onChange={(e) => setThought(e.target.value)}
-                placeholder="Drop a thought..."
-                className="bg-neutral-100 text-neutral-900 text-xs px-3 py-1 rounded-full outline-none w-44"
-                autoFocus
-              />
+          <div className="flex items-center gap-1 text-white">
+            {isOwnProfile && (
               <button
-                onClick={() => handleSaveThought(thought)}
-                className="p-1 rounded-full bg-[#0866FF] text-white"
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="p-2 rounded-full hover:bg-black/25 transition-colors cursor-pointer"
+                title="Edit profile"
+                aria-label="Edit profile"
               >
-                <Check className="w-3.5 h-3.5" />
+                <Edit2 className="w-5 h-5 drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" />
               </button>
-            </div>
-          ) : (
-            <div
-              onClick={() => setEditingThought(true)}
-              className="mb-2 cursor-pointer bg-white text-[#65676B] text-[13px] font-medium px-4 py-1.5 rounded-[20px] shadow-lg flex items-center gap-1.5 relative hover:scale-105 transition-transform"
-              title="Click to drop a thought"
+            )}
+
+            <button
+              type="button"
+              onClick={onOpenMenu}
+              className="p-2 rounded-full hover:bg-black/25 transition-colors cursor-pointer"
+              title="Search & Menu"
+              aria-label="Search"
             >
-              <span>{thought || "Drop a thought..."}</span>
-              <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white rotate-45" />
-            </div>
+              <Search className="w-5 h-5 drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]" />
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setShowSettingsSheet(true)}
+              className="p-2 rounded-full hover:bg-black/25 transition-colors cursor-pointer"
+              title="Profile settings"
+              aria-label="Profile settings"
+            >
+              <span className="w-7 h-7 rounded-full border-[1.8px] border-white flex items-center justify-center drop-shadow-[0_1px_4px_rgba(0,0,0,0.7)]">
+                <MoreHorizontal className="w-4 h-4 stroke-[2.3]" />
+              </span>
+            </button>
+          </div>
+        </div>
+
+        {/* White circle, black camera icon bottom-right above curved white sheet */}
+        {isOwnProfile && (
+          <button
+            type="button"
+            onClick={() => setShowEditModal(true)}
+            className="absolute bottom-7 right-3 z-20 w-9 h-9 rounded-full bg-white flex items-center justify-center text-black shadow-md hover:bg-neutral-100 transition-colors cursor-pointer"
+            title="Update cover photo"
+            aria-label="Update cover photo"
+          >
+            <Camera className="w-4 h-4 text-black" />
+          </button>
+        )}
+      </div>
+
+      {/* 3. Curved White Card Overlapping Cover + Centered Profile Picture & Thought Bubble */}
+      <div className="relative z-10 -mt-4 rounded-t-[18px] bg-white px-4 pb-4 pt-1">
+        <div className="relative flex flex-col items-center -mt-[86px]">
+          
+          {/* "Drop a thought..." bubble sitting neatly at top of avatar like Facebook's "Share a song..." */}
+          {isOwnProfile && (
+            editingThought ? (
+              <div className="mb-1.5 bg-white text-neutral-800 p-1.5 rounded-[20px] shadow-xl border border-[#E4E6EB] flex items-center gap-1.5 z-20">
+                <input
+                  type="text"
+                  value={thought}
+                  onChange={(e) => setThought(e.target.value)}
+                  placeholder="Drop a thought..."
+                  className="bg-neutral-100 text-neutral-900 text-xs px-3 py-1 rounded-full outline-none w-44"
+                  autoFocus
+                />
+                <button
+                  type="button"
+                  onClick={() => handleSaveThought(thought)}
+                  className="p-1 rounded-full bg-[#0866FF] text-white cursor-pointer"
+                >
+                  <Check className="w-3.5 h-3.5" />
+                </button>
+              </div>
+            ) : (
+              <div
+                onClick={() => setEditingThought(true)}
+                className="-mb-3 z-20 cursor-pointer bg-white text-[#65676B] text-[12px] font-medium px-3.5 py-1.5 rounded-[20px] shadow-md border border-[#E4E6EB] flex items-center gap-1.5 relative hover:scale-105 transition-transform"
+                title="Click to drop a thought"
+              >
+                <span>{thought || "Drop a thought..."}</span>
+                <div className="absolute -bottom-1 left-1/2 -translate-x-1/2 w-2.5 h-2.5 bg-white border-r border-b border-[#E4E6EB] rotate-45" />
+              </div>
+            )
           )}
 
-          {/* Profile Picture: 168px x 168px, circular, blue border 4px */}
+          {/* Profile Picture: circular with white outer border & blue inner ring */}
           <div className="relative">
             <div
-              onClick={() => setShowEditModal(true)}
-              className="w-[168px] h-[168px] min-w-[168px] min-h-[168px] rounded-full border-4 border-[#0866FF] overflow-hidden bg-[#F0F2F5] shadow-2xl cursor-pointer"
+              onClick={() => isOwnProfile && setShowEditModal(true)}
+              className="w-[152px] h-[152px] min-w-[152px] min-h-[152px] rounded-full border-4 border-white ring-2 ring-[#E4E6EB] overflow-hidden bg-[#0866FF] text-white flex items-center justify-center font-black text-4xl shadow-xl cursor-pointer"
             >
-              <img
-                src={userProfile.avatar || "https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80"}
-                alt={userProfile.name}
-                className="w-full h-full object-cover"
-              />
+              {activeProfile.avatar ? (
+                <img
+                  src={activeProfile.avatar}
+                  alt={activeProfile.name}
+                  className="w-full h-full object-cover"
+                />
+              ) : (
+                <span>{profileInitials}</span>
+              )}
             </div>
-            {/* Small camera icon bottom-right of profile pic: grey circle with black camera */}
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="absolute bottom-1 right-2 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] flex items-center justify-center text-black border-2 border-white shadow-md transition-colors"
-              title="Change profile picture"
-            >
-              <Camera className="w-5 h-5 text-black" />
-            </button>
+            {/* Small camera icon bottom-right of profile pic */}
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="absolute bottom-1.5 right-1.5 w-9 h-9 rounded-full bg-[#E4E6EB] hover:bg-[#D8DADF] flex items-center justify-center text-black border-2 border-white shadow-md transition-colors cursor-pointer"
+                title="Change profile picture"
+                aria-label="Change profile picture"
+              >
+                <Camera className="w-4 h-4 text-black" />
+              </button>
+            )}
           </div>
         </div>
 
@@ -600,19 +633,21 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           })}
         </div>
 
-        {/* 6. AT A GLANCE SECTION:
-            - Title "At a glance" bold 16px left, "See all" blue right
-            - List items with icons: location icon, home icon, birthday cake, heart. Text 15px. Icons 20px grey
-            - Lives in Dhaka, From Dhaka, Born August 17, 1991, Married */}
+        {/* 6. PERSONAL DETAILS SECTION matching Facebook Profile Screenshot 4 */}
         <div className="mt-5 pt-4 border-t border-[#E4E6EB] space-y-3">
           <div className="flex items-center justify-between">
-            <h3 className="font-bold text-[16px] text-black">At a glance</h3>
-            <button
-              onClick={() => setShowEditModal(true)}
-              className="text-[#0866FF] hover:underline font-semibold text-[14px] transition-colors"
-            >
-              See all
-            </button>
+            <h3 className="font-bold text-[16px] text-black">Personal details</h3>
+            {isOwnProfile && (
+              <button
+                type="button"
+                onClick={() => setShowEditModal(true)}
+                className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
+                title="Edit personal details"
+                aria-label="Edit personal details"
+              >
+                <Edit2 className="w-4 h-4" />
+              </button>
+            )}
           </div>
 
           <div className="space-y-3 pt-1">
