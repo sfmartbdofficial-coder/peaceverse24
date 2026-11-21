@@ -2,11 +2,12 @@ import React, { useRef, useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { UserProfile, PageItem } from '../../types';
 import { validateMediaUpload } from '../../utils/security';
+import { compressPostImagesBatch, MAX_POST_PHOTOS, readFileAsDataUrl } from '../../utils/imageCompress';
 
 interface FbCreatePostBoxProps {
   userProfile: UserProfile;
   activeSwitchedPage?: PageItem | null;
-  onOpenCreateModal: (initialPhoto?: string) => void;
+  onOpenCreateModal: (initialMedia?: string | string[]) => void;
   onOpenProfile?: () => void;
 }
 
@@ -19,34 +20,54 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const handlePhotoSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const check = validateMediaUpload(file, ['image', 'video']);
+  const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    setUploadError(null);
+    const videoFile = files.find((f) => f.type.startsWith('video/'));
+    if (videoFile) {
+      const check = validateMediaUpload(videoFile, ['video']);
       if (!check.valid) {
-        setUploadError(check.error || 'Max 5MB image/video allowed.');
-        e.target.value = '';
+        setUploadError(check.error || 'Max 50MB video allowed.');
         return;
       }
-      setUploadError(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          onOpenCreateModal(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      try {
+        const videoUrl = await readFileAsDataUrl(videoFile);
+        onOpenCreateModal(videoUrl);
+      } catch {
+        setUploadError('ভিডিওটি পড়া যায়নি। আবার চেষ্টা করুন।');
+      }
+      return;
+    }
+
+    const imageFiles = files.slice(0, MAX_POST_PHOTOS);
+    for (const file of imageFiles) {
+      const check = validateMediaUpload(file, ['image']);
+      if (!check.valid) {
+        setUploadError(check.error || 'Max 5MB image allowed.');
+        return;
+      }
+    }
+
+    try {
+      const compressed = await compressPostImagesBatch(imageFiles, imageFiles.length);
+      onOpenCreateModal(compressed);
+    } catch {
+      setUploadError('ছবিগুলো প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
     }
   };
 
   return (
     <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
     <div className="flex items-center gap-2.5">
-      {/* Hidden file input for direct device gallery access */}
+      {/* Hidden file input for direct device gallery access (supports up to 10 photos) */}
       <input
         type="file"
         ref={fileInputRef}
         accept="image/*,video/*"
+        multiple
         className="hidden"
         onChange={handlePhotoSelect}
       />
@@ -84,7 +105,7 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       <button
         onClick={() => fileInputRef.current?.click()}
         className="p-2 text-[#45bd62] hover:bg-[#F0F2F5] rounded-full transition-colors flex-shrink-0 active:scale-95 cursor-pointer"
-        title="আপনার ফোন বা ডিভাইসের গ্যালারি খুলুন"
+        title="আপনার ফোনের গ্যালারি থেকে একসাথে সর্বোচ্চ ১০টি ছবি সিলেক্ট করুন"
       >
         <ImageIcon className="w-6 h-6 stroke-[2]" />
       </button>

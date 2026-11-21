@@ -87,6 +87,7 @@ export const db = (() => {
       app,
       {
         experimentalAutoDetectLongPolling: true,
+        ignoreUndefinedProperties: true,
       },
       resolvedFirebaseConfig.firestoreDatabaseId
     );
@@ -288,6 +289,7 @@ export function subscribeToRealtimePosts(
             reference: data.reference,
             mediaType: data.mediaType || 'none',
             mediaUrl: data.mediaUrl,
+            mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls : undefined,
             youtubeId: data.youtubeId,
             duration: data.duration,
             isLive: data.isLive,
@@ -338,14 +340,33 @@ export async function seedInitialPostsIfEmpty(_initialPosts: PostItem[]) {
   return;
 }
 
-// Force Firebase email verification before creating posts/comments (phone accounts exempt)
+// Force Firebase email or 6-digit Email OTP verification before creating posts/comments (phone accounts exempt)
 function isCurrentUserVerifiedForPosting(): boolean {
   const u = auth.currentUser;
   if (!u) return false;
   if (u.emailVerified) return true;
   if (u.email?.endsWith('@phone.peaceverse.app')) return true;
   if (u.providerData?.some((p) => p.providerId === 'phone')) return true;
+  try {
+    if (
+      u.uid &&
+      u.email &&
+      localStorage.getItem(`peaceverse_otp_verified_${u.uid}`) === u.email.trim().toLowerCase()
+    ) {
+      return true;
+    }
+  } catch {}
   return false;
+}
+
+function stripUndefinedFields<T extends Record<string, any>>(obj: T): Record<string, any> {
+  const cleaned: Record<string, any> = {};
+  for (const [k, v] of Object.entries(obj)) {
+    if (v !== undefined) {
+      cleaned[k] = v;
+    }
+  }
+  return cleaned;
 }
 
 // Create a new post in Firestore with Real-time push
@@ -364,7 +385,7 @@ export async function createRealtimePost(post: PostItem): Promise<boolean> {
 
   try {
     const postRef = doc(db, 'posts', post.id);
-    await setDoc(postRef, {
+    const payload = stripUndefinedFields({
       ...post,
       contentBangla: sanitizeInput(post.contentBangla || '', POST_MAX_LENGTH),
       arabicVerse: post.arabicVerse ? sanitizeInput(post.arabicVerse, POST_MAX_LENGTH) : undefined,
@@ -375,6 +396,29 @@ export async function createRealtimePost(post: PostItem): Promise<boolean> {
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     });
+
+    // Guard against Firestore's 1 MB document limit (e.g., if a huge video Data URL was attached)
+    const approxBytes = JSON.stringify(payload).length;
+    if (approxBytes > 950_000) {
+      if (Array.isArray(payload.mediaUrls) && payload.mediaUrls.length > 1) {
+        // Keep as many compressed photos as fit comfortably under 900 KB
+        const trimmedUrls: string[] = [];
+        for (const url of payload.mediaUrls) {
+          trimmedUrls.push(url);
+          if (JSON.stringify({ ...payload, mediaUrls: trimmedUrls, mediaUrl: trimmedUrls[0] }).length > 900_000) {
+            trimmedUrls.pop();
+            break;
+          }
+        }
+        payload.mediaUrls = trimmedUrls.length > 0 ? trimmedUrls : undefined;
+        payload.mediaUrl = trimmedUrls[0] || undefined;
+      } else if (typeof payload.mediaUrl === 'string' && payload.mediaUrl.startsWith('data:')) {
+        delete payload.mediaUrl;
+        payload.mediaType = 'none';
+      }
+    }
+
+    await setDoc(postRef, payload);
     return true;
   } catch (err: any) {
     if (err?.code === 'permission-denied') {

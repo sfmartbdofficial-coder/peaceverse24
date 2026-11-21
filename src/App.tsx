@@ -188,7 +188,7 @@ export default function App() {
 
   // Modals state
   const [showCreatePost, setShowCreatePost] = useState(false);
-  const [initialPostPhoto, setInitialPostPhoto] = useState<string | null>(null);
+  const [initialPostPhotos, setInitialPostPhotos] = useState<string[]>([]);
   const [showCreateStory, setShowCreateStory] = useState(false);
   const [showCreateReel, setShowCreateReel] = useState(false);
   const [showLive, setShowLive] = useState(false);
@@ -663,7 +663,7 @@ export default function App() {
   useHistoryBack(Boolean(viewedProfile), () => setViewedProfile(null), 'viewed-profile');
   useHistoryBack(showCreatePost, () => {
     setShowCreatePost(false);
-    setInitialPostPhoto(null);
+    setInitialPostPhotos([]);
   }, 'create-post');
   useHistoryBack(showCreateStory, () => setShowCreateStory(false), 'create-story');
   useHistoryBack(showCreateReel, () => setShowCreateReel(false), 'create-reel');
@@ -1565,16 +1565,35 @@ export default function App() {
     [posts]
   );
 
-  // Handle new post created (enforces email verification + DOMPurify 500-char sanitization + Supabase/Firestore rate limits)
-  const handlePostCreated = (newPost: PostItem) => {
-    if (
-      firebaseUser &&
-      !firebaseUser.emailVerified &&
-      !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
-      firebaseUser.providerData.some((p) => p.providerId === 'password')
-    ) {
-      return;
+  // Handle new post created (enforces Firebase or 6-digit Email OTP verification + DOMPurify sanitization + Firestore/Supabase save)
+  const handlePostCreated = async (newPost: PostItem) => {
+    const otpVerifiedLocally = Boolean(
+      firebaseUser?.uid &&
+        firebaseUser?.email &&
+        (() => {
+          try {
+            return (
+              localStorage.getItem(`peaceverse_otp_verified_${firebaseUser.uid}`) ===
+              firebaseUser.email?.toLowerCase()
+            );
+          } catch {
+            return false;
+          }
+        })()
+    );
+
+    const isVerifiedForPost =
+      !firebaseUser ||
+      firebaseUser.emailVerified ||
+      otpVerifiedLocally ||
+      remoteOtpVerified ||
+      Boolean(firebaseUser.email?.endsWith('@phone.peaceverse.app')) ||
+      !firebaseUser.providerData.some((p) => p.providerId === 'password');
+
+    if (!isVerifiedForPost) {
+      throw new Error('পোস্ট করার আগে অনুগ্রহ করে আপনার ইমেইল ভেরিফাই করুন।');
     }
+
     const sanitizedPost: PostItem = {
       ...newPost,
       contentBangla: sanitizeInput(newPost.contentBangla || '', POST_MAX_LENGTH),
@@ -1582,8 +1601,9 @@ export default function App() {
     };
     setPosts((prev) => [sanitizedPost, ...prev]);
     void insertSupabasePost(sanitizedPost, firebaseUser?.uid || userProfile.id);
-    createRealtimePost(sanitizedPost);
+    void createRealtimePost(sanitizedPost);
     setShowCreatePost(false);
+    setInitialPostPhotos([]);
     navigateToTab('home');
     logUserActivity(
       userProfile.id,
@@ -2455,8 +2475,14 @@ export default function App() {
                 <FbCreatePostBox
                   userProfile={effectiveProfile}
                   activeSwitchedPage={activeSwitchedPage}
-                  onOpenCreateModal={(photo?: string) => {
-                    setInitialPostPhoto(photo || null);
+                  onOpenCreateModal={(media?: string | string[]) => {
+                    if (Array.isArray(media)) {
+                      setInitialPostPhotos(media);
+                    } else if (media) {
+                      setInitialPostPhotos([media]);
+                    } else {
+                      setInitialPostPhotos([]);
+                    }
                     setShowCreatePost(true);
                   }}
                   onOpenProfile={() => {
@@ -3011,10 +3037,11 @@ export default function App() {
       {showCreatePost && (
         <FbCreatePostModal
           userProfile={effectiveProfile}
-          initialPhoto={initialPostPhoto}
+          initialPhoto={initialPostPhotos[0]?.startsWith('data:video/') ? initialPostPhotos[0] : null}
+          initialPhotos={initialPostPhotos.filter((item) => !item.startsWith('data:video/'))}
           onClose={() => {
             setShowCreatePost(false);
-            setInitialPostPhoto(null);
+            setInitialPostPhotos([]);
           }}
           onPostCreated={handlePostCreated}
           onOpenLive={() => setShowLive(true)}

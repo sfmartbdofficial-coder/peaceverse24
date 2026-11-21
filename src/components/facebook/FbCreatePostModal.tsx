@@ -20,17 +20,19 @@ import {
   Lock,
   ShieldAlert,
   Loader2,
+  Plus,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
-import { checkPost, runHalalContentFilter } from '../../lib/halalFilter';
-import { createRealtimePost } from '../../lib/firebase';
+import { checkPost } from '../../lib/halalFilter';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
+import { compressPostImagesBatch, MAX_POST_PHOTOS, readFileAsDataUrl } from '../../utils/imageCompress';
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
   initialPhoto?: string | null;
+  initialPhotos?: string[] | null;
   onClose: () => void;
-  onPostCreated: (newPost: PostItem) => void;
+  onPostCreated: (newPost: PostItem) => Promise<void> | void;
   onOpenLive?: () => void;
 }
 
@@ -67,6 +69,7 @@ const LOCATIONS = [
 export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   userProfile,
   initialPhoto = null,
+  initialPhotos = null,
   onClose,
   onPostCreated,
   onOpenLive,
@@ -77,13 +80,28 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
   const [showPrivacyMenu, setShowPrivacyMenu] = useState(false);
 
-  // Moderation state
+  // Moderation & submission state
   const [isVerifyingHalal, setIsVerifyingHalal] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isProcessingMedia, setIsProcessingMedia] = useState(false);
   const [moderationError, setModerationError] = useState<{ status: string; reason: string } | null>(null);
 
-  // Media / Photo / Video from user's device
-  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(initialPhoto || null);
-  const [isVideo, setIsVideo] = useState(false);
+  // Media / up to 10 Photos or 1 Video from user's device
+  const [selectedPhotos, setSelectedPhotos] = useState<string[]>(() => {
+    if (Array.isArray(initialPhotos) && initialPhotos.length > 0) {
+      return initialPhotos.slice(0, MAX_POST_PHOTOS);
+    }
+    if (initialPhoto && !initialPhoto.startsWith('data:video/')) {
+      return [initialPhoto];
+    }
+    return [];
+  });
+  const [selectedVideo, setSelectedVideo] = useState<string | null>(() => {
+    if (initialPhoto && initialPhoto.startsWith('data:video/')) {
+      return initialPhoto;
+    }
+    return null;
+  });
 
   // Quran Verse / Hadith
   const [showAyahBox, setShowAyahBox] = useState(false);
@@ -106,36 +124,109 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (initialPhoto) {
-      setSelectedPhoto(initialPhoto);
+    if (Array.isArray(initialPhotos) && initialPhotos.length > 0) {
+      setSelectedPhotos(initialPhotos.slice(0, MAX_POST_PHOTOS));
+      setSelectedVideo(null);
+    } else if (initialPhoto) {
+      if (initialPhoto.startsWith('data:video/')) {
+        setSelectedVideo(initialPhoto);
+        setSelectedPhotos([]);
+      } else {
+        setSelectedPhotos([initialPhoto]);
+        setSelectedVideo(null);
+      }
     }
-  }, [initialPhoto]);
+  }, [initialPhoto, initialPhotos]);
 
-  // Real device gallery selection handler (5MB limit, image/video only)
-  const handleDeviceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (file) {
-      const check = validateMediaUpload(file, ['image', 'video']);
+  // Real device gallery selection handler (up to 10 compressed photos or 1 video up to 50MB)
+  const handleDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(e.target.files || []);
+    e.target.value = '';
+    if (files.length === 0) return;
+
+    setModerationError(null);
+
+    const videoFile = files.find((f) => f.type.startsWith('video/'));
+    if (videoFile) {
+      const check = validateMediaUpload(videoFile, ['video']);
       if (!check.valid) {
         setModerationError({
           status: 'blocked',
-          reason: check.error || 'Only image/video files up to 5 MB are allowed.',
+          reason: check.error || 'সর্বোচ্চ ৫০ MB সাইজের ভিডিও আপলোড করা যাবে।',
         });
-        e.target.value = '';
         return;
       }
-      setModerationError(null);
-      const isVid = file.type.startsWith('video');
-      setIsVideo(isVid);
-
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setSelectedPhoto(event.target.result as string);
-        }
-      };
-      reader.readAsDataURL(file);
+      setIsProcessingMedia(true);
+      try {
+        const videoUrl = await readFileAsDataUrl(videoFile);
+        setSelectedVideo(videoUrl);
+        setSelectedPhotos([]);
+      } catch {
+        setModerationError({
+          status: 'error',
+          reason: 'ভিডিও ফাইলটি পড়া যায়নি। আবার চেষ্টা করুন।',
+        });
+      } finally {
+        setIsProcessingMedia(false);
+      }
+      return;
     }
+
+    const remainingSlots = MAX_POST_PHOTOS - selectedPhotos.length;
+    if (remainingSlots <= 0) {
+      setModerationError({
+        status: 'limit',
+        reason: `একটি পোস্টে সর্বোচ্চ ${MAX_POST_PHOTOS}টি ছবি যোগ করা যায়। নতুন ছবি যোগ করতে আগে একটি ছবি সরান।`,
+      });
+      return;
+    }
+
+    const imageFiles = files.filter((f) => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      setModerationError({
+        status: 'blocked',
+        reason: 'শুধুমাত্র ছবি বা ভিডিও ফাইল সিলেক্ট করুন।',
+      });
+      return;
+    }
+
+    const acceptedFiles = imageFiles.slice(0, remainingSlots);
+    for (const file of acceptedFiles) {
+      const check = validateMediaUpload(file, ['image']);
+      if (!check.valid) {
+        setModerationError({
+          status: 'blocked',
+          reason: check.error || 'প্রতিটি ছবি সর্বোচ্চ ৫ MB-এর মধ্যে হতে হবে।',
+        });
+        return;
+      }
+    }
+
+    setIsProcessingMedia(true);
+    try {
+      const totalCount = selectedPhotos.length + acceptedFiles.length;
+      const compressedUrls = await compressPostImagesBatch(acceptedFiles, totalCount);
+      setSelectedVideo(null);
+      setSelectedPhotos((prev) => [...prev, ...compressedUrls].slice(0, MAX_POST_PHOTOS));
+      if (imageFiles.length > remainingSlots) {
+        setModerationError({
+          status: 'limit',
+          reason: `একটি পোস্টে সর্বোচ্চ ${MAX_POST_PHOTOS}টি ছবি নেওয়া যায় — প্রথম ${remainingSlots}টি ছবি যোগ করা হয়েছে।`,
+        });
+      }
+    } catch {
+      setModerationError({
+        status: 'error',
+        reason: 'ছবিগুলো প্রসেস করতে সমস্যা হয়েছে। আবার চেষ্টা করুন।',
+      });
+    } finally {
+      setIsProcessingMedia(false);
+    }
+  };
+
+  const removePhotoAtIndex = (idx: number) => {
+    setSelectedPhotos((prev) => prev.filter((_, i) => i !== idx));
+    setModerationError(null);
   };
 
   const toggleFriendTag = (friendName: string) => {
@@ -147,85 +238,111 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   };
 
   const handleSubmit = async () => {
-    if (!content.trim() && !arabicText.trim() && !selectedPhoto) return;
+    if (
+      (!content.trim() && !arabicText.trim() && selectedPhotos.length === 0 && !selectedVideo) ||
+      isVerifyingHalal ||
+      isSubmitting ||
+      isProcessingMedia
+    ) {
+      return;
+    }
 
     setIsVerifyingHalal(true);
     setModerationError(null);
 
-    // Run content moderation per user specification:
-    // Step 1: যদি ALLOW_ALWAYS এর কোনো শব্দ থাকে, সাথে সাথে ALLOW
-    // Step 2: শুধু BLOCK_WORDS 100% মিললে ব্লক
-    // Step 3: বাকি সব ALLOW
-    const filterResult = checkPost(content + ' ' + (arabicText || ''));
+    try {
+      const filterResult = checkPost(content + ' ' + (arabicText || ''));
+      setIsVerifyingHalal(false);
 
-    setIsVerifyingHalal(false);
+      if (!filterResult.isApproved) {
+        setModerationError({
+          status: 'blocked',
+          reason: 'দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে',
+        });
+        return;
+      }
 
-    if (!filterResult.isApproved) {
+      setIsSubmitting(true);
+
+      const privacyIcons: Record<'public' | 'friends' | 'private', string> = {
+        public: '🌐',
+        friends: '👥',
+        private: '🔒',
+      };
+
+      const hasQuranVerse = filterResult.isQuranVerse || !!arabicText.trim();
+      const finalArabic = arabicText.trim() || (filterResult.isQuranVerse ? content.trim() : undefined);
+
+      const newPost: PostItem = {
+        id: `post-${Date.now()}`,
+        authorId: userProfile.id || userProfile.name,
+        author: {
+          name: userProfile.name,
+          avatar: userProfile.avatar,
+          verified: true,
+          subtitle: `Just now • ${privacyIcons[privacy]}`,
+        },
+        timeAgo: 'Just now',
+        isPublic: privacy === 'public',
+        privacy,
+        status: 'approved',
+        contentBangla: sanitizeInput(content.trim()),
+        arabicVerse: finalArabic ? sanitizeInput(finalArabic) : undefined,
+        translation: translationText.trim() ? sanitizeInput(translationText.trim()) : undefined,
+        mediaType: selectedVideo
+          ? 'video'
+          : selectedPhotos.length > 0
+          ? 'image'
+          : hasQuranVerse
+          ? 'verseCard'
+          : 'none',
+        mediaUrl: selectedVideo || selectedPhotos[0] || undefined,
+        mediaUrls: selectedPhotos.length > 0 ? selectedPhotos : undefined,
+        category: hasQuranVerse ? 'Quran' : 'Community',
+        location: selectedLocation || undefined,
+        feeling: selectedFeeling || undefined,
+        taggedFriends: taggedFriends.length > 0 ? taggedFriends : undefined,
+        reactions: {
+          total: 1,
+          likeCount: 1,
+          loveCount: 0,
+          subhanallahCount: 0,
+          mashaallahCount: 0,
+        },
+        userReaction: 'like',
+        comments: [],
+        sharesCount: 0,
+        isSaved: false,
+      };
+
+      await onPostCreated(newPost);
+    } catch (err: any) {
       setModerationError({
-        status: 'blocked',
-        reason: 'দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে',
+        status: 'error',
+        reason: err?.message || 'পোস্ট প্রকাশ করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।',
       });
-      return;
+    } finally {
+      setIsVerifyingHalal(false);
+      setIsSubmitting(false);
     }
-
-    const privacyIcons: Record<'public' | 'friends' | 'private', string> = {
-      public: '🌐',
-      friends: '👥',
-      private: '🔒',
-    };
-
-    const hasQuranVerse = filterResult.isQuranVerse || !!arabicText.trim();
-    const finalArabic = arabicText.trim() || (filterResult.isQuranVerse ? content.trim() : undefined);
-
-    const newPost: PostItem = {
-      id: `post-${Date.now()}`,
-      authorId: userProfile.id || userProfile.name,
-      author: {
-        name: userProfile.name,
-        avatar: userProfile.avatar,
-        verified: true,
-        subtitle: `Just now • ${privacyIcons[privacy]}`,
-      },
-      timeAgo: 'Just now',
-      isPublic: privacy === 'public',
-      privacy,
-      status: 'approved',
-      contentBangla: sanitizeInput(content.trim()),
-      arabicVerse: finalArabic ? sanitizeInput(finalArabic) : undefined,
-      translation: translationText.trim() ? sanitizeInput(translationText.trim()) : undefined,
-      mediaType: selectedPhoto ? (isVideo ? 'video' : 'image') : hasQuranVerse ? 'verseCard' : 'none',
-      mediaUrl: selectedPhoto || undefined,
-      category: hasQuranVerse ? 'Quran' : 'Community',
-      location: selectedLocation || undefined,
-      feeling: selectedFeeling || undefined,
-      taggedFriends: taggedFriends.length > 0 ? taggedFriends : undefined,
-      reactions: {
-        total: 1,
-        likeCount: 1,
-        loveCount: 0,
-        subhanallahCount: 0,
-        mashaallahCount: 0,
-      },
-      userReaction: 'like',
-      comments: [],
-      sharesCount: 0,
-      isSaved: false,
-    };
-
-    // Push to Firestore Real-time database
-    await createRealtimePost(newPost);
-
-    onPostCreated(newPost);
   };
+
+  const hasMedia = selectedPhotos.length > 0 || Boolean(selectedVideo);
+  const canSubmit =
+    Boolean(content.trim() || arabicText.trim() || hasMedia) &&
+    !isVerifyingHalal &&
+    !isSubmitting &&
+    !isProcessingMedia;
 
   return (
     <div className="fixed inset-0 z-50 bg-white text-[#050505] flex flex-col justify-between animate-in fade-in font-sans">
       
-      {/* Hidden file input that triggers user's real phone/PC gallery */}
+      {/* Hidden file input that triggers user's real phone/PC gallery (up to 10 photos at once) */}
       <input
         type="file"
         ref={fileInputRef}
         accept="image/*,video/*"
+        multiple
         className="hidden"
         onChange={handleDeviceUpload}
       />
@@ -389,12 +506,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           </div>
         )}
 
-        {/* Moderation Block Banner (Only shows when BLOCK_WORDS matched) */}
+        {/* Moderation / Media / Submit Error Banner */}
         {moderationError && (
           <div className="p-3.5 bg-amber-50 border border-amber-300 rounded-xl flex items-center gap-2.5 text-xs text-amber-900 animate-in fade-in">
             <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0" />
             <span className="font-semibold text-[13px] text-amber-900">
-              দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে
+              {moderationError.reason}
             </span>
           </div>
         )}
@@ -587,37 +704,28 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         </div>
 
         {/* Light Gray Dashed Gallery Selector Box on White Background */}
-        {!selectedPhoto && (
+        {!hasMedia && (
           <button
             type="button"
+            disabled={isProcessingMedia}
             onClick={() => fileInputRef.current?.click()}
-            className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-[#F7F8FA] border-2 border-dashed border-[#CED0D4] text-emerald-600 font-bold text-xs flex items-center justify-center gap-2.5 transition-all active:scale-98 shadow-2xs cursor-pointer"
+            className="w-full py-3 px-4 rounded-2xl bg-white hover:bg-[#F7F8FA] border-2 border-dashed border-[#CED0D4] text-emerald-600 font-bold text-xs flex items-center justify-center gap-2.5 transition-all active:scale-98 shadow-2xs cursor-pointer disabled:opacity-60"
           >
             <div className="p-1.5 rounded-lg bg-emerald-50 text-[#45bd62]">
-              <ImageIcon className="w-5 h-5" />
+              {isProcessingMedia ? <Loader2 className="w-5 h-5 animate-spin" /> : <ImageIcon className="w-5 h-5" />}
             </div>
-            <span>আপনার ফোনের গ্যালারি থেকে ছবি বা ভিডিও সিলেক্ট করুন (Open Gallery)</span>
+            <span>
+              {isProcessingMedia
+                ? 'ছবি প্রস্তুত হচ্ছে...'
+                : `গ্যালারি থেকে একসাথে ১–${MAX_POST_PHOTOS}টি ছবি বা ভিডিও সিলেক্ট করুন`}
+            </span>
           </button>
         )}
 
-        {/* Photo / Video Preview with ✕ button */}
-        {selectedPhoto && (
+        {/* Single Video Preview */}
+        {selectedVideo && (
           <div className="relative rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5] group animate-in fade-in">
-            {isVideo ? (
-              <video
-                src={selectedPhoto}
-                controls
-                className="w-full max-h-80 object-cover"
-              />
-            ) : (
-              <img
-                src={selectedPhoto}
-                alt="Selected"
-                className="w-full max-h-80 object-cover"
-              />
-            )}
-            
-            {/* Remove / Change photo buttons */}
+            <video src={selectedVideo} controls className="w-full max-h-80 object-cover" />
             <div className="absolute top-2 right-2 flex items-center gap-1.5">
               <button
                 type="button"
@@ -627,16 +735,96 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                 <Upload className="w-3.5 h-3.5 text-[#0866FF]" />
                 <span>পরিবর্তন করুন</span>
               </button>
-
               <button
                 type="button"
-                onClick={() => setSelectedPhoto(null)}
+                onClick={() => setSelectedVideo(null)}
                 className="p-1.5 rounded-full bg-white/95 hover:bg-white text-[#050505] shadow-md border border-[#E4E6EB] cursor-pointer"
                 title="মুছে ফেলুন"
               >
                 <X className="w-5 h-5 stroke-[2.5]" />
               </button>
             </div>
+          </div>
+        )}
+
+        {/* Multi-Photo Preview (1 to 10 photos) */}
+        {selectedPhotos.length > 0 && (
+          <div className="rounded-2xl border border-[#E4E6EB] bg-[#F7F8FA] p-2.5 space-y-2.5 animate-in fade-in">
+            <div className="flex items-center justify-between gap-2 px-1">
+              <span className="text-xs font-bold text-[#050505]">
+                সিলেক্ট করা ছবি ({selectedPhotos.length}/{MAX_POST_PHOTOS})
+              </span>
+              <div className="flex items-center gap-1.5">
+                {selectedPhotos.length < MAX_POST_PHOTOS && (
+                  <button
+                    type="button"
+                    disabled={isProcessingMedia}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="px-2.5 py-1 rounded-lg bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] text-xs font-bold flex items-center gap-1 cursor-pointer disabled:opacity-60"
+                  >
+                    {isProcessingMedia ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    ) : (
+                      <Plus className="w-3.5 h-3.5" />
+                    )}
+                    <span>আরও ছবি যোগ করুন</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={() => setSelectedPhotos([])}
+                  className="px-2.5 py-1 rounded-lg bg-white hover:bg-rose-50 text-rose-600 border border-[#E4E6EB] text-xs font-bold cursor-pointer"
+                >
+                  সব মুছুন
+                </button>
+              </div>
+            </div>
+
+            {selectedPhotos.length === 1 ? (
+              <div className="relative rounded-xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
+                <img
+                  src={selectedPhotos[0]}
+                  alt="Selected 1"
+                  className="w-full max-h-80 object-cover"
+                />
+                <div className="absolute top-2 right-2 flex items-center gap-1.5">
+                  <button
+                    type="button"
+                    onClick={() => removePhotoAtIndex(0)}
+                    className="p-1.5 rounded-full bg-white/95 hover:bg-white text-[#050505] shadow-md border border-[#E4E6EB] cursor-pointer"
+                    title="মুছে ফেলুন"
+                  >
+                    <X className="w-5 h-5 stroke-[2.5]" />
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                {selectedPhotos.map((photoSrc, idx) => (
+                  <div
+                    key={idx}
+                    className="relative aspect-square rounded-xl overflow-hidden border border-[#E4E6EB] bg-white"
+                  >
+                    <img
+                      src={photoSrc}
+                      alt={`Selected ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/65 text-white text-[10px] font-bold">
+                      {idx + 1}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => removePhotoAtIndex(idx)}
+                      className="absolute top-1.5 right-1.5 p-1 rounded-full bg-black/70 hover:bg-black text-white shadow cursor-pointer"
+                      title="ছবি সরান"
+                    >
+                      <X className="w-3.5 h-3.5 stroke-[2.5]" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
 
@@ -743,13 +931,13 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           <button
             type="button"
             onClick={handleSubmit}
-            disabled={(!content.trim() && !arabicText.trim() && !selectedPhoto) || isVerifyingHalal}
+            disabled={!canSubmit}
             className="px-6 py-2 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-40 text-white font-bold text-sm shadow-sm transition-colors flex items-center gap-2 cursor-pointer"
           >
-            {isVerifyingHalal ? (
+            {isVerifyingHalal || isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin text-white" />
-                <span>যাচাই হচ্ছে...</span>
+                <span>{isVerifyingHalal ? 'যাচাই হচ্ছে...' : 'পোস্ট হচ্ছে...'}</span>
               </>
             ) : (
               <span>পোস্ট করুন</span>

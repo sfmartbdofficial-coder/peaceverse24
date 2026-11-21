@@ -92,6 +92,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [copiedToast, setCopiedToast] = useState(false);
   const [hidden, setHidden] = useState(false);
   const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState(0);
 
   // Appeal modal state for blocked posts
   const [showAppealModal, setShowAppealModal] = useState(false);
@@ -628,21 +629,95 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
       )}
 
-      {/* 4. Media Section (Image or Video) - Click opens Facebook Fullscreen Lightbox */}
-      {post.mediaType === 'image' && post.mediaUrl && (
-        <div
-          onClick={() => setShowPhotoLightbox(true)}
-          className="w-full bg-black max-h-[500px] overflow-hidden cursor-pointer group relative select-none"
-          title="ছবিটি পুরো স্ক্রিনে বড় করে দেখুন (View Fullscreen)"
-        >
-          <img
-            src={signBunnyCdnUrl(post.mediaUrl)}
-            alt="media"
-            className="w-full h-auto object-cover max-h-[500px] group-hover:opacity-95 transition-all group-active:scale-[0.99]"
-          />
-          <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
-        </div>
-      )}
+      {/* 4. Media Section (Single or Multi-Photo Grid up to 10 photos, or Video) */}
+      {(() => {
+        const postImages =
+          post.mediaType === 'image'
+            ? (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
+                ? post.mediaUrls
+                : post.mediaUrl
+                ? [post.mediaUrl]
+                : []
+              ).map((u) => signBunnyCdnUrl(u))
+            : [];
+
+        if (postImages.length === 1) {
+          return (
+            <div
+              onClick={() => {
+                setLightboxIndex(0);
+                setShowPhotoLightbox(true);
+              }}
+              className="w-full bg-black max-h-[500px] overflow-hidden cursor-pointer group relative select-none"
+              title="ছবিটি পুরো স্ক্রিনে বড় করে দেখুন (View Fullscreen)"
+            >
+              <img
+                src={postImages[0]}
+                alt="media"
+                className="w-full h-auto object-cover max-h-[500px] group-hover:opacity-95 transition-all group-active:scale-[0.99]"
+              />
+              <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
+            </div>
+          );
+        }
+
+        if (postImages.length === 2) {
+          return (
+            <div className="grid grid-cols-2 gap-1 bg-[#E4E6EB] overflow-hidden">
+              {postImages.map((imgUrl, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setLightboxIndex(idx);
+                    setShowPhotoLightbox(true);
+                  }}
+                  className="aspect-[4/5] bg-black overflow-hidden cursor-pointer relative group"
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`media ${idx + 1}`}
+                    className="w-full h-full object-cover group-hover:opacity-95 transition-opacity"
+                  />
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        if (postImages.length >= 3) {
+          const visibleImages = postImages.slice(0, 4);
+          const extraCount = postImages.length - 4;
+          return (
+            <div className="grid grid-cols-2 gap-1 bg-[#E4E6EB] overflow-hidden">
+              {visibleImages.map((imgUrl, idx) => (
+                <div
+                  key={idx}
+                  onClick={() => {
+                    setLightboxIndex(idx);
+                    setShowPhotoLightbox(true);
+                  }}
+                  className={`bg-black overflow-hidden cursor-pointer relative group ${
+                    postImages.length === 3 && idx === 0 ? 'col-span-2 aspect-[16/10]' : 'aspect-square'
+                  }`}
+                >
+                  <img
+                    src={imgUrl}
+                    alt={`media ${idx + 1}`}
+                    className="w-full h-full object-cover group-hover:opacity-95 transition-opacity"
+                  />
+                  {idx === 3 && extraCount > 0 && (
+                    <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
+                      <span className="text-white text-2xl font-extrabold">+{extraCount}</span>
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          );
+        }
+
+        return null;
+      })()}
 
       {/* Video: YouTube Embed */}
       {post.youtubeId && (
@@ -1028,6 +1103,14 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           onClose={() => setShowPhotoLightbox(false)}
           post={post}
           photoUrl={post.mediaUrl ? signBunnyCdnUrl(post.mediaUrl) : undefined}
+          photos={
+            Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
+              ? post.mediaUrls.map((u) => signBunnyCdnUrl(u))
+              : post.mediaUrl
+              ? [signBunnyCdnUrl(post.mediaUrl)]
+              : undefined
+          }
+          initialIndex={lightboxIndex}
           onToggleReaction={onToggleReaction}
           onAddComment={onAddComment}
           onToggleSave={onToggleSave}

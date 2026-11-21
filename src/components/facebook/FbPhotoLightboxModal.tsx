@@ -18,6 +18,8 @@ import {
   Globe,
   Check,
   BookOpen,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
 
@@ -26,6 +28,8 @@ interface FbPhotoLightboxModalProps {
   onClose: () => void;
   post: PostItem;
   photoUrl?: string;
+  photos?: string[];
+  initialIndex?: number;
   onToggleReaction: (postId: string, reaction: ReactionType) => void;
   onAddComment: (postId: string, text: string) => void;
   onToggleSave?: (postId: string) => void;
@@ -39,6 +43,8 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
   onClose,
   post,
   photoUrl,
+  photos,
+  initialIndex = 0,
   onToggleReaction,
   onAddComment,
   onToggleSave,
@@ -53,10 +59,30 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
   const [showMenu, setShowMenu] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [expandedCaption, setExpandedCaption] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(initialIndex);
 
-  const displayPhoto = photoUrl || post.mediaUrl;
+  const photoList =
+    Array.isArray(photos) && photos.length > 0
+      ? photos
+      : Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
+      ? post.mediaUrls
+      : photoUrl
+      ? [photoUrl]
+      : post.mediaUrl
+      ? [post.mediaUrl]
+      : [];
 
-  // Lock body scroll while open & attach Esc key listener
+  const safeIndex = photoList.length > 0 ? Math.min(Math.max(0, activeIndex), photoList.length - 1) : 0;
+  const displayPhoto = photoList[safeIndex] || photoUrl || post.mediaUrl;
+
+  useEffect(() => {
+    if (isOpen) {
+      setActiveIndex(initialIndex);
+      setZoomLevel(1);
+    }
+  }, [isOpen, initialIndex]);
+
+  // Lock body scroll while open & attach Esc/Arrow key listeners
   useEffect(() => {
     if (!isOpen) return;
 
@@ -66,6 +92,10 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
         onClose();
+      } else if (e.key === 'ArrowRight' && photoList.length > 1) {
+        setActiveIndex((prev) => (prev + 1) % photoList.length);
+      } else if (e.key === 'ArrowLeft' && photoList.length > 1) {
+        setActiveIndex((prev) => (prev - 1 + photoList.length) % photoList.length);
       }
     };
 
@@ -74,7 +104,7 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose]);
+  }, [isOpen, onClose, photoList.length]);
 
   if (!isOpen || !displayPhoto) return null;
 
@@ -289,6 +319,36 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
             className="w-auto h-auto max-w-full max-h-full object-contain shadow-2xl select-none mx-auto my-auto"
           />
         </div>
+
+        {photoList.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveIndex((prev) => (prev - 1 + photoList.length) % photoList.length);
+              }}
+              className="absolute left-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 cursor-pointer"
+              title="আগের ছবি"
+            >
+              <ChevronLeft className="w-6 h-6" />
+            </button>
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setActiveIndex((prev) => (prev + 1) % photoList.length);
+              }}
+              className="absolute right-3 top-1/2 -translate-y-1/2 z-20 p-2.5 rounded-full bg-black/60 hover:bg-black/80 text-white border border-white/20 cursor-pointer"
+              title="পরের ছবি"
+            >
+              <ChevronRight className="w-6 h-6" />
+            </button>
+            <div className="absolute top-3 left-1/2 -translate-x-1/2 z-20 px-3 py-1 rounded-full bg-black/65 text-white text-xs font-bold border border-white/15">
+              {safeIndex + 1} / {photoList.length}
+            </div>
+          </>
+        )}
       </div>
 
       {/* ========================================================= */}

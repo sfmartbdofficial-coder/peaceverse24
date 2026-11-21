@@ -45,6 +45,7 @@ export interface PostItem {
   reference?: string;
   mediaType?: 'video' | 'image' | 'verseCard' | 'none';
   mediaUrl?: string;
+  mediaUrls?: string[];
   youtubeId?: string;
   duration?: string;
   isLive?: boolean;
