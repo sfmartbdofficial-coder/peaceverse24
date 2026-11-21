@@ -2242,11 +2242,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       />
 
                       {pagePostImage && (
-                        <div className="relative rounded-xl overflow-hidden border border-[#E4E6EB] bg-white">
+                        <div className="relative rounded-xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
                           <img
                             src={pagePostImage}
                             alt="Selected attachment"
-                            className="w-full max-h-56 object-cover"
+                            className="w-full h-auto max-h-[400px] object-contain mx-auto"
                           />
                           <button
                             type="button"

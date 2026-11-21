@@ -484,9 +484,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       privacy === 'public' ? 'Public' : privacy === 'friends' ? 'Friends' : 'Only Me';
 
     return (
-      <div className="fixed inset-0 z-50 bg-white text-[#050505] flex flex-col justify-between animate-in fade-in font-sans">
+      <div className="fixed inset-0 z-50 h-[100dvh] max-h-[100dvh] overflow-hidden bg-white text-[#050505] flex flex-col animate-in fade-in font-sans">
         {/* Step 2 Top Header: [ < ]  "New post" */}
-        <div className="flex items-center justify-between px-3 py-3 border-b border-[#E4E6EB] bg-white">
+        <div className="shrink-0 flex items-center justify-between px-3 py-3 border-b border-[#E4E6EB] bg-white">
           <button
             type="button"
             onClick={() => setStep('compose')}
@@ -503,29 +503,29 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         </div>
 
         {/* Step 2 Scrollable Options Matching Screenshot 1 */}
-        <div className="flex-1 overflow-y-auto no-scrollbar bg-white divide-y divide-[#E4E6EB]">
-          {/* Media / Post Preview */}
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y bg-white divide-y divide-[#E4E6EB]">
+          {/* Media / Post Preview (full uncropped view + freely scrollable) */}
           <div className="px-4 py-3.5 bg-white">
             {selectedVideo ? (
-              <div className="max-w-[340px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
-                <video src={selectedVideo} controls className="w-full max-h-64 object-cover" />
+              <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
+                <video src={selectedVideo} controls className="w-full h-auto max-h-[420px] object-contain mx-auto" />
               </div>
             ) : selectedPhotos.length === 1 ? (
-              <div className="max-w-[340px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
+              <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
                 <img
                   src={selectedPhotos[0]}
                   alt="Post preview"
-                  className="w-full max-h-64 object-cover"
+                  className="w-full h-auto max-h-[440px] object-contain mx-auto"
                 />
               </div>
             ) : selectedPhotos.length > 1 ? (
-              <div className="max-w-[340px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA] p-1.5 grid grid-cols-2 gap-1.5 relative">
+              <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA] p-1.5 grid grid-cols-2 gap-1.5 relative">
                 {selectedPhotos.slice(0, 4).map((src, i) => (
                   <img
                     key={i}
                     src={src}
                     alt={`Preview ${i + 1}`}
-                    className="w-full h-28 object-cover rounded-lg"
+                    className="w-full h-32 object-cover object-top rounded-lg"
                   />
                 ))}
                 {selectedPhotos.length > 4 && (
@@ -846,7 +846,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         </div>
 
         {/* Bottom Full-Width Blue "Post" Button matching Screenshot 1 */}
-        <div className="bg-white border-t border-[#E4E6EB] px-4 py-3">
+        <div className="shrink-0 bg-white border-t border-[#E4E6EB] px-4 py-3">
           <button
             type="button"
             onClick={handleSubmit}
@@ -872,7 +872,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   }
 
   return (
-    <div className="fixed inset-0 z-50 bg-white text-[#050505] flex flex-col justify-between animate-in fade-in font-sans">
+    <div className="fixed inset-0 z-50 h-[100dvh] max-h-[100dvh] overflow-hidden bg-white text-[#050505] flex flex-col animate-in fade-in font-sans">
       
       {/* Hidden file input that triggers user's real phone/PC gallery (up to 10 photos at once) */}
       <input
@@ -885,7 +885,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       />
 
       {/* Top Header: [ ✕ ]  "New post"  [ spacer / audience ] */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-[#E4E6EB] bg-white">
+      <div className="shrink-0 flex items-center justify-between px-4 py-3 border-b border-[#E4E6EB] bg-white">
         <button
           type="button"
           onClick={onClose}
@@ -902,7 +902,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       </div>
 
       {/* Main Content Area */}
-      <div className="flex-1 overflow-y-auto no-scrollbar px-4 pt-3.5 pb-4 space-y-3.5 bg-white">
+      <div className="min-h-0 flex-1 overflow-y-auto overscroll-y-contain touch-pan-y px-4 pt-3.5 pb-4 space-y-3.5 bg-white">
         
         {/* Author row */}
         <div className="flex items-center gap-3">
@@ -1238,7 +1238,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         {/* Single Video Preview */}
         {selectedVideo && (
           <div className="relative rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5] group animate-in fade-in">
-            <video src={selectedVideo} controls className="w-full max-h-80 object-cover" />
+            <video src={selectedVideo} controls className="w-full h-auto max-h-[420px] object-contain mx-auto" />
             <div className="absolute top-2 right-2 flex items-center gap-1.5">
               <button
                 type="button"
@@ -1294,11 +1294,11 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             </div>
 
             {selectedPhotos.length === 1 ? (
-              <div className="relative rounded-xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
+              <div className="relative rounded-xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
                 <img
                   src={selectedPhotos[0]}
                   alt="Selected 1"
-                  className="w-full max-h-80 object-cover"
+                  className="w-full h-auto max-h-[440px] object-contain mx-auto"
                 />
                 <div className="absolute top-2 right-2 flex items-center gap-1.5">
                   <button
@@ -1321,7 +1321,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                     <img
                       src={photoSrc}
                       alt={`Selected ${idx + 1}`}
-                      className="w-full h-full object-cover"
+                      className="w-full h-full object-cover object-top"
                     />
                     <span className="absolute bottom-1.5 left-1.5 px-1.5 py-0.5 rounded bg-black/65 text-white text-[10px] font-bold">
                       {idx + 1}
@@ -1372,7 +1372,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       </div>
 
       {/* Single Clean Facebook-Style Bottom Toolbar matching Screenshot 1 */}
-      <div className="bg-white border-t border-[#E4E6EB] px-4 py-2.5 flex items-center justify-between">
+      <div className="shrink-0 bg-white border-t border-[#E4E6EB] px-4 py-2.5 flex items-center justify-between">
         <div className="flex items-center gap-5">
           {/* 1. Gallery (1-10 Photos / Video) */}
           <button

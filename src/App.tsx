@@ -1090,6 +1090,22 @@ export default function App() {
   const [freshNowTick, setFreshNowTick] = useState<number>(() => Date.now());
 
   useEffect(() => {
+    if (!pendingUploadPost) return;
+    const watchdog = window.setTimeout(() => {
+      setPendingUploadPost((cur) => (cur ? { ...cur, progress: 100 } : null));
+      window.setTimeout(() => {
+        setPendingUploadPost((cur) => {
+          if (!cur) return null;
+          setFreshNowTick(Date.now());
+          setPosts((prev) => [cur.post, ...prev.filter((p) => p.id !== cur.post.id)]);
+          return null;
+        });
+      }, 180);
+    }, 4000);
+    return () => window.clearTimeout(watchdog);
+  }, [pendingUploadPost?.post.id]);
+
+  useEffect(() => {
     const hasFreshPost = posts.some(
       (p) => (p.createdAtMillis || 0) > 0 && Date.now() - (p.createdAtMillis || 0) < FRESH_PIN_WINDOW_MS
     );
@@ -1634,33 +1650,37 @@ export default function App() {
 
     const stageTimer1 = window.setTimeout(() => {
       setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 42 } : cur));
-    }, 280);
+    }, 260);
     const stageTimer2 = window.setTimeout(() => {
       setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 74 } : cur));
-    }, 680);
+    }, 620);
     const stageTimer3 = window.setTimeout(() => {
       setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 92 } : cur));
-    }, 1050);
+    }, 960);
 
-    const minVisualDelay = new Promise<void>((resolve) => window.setTimeout(resolve, 1300));
-    await Promise.all([
-      minVisualDelay,
-      Promise.allSettled([
+    try {
+      const dbWrites = Promise.allSettled([
         insertSupabasePost(sanitizedPost, firebaseUser?.uid || userProfile.id),
         createRealtimePost(sanitizedPost),
-      ]),
-    ]);
+      ]);
+      const dbMaxWait = new Promise<void>((resolve) => window.setTimeout(resolve, 2200));
+      const minVisualDelay = new Promise<void>((resolve) => window.setTimeout(resolve, 1250));
 
-    window.clearTimeout(stageTimer1);
-    window.clearTimeout(stageTimer2);
-    window.clearTimeout(stageTimer3);
+      await Promise.all([minVisualDelay, Promise.race([dbWrites, dbMaxWait])]);
+    } catch (err) {
+      console.warn('Upload background sync warning:', err);
+    } finally {
+      window.clearTimeout(stageTimer1);
+      window.clearTimeout(stageTimer2);
+      window.clearTimeout(stageTimer3);
 
-    setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 100 } : cur));
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
+      setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? { ...cur, progress: 100 } : cur));
+      await new Promise<void>((resolve) => window.setTimeout(resolve, 200));
 
-    setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? null : cur));
-    setFreshNowTick(Date.now());
-    setPosts((prev) => [sanitizedPost, ...prev.filter((p) => p.id !== sanitizedPost.id)]);
+      setPendingUploadPost((cur) => (cur?.post.id === sanitizedPost.id ? null : cur));
+      setFreshNowTick(Date.now());
+      setPosts((prev) => [sanitizedPost, ...prev.filter((p) => p.id !== sanitizedPost.id)]);
+    }
 
     logUserActivity(
       userProfile.id,

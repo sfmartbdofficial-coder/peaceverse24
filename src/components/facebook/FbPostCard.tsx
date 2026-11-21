@@ -661,13 +661,13 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 setLightboxIndex(0);
                 setShowPhotoLightbox(true);
               }}
-              className="w-full bg-black max-h-[500px] overflow-hidden cursor-pointer group relative select-none"
+              className="w-full bg-[#F0F2F5] max-h-[560px] overflow-hidden cursor-pointer group relative select-none flex items-center justify-center"
               title="ছবিটি পুরো স্ক্রিনে বড় করে দেখুন (View Fullscreen)"
             >
               <img
                 src={postImages[0]}
                 alt="media"
-                className="w-full h-auto object-cover max-h-[500px] group-hover:opacity-95 transition-all group-active:scale-[0.99]"
+                className="w-full h-auto object-contain max-h-[560px] group-hover:opacity-95 transition-all"
               />
               <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors pointer-events-none" />
             </div>
@@ -689,7 +689,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   <img
                     src={imgUrl}
                     alt={`media ${idx + 1}`}
-                    className="w-full h-full object-cover group-hover:opacity-95 transition-opacity"
+                    className="w-full h-full object-cover object-top group-hover:opacity-95 transition-opacity"
                   />
                 </div>
               ))}
@@ -716,7 +716,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                   <img
                     src={imgUrl}
                     alt={`media ${idx + 1}`}
-                    className="w-full h-full object-cover group-hover:opacity-95 transition-opacity"
+                    className="w-full h-full object-cover object-top group-hover:opacity-95 transition-opacity"
                   />
                   {idx === 3 && extraCount > 0 && (
                     <div className="absolute inset-0 bg-black/55 flex items-center justify-center">
