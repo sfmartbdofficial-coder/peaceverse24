@@ -4,13 +4,14 @@ import {
   ArrowLeft,
   ArrowRight,
   Check,
+  Clock,
   Eye,
   EyeOff,
   Loader2,
   MailCheck,
 } from 'lucide-react';
 import { TurnstileCaptchaPlaceholder } from './TurnstileCaptchaPlaceholder';
-import { requestEmailOtp } from '../../utils/emailOtp';
+import { formatOtpCountdown, requestEmailOtp } from '../../utils/emailOtp';
 
 export type SignUpGender = 'Male' | 'Female' | 'Custom' | '';
 export type SignUpWizardStep = 1 | 2 | 3 | 4 | 5 | 6;
@@ -102,6 +103,7 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
   const [otpCode, setOtpCode] = useState('');
   const [sendingOtp, setSendingOtp] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [otpExpiresLeft, setOtpExpiresLeft] = useState(0);
 
   // Field-level error map for literal "এইটা লাগবে" & format errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
@@ -114,6 +116,14 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
     }, 1000);
     return () => window.clearInterval(timer);
   }, [resendCooldown]);
+
+  useEffect(() => {
+    if (otpExpiresLeft <= 0) return;
+    const timer = window.setInterval(() => {
+      setOtpExpiresLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [otpExpiresLeft]);
 
   const clearFieldError = (key: string) => {
     if (fieldErrors[key]) {
@@ -189,6 +199,7 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
       });
       setOtpCode('');
       setResendCooldown(otpRes.resendCooldownSeconds || 45);
+      setOtpExpiresLeft(otpRes.expiresInSeconds || 600);
       setCurrentStep(6);
     } catch (err: any) {
       setStepBannerError(err?.message || 'ইমেইলে ৬ ডিজিটের কোড পাঠানো যায়নি। আবার চেষ্টা করুন।');
@@ -208,9 +219,10 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
         email: contact.trim(),
         fullName,
         purpose: 'signup',
-        allowExisting: false,
+        allowExisting: true,
       });
       setResendCooldown(otpRes.resendCooldownSeconds || 45);
+      setOtpExpiresLeft(otpRes.expiresInSeconds || 600);
     } catch (err: any) {
       setStepBannerError(err?.message || 'আবার কোড পাঠানো যায়নি।');
     } finally {
@@ -581,7 +593,7 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
               <span>Email Code Verification</span>
             </p>
             <p className="text-[12px] text-[#4B4F56]">
-              আপনার <strong>{contact.trim()}</strong> ইমেইলে ৬ সংখ্যার কোডটি পাঠানো হয়েছে। অনুগ্রহপূর্বক এখানে কোডটি ফিলাপ করুন এবং নিচে <strong>Sign Up</strong> চাপুন (ইনবক্সে না পেলে Spam ফোল্ডার চেক করুন)।
+              আপনার <strong>{contact.trim()}</strong> ইমেইলে ৬ সংখ্যার কোডটি পাঠানো হয়েছে। অনুগ্রহপূর্বক এখানে কোডটি ফিলাপ করুন এবং নিচে <strong>Sign Up</strong> চাপুন (ইনবক্সে না পেলে <strong>Spam</strong> বা <strong>All Mail</strong> ফোল্ডার চেক করুন)।
             </p>
           </div>
 
@@ -611,8 +623,17 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
             )}
           </div>
 
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-[#606770]">কোড পাননি?</span>
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-[#F5F6F7] border border-[#E4E6EB] px-3 py-2 text-xs">
+            <span
+              className={`inline-flex items-center gap-1.5 font-semibold ${
+                otpExpiresLeft > 0 ? 'text-[#1C1E21]' : 'text-rose-600'
+              }`}
+            >
+              <Clock className="w-3.5 h-3.5 text-[#0866FF]" />
+              {otpExpiresLeft > 0
+                ? `কোডের মেয়াদ বাকি: ${formatOtpCountdown(otpExpiresLeft)}`
+                : 'কোডের মেয়াদ শেষ — আবার কোড পাঠান'}
+            </span>
             <button
               type="button"
               onClick={handleResendOtp}

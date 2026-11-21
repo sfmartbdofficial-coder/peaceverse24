@@ -111,7 +111,7 @@ import {
   logUserActivity,
   markCurrentUserEmailOtpVerified,
 } from './lib/firebase';
-import { requestEmailOtp, verifyEmailOtp } from './utils/emailOtp';
+import { formatOtpCountdown, requestEmailOtp, verifyEmailOtp } from './utils/emailOtp';
 import { SearchedUserProfile } from './types';
 import {
   registerPushServiceWorker,
@@ -836,20 +836,50 @@ export default function App() {
   const [gateOtpSent, setGateOtpSent] = useState(false);
   const [gateOtpCode, setGateOtpCode] = useState('');
   const [gateOtpLoading, setGateOtpLoading] = useState(false);
+  const [gateResendCooldown, setGateResendCooldown] = useState(0);
+  const [gateExpiresLeft, setGateExpiresLeft] = useState(0);
+
+  useEffect(() => {
+    setGateOtpSent(false);
+    setGateOtpCode('');
+    setGateResendCooldown(0);
+    setGateExpiresLeft(0);
+    setVerificationNotice(null);
+  }, [firebaseUser?.uid]);
+
+  useEffect(() => {
+    if (gateResendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setGateResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gateResendCooldown]);
+
+  useEffect(() => {
+    if (gateExpiresLeft <= 0) return;
+    const timer = window.setInterval(() => {
+      setGateExpiresLeft((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [gateExpiresLeft]);
 
   const handleSendGateEmailOtp = async () => {
-    if (!firebaseUser?.email || gateOtpLoading) return;
+    if (!firebaseUser?.email || gateOtpLoading || gateResendCooldown > 0) return;
     setGateOtpLoading(true);
     setVerificationNotice(null);
     try {
-      await requestEmailOtp({
+      const otpRes = await requestEmailOtp({
         email: firebaseUser.email,
         fullName: firebaseUser.displayName || '',
         purpose: 'signup',
         allowExisting: true,
       });
       setGateOtpSent(true);
-      setVerificationNotice(`আপনার ${firebaseUser.email} ইমেইলে ৬ সংখ্যার কোড পাঠানো হয়েছে।`);
+      setGateResendCooldown(otpRes.resendCooldownSeconds || 45);
+      setGateExpiresLeft(otpRes.expiresInSeconds || 600);
+      setVerificationNotice(
+        `আপনার ${firebaseUser.email} ইমেইলে ৬ সংখ্যার কোড পাঠানো হয়েছে। ইনবক্সে না পেলে Gmail-এর Spam বা All Mail ফোল্ডার চেক করুন।`
+      );
     } catch (err: any) {
       setVerificationNotice(err?.message || 'কোড পাঠানো যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।');
     } finally {
@@ -877,6 +907,8 @@ export default function App() {
       setRemoteOtpVerified(true);
       setGateOtpCode('');
       setGateOtpSent(false);
+      setGateResendCooldown(0);
+      setGateExpiresLeft(0);
       setEmailVerifiedTick((t) => t + 1);
       setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
     } catch (err: any) {
@@ -2116,6 +2148,21 @@ export default function App() {
                 placeholder="______"
                 className="w-full px-3 py-3 bg-[#F5F6F7] border-2 border-[#CCD0D5] rounded-xl text-center font-mono tracking-[0.35em] text-[20px] font-bold text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
               />
+              <div className="flex items-center justify-between rounded-xl bg-[#F5F6F7] border border-[#E4E6EB] px-3 py-2 text-xs">
+                <span
+                  className={`inline-flex items-center gap-1.5 font-semibold ${
+                    gateExpiresLeft > 0 ? 'text-[#1C1E21]' : 'text-rose-600'
+                  }`}
+                >
+                  <Clock className="w-3.5 h-3.5 text-[#0866FF]" />
+                  {gateExpiresLeft > 0
+                    ? `কোডের মেয়াদ বাকি: ${formatOtpCountdown(gateExpiresLeft)}`
+                    : 'কোডের মেয়াদ শেষ — নিচে আবার কোড পাঠান'}
+                </span>
+                {gateResendCooldown > 0 && (
+                  <span className="font-bold text-[#0866FF]">{gateResendCooldown}s</span>
+                )}
+              </div>
               <button
                 type="submit"
                 disabled={gateOtpLoading}
@@ -2127,11 +2174,16 @@ export default function App() {
               <button
                 type="button"
                 onClick={handleSendGateEmailOtp}
-                disabled={gateOtpLoading}
-                className="w-full py-2.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] font-bold text-xs cursor-pointer"
+                disabled={gateOtpLoading || gateResendCooldown > 0}
+                className="w-full py-2.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] disabled:opacity-60 disabled:cursor-not-allowed text-[#0866FF] font-bold text-xs cursor-pointer"
               >
-                আবার ৬ ডিজিটের কোড পাঠান (Resend)
+                {gateResendCooldown > 0
+                  ? `আবার কোড পাঠান (${gateResendCooldown}s পর)`
+                  : 'আবার ৬ ডিজিটের কোড পাঠান (Resend)'}
               </button>
+              <p className="text-[11px] text-[#65676B] leading-relaxed text-center">
+                কোড না পেলে এই ফোনের Gmail অ্যাপে <strong>{firebaseUser.email}</strong> লগইন আছে কিনা এবং <strong>Spam / All Mail / Promotions</strong> ফোল্ডার চেক করুন।
+              </p>
             </form>
           ) : (
             <div className="space-y-2.5 pt-1">

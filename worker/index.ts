@@ -160,15 +160,18 @@ async function handleSendEmailOtp(request: Request, env: WorkerEnv): Promise<Res
         subject,
         html: htmlBody,
         text: textBody,
+        headers: {
+          'X-Entity-Ref-ID': crypto.randomUUID(),
+        },
       }),
     });
 
+    const resendData: any = await resendRes.json().catch(() => ({}));
     if (!resendRes.ok) {
-      const errJson: any = await resendRes.json().catch(() => ({}));
       return new Response(
         JSON.stringify({
           success: false,
-          error: errJson?.message || `Resend email failed (HTTP ${resendRes.status})`,
+          error: resendData?.message || `Resend email failed (HTTP ${resendRes.status})`,
         }),
         { status: 502, headers: JSON_HEADERS }
       );
@@ -185,6 +188,7 @@ async function handleSendEmailOtp(request: Request, env: WorkerEnv): Promise<Res
         success: true,
         email: rawEmail,
         provider: 'resend',
+        emailId: typeof resendData?.id === 'string' ? resendData.id : undefined,
         challengeToken: `${payloadB64}.${sig}`,
         expiresInSeconds: 600,
         resendCooldownSeconds: 45,

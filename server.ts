@@ -251,6 +251,9 @@ async function dispatchRealOtpEmail(params: {
         subject,
         html: htmlBody,
         text: textBody,
+        headers: {
+          'X-Entity-Ref-ID': crypto.randomUUID(),
+        },
       }),
     });
 

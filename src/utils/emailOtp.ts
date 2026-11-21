@@ -2,6 +2,7 @@ export interface SendEmailOtpResponse {
   success: boolean;
   email: string;
   provider?: string;
+  emailId?: string;
   challengeToken?: string;
   expiresInSeconds?: number;
   resendCooldownSeconds?: number;
@@ -13,6 +14,13 @@ export interface VerifyEmailOtpResponse {
   email: string;
   verificationToken: string;
   message?: string;
+}
+
+export function formatOtpCountdown(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const mins = Math.floor(safe / 60);
+  const secs = safe % 60;
+  return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
 }
 
 const challengeTokenStore = new Map<string, string>();
