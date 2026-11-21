@@ -640,64 +640,159 @@ app.post('/api/ai/peace-ai', async (req, res) => {
   }
 });
 
-// API Endpoint for Post Moderation per user specification
+// API Endpoint for Post & Media Moderation (blocks ONLY explicit XXX/porn/nudity/indecent content)
 const BLOCK_WORDS = [
-  // ১. নেশা - এগুলা থাকলেই ব্লক
-  "মদ খাও", "বিয়ার খাও", "গাঁজা খাও", "ইয়াবা", "হেরোইন", "ফেন্সিডিল", "মদ বিক্রি", "গাঁজা বিক্রি", "নেশা করো",
-
-  // ২. নগ্নতা ও পর্ন - এগুলা থাকলেই ব্লক
-  "নগ্ন ছবি", "উলঙ্গ", "পর্ন", "xxx", "sex video", "অশ্লীল ভিডিও", "যৌন ভিডিও",
-
-  // ৩. সহিংসতা
-  "খুন করব", "মেরে ফেলব", "আত্মহত্যা করো", "বোমা বানাও", "জঙ্গি হও",
-
-  // ৪. ধর্ম নিয়ে গালি
-  "ইসলাম খারাপ", "নবীকে গালি", "কুরআনকে গালি", "আল্লাহকে গালি"
+  'নগ্ন ছবি',
+  'নগ্ন ভিডিও',
+  'উলঙ্গ ছবি',
+  'উলঙ্গ ভিডিও',
+  'উলঙ্গ',
+  'পর্ন',
+  'পর্নোগ্রাফি',
+  'অশ্লীল ছবি',
+  'অশ্লীল ভিডিও',
+  'যৌন ভিডিও',
+  'যৌন ছবি',
+  'সেক্স ভিডিও',
+  'ব্লু ফিল্ম',
+  'এক্স এক্স এক্স',
+  'চটি গল্প',
+  'sex video',
+  'porn video',
+  'pornography',
+  'pornhub',
+  'xvideos',
+  'xnxx',
+  'xhamster',
+  'redtube',
+  'youporn',
+  'brazzers',
+  'onlyfans',
+  'blue film',
+  'nude photo',
+  'nude video',
+  'naked video',
+  'hentai',
+  'nsfw',
 ];
 
-const ALLOW_ALWAYS = [
-  // এগুলা থাকলে কখনোই ব্লক করবে না, যত যাই হোক
-  "গান", "বাদ্যযন্ত্র", "বাউল", "লালন", "গজল", "তেলাওয়াত", "ওয়াজ", "হারমোনিয়াম", "ঢোল", "গিটার",
-  "পরিবার", "ভালোবাসা", "দোয়া", "দোয়া", "শিক্ষণীয় গল্প", "ইসলামিক", "Alhamdulillah", "PeaceVerse24", "FirstPost", "বন্ধু", "গল্প", "ছবি"
+const ADULT_EXPLICIT_REGEXES = [
+  /\bxxx+\b/i,
+  /\bxnxx\b/i,
+  /\bxvideos\b/i,
+  /\bxhamster\b/i,
+  /\bporn(?:o|ography|hub|star)?\b/i,
+  /\bsex[\s._-]*(?:video|clip|movie|tape|chat|cam)\b/i,
+  /\bnude(?:s)?\b/i,
+  /\bnaked\b/i,
+  /\bhentai\b/i,
+  /\berotic(?:a)?\b/i,
+  /\bbdsm\b/i,
+  /\bonlyfans\b/i,
 ];
+
+const ADULT_BLOCK_MSG =
+  'দুঃখিত! নোংরা, অশ্লীল, নগ্ন বা XXX ধরনের ছবি ও ভিডিও আপলোড করা সম্পূর্ণ নিষিদ্ধ। বাকি সব স্বাভাবিক পোস্ট করতে পারবেন।';
+
+function hasExplicitAdultTerms(text: string): boolean {
+  const normalized = (text || '').toLowerCase();
+  if (!normalized.trim()) return false;
+  if (BLOCK_WORDS.some((phrase) => normalized.includes(phrase.toLowerCase()))) return true;
+  return ADULT_EXPLICIT_REGEXES.some((re) => re.test(normalized));
+}
 
 app.post('/api/ai/moderate-post', async (req, res) => {
   try {
-    const { postContent } = req.body;
-    const normalized = (postContent || '').toLowerCase();
-
-    // Step 1: যদি ALLOW_ALWAYS এর কোনো শব্দ থাকে, সাথে সাথে ALLOW
-    const hasAllowAlways = ALLOW_ALWAYS.some((word) => normalized.includes(word.toLowerCase()));
-    if (hasAllowAlways) {
-      return res.json({
-        isHalal: true,
-        score: 100,
-        feedback: 'পোস্টটি অনুমোদিত।',
-      });
-    }
-
-    // Step 2: শুধু BLOCK_WORDS 100% মিললে ব্লক
-    const matchedBlocked = BLOCK_WORDS.find((phrase) => normalized.includes(phrase.toLowerCase()));
-    if (matchedBlocked) {
+    const { postContent } = req.body || {};
+    if (hasExplicitAdultTerms(String(postContent || ''))) {
       return res.json({
         isHalal: false,
         score: 0,
-        feedback: 'দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে',
+        feedback: ADULT_BLOCK_MSG,
       });
     }
 
-    // Step 3: বাকি সব ALLOW
     return res.json({
       isHalal: true,
       score: 100,
       feedback: 'পোস্টটি অনুমোদিত।',
     });
-  } catch (error: any) {
+  } catch {
     return res.json({
       isHalal: true,
       score: 100,
       feedback: 'পোস্টটি অনুমোদিত।',
     });
+  }
+});
+
+app.post('/api/ai/moderate-media', async (req, res) => {
+  try {
+    const { images, caption, fileNames } = req.body || {};
+    const combinedText = [
+      typeof caption === 'string' ? caption : '',
+      ...(Array.isArray(fileNames) ? fileNames.map((n) => String(n).replace(/[._-]+/g, ' ')) : []),
+    ].join(' ');
+
+    if (hasExplicitAdultTerms(combinedText)) {
+      return res.json({ isExplicitAdult: true, reason: ADULT_BLOCK_MSG });
+    }
+
+    const imageList = Array.isArray(images)
+      ? images.filter((u) => typeof u === 'string' && u.startsWith('data:image/')).slice(0, 3)
+      : [];
+
+    const hasServerKey = Boolean(
+      (process.env.GEMINI_API_KEY || process.env.API_KEY || '').trim()
+    );
+    if (imageList.length === 0 || !hasServerKey) {
+      return res.json({ isExplicitAdult: false });
+    }
+
+    const parts: any[] = [
+      {
+        text:
+          'You are a strict explicit-adult-content-only safety classifier. ' +
+          'ONLY flag explicit pornography, XXX sexual acts, exposed genitalia, or explicit nudity. ' +
+          'Allow ALL normal photos/videos including selfies, portraits, sports, music, comedy, food, nature, news, business, and family photos. ' +
+          'Respond strictly in JSON: {"isExplicitAdult": boolean}',
+      },
+    ];
+
+    for (const dataUrl of imageList) {
+      const commaIdx = dataUrl.indexOf(',');
+      const meta = dataUrl.slice(0, commaIdx);
+      const base64Data = dataUrl.slice(commaIdx + 1);
+      const mimeMatch = meta.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64$/);
+      if (mimeMatch && base64Data) {
+        parts.push({
+          inlineData: {
+            mimeType: mimeMatch[1],
+            data: base64Data,
+          },
+        });
+      }
+    }
+
+    if (parts.length <= 1) {
+      return res.json({ isExplicitAdult: false });
+    }
+
+    const response = await getAiClient().models.generateContent({
+      model: 'gemini-3.8-flash',
+      contents: [{ role: 'user', parts }],
+      config: {
+        responseMimeType: 'application/json',
+      },
+    });
+
+    const parsed = JSON.parse(response.text || '{}');
+    if (parsed?.isExplicitAdult === true) {
+      return res.json({ isExplicitAdult: true, reason: ADULT_BLOCK_MSG });
+    }
+    return res.json({ isExplicitAdult: false });
+  } catch {
+    return res.json({ isExplicitAdult: false });
   }
 });
 

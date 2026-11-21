@@ -431,6 +431,23 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
             )}
           </div>
 
+          {/* Profile / Mail ID Category Badge */}
+          <div className="flex items-center justify-center pt-0.5">
+            <button
+              type="button"
+              onClick={() => isOwnProfile && setShowEditModal(true)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#F0F2F5] border border-[#E4E6EB] text-[12px] font-semibold text-[#050505] ${
+                isOwnProfile ? 'hover:bg-[#E4E6EB] cursor-pointer' : ''
+              }`}
+              title={isOwnProfile ? 'প্রোফাইল ক্যাটাগরি পরিবর্তন করুন' : 'Profile Category'}
+            >
+              <Briefcase className="w-3.5 h-3.5 text-[#0866FF]" />
+              <span>
+                Profile · {activeProfile.profileCategory || 'Personal Account (সাধারণ প্রোফাইল)'}
+              </span>
+            </button>
+          </div>
+
           {/* Real Firestore friends count from users/{userId}/friends */}
           {(() => {
             const count = realFriendsLoaded
@@ -599,6 +616,17 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
           </div>
 
           <div className="space-y-3 pt-1">
+            {/* 0. Profile / Mail ID Category */}
+            <div className="flex items-center gap-3 text-[15px] text-[#65676B]">
+              <Briefcase className="w-5 h-5 text-[#65676B] shrink-0" />
+              <span>
+                Profile ·{' '}
+                <span className="font-semibold text-black">
+                  {activeProfile.profileCategory || 'Personal Account (সাধারণ প্রোফাইল)'}
+                </span>
+              </span>
+            </div>
+
             {/* 1. Location: Lives in Dhaka, Bangladesh */}
             <div className="flex items-center gap-3 text-[15px] text-[#65676B]">
               <MapPin className="w-5 h-5 text-[#65676B] shrink-0" />

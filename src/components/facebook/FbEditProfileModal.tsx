@@ -19,6 +19,13 @@ import {
 import { UserProfile } from '../../types';
 import { normalizePhoneNumber } from '../../utils/contactLinks';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
+import { PROFILE_ACCOUNT_CATEGORIES } from '../../utils/categories';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+} from '../../lib/halalFilter';
+import { compressImageFileToDataUrl } from '../../utils/imageCompress';
 
 interface FbEditProfileModalProps {
   userProfile: UserProfile;
@@ -61,6 +68,9 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
   onSave,
 }) => {
   const [name, setName] = useState(userProfile.name);
+  const [profileCategory, setProfileCategory] = useState(
+    userProfile.profileCategory || PROFILE_ACCOUNT_CATEGORIES[0].value
+  );
   const [avatar, setAvatar] = useState(userProfile.avatar);
   const [coverPhoto, setCoverPhoto] = useState(userProfile.coverPhoto);
   const [bio, setBio] = useState(userProfile.bio || '');
@@ -98,45 +108,67 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
 
-  const handleAvatarFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const check = validateMediaUpload(file, ['image']);
-      if (!check.valid) {
-        setUploadError(check.error || 'Max 5MB image file allowed.');
-        e.target.value = '';
+    e.target.value = '';
+    if (!file) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      setUploadError(check.error || 'Max 5MB image file allowed.');
+      return;
+    }
+    const nameCheck = checkMediaFilenamesSafe([file]);
+    if (!nameCheck.safe) {
+      setUploadError(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+    setUploadError(null);
+    try {
+      const compressed = await compressImageFileToDataUrl(file, { maxDimension: 720, quality: 0.78 });
+      const visual = await checkMediaVisualSafety({
+        mediaDataUrls: [compressed],
+        fileNames: [file.name],
+      });
+      if (!visual.safe) {
+        setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      setUploadError(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setAvatar(event.target.result as string);
-          setShowAvatarPicker(false);
-        }
-      };
-      reader.readAsDataURL(file);
+      setAvatar(compressed);
+      setShowAvatarPicker(false);
+    } catch {
+      setUploadError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
     }
   };
 
-  const handleCoverFile = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const check = validateMediaUpload(file, ['image']);
-      if (!check.valid) {
-        setUploadError(check.error || 'Max 5MB image file allowed.');
-        e.target.value = '';
+    e.target.value = '';
+    if (!file) return;
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      setUploadError(check.error || 'Max 5MB image file allowed.');
+      return;
+    }
+    const nameCheck = checkMediaFilenamesSafe([file]);
+    if (!nameCheck.safe) {
+      setUploadError(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+    setUploadError(null);
+    try {
+      const compressed = await compressImageFileToDataUrl(file, { maxDimension: 1080, quality: 0.76 });
+      const visual = await checkMediaVisualSafety({
+        mediaDataUrls: [compressed],
+        fileNames: [file.name],
+      });
+      if (!visual.safe) {
+        setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      setUploadError(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          setCoverPhoto(event.target.result as string);
-          setShowCoverPicker(false);
-        }
-      };
-      reader.readAsDataURL(file);
+      setCoverPhoto(compressed);
+      setShowCoverPicker(false);
+    } catch {
+      setUploadError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
     }
   };
 
@@ -152,6 +184,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
     const updated: UserProfile = {
       ...userProfile,
       name: sanitizeInput(name.trim()) || userProfile.name,
+      profileCategory: sanitizeInput(profileCategory.trim()) || PROFILE_ACCOUNT_CATEGORIES[0].value,
       avatar,
       coverPhoto,
       bio: sanitizeInput(bio.trim()),
@@ -229,16 +262,50 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
               ⚠️ {uploadError}
             </div>
           )}
-          {/* 1. Name Edit Section */}
-          <div className="bg-white border border-[#E4E6EB] rounded-xl p-3.5 space-y-1.5">
-            <label className="text-xs font-bold text-[#65676B] block">নাম (Profile Name)</label>
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] focus:bg-white rounded-lg px-3 py-2 text-sm text-[#050505] font-semibold outline-none transition-colors"
-              placeholder="আপনার নাম লিখুন..."
-            />
+          {/* 1. Name & Profile/Mail ID Category Section */}
+          <div className="bg-white border border-[#E4E6EB] rounded-xl p-3.5 space-y-3">
+            <div className="space-y-1.5">
+              <label className="text-xs font-bold text-[#65676B] block">নাম (Profile Name)</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] focus:bg-white rounded-lg px-3 py-2 text-sm text-[#050505] font-semibold outline-none transition-colors"
+                placeholder="আপনার নাম লিখুন..."
+              />
+            </div>
+
+            <div className="space-y-1.5 pt-2 border-t border-[#E4E6EB]">
+              <label className="text-xs font-bold text-[#65676B] block">
+                প্রোফাইল / মেইল আইডি ক্যাটাগরি (Profile Category)
+              </label>
+              <select
+                value={
+                  PROFILE_ACCOUNT_CATEGORIES.some((c) => c.value === profileCategory)
+                    ? profileCategory
+                    : '__custom__'
+                }
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val !== '__custom__') {
+                    setProfileCategory(val);
+                  }
+                }}
+                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] focus:bg-white rounded-lg px-3 py-2 text-xs sm:text-sm text-[#050505] font-semibold outline-none transition-colors cursor-pointer"
+              >
+                {PROFILE_ACCOUNT_CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.value}
+                  </option>
+                ))}
+                {!PROFILE_ACCOUNT_CATEGORIES.some((c) => c.value === profileCategory) && (
+                  <option value="__custom__">{profileCategory || 'Custom Category'}</option>
+                )}
+              </select>
+              <p className="text-[11px] text-[#65676B]">
+                আপনার প্রোফাইল ও মেইল আইডির ধরন (যেমন Digital Creator, Personal Account, Entrepreneur) নির্ধারণ করুন।
+              </p>
+            </div>
           </div>
 
           {/* 2. Profile Picture Section */}

@@ -27,6 +27,13 @@ import {
 } from 'lucide-react';
 import { PageItem } from '../../types';
 import { sanitizeInput, validateMediaUpload } from '../../utils/security';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+  checkPost,
+} from '../../lib/halalFilter';
+import { compressImageFileToDataUrl } from '../../utils/imageCompress';
 
 interface FbCreatePageLandingViewProps {
   onBack: () => void;
@@ -62,52 +69,88 @@ const PRESET_COVERS = [
 
 const CATEGORIES_OPTIONS = [
   {
-    name: 'Shopping & Retail • কেনাকাটা ও রিটেইল',
-    short: 'Shopping & retail',
-    icon: ShoppingBag,
-    color: 'from-amber-500 to-orange-600',
-  },
-  {
-    name: 'Digital Creator • ডিজিটাল ক্রিয়েটর',
-    short: 'Digital creator',
+    name: 'Digital Creator (ডিজিটাল ক্রিয়েটর)',
+    short: 'Digital Creator',
     icon: Sparkles,
     color: 'from-blue-500 to-indigo-600',
   },
   {
-    name: 'Food & Restaurant • খাবার ও রেস্তোরাঁ',
+    name: 'Public Figure (পাবলিক ফিগার)',
+    short: 'Public Figure',
+    icon: User,
+    color: 'from-sky-500 to-blue-600',
+  },
+  {
+    name: 'Shopping & Retail (শপিং ও রিটেইল)',
+    short: 'Shopping & Retail',
+    icon: ShoppingBag,
+    color: 'from-amber-500 to-orange-600',
+  },
+  {
+    name: 'Entrepreneur & Business (ব্যবসা ও উদ্যোক্তা)',
+    short: 'Entrepreneur & Business',
+    icon: Briefcase,
+    color: 'from-purple-500 to-violet-700',
+  },
+  {
+    name: 'Education & Academy (শিক্ষা ও একাডেমি)',
+    short: 'Education & Academy',
+    icon: GraduationCap,
+    color: 'from-sky-500 to-blue-700',
+  },
+  {
+    name: 'Media & News Company (মিডিয়া ও নিউজ)',
+    short: 'Media & News Company',
+    icon: Tv,
+    color: 'from-rose-500 to-pink-700',
+  },
+  {
+    name: 'Video & Entertainment (ভিডিও ও বিনোদন)',
+    short: 'Video & Entertainment',
+    icon: Tv,
+    color: 'from-fuchsia-500 to-purple-600',
+  },
+  {
+    name: 'Food & Restaurant (খাবার ও রেস্তোরাঁ)',
     short: 'Food & Restaurant',
     icon: Utensils,
     color: 'from-emerald-500 to-teal-600',
   },
   {
-    name: 'Islamic Organization • দ্বীনি ও সমাজসেবা',
-    short: 'Islamic organization',
+    name: 'Community Organization (কমিউনিটি সংগঠন)',
+    short: 'Community Organization',
+    icon: Flag,
+    color: 'from-teal-500 to-emerald-700',
+  },
+  {
+    name: 'Religious & Islamic Center (ধর্মীয় ও ইসলামিক প্রতিষ্ঠান)',
+    short: 'Religious & Islamic Center',
     icon: BookOpen,
     color: 'from-emerald-600 to-green-700',
   },
   {
-    name: 'Education & Coaching • শিক্ষা ও একাডেমি',
-    short: 'Education',
-    icon: GraduationCap,
-    color: 'from-sky-500 to-blue-700',
+    name: 'Nonprofit & Charity (চ্যারিটি ও সেবা)',
+    short: 'Nonprofit & Charity',
+    icon: Heart,
+    color: 'from-rose-500 to-red-600',
   },
   {
-    name: 'Business & Agency • ব্যবসা ও কোম্পানি',
-    short: 'Business & Consulting',
-    icon: Briefcase,
-    color: 'from-purple-500 to-violet-700',
-  },
-  {
-    name: 'Media & News • মিডিয়া ও সংবাদ',
-    short: 'Media & news',
-    icon: Tv,
-    color: 'from-rose-500 to-pink-700',
-  },
-  {
-    name: 'Health & Beauty • স্বাস্থ্য ও রূপচর্চা',
-    short: 'Health & beauty',
+    name: 'Health & Wellness (স্বাস্থ্য ও সুস্থতা)',
+    short: 'Health & Wellness',
     icon: Heart,
     color: 'from-pink-500 to-rose-600',
+  },
+  {
+    name: 'Personal Blog (পার্সোনাল ব্লগ)',
+    short: 'Personal Blog',
+    icon: Edit3,
+    color: 'from-indigo-500 to-blue-600',
+  },
+  {
+    name: 'Local Business & Service (লোকাল বিজনেস)',
+    short: 'Local Business & Service',
+    icon: MapPin,
+    color: 'from-orange-500 to-amber-700',
   },
 ];
 
@@ -204,8 +247,8 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
     );
   };
 
-  // Helper: Image file upload
-  const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'cover') => {
+  // Helper: Image file upload with XXX-only visual/filename check
+  const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>, target: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
@@ -216,14 +259,31 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       return;
     }
 
-    const reader = new FileReader();
-    reader.onload = () => {
-      if (typeof reader.result === 'string') {
-        if (target === 'avatar') setSelectedAvatar(reader.result);
-        else setSelectedCover(reader.result);
+    const nameCheck = checkMediaFilenamesSafe([file]);
+    if (!nameCheck.safe) {
+      setValidationError(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
+    setValidationError(null);
+    try {
+      const compressed = await compressImageFileToDataUrl(file, {
+        maxDimension: target === 'cover' ? 1080 : 720,
+        quality: 0.76,
+      });
+      const visual = await checkMediaVisualSafety({
+        mediaDataUrls: [compressed],
+        fileNames: [file.name],
+      });
+      if (!visual.safe) {
+        setValidationError(visual.reason || ADULT_BLOCK_MESSAGE);
+        return;
       }
-    };
-    reader.readAsDataURL(file);
+      if (target === 'avatar') setSelectedAvatar(compressed);
+      else setSelectedCover(compressed);
+    } catch {
+      setValidationError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
+    }
   };
 
   // Final Form Submit Handler
@@ -231,6 +291,12 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
     e.preventDefault();
     if (!pageName.trim()) {
       setValidationError('দয়া করে পেজের একটি নাম লিখুন (Page Name is required)');
+      window.scrollTo({ top: 120, behavior: 'smooth' });
+      return;
+    }
+    const textCheck = checkPost(`${pageName} ${bio} ${customCategory}`);
+    if (!textCheck.isApproved) {
+      setValidationError(textCheck.reason || ADULT_BLOCK_MESSAGE);
       window.scrollTo({ top: 120, behavior: 'smooth' });
       return;
     }

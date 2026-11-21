@@ -88,6 +88,13 @@ import { getPageMonetizationById } from '../../utils/adminControlStorage';
 import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
 import { sanitizeInput, validateMediaUpload } from '../../utils/security';
 import { useHistoryBack } from '../../utils/backNavigation';
+import { FACEBOOK_PAGE_CATEGORIES } from '../../utils/categories';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+  checkPost,
+} from '../../lib/halalFilter';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -191,16 +198,7 @@ const PRESET_AVATARS = [
   'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
 ];
 
-const CATEGORIES_LIST = [
-  'Shopping & Retail (হালাল শপ / ব্যবসা)',
-  'Education (দ্বীনি ও কুরআন শিক্ষা)',
-  'Public Figure (ইসলামিক বক্তা / আলোচক)',
-  'Creator (কন্টেন্ট ক্রিয়েটর)',
-  'Nonprofit & Charity (চ্যারিটি ও সেবা)',
-  'Mosque & Community (মসজিদ ও সমাজ)',
-  'Food & Restaurant (হালাল খাদ্য)',
-  'Media & News (সংবাদ ও সংস্কৃতি)',
-];
+const CATEGORIES_LIST = FACEBOOK_PAGE_CATEGORIES.map((c) => c.value);
 
 interface PageCategoryConfig {
   value: string;
@@ -214,76 +212,130 @@ interface PageCategoryConfig {
 
 const PAGE_CATEGORIES_CONFIG: PageCategoryConfig[] = [
   {
-    value: 'Shopping & Retail (হালাল শপ / ব্যবসা)',
-    nameBangla: 'হালাল শপ / ব্যবসা প্রতিষ্ঠান',
-    nameEnglish: 'Shopping & Retail (হালাল পণ্য)',
-    icon: ShoppingBag,
-    iconBg: 'bg-amber-100 text-amber-700 border border-amber-200',
-    cardBg: 'bg-white hover:bg-[#F0F2F5]',
-    borderClass: 'border-[#E4E6EB] hover:border-amber-400',
-  },
-  {
-    value: 'Education (দ্বীনি ও কুরআন শিক্ষা)',
-    nameBangla: 'দ্বীনি ও কুরআন শিক্ষা প্রতিষ্ঠান',
-    nameEnglish: 'Education & Quran Academy',
-    icon: BookOpen,
-    iconBg: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
-    cardBg: 'bg-white hover:bg-[#F0F2F5]',
-    borderClass: 'border-[#E4E6EB] hover:border-emerald-400',
-  },
-  {
-    value: 'Public Figure (ইসলামিক বক্তা / আলোচক)',
-    nameBangla: 'ইসলামিক আলোচক ও ব্যক্তিত্ব',
-    nameEnglish: 'Public Figure & Speaker',
-    icon: UserCheck,
-    iconBg: 'bg-sky-100 text-sky-700 border border-sky-200',
-    cardBg: 'bg-white hover:bg-[#F0F2F5]',
-    borderClass: 'border-[#E4E6EB] hover:border-sky-400',
-  },
-  {
-    value: 'Creator (কন্টেন্ট ক্রিয়েটর)',
+    value: 'Digital Creator (ডিজিটাল ক্রিয়েটর)',
     nameBangla: 'ডিজিটাল কনটেন্ট ক্রিয়েটর',
-    nameEnglish: 'Video & Content Creator',
+    nameEnglish: 'Digital Creator',
     icon: Sparkles,
     iconBg: 'bg-purple-100 text-purple-700 border border-purple-200',
     cardBg: 'bg-white hover:bg-[#F0F2F5]',
     borderClass: 'border-[#E4E6EB] hover:border-purple-400',
   },
   {
-    value: 'Nonprofit & Charity (চ্যারিটি ও সেবা)',
-    nameBangla: 'চ্যারিটি ও সমাজসেবা সংগঠন',
-    nameEnglish: 'Nonprofit & Charity Org',
-    icon: HeartHandshake,
-    iconBg: 'bg-rose-100 text-rose-700 border border-rose-200',
+    value: 'Public Figure (পাবলিক ফিগার)',
+    nameBangla: 'পাবলিক ফিগার ও ব্যক্তিত্ব',
+    nameEnglish: 'Public Figure',
+    icon: UserCheck,
+    iconBg: 'bg-sky-100 text-sky-700 border border-sky-200',
     cardBg: 'bg-white hover:bg-[#F0F2F5]',
-    borderClass: 'border-[#E4E6EB] hover:border-rose-400',
+    borderClass: 'border-[#E4E6EB] hover:border-sky-400',
   },
   {
-    value: 'Mosque & Community (মসজিদ ও সমাজ)',
-    nameBangla: 'মসজিদ ও ইসলামিক সমাজ',
-    nameEnglish: 'Mosque & Islamic Center',
+    value: 'Shopping & Retail (শপিং ও রিটেইল)',
+    nameBangla: 'শপিং ও রিটেইল / হালাল শপ',
+    nameEnglish: 'Shopping & Retail',
+    icon: ShoppingBag,
+    iconBg: 'bg-amber-100 text-amber-700 border border-amber-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-amber-400',
+  },
+  {
+    value: 'Entrepreneur & Business (ব্যবসা ও উদ্যোক্তা)',
+    nameBangla: 'ব্যবসা ও উদ্যোক্তা প্রতিষ্ঠান',
+    nameEnglish: 'Entrepreneur & Business',
     icon: Building,
-    iconBg: 'bg-teal-100 text-teal-700 border border-teal-200',
+    iconBg: 'bg-indigo-100 text-indigo-700 border border-indigo-200',
     cardBg: 'bg-white hover:bg-[#F0F2F5]',
-    borderClass: 'border-[#E4E6EB] hover:border-teal-400',
+    borderClass: 'border-[#E4E6EB] hover:border-indigo-400',
   },
   {
-    value: 'Food & Restaurant (হালাল খাদ্য)',
-    nameBangla: 'হালাল রেস্টুরেন্ট ও ফুড শপ',
-    nameEnglish: 'Food & Halal Restaurant',
+    value: 'Education & Academy (শিক্ষা ও একাডেমি)',
+    nameBangla: 'শিক্ষা, কোচিং ও একাডেমি',
+    nameEnglish: 'Education & Academy',
+    icon: BookOpen,
+    iconBg: 'bg-emerald-100 text-emerald-700 border border-emerald-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-emerald-400',
+  },
+  {
+    value: 'Media & News Company (মিডিয়া ও নিউজ)',
+    nameBangla: 'মিডিয়া ও সংবাদ প্রকাশনা',
+    nameEnglish: 'Media & News Company',
+    icon: Radio,
+    iconBg: 'bg-blue-100 text-[#0866FF] border border-blue-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-[#0866FF]',
+  },
+  {
+    value: 'Video & Entertainment (ভিডিও ও বিনোদন)',
+    nameBangla: 'ভিডিও ও বিনোদন ক্রিয়েটর',
+    nameEnglish: 'Video & Entertainment',
+    icon: Video,
+    iconBg: 'bg-fuchsia-100 text-fuchsia-700 border border-fuchsia-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-fuchsia-400',
+  },
+  {
+    value: 'Food & Restaurant (খাবার ও রেস্তোরাঁ)',
+    nameBangla: 'খাবার ও রেস্তোরাঁ শপ',
+    nameEnglish: 'Food & Restaurant',
     icon: Utensils,
     iconBg: 'bg-orange-100 text-orange-700 border border-orange-200',
     cardBg: 'bg-white hover:bg-[#F0F2F5]',
     borderClass: 'border-[#E4E6EB] hover:border-orange-400',
   },
   {
-    value: 'Media & News (সংবাদ ও সংস্কৃতি)',
-    nameBangla: 'মিডিয়া ও সংবাদ প্রকাশনা',
-    nameEnglish: 'Media & News Publishing',
-    icon: Radio,
-    iconBg: 'bg-blue-100 text-[#0866FF] border border-blue-200',
+    value: 'Community Organization (কমিউনিটি সংগঠন)',
+    nameBangla: 'কমিউনিটি ও সমাজ সংগঠন',
+    nameEnglish: 'Community Organization',
+    icon: Users,
+    iconBg: 'bg-teal-100 text-teal-700 border border-teal-200',
     cardBg: 'bg-white hover:bg-[#F0F2F5]',
-    borderClass: 'border-[#E4E6EB] hover:border-[#0866FF]',
+    borderClass: 'border-[#E4E6EB] hover:border-teal-400',
+  },
+  {
+    value: 'Religious & Islamic Center (ধর্মীয় ও ইসলামিক প্রতিষ্ঠান)',
+    nameBangla: 'মসজিদ ও ইসলামিক প্রতিষ্ঠান',
+    nameEnglish: 'Religious & Islamic Center',
+    icon: Building,
+    iconBg: 'bg-emerald-100 text-emerald-800 border border-emerald-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-emerald-500',
+  },
+  {
+    value: 'Nonprofit & Charity (চ্যারিটি ও সেবা)',
+    nameBangla: 'চ্যারিটি ও সমাজসেবা সংস্থা',
+    nameEnglish: 'Nonprofit & Charity',
+    icon: HeartHandshake,
+    iconBg: 'bg-rose-100 text-rose-700 border border-rose-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-rose-400',
+  },
+  {
+    value: 'Health & Wellness (স্বাস্থ্য ও সুস্থতা)',
+    nameBangla: 'স্বাস্থ্য ও সুস্থতা কেন্দ্র',
+    nameEnglish: 'Health & Wellness',
+    icon: Heart,
+    iconBg: 'bg-pink-100 text-pink-700 border border-pink-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-pink-400',
+  },
+  {
+    value: 'Personal Blog (পার্সোনাল ব্লগ)',
+    nameBangla: 'পার্সোনাল ব্লগ ও লেখালেখি',
+    nameEnglish: 'Personal Blog',
+    icon: FileText,
+    iconBg: 'bg-slate-100 text-slate-700 border border-slate-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-slate-400',
+  },
+  {
+    value: 'Local Business & Service (লোকাল বিজনেস)',
+    nameBangla: 'লোকাল বিজনেস ও সার্ভিস',
+    nameEnglish: 'Local Business & Service',
+    icon: MapPin,
+    iconBg: 'bg-amber-100 text-amber-800 border border-amber-200',
+    cardBg: 'bg-white hover:bg-[#F0F2F5]',
+    borderClass: 'border-[#E4E6EB] hover:border-amber-500',
   },
 ];
 
@@ -1011,6 +1063,23 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const handlePublishPagePost = async () => {
     if ((!pagePostText.trim() && !pagePostImage) || !selectedPage) return;
 
+    const textCheck = checkPost(pagePostText);
+    if (!textCheck.isApproved) {
+      showToast(textCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
+    if (pagePostImage && pagePostImage.startsWith('data:image/')) {
+      const visualCheck = await checkMediaVisualSafety({
+        mediaDataUrls: [pagePostImage],
+        caption: pagePostText,
+      });
+      if (!visualCheck.safe) {
+        showToast(visualCheck.reason || ADULT_BLOCK_MESSAGE);
+        return;
+      }
+    }
+
     const todayStr = new Date().toLocaleDateString('en-US', {
       month: 'short',
       day: 'numeric',
@@ -1047,6 +1116,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
     setPagePostText('');
     setPagePostImage('');
+    setShowPageComposer(false);
 
     if (creatorPrefs.creatorNotifyFollowersOnPost) {
       showToast('পেজে পোস্ট প্রকাশিত ও সব ফলোয়ারকে নোটিফিকেশন পাঠানো হচ্ছে!');
@@ -2079,8 +2149,21 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
                             return;
                           }
+                          const nameCheck = checkMediaFilenamesSafe([file]);
+                          if (!nameCheck.safe) {
+                            showToast(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+                            return;
+                          }
                           try {
                             const b64 = await fileToBase64(file);
+                            const visualCheck = await checkMediaVisualSafety({
+                              mediaDataUrls: [b64],
+                              fileNames: [file.name],
+                            });
+                            if (!visualCheck.safe) {
+                              showToast(visualCheck.reason || ADULT_BLOCK_MESSAGE);
+                              return;
+                            }
                             setPagePostImage(b64);
                             setShowPageComposer(true);
                             showToast('ফটো যুক্ত করা হয়েছে!');
@@ -2138,8 +2221,21 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
                                 return;
                               }
+                              const nameCheck = checkMediaFilenamesSafe([file]);
+                              if (!nameCheck.safe) {
+                                showToast(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+                                return;
+                              }
                               try {
                                 const b64 = await fileToBase64(file);
+                                const visualCheck = await checkMediaVisualSafety({
+                                  mediaDataUrls: [b64],
+                                  fileNames: [file.name],
+                                });
+                                if (!visualCheck.safe) {
+                                  showToast(visualCheck.reason || ADULT_BLOCK_MESSAGE);
+                                  return;
+                                }
                                 setPagePostImage(b64);
                                 showToast('ফটো যুক্ত করা হয়েছে!');
                               } catch {}
@@ -2150,7 +2246,6 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           type="button"
                           onClick={() => {
                             void handlePublishPagePost();
-                            setShowPageComposer(false);
                           }}
                           disabled={!pagePostText.trim() && !pagePostImage}
                           className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-50 text-white font-bold text-xs transition-colors flex items-center gap-1.5 cursor-pointer"
@@ -3783,13 +3878,37 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   />
                 </div>
 
-                <div>
-                  <label className="block text-xs font-bold text-[#050505] mb-1">ক্যাটাগরি (Category)</label>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-[#050505]">ফেসবুক পেজ ক্যাটাগরি (Category)</label>
+                  <select
+                    value={
+                      FACEBOOK_PAGE_CATEGORIES.some((c) => c.value === editCategory)
+                        ? editCategory
+                        : '__custom__'
+                    }
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val !== '__custom__') {
+                        setEditCategory(val);
+                      }
+                    }}
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#050505] font-semibold focus:outline-none focus:border-[#0866FF] cursor-pointer"
+                  >
+                    {FACEBOOK_PAGE_CATEGORIES.map((cat) => (
+                      <option key={cat.value} value={cat.value}>
+                        {cat.value}
+                      </option>
+                    ))}
+                    {!FACEBOOK_PAGE_CATEGORIES.some((c) => c.value === editCategory) && (
+                      <option value="__custom__">{editCategory || 'Custom Category'}</option>
+                    )}
+                  </select>
                   <input
                     type="text"
                     value={editCategory}
                     onChange={(e) => setEditCategory(e.target.value)}
-                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#050505] focus:outline-none focus:border-[#0866FF]"
+                    placeholder="অথবা কাস্টম ক্যাটাগরি লিখুন..."
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-xs text-[#050505] focus:outline-none focus:border-[#0866FF]"
                   />
                 </div>
 

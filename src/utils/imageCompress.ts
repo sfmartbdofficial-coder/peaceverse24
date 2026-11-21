@@ -88,3 +88,70 @@ export async function compressPostImagesBatch(
   }
   return results;
 }
+
+/**
+ * Extracts a single lightweight JPEG frame from a local video File so visual
+ * explicit/adult-content safety checks can inspect video uploads cleanly.
+ */
+export function extractVideoFrameDataUrl(file: File): Promise<string | null> {
+  if (typeof document === 'undefined' || !file.type.startsWith('video/')) {
+    return Promise.resolve(null);
+  }
+  return new Promise((resolve) => {
+    const url = URL.createObjectURL(file);
+    const video = document.createElement('video');
+    let settled = false;
+
+    const finish = (result: string | null) => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      resolve(result);
+    };
+
+    const timer = window.setTimeout(() => finish(null), 2500);
+
+    video.muted = true;
+    video.playsInline = true;
+    video.preload = 'metadata';
+
+    video.onloadeddata = () => {
+      try {
+        video.currentTime = Math.min(1, (video.duration || 1) / 3);
+      } catch {
+        window.clearTimeout(timer);
+        finish(null);
+      }
+    };
+
+    video.onseeked = () => {
+      window.clearTimeout(timer);
+      try {
+        const canvas = document.createElement('canvas');
+        const w = Math.min(480, video.videoWidth || 320);
+        const h = Math.max(
+          1,
+          Math.round(((video.videoHeight || 240) / (video.videoWidth || 320)) * w)
+        );
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          finish(null);
+          return;
+        }
+        ctx.drawImage(video, 0, 0, w, h);
+        finish(canvas.toDataURL('image/jpeg', 0.65));
+      } catch {
+        finish(null);
+      }
+    };
+
+    video.onerror = () => {
+      window.clearTimeout(timer);
+      finish(null);
+    };
+
+    video.src = url;
+  });
+}

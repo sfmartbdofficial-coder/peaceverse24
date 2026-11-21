@@ -15,6 +15,13 @@ import {
 } from 'lucide-react';
 import { StoryItem, UserProfile } from '../../types';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+  checkPost,
+} from '../../lib/halalFilter';
+import { compressImageFileToDataUrl } from '../../utils/imageCompress';
 
 interface FbCreateStoryModalProps {
   userProfile: UserProfile;
@@ -129,35 +136,71 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDeviceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const check = validateMediaUpload(file, ['image']);
-      if (!check.valid) {
-        setUploadError(check.error || 'Max 5MB image file allowed.');
-        e.target.value = '';
+    e.target.value = '';
+    if (!file) return;
+
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      setUploadError(check.error || 'Max 5MB image file allowed.');
+      return;
+    }
+
+    const nameCheck = checkMediaFilenamesSafe([file], storyText);
+    if (!nameCheck.safe) {
+      setUploadError(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
+    setUploadError(null);
+    try {
+      const compressedUrl = await compressImageFileToDataUrl(file, {
+        maxDimension: 960,
+        quality: 0.76,
+      });
+      const visualCheck = await checkMediaVisualSafety({
+        mediaDataUrls: [compressedUrl],
+        caption: storyText,
+        fileNames: [file.name],
+      });
+      if (!visualCheck.safe) {
+        setUploadError(visualCheck.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      setUploadError(null);
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        if (event.target?.result) {
-          const url = event.target.result as string;
-          setUploadedPhotos((prev) => [url, ...prev]);
-          setSelectedPhoto(url);
-        }
-      };
-      reader.readAsDataURL(file);
+      setUploadedPhotos((prev) => [compressedUrl, ...prev]);
+      setSelectedPhoto(compressedUrl);
+    } catch {
+      setUploadError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
     }
   };
 
-  const handlePublishStory = (imgUrl?: string, caption?: string, arabic?: string) => {
+  const handlePublishStory = async (imgUrl?: string, caption?: string, arabic?: string) => {
+    const combinedCaption = `${caption || storyText || ''} ${arabic || arabicText || ''}`.trim();
+    const textCheck = checkPost(combinedCaption);
+    if (!textCheck.isApproved) {
+      setUploadError(textCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
+    const finalImg = imgUrl || selectedPhoto;
+    if (finalImg && finalImg.startsWith('data:image/')) {
+      const visualCheck = await checkMediaVisualSafety({
+        mediaDataUrls: [finalImg],
+        caption: combinedCaption,
+      });
+      if (!visualCheck.safe) {
+        setUploadError(visualCheck.reason || ADULT_BLOCK_MESSAGE);
+        return;
+      }
+    }
+
     const newStory: StoryItem = {
       id: `story-${Date.now()}`,
       authorName: userProfile.name,
       authorAvatar: userProfile.avatar,
       bgGradient: selectedGradient,
-      previewImage: imgUrl || selectedPhoto || undefined,
+      previewImage: finalImg || undefined,
       banglaText: sanitizeInput(caption || storyText || 'নতুন স্টোরি আপডেট 🌸'),
       arabicText: arabic || arabicText ? sanitizeInput(arabic || arabicText) : undefined,
       timestamp: 'এখনই',
@@ -191,9 +234,10 @@ export const FbCreateStoryModal: React.FC<FbCreateStoryModalProps> = ({
         <h1 className="text-base font-bold text-black">Create story</h1>
 
         <button
-          onClick={() => {}}
-          className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
-          title="Settings"
+          type="button"
+          onClick={() => setActiveMode((prev) => (prev === 'templates' ? 'gallery' : 'templates'))}
+          className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors cursor-pointer"
+          title="Story templates"
         >
           <Settings className="w-5 h-5" />
         </button>

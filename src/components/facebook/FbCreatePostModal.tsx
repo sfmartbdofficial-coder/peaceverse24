@@ -23,9 +23,19 @@ import {
   Plus,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
-import { checkPost } from '../../lib/halalFilter';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+  checkPost,
+} from '../../lib/halalFilter';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
-import { compressPostImagesBatch, MAX_POST_PHOTOS, readFileAsDataUrl } from '../../utils/imageCompress';
+import {
+  compressPostImagesBatch,
+  extractVideoFrameDataUrl,
+  MAX_POST_PHOTOS,
+  readFileAsDataUrl,
+} from '../../utils/imageCompress';
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
@@ -102,6 +112,8 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     }
     return null;
   });
+  const [pendingVideoFrame, setPendingVideoFrame] = useState<string | null>(null);
+  const [pendingFileNames, setPendingFileNames] = useState<string[]>([]);
 
   // Quran Verse / Hadith
   const [showAyahBox, setShowAyahBox] = useState(false);
@@ -146,6 +158,15 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
     setModerationError(null);
 
+    const nameCheck = checkMediaFilenamesSafe(files);
+    if (!nameCheck.safe) {
+      setModerationError({
+        status: 'blocked',
+        reason: nameCheck.reason || ADULT_BLOCK_MESSAGE,
+      });
+      return;
+    }
+
     const videoFile = files.find((f) => f.type.startsWith('video/'));
     if (videoFile) {
       const check = validateMediaUpload(videoFile, ['video']);
@@ -158,8 +179,23 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       }
       setIsProcessingMedia(true);
       try {
+        const frame = await extractVideoFrameDataUrl(videoFile);
+        const visualCheck = await checkMediaVisualSafety({
+          mediaDataUrls: frame ? [frame] : [],
+          caption: content,
+          fileNames: [videoFile.name],
+        });
+        if (!visualCheck.safe) {
+          setModerationError({
+            status: 'blocked',
+            reason: visualCheck.reason || ADULT_BLOCK_MESSAGE,
+          });
+          return;
+        }
         const videoUrl = await readFileAsDataUrl(videoFile);
         setSelectedVideo(videoUrl);
+        setPendingVideoFrame(frame);
+        setPendingFileNames([videoFile.name]);
         setSelectedPhotos([]);
       } catch {
         setModerationError({
@@ -206,7 +242,21 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     try {
       const totalCount = selectedPhotos.length + acceptedFiles.length;
       const compressedUrls = await compressPostImagesBatch(acceptedFiles, totalCount);
+      const visualCheck = await checkMediaVisualSafety({
+        mediaDataUrls: compressedUrls.slice(0, 3),
+        caption: content,
+        fileNames: acceptedFiles.map((f) => f.name),
+      });
+      if (!visualCheck.safe) {
+        setModerationError({
+          status: 'blocked',
+          reason: visualCheck.reason || ADULT_BLOCK_MESSAGE,
+        });
+        return;
+      }
       setSelectedVideo(null);
+      setPendingVideoFrame(null);
+      setPendingFileNames((prev) => [...prev, ...acceptedFiles.map((f) => f.name)].slice(0, MAX_POST_PHOTOS));
       setSelectedPhotos((prev) => [...prev, ...compressedUrls].slice(0, MAX_POST_PHOTOS));
       if (imageFiles.length > remainingSlots) {
         setModerationError({
@@ -226,6 +276,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
   const removePhotoAtIndex = (idx: number) => {
     setSelectedPhotos((prev) => prev.filter((_, i) => i !== idx));
+    setPendingFileNames((prev) => prev.filter((_, i) => i !== idx));
     setModerationError(null);
   };
 
@@ -251,13 +302,36 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     setModerationError(null);
 
     try {
-      const filterResult = checkPost(content + ' ' + (arabicText || ''));
-      setIsVerifyingHalal(false);
+      const combinedText = `${content} ${arabicText || ''} ${translationText || ''}`.trim();
+      const filterResult = checkPost(combinedText);
 
       if (!filterResult.isApproved) {
+        setIsVerifyingHalal(false);
         setModerationError({
           status: 'blocked',
-          reason: 'দুঃখিত, এই পোস্টে নিষিদ্ধ কনটেন্ট আছে',
+          reason: filterResult.reason || ADULT_BLOCK_MESSAGE,
+        });
+        return;
+      }
+
+      const samplesToCheck = selectedVideo
+        ? pendingVideoFrame
+          ? [pendingVideoFrame]
+          : []
+        : selectedPhotos.slice(0, 3);
+
+      const visualResult = await checkMediaVisualSafety({
+        mediaDataUrls: samplesToCheck,
+        caption: combinedText,
+        fileNames: pendingFileNames,
+      });
+
+      setIsVerifyingHalal(false);
+
+      if (!visualResult.safe) {
+        setModerationError({
+          status: 'blocked',
+          reason: visualResult.reason || ADULT_BLOCK_MESSAGE,
         });
         return;
       }
@@ -363,9 +437,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
         <button
           type="button"
-          onClick={() => {}}
+          onClick={() => setShowPrivacyMenu((prev) => !prev)}
           className="p-1.5 rounded-full text-[#050505] hover:bg-[#F0F2F5] transition-colors cursor-pointer"
-          title="More options"
+          title="Post audience options"
           aria-label="More options"
         >
           <MoreHorizontal className="w-5 h-5" />

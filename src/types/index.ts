@@ -201,6 +201,7 @@ export interface UserProfile {
   email?: string;
   name: string;
   username?: string;
+  profileCategory?: string;
   avatar: string;
   coverPhoto: string;
   friendsCount: number;

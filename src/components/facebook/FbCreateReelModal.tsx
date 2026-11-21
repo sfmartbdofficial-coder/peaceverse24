@@ -15,6 +15,13 @@ import {
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+  checkPost,
+} from '../../lib/halalFilter';
+import { extractVideoFrameDataUrl, readFileAsDataUrl } from '../../utils/imageCompress';
 
 interface FbCreateReelModalProps {
   userProfile: UserProfile;
@@ -84,31 +91,91 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
   const [selectedCategory, setSelectedCategory] = useState<string>('Makkah Live');
   const [uploadedVideos, setUploadedVideos] = useState<Array<{ url: string; title: string; duration: string }>>([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [isCheckingMedia, setIsCheckingMedia] = useState(false);
+  const [reelInfoNotice, setReelInfoNotice] = useState<string | null>(null);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleDeviceUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
-    if (file) {
-      const check = validateMediaUpload(file, ['video', 'image']);
-      if (!check.valid) {
-        setUploadError(check.error || 'Max 5MB video/image file allowed.');
-        e.target.value = '';
+    e.target.value = '';
+    if (!file) return;
+
+    const check = validateMediaUpload(file, ['video', 'image']);
+    if (!check.valid) {
+      setUploadError(check.error || 'Max 50MB video or 5MB image file allowed.');
+      return;
+    }
+
+    const nameCheck = checkMediaFilenamesSafe([file], caption);
+    if (!nameCheck.safe) {
+      setUploadError(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
+    setUploadError(null);
+    setIsCheckingMedia(true);
+    try {
+      let frameOrImage: string | null = null;
+      if (file.type.startsWith('video/')) {
+        frameOrImage = await extractVideoFrameDataUrl(file);
+      } else if (file.type.startsWith('image/')) {
+        frameOrImage = await readFileAsDataUrl(file);
+      }
+
+      const visual = await checkMediaVisualSafety({
+        mediaDataUrls: frameOrImage ? [frameOrImage] : [],
+        caption,
+        fileNames: [file.name],
+      });
+      if (!visual.safe) {
+        setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      setUploadError(null);
-      const url = URL.createObjectURL(file);
+
+      const url =
+        file.size <= 700 * 1024
+          ? await readFileAsDataUrl(file)
+          : URL.createObjectURL(file);
+
       const newVideo = {
         url,
         title: file.name.replace(/\.[^/.]+$/, ''),
         duration: selectedDuration,
       };
       setUploadedVideos((prev) => [newVideo, ...prev]);
-      handlePublishReel(url, newVideo.title);
+      await handlePublishReel(url, newVideo.title, undefined, frameOrImage);
+    } catch {
+      setUploadError('ভিডিওটি প্রসেস করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।');
+    } finally {
+      setIsCheckingMedia(false);
     }
   };
 
-  const handlePublishReel = (videoUrl: string, reelTitle: string, arabicSnippet?: string) => {
+  const handlePublishReel = async (
+    videoUrl: string,
+    reelTitle: string,
+    arabicSnippet?: string,
+    previewImageDataUrl?: string | null
+  ) => {
+    const combinedCaption = `${caption} ${reelTitle} ${arabicSnippet || ''}`.trim();
+    const textCheck = checkPost(combinedCaption);
+    if (!textCheck.isApproved) {
+      setUploadError(textCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
+    if (previewImageDataUrl && previewImageDataUrl.startsWith('data:image/')) {
+      const visualCheck = await checkMediaVisualSafety({
+        mediaDataUrls: [previewImageDataUrl],
+        caption: combinedCaption,
+      });
+      if (!visualCheck.safe) {
+        setUploadError(visualCheck.reason || ADULT_BLOCK_MESSAGE);
+        return;
+      }
+    }
+
     const newReel: PostItem = {
       id: `reel-${Date.now()}`,
       author: {
@@ -119,7 +186,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       },
       timeAgo: 'Just now',
       isPublic: true,
-      contentBangla: sanitizeInput(caption || reelTitle || 'নতুন হালাল রিলস ভিডিও'),
+      contentBangla: sanitizeInput(caption || reelTitle || 'নতুন রিলস ভিডিও'),
       arabicVerse: arabicSnippet ? sanitizeInput(arabicSnippet) : undefined,
       mediaType: 'video',
       mediaUrl: videoUrl,
@@ -166,13 +233,29 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         <h1 className="text-base font-bold text-black">Create reel</h1>
 
         <button
-          onClick={() => {}}
-          className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors"
-          title="Settings"
+          onClick={() =>
+            setReelInfoNotice((prev) =>
+              prev ? null : 'সব ধরনের স্বাভাবিক ভিডিও ও ছবি আপলোড করা যাবে (শুধু XXX/অশ্লীল কনটেন্ট নিষিদ্ধ)।'
+            )
+          }
+          className="p-1.5 rounded-full text-black hover:bg-[#F0F2F5] transition-colors cursor-pointer"
+          title="Reel Guidelines"
         >
           <Settings className="w-5 h-5" />
         </button>
       </div>
+
+      {isCheckingMedia && (
+        <div className="mx-4 mt-2 p-2.5 rounded-xl bg-[#E7F3FF] border border-[#0866FF]/30 text-[#0866FF] text-xs font-semibold">
+          ভিডিও যাচাই ও প্রস্তুত করা হচ্ছে...
+        </div>
+      )}
+
+      {reelInfoNotice && !uploadError && (
+        <div className="mx-4 mt-2 p-2.5 rounded-xl bg-[#F0F2F5] border border-[#E4E6EB] text-[#050505] text-xs font-medium">
+          {reelInfoNotice}
+        </div>
+      )}
 
       {uploadError && (
         <div className="mx-4 mt-2 p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold">
@@ -185,8 +268,9 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         <div className="flex items-center justify-around max-w-md mx-auto">
           {/* Camera */}
           <button
+            type="button"
             onClick={() => fileInputRef.current?.click()}
-            className="flex flex-col items-center gap-1.5 group"
+            className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <Camera className="w-6 h-6 stroke-[2]" />
@@ -196,8 +280,13 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
           {/* Music */}
           <button
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1.5 group"
+            type="button"
+            onClick={() => {
+              setSelectedCategory('Quran Tilawat');
+              setCaption((prev) => prev || 'মধুর সুর ও মিউজিক রিলস 🎵');
+              setReelInfoNotice('অডিও / মিউজিক রিলস মোড সক্রিয় হয়েছে — এখন ফোনের ভিডিও বা নিচের টেমপ্লেট বাছুন।');
+            }}
+            className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <Music className="w-6 h-6 stroke-[2]" />
@@ -207,8 +296,12 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
           {/* Templates */}
           <button
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1.5 group"
+            type="button"
+            onClick={() => {
+              setSelectedCategory('Makkah Live');
+              setReelInfoNotice('নিচের রেডিমেড রিলস টেমপ্লেট থেকে যেকোনো একটি সিলেক্ট করুন।');
+            }}
+            className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <PlusCircle className="w-6 h-6 stroke-[2]" />
@@ -218,8 +311,23 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
           {/* Drafts */}
           <button
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1.5 group"
+            type="button"
+            onClick={() => {
+              const draftKey = 'peaceverse_reel_draft_caption';
+              if (caption.trim()) {
+                localStorage.setItem(draftKey, caption.trim());
+                setReelInfoNotice('আপনার রিলস ক্যাপশন ড্রাফটে সংরক্ষণ করা হয়েছে।');
+              } else {
+                const savedDraft = localStorage.getItem(draftKey);
+                if (savedDraft) {
+                  setCaption(savedDraft);
+                  setReelInfoNotice('আগের সেভ করা ড্রাফট লোড করা হয়েছে।');
+                } else {
+                  setReelInfoNotice('এখনো কোনো ড্রাফট সেভ করা হয়নি। আগে ক্যাপশন লিখুন।');
+                }
+              }
+            }}
+            className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <FileText className="w-6 h-6 stroke-[2]" />
@@ -229,8 +337,9 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
           {/* Green screen */}
           <button
-            onClick={() => {}}
-            className="flex flex-col items-center gap-1.5 group"
+            type="button"
+            onClick={() => fileInputRef.current?.click()}
+            className="flex flex-col items-center gap-1.5 group cursor-pointer"
           >
             <div className="w-13 h-13 sm:w-14 sm:h-14 rounded-full bg-[#F0F2F5] group-hover:bg-[#E4E6EB] flex items-center justify-center text-black transition-colors">
               <Scan className="w-6 h-6 stroke-[2]" />

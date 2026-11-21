@@ -2,7 +2,17 @@ import React, { useRef, useState } from 'react';
 import { Image as ImageIcon } from 'lucide-react';
 import { UserProfile, PageItem } from '../../types';
 import { validateMediaUpload } from '../../utils/security';
-import { compressPostImagesBatch, MAX_POST_PHOTOS, readFileAsDataUrl } from '../../utils/imageCompress';
+import {
+  compressPostImagesBatch,
+  extractVideoFrameDataUrl,
+  MAX_POST_PHOTOS,
+  readFileAsDataUrl,
+} from '../../utils/imageCompress';
+import {
+  ADULT_BLOCK_MESSAGE,
+  checkMediaFilenamesSafe,
+  checkMediaVisualSafety,
+} from '../../lib/halalFilter';
 
 interface FbCreatePostBoxProps {
   userProfile: UserProfile;
@@ -26,6 +36,13 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
     if (files.length === 0) return;
 
     setUploadError(null);
+
+    const filenameCheck = checkMediaFilenamesSafe(files);
+    if (!filenameCheck.safe) {
+      setUploadError(filenameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return;
+    }
+
     const videoFile = files.find((f) => f.type.startsWith('video/'));
     if (videoFile) {
       const check = validateMediaUpload(videoFile, ['video']);
@@ -34,6 +51,15 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
         return;
       }
       try {
+        const frame = await extractVideoFrameDataUrl(videoFile);
+        const visual = await checkMediaVisualSafety({
+          mediaDataUrls: frame ? [frame] : [],
+          fileNames: [videoFile.name],
+        });
+        if (!visual.safe) {
+          setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
+          return;
+        }
         const videoUrl = await readFileAsDataUrl(videoFile);
         onOpenCreateModal(videoUrl);
       } catch {
@@ -53,6 +79,14 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
 
     try {
       const compressed = await compressPostImagesBatch(imageFiles, imageFiles.length);
+      const visual = await checkMediaVisualSafety({
+        mediaDataUrls: compressed.slice(0, 3),
+        fileNames: imageFiles.map((f) => f.name),
+      });
+      if (!visual.safe) {
+        setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
+        return;
+      }
       onOpenCreateModal(compressed);
     } catch {
       setUploadError('ছবিগুলো প্রসেস করা যায়নি। আবার চেষ্টা করুন।');

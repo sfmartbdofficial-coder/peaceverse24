@@ -9,6 +9,7 @@ interface WorkerEnv {
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
   OTP_SIGNING_SECRET?: string;
+  GEMINI_API_KEY?: string;
 }
 
 const JSON_HEADERS: Record<string, string> = {
@@ -288,6 +289,195 @@ async function handleVerifyEmailOtp(request: Request, env: WorkerEnv): Promise<R
   }
 }
 
+const WORKER_ADULT_BLOCK_WORDS = [
+  'নগ্ন ছবি',
+  'নগ্ন ভিডিও',
+  'উলঙ্গ ছবি',
+  'উলঙ্গ ভিডিও',
+  'উলঙ্গ',
+  'পর্ন',
+  'পর্নোগ্রাফি',
+  'অশ্লীল ছবি',
+  'অশ্লীল ভিডিও',
+  'যৌন ভিডিও',
+  'যৌন ছবি',
+  'সেক্স ভিডিও',
+  'ব্লু ফিল্ম',
+  'এক্স এক্স এক্স',
+  'নটি ভিডিও',
+  'চটি গল্প',
+  'sex video',
+  'porn video',
+  'pornography',
+  'pornhub',
+  'xvideos',
+  'xnxx',
+  'xhamster',
+  'redtube',
+  'youporn',
+  'brazzers',
+  'onlyfans',
+  'blue film',
+  'nude photo',
+  'nude video',
+  'naked video',
+  'hentai',
+  'nsfw',
+];
+
+const WORKER_ADULT_REGEXES = [
+  /\bxxx+\b/i,
+  /\bxnxx\b/i,
+  /\bxvideos\b/i,
+  /\bxhamster\b/i,
+  /\bporn(?:o|ography|hub|star)?\b/i,
+  /\bsex[\s._-]*(?:video|clip|movie|tape|chat|cam)\b/i,
+  /\bnude(?:s)?\b/i,
+  /\bnaked\b/i,
+  /\bhentai\b/i,
+  /\berotic(?:a)?\b/i,
+  /\bbdsm\b/i,
+  /\bonlyfans\b/i,
+  /\bblowjob\b/i,
+  /\bhandjob\b/i,
+  /\bgangbang\b/i,
+  /\bmilf\b/i,
+  /\bmasturbat(?:e|ion)\b/i,
+];
+
+const WORKER_ADULT_BLOCK_MSG =
+  'দুঃখিত! নোংরা, অশ্লীল, নগ্ন বা XXX ধরনের ছবি ও ভিডিও আপলোড করা সম্পূর্ণ নিষিদ্ধ। বাকি সব স্বাভাবিক পোস্ট করতে পারবেন।';
+
+function hasExplicitAdultTerms(text: string): boolean {
+  const normalized = (text || '').toLowerCase();
+  if (!normalized.trim()) return false;
+  if (WORKER_ADULT_BLOCK_WORDS.some((phrase) => normalized.includes(phrase.toLowerCase()))) return true;
+  return WORKER_ADULT_REGEXES.some((re) => re.test(normalized));
+}
+
+async function handleModeratePost(request: Request): Promise<Response> {
+  try {
+    const body: any = await request.json().catch(() => ({}));
+    const postContent = typeof body?.postContent === 'string' ? body.postContent : '';
+    if (hasExplicitAdultTerms(postContent)) {
+      return new Response(
+        JSON.stringify({ isHalal: false, score: 0, feedback: WORKER_ADULT_BLOCK_MSG }),
+        { status: 200, headers: JSON_HEADERS }
+      );
+    }
+    return new Response(
+      JSON.stringify({ isHalal: true, score: 100, feedback: 'পোস্টটি অনুমোদিত।' }),
+      { status: 200, headers: JSON_HEADERS }
+    );
+  } catch {
+    return new Response(
+      JSON.stringify({ isHalal: true, score: 100, feedback: 'পোস্টটি অনুমোদিত।' }),
+      { status: 200, headers: JSON_HEADERS }
+    );
+  }
+}
+
+async function handleModerateMedia(request: Request, env: WorkerEnv): Promise<Response> {
+  try {
+    const body: any = await request.json().catch(() => ({}));
+    const caption = typeof body?.caption === 'string' ? body.caption : '';
+    const fileNames = Array.isArray(body?.fileNames)
+      ? body.fileNames.map((n: unknown) => String(n).replace(/[._-]+/g, ' '))
+      : [];
+
+    if (hasExplicitAdultTerms([caption, ...fileNames].join(' '))) {
+      return new Response(
+        JSON.stringify({ isExplicitAdult: true, reason: WORKER_ADULT_BLOCK_MSG }),
+        { status: 200, headers: JSON_HEADERS }
+      );
+    }
+
+    const imageList = Array.isArray(body?.images)
+      ? body.images.filter((u: unknown) => typeof u === 'string' && u.startsWith('data:image/')).slice(0, 3)
+      : [];
+
+    const geminiKey = (env.GEMINI_API_KEY || '').trim();
+    if (imageList.length === 0 || !geminiKey) {
+      return new Response(JSON.stringify({ isExplicitAdult: false }), {
+        status: 200,
+        headers: JSON_HEADERS,
+      });
+    }
+
+    const parts: any[] = [
+      {
+        text:
+          'You are a strict explicit-adult-content-only safety classifier. ' +
+          'ONLY flag explicit pornography, XXX sexual acts, exposed genitalia, or explicit nudity. ' +
+          'Allow ALL normal photos/videos including selfies, portraits, sports, music, comedy, food, nature, news, business, and family photos. ' +
+          'Respond strictly in JSON: {"isExplicitAdult": boolean}',
+      },
+    ];
+
+    for (const dataUrl of imageList) {
+      const commaIdx = dataUrl.indexOf(',');
+      if (commaIdx <= 0) continue;
+      const meta = dataUrl.slice(0, commaIdx);
+      const base64Data = dataUrl.slice(commaIdx + 1);
+      const mimeMatch = meta.match(/^data:(image\/[a-zA-Z0-9.+-]+);base64$/);
+      if (mimeMatch && base64Data) {
+        parts.push({
+          inlineData: {
+            mimeType: mimeMatch[1],
+            data: base64Data,
+          },
+        });
+      }
+    }
+
+    if (parts.length <= 1) {
+      return new Response(JSON.stringify({ isExplicitAdult: false }), {
+        status: 200,
+        headers: JSON_HEADERS,
+      });
+    }
+
+    const geminiRes = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${encodeURIComponent(geminiKey)}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ role: 'user', parts }],
+          generationConfig: { responseMimeType: 'application/json' },
+        }),
+      }
+    );
+
+    if (!geminiRes.ok) {
+      return new Response(JSON.stringify({ isExplicitAdult: false }), {
+        status: 200,
+        headers: JSON_HEADERS,
+      });
+    }
+
+    const geminiJson: any = await geminiRes.json().catch(() => null);
+    const rawText = geminiJson?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+    const parsed = JSON.parse(rawText);
+    if (parsed?.isExplicitAdult === true) {
+      return new Response(
+        JSON.stringify({ isExplicitAdult: true, reason: WORKER_ADULT_BLOCK_MSG }),
+        { status: 200, headers: JSON_HEADERS }
+      );
+    }
+
+    return new Response(JSON.stringify({ isExplicitAdult: false }), {
+      status: 200,
+      headers: JSON_HEADERS,
+    });
+  } catch {
+    return new Response(JSON.stringify({ isExplicitAdult: false }), {
+      status: 200,
+      headers: JSON_HEADERS,
+    });
+  }
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -303,6 +493,14 @@ export default {
 
       if (url.pathname === '/api/auth/verify-email-otp' && request.method === 'POST') {
         return handleVerifyEmailOtp(request, env);
+      }
+
+      if (url.pathname === '/api/ai/moderate-post' && request.method === 'POST') {
+        return handleModeratePost(request);
+      }
+
+      if (url.pathname === '/api/ai/moderate-media' && request.method === 'POST') {
+        return handleModerateMedia(request, env);
       }
 
       if (url.pathname === '/api/mobile-center/status' && request.method === 'GET') {
