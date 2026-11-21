@@ -1054,6 +1054,33 @@ export async function logoutUser(): Promise<void> {
   await signOut(auth);
 }
 
+export async function markCurrentUserEmailOtpVerified(): Promise<void> {
+  const u = auth.currentUser;
+  if (!u || !u.email) return;
+  try {
+    localStorage.setItem(
+      `peaceverse_otp_verified_${u.uid}`,
+      u.email.trim().toLowerCase()
+    );
+  } catch {}
+  try {
+    await setDoc(
+      doc(db, 'users', u.uid),
+      {
+        uid: u.uid,
+        id: u.uid,
+        email: u.email,
+        emailOtpVerified: true,
+        updatedAt: new Date().toISOString(),
+        updatedAtMillis: Date.now(),
+      },
+      { merge: true }
+    );
+  } catch (err) {
+    console.warn('Saving emailOtpVerified notice:', err);
+  }
+}
+
 // ==========================================
 // USER PROFILE & SOCIAL CONTACT PERSISTENCE
 // ==========================================

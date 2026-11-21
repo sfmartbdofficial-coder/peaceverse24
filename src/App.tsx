@@ -66,7 +66,7 @@ import {
   trackAdClick,
 } from './utils/adminControlStorage';
 import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff, MailCheck, ShieldAlert, Download } from 'lucide-react';
-import { onAuthStateChanged, updateProfile, sendEmailVerification, User as FirebaseUser } from 'firebase/auth';
+import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
 import { PeaceDoveEmblem } from './components/landing/PeaceDoveEmblem';
@@ -109,7 +109,9 @@ import {
   cancelFriendRequestToUser,
   fetchUserFriendsFromFirestore,
   logUserActivity,
+  markCurrentUserEmailOtpVerified,
 } from './lib/firebase';
+import { requestEmailOtp, verifyEmailOtp } from './utils/emailOtp';
 import { SearchedUserProfile } from './types';
 import {
   registerPushServiceWorker,
@@ -829,18 +831,58 @@ export default function App() {
     };
   }, []);
 
-  // Email verification state and handlers
+  // Email verification state and 6-digit OTP handlers
   const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
+  const [gateOtpSent, setGateOtpSent] = useState(false);
+  const [gateOtpCode, setGateOtpCode] = useState('');
+  const [gateOtpLoading, setGateOtpLoading] = useState(false);
 
-  const handleResendEmailVerification = async () => {
-    if (!firebaseUser) return;
+  const handleSendGateEmailOtp = async () => {
+    if (!firebaseUser?.email || gateOtpLoading) return;
+    setGateOtpLoading(true);
+    setVerificationNotice(null);
     try {
-      await sendEmailVerification(firebaseUser);
-      setVerificationNotice('ভেরিফিকেশন লিঙ্ক পুনরায় আপনার ইমেইলে পাঠানো হয়েছে। ইনবক্স বা স্প্যাম ফোল্ডার চেক করুন।');
-      setTimeout(() => setVerificationNotice(null), 6000);
+      await requestEmailOtp({
+        email: firebaseUser.email,
+        fullName: firebaseUser.displayName || '',
+        purpose: 'signup',
+        allowExisting: true,
+      });
+      setGateOtpSent(true);
+      setVerificationNotice(`আপনার ${firebaseUser.email} ইমেইলে ৬ সংখ্যার কোড পাঠানো হয়েছে।`);
     } catch (err: any) {
-      setVerificationNotice(err?.message || 'লিঙ্ক পাঠাতে সমস্যা হয়েছে। কিছুক্ষণ পর চেষ্টা করুন।');
-      setTimeout(() => setVerificationNotice(null), 5000);
+      setVerificationNotice(err?.message || 'কোড পাঠানো যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।');
+    } finally {
+      setGateOtpLoading(false);
+    }
+  };
+
+  const handleVerifyGateEmailOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!firebaseUser?.email || gateOtpLoading) return;
+    const cleanCode = gateOtpCode.trim();
+    if (!/^\d{6}$/.test(cleanCode)) {
+      setVerificationNotice('আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।');
+      return;
+    }
+    setGateOtpLoading(true);
+    setVerificationNotice(null);
+    try {
+      await verifyEmailOtp({
+        email: firebaseUser.email,
+        code: cleanCode,
+        purpose: 'signup',
+      });
+      await markCurrentUserEmailOtpVerified();
+      setRemoteOtpVerified(true);
+      setGateOtpCode('');
+      setGateOtpSent(false);
+      setEmailVerifiedTick((t) => t + 1);
+      setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
+    } catch (err: any) {
+      setVerificationNotice(err?.message || 'ভুল কোড! সঠিক ৬ ডিজিটের কোডটি লিখুন।');
+    } finally {
+      setGateOtpLoading(false);
     }
   };
 
@@ -850,10 +892,12 @@ export default function App() {
     setFirebaseUser(auth.currentUser);
     setEmailVerifiedTick((t) => t + 1);
     if (auth.currentUser.emailVerified) {
+      await markCurrentUserEmailOtpVerified();
+      setRemoteOtpVerified(true);
       setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
       setTimeout(() => setVerificationNotice(null), 5000);
     } else {
-      setVerificationNotice('আপনার ইমেইল এখনও ভেরিফাই হয়নি। দয়া করে আপনার ইমেইল ইনবক্সে পাঠানো লিঙ্কে ক্লিক করুন।');
+      setVerificationNotice('ইমেইল ভেরিফাই করতে নিচে "৬ ডিজিটের কোড পাঠান" বাটনে চাপ দিন।');
       setTimeout(() => setVerificationNotice(null), 5000);
     }
   };
@@ -2044,7 +2088,7 @@ export default function App() {
           <div className="space-y-1.5">
             <h1 className="text-xl font-black text-black">Email Verification Required</h1>
             <p className="text-xs text-[#65676B]">
-              To protect your Peaceverse24.com account, please verify your email address before continuing:
+              এই অ্যাকাউন্টটি সচল করতে নিচের ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়ে যাচাই করুন:
             </p>
             <p className="text-sm font-bold text-emerald-700" data-sensitive="true">
               {firebaseUser.email}
@@ -2057,29 +2101,66 @@ export default function App() {
             </div>
           )}
 
-          <div className="space-y-2.5 pt-1">
-            <button
-              type="button"
-              onClick={handleCheckEmailVerified}
-              className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs shadow-sm cursor-pointer"
-            >
-              I&apos;ve Verified My Email — Continue
-            </button>
-            <button
-              type="button"
-              onClick={handleResendEmailVerification}
-              className="w-full py-2.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] font-bold text-xs cursor-pointer"
-            >
-              Resend Verification Email
-            </button>
-            <button
-              type="button"
-              onClick={handleLogout}
-              className="w-full py-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs cursor-pointer"
-            >
-              Sign Out &amp; Use Another Account
-            </button>
-          </div>
+          {gateOtpSent ? (
+            <form onSubmit={handleVerifyGateEmailOtp} className="space-y-3 text-left">
+              <label className="block text-xs font-bold text-[#1C1E21]">
+                আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোডটি এখানে লিখুন
+              </label>
+              <input
+                type="text"
+                inputMode="numeric"
+                maxLength={6}
+                autoFocus
+                value={gateOtpCode}
+                onChange={(e) => setGateOtpCode(e.target.value.replace(/\D/g, ''))}
+                placeholder="______"
+                className="w-full px-3 py-3 bg-[#F5F6F7] border-2 border-[#CCD0D5] rounded-xl text-center font-mono tracking-[0.35em] text-[20px] font-bold text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
+              />
+              <button
+                type="submit"
+                disabled={gateOtpLoading}
+                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs shadow-sm cursor-pointer flex items-center justify-center gap-2"
+              >
+                {gateOtpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>Verify 6-Digit Code &amp; Continue</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleSendGateEmailOtp}
+                disabled={gateOtpLoading}
+                className="w-full py-2.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] text-[#0866FF] font-bold text-xs cursor-pointer"
+              >
+                আবার ৬ ডিজিটের কোড পাঠান (Resend)
+              </button>
+            </form>
+          ) : (
+            <div className="space-y-2.5 pt-1">
+              <button
+                type="button"
+                onClick={handleSendGateEmailOtp}
+                disabled={gateOtpLoading}
+                className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#166FE5] disabled:opacity-60 text-white font-bold text-xs shadow-sm cursor-pointer flex items-center justify-center gap-2"
+              >
+                {gateOtpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
+                <span>৬ ডিজিটের ভেরিফিকেশন কোড পাঠান</span>
+              </button>
+              <button
+                type="button"
+                onClick={handleCheckEmailVerified}
+                className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs cursor-pointer"
+              >
+                আগেই ভেরিফাই করা থাকলে Continue চাপুন
+              </button>
+            </div>
+          )}
+
+          <button
+            type="button"
+            onClick={handleLogout}
+            className="w-full py-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs cursor-pointer"
+          >
+            Sign Out &amp; Use Another Account (নতুন অ্যাকাউন্ট খুলতে এখানে চাপুন)
+          </button>
         </div>
       </div>
     );
