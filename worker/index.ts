@@ -1,3 +1,5 @@
+import { BUILD_RESEND_API_KEY, BUILD_RESEND_FROM_EMAIL } from './build-env';
+
 interface WorkerAssetsBinding {
   fetch(request: Request): Promise<Response>;
 }
@@ -87,12 +89,12 @@ async function handleSendEmailOtp(request: Request, env: WorkerEnv): Promise<Res
       );
     }
 
-    const resendKey = env.RESEND_API_KEY?.trim();
+    const resendKey = (env.RESEND_API_KEY || BUILD_RESEND_API_KEY || '').trim();
     if (!resendKey || resendKey === 're_YOUR_RESEND_API_KEY') {
       return new Response(
         JSON.stringify({
           success: false,
-          error: 'ইমেইল সার্ভিস কনফিগার করা হয়নি। Cloudflare Variables and Secrets-এ RESEND_API_KEY সেট করুন।',
+          error: 'ইমেইল সার্ভিস কনফিগার করা হয়নি। Cloudflare Settings > Builds > Variables-এ RESEND_API_KEY সেট করুন।',
         }),
         { status: 503, headers: JSON_HEADERS }
       );
@@ -144,7 +146,7 @@ async function handleSendEmailOtp(request: Request, env: WorkerEnv): Promise<Res
     `;
 
     const fromEmail =
-      env.RESEND_FROM_EMAIL?.trim() || 'PeaceVerse24 <noreply@peaceverse24.com>';
+      (env.RESEND_FROM_EMAIL || BUILD_RESEND_FROM_EMAIL || 'PeaceVerse24 <noreply@peaceverse24.com>').trim();
 
     const resendRes = await fetch('https://api.resend.com/emails', {
       method: 'POST',
@@ -244,6 +246,7 @@ async function handleVerifyEmailOtp(request: Request, env: WorkerEnv): Promise<R
     const secret =
       env.OTP_SIGNING_SECRET?.trim() ||
       env.RESEND_API_KEY?.trim() ||
+      BUILD_RESEND_API_KEY.trim() ||
       'peaceverse-otp-secret';
     const expectedSig = await signChallenge(secret, `${payloadB64}:${code}`);
 
