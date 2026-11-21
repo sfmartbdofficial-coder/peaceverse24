@@ -21,7 +21,7 @@ import { useLanguage } from '../../context/LanguageContext';
 import { SupportedLanguage } from '../../i18n/languages';
 import { GlobalWorldMap } from '../global/GlobalWorldMap';
 import { TurnstileCaptchaPlaceholder } from '../auth/TurnstileCaptchaPlaceholder';
-import { StepByStepSignUpForm, StepSignUpPayload } from '../auth/StepByStepSignUpForm';
+import { StepByStepSignUpForm, StepSignUpPayload, SignUpWizardStep } from '../auth/StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
 import { useHistoryBack } from '../../utils/backNavigation';
 import { requestEmailOtp, verifyEmailOtp } from '../../utils/emailOtp';
@@ -66,10 +66,9 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [resetFeedback, setResetFeedback] = useState<string | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
 
-  // Facebook-style Step-by-Step Sign Up Modal State
+  // Facebook-style 6-Step Sign Up Modal State
   const [showSignUpModal, setShowSignUpModal] = useState(false);
-  const [wizardStep, setWizardStep] = useState<1 | 2 | 3 | 4 | 5>(1);
-  const [pendingSignUpData, setPendingSignUpData] = useState<StepSignUpPayload | null>(null);
+  const [wizardStep, setWizardStep] = useState<SignUpWizardStep>(1);
   const [signUpLoading, setSignUpLoading] = useState(false);
   const [signUpError, setSignUpError] = useState<string | null>(null);
 
@@ -77,11 +76,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [showWorldMapModal, setShowWorldMapModal] = useState(false);
   const [footerInfoModal, setFooterInfoModal] = useState<'about' | 'help' | null>(null);
 
-  // Email OTP Verification State (Register) & 2FA Verification State (Login)
-  const [signUpStep, setSignUpStep] = useState<'form' | 'otp'>('form');
-  const [signUpOtpCode, setSignUpOtpCode] = useState('');
-  const [signUpResendCooldown, setSignUpResendCooldown] = useState(0);
-
+  // 2FA Verification State (Login)
   const [showTwoFactorModal, setShowTwoFactorModal] = useState(false);
   const [twoFactorEmail, setTwoFactorEmail] = useState('');
   const [twoFactorInput, setTwoFactorInput] = useState('');
@@ -89,29 +84,16 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   const [twoFactorLoading, setTwoFactorLoading] = useState(false);
   const [loginTurnstileVerified, setLoginTurnstileVerified] = useState(false);
 
-  useEffect(() => {
-    if (signUpResendCooldown <= 0) return;
-    const timer = window.setInterval(() => {
-      setSignUpResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [signUpResendCooldown]);
-
   const openSignUpWizardModal = () => {
     setSignUpError(null);
-    setSignUpStep('form');
     setWizardStep(1);
-    setPendingSignUpData(null);
-    setSignUpOtpCode('');
-    setSignUpResendCooldown(0);
     setShowSignUpModal(true);
   };
 
   useHistoryBack(showResetModal, () => setShowResetModal(false), 'landing-reset');
   useHistoryBack(showSignUpModal, () => {
-    setSignUpStep('form');
     setWizardStep(1);
-    setPendingSignUpData(null);
+    setSignUpError(null);
     setShowSignUpModal(false);
   }, 'landing-signup');
   useHistoryBack(showWorldMapModal, () => setShowWorldMapModal(false), 'landing-world-map');
@@ -227,55 +209,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
   const handleStepWizardComplete = async (payload: StepSignUpPayload) => {
     setSignUpError(null);
-    setSignUpLoading(true);
-    try {
-      const fullName = sanitizeInput(`${payload.firstName} ${payload.lastName}`);
-      const otpRes = await requestEmailOtp({
-        email: payload.contact,
-        fullName,
-        purpose: 'signup',
-        allowExisting: true,
-      });
-      setPendingSignUpData(payload);
-      setSignUpOtpCode('');
-      setSignUpResendCooldown(otpRes.resendCooldownSeconds || 45);
-      setSignUpStep('otp');
-    } catch (err: any) {
-      setSignUpError(err?.message || 'ইমেইলে ৬ ডিজিটের কোড পাঠানো যায়নি। আবার চেষ্টা করুন।');
-    } finally {
-      setSignUpLoading(false);
-    }
-  };
-
-  const handleResendSignUpOtp = async () => {
-    if (!pendingSignUpData || signUpResendCooldown > 0 || signUpLoading) return;
-    setSignUpError(null);
-    setSignUpLoading(true);
-    try {
-      const fullName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
-      const otpRes = await requestEmailOtp({
-        email: pendingSignUpData.contact,
-        fullName,
-        purpose: 'signup',
-      });
-      setSignUpResendCooldown(otpRes.resendCooldownSeconds || 45);
-    } catch (err: any) {
-      setSignUpError(err?.message || 'আবার কোড পাঠানো যায়নি।');
-    } finally {
-      setSignUpLoading(false);
-    }
-  };
-
-  const handleVerifyOtpAndRegister = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setSignUpError(null);
-
-    if (!pendingSignUpData) {
-      setSignUpStep('form');
-      return;
-    }
-
-    const cleanOtp = signUpOtpCode.trim();
+    const cleanOtp = payload.otpCode.trim();
     if (!/^\d{6}$/.test(cleanOtp)) {
       setSignUpError('আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।');
       return;
@@ -284,20 +218,20 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
     setSignUpLoading(true);
     try {
       const verifiedRes = await verifyEmailOtp({
-        email: pendingSignUpData.contact,
+        email: payload.contact,
         code: cleanOtp,
         purpose: 'signup',
       });
 
-      const fullName = sanitizeInput(`${pendingSignUpData.firstName} ${pendingSignUpData.lastName}`);
-      const resolvedEmail = pendingSignUpData.contact.trim().toLowerCase();
+      const fullName = sanitizeInput(`${payload.firstName} ${payload.lastName}`);
+      const resolvedEmail = payload.contact.trim().toLowerCase();
       try {
         localStorage.setItem(
           'peaceverse_signup_meta',
           JSON.stringify({
             name: fullName,
-            birthDate: `${pendingSignUpData.dobDay} ${pendingSignUpData.dobMonth} ${pendingSignUpData.dobYear}`,
-            gender: pendingSignUpData.gender,
+            birthDate: `${payload.dobDay} ${payload.dobMonth} ${payload.dobYear}`,
+            gender: payload.gender,
             contact: resolvedEmail,
             verifiedChannel: 'email',
           })
@@ -307,16 +241,13 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
       const user = await registerWithEmail(
         resolvedEmail,
-        pendingSignUpData.password,
+        payload.password,
         fullName,
         verifiedRes.verificationToken
       );
       if (user) {
         setShowSignUpModal(false);
-        setSignUpStep('form');
         setWizardStep(1);
-        setPendingSignUpData(null);
-        setSignUpOtpCode('');
         onNavigateTo('/home');
       }
     } catch (err: any) {
@@ -627,7 +558,7 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
         </div>
       </footer>
 
-      {/* SIGN UP MODAL (Facebook Step-by-Step Popup Style) */}
+      {/* SIGN UP MODAL (Facebook 6-Step Popup Style) */}
       {showSignUpModal && (
         <div className="fixed inset-0 z-50 bg-white/80 backdrop-blur-[2px] flex items-center justify-center p-3 sm:p-4 animate-in fade-in">
           <div className="bg-white w-full max-w-[432px] max-h-[92vh] overflow-y-auto rounded-[8px] shadow-[0_2px_4px_rgba(0,0,0,0.1),0_8px_16px_rgba(0,0,0,0.2)] border border-[#DADDE1] animate-in zoom-in-95">
@@ -635,10 +566,10 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
             <div className="px-4 py-3 border-b border-[#DADDE1] flex items-start justify-between">
               <div>
                 <h2 className="text-[24px] font-bold text-[#1C1E21] leading-tight">
-                  {signUpStep === 'otp' ? 'Email Verification' : 'Sign Up'}
+                  {wizardStep === 6 ? 'Email Verification' : 'Sign Up'}
                 </h2>
                 <p className="text-[14px] text-[#606770]">
-                  {signUpStep === 'otp'
+                  {wizardStep === 6
                     ? 'ইমেইলে পাঠানো ৬ ডিজিটের কোডটি লিখুন'
                     : "It's quick and easy."}
                 </p>
@@ -646,9 +577,8 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               <button
                 type="button"
                 onClick={() => {
-                  setSignUpStep('form');
                   setWizardStep(1);
-                  setPendingSignUpData(null);
+                  setSignUpError(null);
                   setShowSignUpModal(false);
                 }}
                 className="p-1 text-[#606770] hover:text-[#1C1E21] rounded-full hover:bg-[#F0F2F5] cursor-pointer"
@@ -660,91 +590,15 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
 
             {/* Modal Body */}
             <div className="p-4 text-left">
-              <div className={signUpStep === 'otp' ? 'hidden' : 'block'}>
-                <StepByStepSignUpForm
-                  step={wizardStep}
-                  onStepChange={setWizardStep}
-                  onComplete={handleStepWizardComplete}
-                  loading={signUpLoading}
-                  externalError={signUpError}
-                  onClearExternalError={() => setSignUpError(null)}
-                  onOpenLegalTab={onOpenLegalTab}
-                />
-              </div>
-
-              {signUpStep === 'otp' && (
-                <form onSubmit={handleVerifyOtpAndRegister} className="space-y-3 text-left">
-                  {signUpError && (
-                    <div className="p-2.5 rounded-md bg-rose-50 border border-rose-200 text-rose-700 text-xs flex items-start gap-2">
-                      <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-                      <span>{signUpError}</span>
-                    </div>
-                  )}
-
-                  <div className="p-3 rounded-lg bg-[#E7F3FF] border border-blue-200 text-xs text-[#1C1E21] space-y-1.5">
-                    <p className="font-bold flex items-center gap-1.5 text-[#0866FF]">
-                      <MailCheck className="w-4 h-4 text-[#0866FF]" />
-                      <span>Email Code Verification</span>
-                    </p>
-                    <p className="text-[12px] text-[#4B4F56]">
-                      আমরা আপনার <strong>{pendingSignUpData?.contact}</strong> ইমেইলে একটি ৬ ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি। অনুগ্রহ করে ইনবক্স (অথবা Spam ফোল্ডার) চেক করে কোডটি নিচে লিখুন।
-                    </p>
-                  </div>
-
-                  <label className="block text-xs font-bold text-[#1C1E21]">
-                    ৬ ডিজিটের ভেরিফিকেশন কোড (Verification Code)
-                  </label>
-                  <input
-                    type="text"
-                    inputMode="numeric"
-                    maxLength={6}
-                    autoFocus
-                    value={signUpOtpCode}
-                    onChange={(e) => {
-                      setSignUpOtpCode(e.target.value.replace(/\D/g, ''));
-                      setSignUpError(null);
-                    }}
-                    placeholder="______"
-                    className="w-full px-3 py-3 bg-[#F5F6F7] border-2 border-[#CCD0D5] rounded-[6px] text-center font-mono tracking-[0.35em] text-[20px] font-bold text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-                  />
-
-                  <div className="flex items-center justify-between text-xs">
-                    <span className="text-[#606770]">কোড পাননি?</span>
-                    <button
-                      type="button"
-                      onClick={handleResendSignUpOtp}
-                      disabled={signUpResendCooldown > 0 || signUpLoading}
-                      className="font-bold text-[#0866FF] hover:underline disabled:text-[#8D949E] disabled:no-underline cursor-pointer"
-                    >
-                      {signUpResendCooldown > 0
-                        ? `আবার পাঠান (${signUpResendCooldown}s)`
-                        : 'আবার কোড পাঠান (Resend)'}
-                    </button>
-                  </div>
-
-                  <div className="flex gap-2 pt-1">
-                    <button
-                      type="button"
-                      onClick={() => {
-                        setSignUpError(null);
-                        setSignUpStep('form');
-                      }}
-                      disabled={signUpLoading}
-                      className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-xs rounded-[6px] cursor-pointer"
-                    >
-                      Back
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={signUpLoading}
-                      className="flex-1 py-2.5 bg-[#00A400] hover:bg-[#008C00] disabled:opacity-60 text-white font-bold text-[15px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
-                    >
-                      {signUpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                      <span>Verify &amp; Complete Sign Up</span>
-                    </button>
-                  </div>
-                </form>
-              )}
+              <StepByStepSignUpForm
+                step={wizardStep}
+                onStepChange={setWizardStep}
+                onComplete={handleStepWizardComplete}
+                loading={signUpLoading}
+                externalError={signUpError}
+                onClearExternalError={() => setSignUpError(null)}
+                onOpenLegalTab={onOpenLegalTab}
+              />
             </div>
           </div>
         </div>

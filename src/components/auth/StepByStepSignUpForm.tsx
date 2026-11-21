@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   AlertCircle,
   ArrowLeft,
@@ -7,10 +7,13 @@ import {
   Eye,
   EyeOff,
   Loader2,
+  MailCheck,
 } from 'lucide-react';
 import { TurnstileCaptchaPlaceholder } from './TurnstileCaptchaPlaceholder';
+import { requestEmailOtp } from '../../utils/emailOtp';
 
 export type SignUpGender = 'Male' | 'Female' | 'Custom' | '';
+export type SignUpWizardStep = 1 | 2 | 3 | 4 | 5 | 6;
 
 export interface StepSignUpPayload {
   firstName: string;
@@ -21,6 +24,7 @@ export interface StepSignUpPayload {
   dobMonth: string;
   dobYear: string;
   gender: 'Male' | 'Female' | 'Custom';
+  otpCode: string;
 }
 
 interface StepByStepSignUpFormProps {
@@ -29,8 +33,8 @@ interface StepByStepSignUpFormProps {
   externalError?: string | null;
   onClearExternalError?: () => void;
   onOpenLegalTab?: (tab: string) => void;
-  step?: 1 | 2 | 3 | 4 | 5;
-  onStepChange?: (step: 1 | 2 | 3 | 4 | 5) => void;
+  step?: SignUpWizardStep;
+  onStepChange?: (step: SignUpWizardStep) => void;
   compact?: boolean;
 }
 
@@ -42,12 +46,13 @@ const DAYS = Array.from({ length: 31 }, (_, i) => String(i + 1));
 const CURRENT_YEAR = 2026;
 const YEARS = Array.from({ length: 90 }, (_, i) => String(CURRENT_YEAR - 13 - i));
 
-const STEP_META: Record<1 | 2 | 3 | 4 | 5, { title: string; subtitle: string }> = {
+const STEP_META: Record<SignUpWizardStep, { title: string; subtitle: string }> = {
   1: { title: 'Step 1 - নাম', subtitle: 'আপনার First Name এবং Last Name দিন' },
   2: { title: 'Step 2 - ইমেইল', subtitle: 'আপনার আসল Email ঠিকানা দিন (৬ ডিজিটের কোড যাবে)' },
   3: { title: 'Step 3 - পাসওয়ার্ড', subtitle: 'একটি শক্তিশালী Password দিন' },
   4: { title: 'Step 4 - জন্ম তারিখ', subtitle: 'আপনার জন্ম তারিখ নির্বাচন করুন' },
-  5: { title: 'Step 5 - Gender', subtitle: 'আপনার Gender নির্বাচন করুন এবং Sign Up করুন' },
+  5: { title: 'Step 5 - Gender', subtitle: 'আপনার Gender নির্বাচন করুন এবং Next চাপুন' },
+  6: { title: 'Step 6 - কোড ভেরিফিকেশন', subtitle: 'ইমেইলে পাঠানো ৬ ডিজিটের কোডটি দিয়ে Sign Up করুন' },
 };
 
 const REQUIRED_MSG = 'এইটা লাগবে';
@@ -62,10 +67,10 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
   onStepChange,
   compact = false,
 }) => {
-  const [internalStep, setInternalStep] = useState<1 | 2 | 3 | 4 | 5>(1);
+  const [internalStep, setInternalStep] = useState<SignUpWizardStep>(1);
   const currentStep = controlledStep ?? internalStep;
 
-  const setCurrentStep = (next: 1 | 2 | 3 | 4 | 5) => {
+  const setCurrentStep = (next: SignUpWizardStep) => {
     if (onStepChange) {
       onStepChange(next);
     } else {
@@ -77,7 +82,7 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
   const [firstName, setFirstName] = useState('');
   const [lastName, setLastName] = useState('');
 
-  // Step 2: Email or Phone Number
+  // Step 2: Email Address
   const [contact, setContact] = useState('');
 
   // Step 3: Password + Eye Toggle
@@ -93,9 +98,22 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
   const [gender, setGender] = useState<SignUpGender>('');
   const [turnstileVerified, setTurnstileVerified] = useState(false);
 
+  // Step 6: 6-digit Email OTP Code
+  const [otpCode, setOtpCode] = useState('');
+  const [sendingOtp, setSendingOtp] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+
   // Field-level error map for literal "এইটা লাগবে" & format errors
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   const [stepBannerError, setStepBannerError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = window.setInterval(() => {
+      setResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
+    }, 1000);
+    return () => window.clearInterval(timer);
+  }, [resendCooldown]);
 
   const clearFieldError = (key: string) => {
     if (fieldErrors[key]) {
@@ -137,16 +155,77 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
       if (!dobYear) errors.dobYear = REQUIRED_MSG;
     } else if (currentStep === 5) {
       if (!gender) errors.gender = REQUIRED_MSG;
+    } else if (currentStep === 6) {
+      const cleanOtp = otpCode.trim();
+      if (!cleanOtp) {
+        errors.otpCode = REQUIRED_MSG;
+      } else if (!/^\d{6}$/.test(cleanOtp)) {
+        errors.otpCode = 'আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন';
+      }
     }
 
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   };
 
-  const handleNext = () => {
+  const sendOtpAndGoToStep6 = async () => {
+    if (!validateCurrentStep()) return;
+
+    if (!turnstileVerified) {
+      setStepBannerError('অনুগ্রহ করে Turnstile মানব যাচাইকরণ সম্পূর্ণ করুন।');
+      return;
+    }
+
+    setSendingOtp(true);
+    setStepBannerError(null);
+    onClearExternalError?.();
+    try {
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const otpRes = await requestEmailOtp({
+        email: contact.trim(),
+        fullName,
+        purpose: 'signup',
+        allowExisting: true,
+      });
+      setOtpCode('');
+      setResendCooldown(otpRes.resendCooldownSeconds || 45);
+      setCurrentStep(6);
+    } catch (err: any) {
+      setStepBannerError(err?.message || 'ইমেইলে ৬ ডিজিটের কোড পাঠানো যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleResendOtp = async () => {
+    if (resendCooldown > 0 || sendingOtp || loading) return;
+    setSendingOtp(true);
+    setStepBannerError(null);
+    onClearExternalError?.();
+    try {
+      const fullName = `${firstName.trim()} ${lastName.trim()}`.trim();
+      const otpRes = await requestEmailOtp({
+        email: contact.trim(),
+        fullName,
+        purpose: 'signup',
+        allowExisting: false,
+      });
+      setResendCooldown(otpRes.resendCooldownSeconds || 45);
+    } catch (err: any) {
+      setStepBannerError(err?.message || 'আবার কোড পাঠানো যায়নি।');
+    } finally {
+      setSendingOtp(false);
+    }
+  };
+
+  const handleNext = async () => {
+    if (currentStep === 5) {
+      await sendOtpAndGoToStep6();
+      return;
+    }
     if (!validateCurrentStep()) return;
     if (currentStep < 5) {
-      setCurrentStep((currentStep + 1) as 1 | 2 | 3 | 4 | 5);
+      setCurrentStep((currentStep + 1) as SignUpWizardStep);
     }
   };
 
@@ -155,23 +234,18 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
     setStepBannerError(null);
     onClearExternalError?.();
     if (currentStep > 1) {
-      setCurrentStep((currentStep - 1) as 1 | 2 | 3 | 4 | 5);
+      setCurrentStep((currentStep - 1) as SignUpWizardStep);
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (currentStep < 5) {
-      handleNext();
+    if (currentStep < 6) {
+      await handleNext();
       return;
     }
 
     if (!validateCurrentStep()) return;
-
-    if (!turnstileVerified) {
-      setStepBannerError('অনুগ্রহ করে Turnstile মানব যাচাইকরণ সম্পূর্ণ করুন।');
-      return;
-    }
 
     await onComplete({
       firstName: firstName.trim(),
@@ -182,32 +256,34 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
       dobMonth,
       dobYear,
       gender: gender as 'Male' | 'Female' | 'Custom',
+      otpCode: otpCode.trim(),
     });
   };
 
-  const progressPercent = (currentStep / 5) * 100;
+  const isBusy = loading || sendingOtp;
+  const progressPercent = (currentStep / 6) * 100;
   const activeMeta = STEP_META[currentStep];
 
   return (
     <form onSubmit={handleSubmit} noValidate className="space-y-4 text-left">
-      {/* Top 1-2-3-4-5 Progress Bar */}
+      {/* Top 1-2-3-4-5-6 Progress Bar */}
       <div className="space-y-2.5">
         <div className="flex items-center justify-between text-xs font-bold text-[#606770]">
           <span className="text-[#0866FF]">{activeMeta.title}</span>
-          <span>ধাপ {currentStep} / 5</span>
+          <span>ধাপ {currentStep} / 6</span>
         </div>
 
-        {/* 1 - 2 - 3 - 4 - 5 Stepper Pills */}
+        {/* 1 - 2 - 3 - 4 - 5 - 6 Stepper Pills */}
         <div className="relative flex items-center justify-between">
           {/* Background Track */}
           <div className="absolute left-3 right-3 top-1/2 -translate-y-1/2 h-1 bg-[#E4E6EB] rounded-full" />
           {/* Active Fill Track */}
           <div
             className="absolute left-3 top-1/2 -translate-y-1/2 h-1 bg-[#0866FF] rounded-full transition-all duration-300"
-            style={{ width: `calc(${((currentStep - 1) / 4) * 100}% - 12px)` }}
+            style={{ width: `calc(${((currentStep - 1) / 5) * 100}% - 12px)` }}
           />
 
-          {([1, 2, 3, 4, 5] as const).map((num) => {
+          {([1, 2, 3, 4, 5, 6] as const).map((num) => {
             const isCompleted = num < currentStep;
             const isActive = num === currentStep;
             return (
@@ -468,7 +544,7 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
           </div>
 
           <p className="text-[11px] text-[#777777] leading-snug">
-            By clicking Sign Up, you agree to our{' '}
+            By clicking Next &amp; Sign Up, you agree to our{' '}
             <button
               type="button"
               onClick={() => onOpenLegalTab?.('terms')}
@@ -497,35 +573,99 @@ export const StepByStepSignUpForm: React.FC<StepByStepSignUpFormProps> = ({
         </div>
       )}
 
-      {/* Navigation Buttons (Back / Next / Sign Up) */}
+      {currentStep === 6 && (
+        <div className="space-y-3 animate-in fade-in">
+          <div className="p-3 rounded-lg bg-[#E7F3FF] border border-blue-200 text-xs text-[#1C1E21] space-y-1.5">
+            <p className="font-bold flex items-center gap-1.5 text-[#0866FF]">
+              <MailCheck className="w-4 h-4 text-[#0866FF]" />
+              <span>Email Code Verification</span>
+            </p>
+            <p className="text-[12px] text-[#4B4F56]">
+              আমরা আপনার <strong>{contact.trim()}</strong> ইমেইলে একটি ৬ ডিজিটের ভেরিফিকেশন কোড পাঠিয়েছি। ইনবক্স (বা Spam ফোল্ডার) চেক করে কোডটি নিচে লিখে <strong>Sign Up</strong> চাপুন।
+            </p>
+          </div>
+
+          <div>
+            <label className="block text-xs font-bold text-[#1C1E21] mb-1.5">
+              Sign Up Verification Code (৬ ডিজিটের কোড)
+            </label>
+            <input
+              type="text"
+              inputMode="numeric"
+              maxLength={6}
+              autoFocus
+              value={otpCode}
+              onChange={(e) => {
+                setOtpCode(e.target.value.replace(/\D/g, ''));
+                clearFieldError('otpCode');
+              }}
+              placeholder="______"
+              className={`w-full px-3 py-3 bg-[#F5F6F7] border-2 rounded-[6px] text-center font-mono tracking-[0.35em] text-[20px] font-bold text-[#1C1E21] focus:outline-none ${
+                fieldErrors.otpCode
+                  ? 'border-rose-600 focus:border-rose-600 bg-rose-50/40'
+                  : 'border-[#CCD0D5] focus:border-[#0866FF]'
+              }`}
+            />
+            {fieldErrors.otpCode && (
+              <p className="mt-1 text-xs font-bold text-rose-600">{fieldErrors.otpCode}</p>
+            )}
+          </div>
+
+          <div className="flex items-center justify-between text-xs">
+            <span className="text-[#606770]">কোড পাননি?</span>
+            <button
+              type="button"
+              onClick={handleResendOtp}
+              disabled={resendCooldown > 0 || isBusy}
+              className="font-bold text-[#0866FF] hover:underline disabled:text-[#8D949E] disabled:no-underline cursor-pointer"
+            >
+              {resendCooldown > 0
+                ? `আবার পাঠান (${resendCooldown}s)`
+                : 'আবার কোড পাঠান (Resend)'}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Navigation Buttons (Step 1-5: Next, Step 6: Sign Up) */}
       <div className="flex items-center gap-2.5 pt-2">
         {currentStep > 1 && (
           <button
             type="button"
             onClick={handleBack}
-            disabled={loading}
-            className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-[14px] rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5"
+            disabled={isBusy}
+            className="px-4 py-2.5 bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#1C1E21] font-bold text-[14px] rounded-[6px] transition-colors cursor-pointer flex items-center gap-1.5 disabled:opacity-60"
           >
             <ArrowLeft className="w-4 h-4" />
             <span>Back</span>
           </button>
         )}
 
-        {currentStep < 5 ? (
+        {currentStep < 6 ? (
           <button
             type="submit"
-            className="flex-1 py-2.5 bg-[#0866FF] hover:bg-[#166FE5] active:scale-[0.99] text-white font-bold text-[15px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
+            disabled={isBusy}
+            className="flex-1 py-2.5 bg-[#0866FF] hover:bg-[#166FE5] active:scale-[0.99] disabled:opacity-60 text-white font-bold text-[15px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-1.5"
           >
-            <span>Next</span>
-            <ArrowRight className="w-4 h-4" />
+            {sendingOtp ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" />
+                <span>কোড পাঠানো হচ্ছে...</span>
+              </>
+            ) : (
+              <>
+                <span>Next</span>
+                <ArrowRight className="w-4 h-4" />
+              </>
+            )}
           </button>
         ) : (
           <button
             type="submit"
-            disabled={loading}
+            disabled={isBusy}
             className="flex-1 py-2.5 bg-[#00A400] hover:bg-[#008C00] active:scale-[0.99] disabled:opacity-60 text-white font-bold text-[16px] rounded-[6px] shadow-xs transition-all cursor-pointer flex items-center justify-center gap-2"
           >
-            {loading && <Loader2 className="w-4 h-4 animate-spin" />}
+            {isBusy && <Loader2 className="w-4 h-4 animate-spin" />}
             <span>Sign Up</span>
           </button>
         )}
