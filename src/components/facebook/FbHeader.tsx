@@ -80,7 +80,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   // If in search mode or has active search query, render the Facebook search bar on top
   if (isSearching || searchQuery.trim().length > 0) {
     return (
-      <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 border-b border-[#E4E6EB] px-3 sm:px-4 py-2 shadow-xs">
+      <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E4E6EB] px-3 sm:px-4 py-2 shadow-xs">
         <div className="max-w-[700px] mx-auto flex items-center gap-2.5">
           <button
             onClick={() => {
@@ -106,7 +106,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
               ref={inputRef}
               type="search"
               enterKeyHint="search"
-              placeholder="Search people by name or username..."
+              placeholder="Search people or pages..."
               value={searchQuery}
               onChange={(e) => onSearchChange(e.target.value)}
               onKeyDown={(e) => {
@@ -139,7 +139,7 @@ export const FbHeader: React.FC<FbHeaderProps> = ({
   }
 
   return (
-    <header className="sticky top-0 z-40 w-full bg-white/85 backdrop-blur-md supports-[backdrop-filter]:bg-white/80 border-b border-[#E4E6EB] shadow-xs">
+    <header className="sticky top-0 z-40 w-full bg-white border-b border-[#E4E6EB] shadow-xs">
       <div className="max-w-[700px] mx-auto px-2 sm:px-4 py-2 flex items-center justify-between gap-1 sm:gap-2">
         {/* Left: Optional Back Arrow or Menu + Logo */}
         <div className="flex items-center gap-1 sm:gap-2 min-w-0">

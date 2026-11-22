@@ -29,6 +29,11 @@ import {
   Heart,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
+import {
+  isTargetFollowedLocally,
+  subscribeToFollowStatus,
+  toggleFollowUser,
+} from '../../lib/firebase';
 
 interface FbWatchViewProps {
   posts: PostItem[];
@@ -91,7 +96,7 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
   const [durationSec, setDurationSec] = useState(0);
   const [isLandscapeVideo, setIsLandscapeVideo] = useState(false);
   const [expandedCaption, setExpandedCaption] = useState(false);
-  const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
+  const [followTick, setFollowTick] = useState(0);
   const [showCommentDrawer, setShowCommentDrawer] = useState(false);
   const [commentInput, setCommentInput] = useState('');
   const [showMoreSheet, setShowMoreSheet] = useState(false);
@@ -358,9 +363,26 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
 
   const totalReactions = currentPost ? currentPost.reactions.total || 0 : 0;
   const isLiked = Boolean(currentPost?.userReaction);
-  const isAuthorFollowed = currentPost
-    ? Boolean(followedAuthors[currentPost.author.name])
-    : false;
+  const currentAuthorTargetId = currentPost
+    ? currentPost.authorId || `author-${currentPost.author.name}`
+    : '';
+  const isAuthorFollowed = React.useMemo(() => {
+    void followTick;
+    return currentPost
+      ? isTargetFollowedLocally(currentAuthorTargetId, currentPost.author.name)
+      : false;
+  }, [currentPost, currentAuthorTargetId, followTick]);
+
+  useEffect(() => {
+    if (!currentPost) return;
+    const unsub = subscribeToFollowStatus(
+      'user-me',
+      currentAuthorTargetId,
+      () => setFollowTick((t) => t + 1),
+      currentPost.author.name
+    );
+    return () => unsub();
+  }, [currentPost?.id, currentAuthorTargetId, currentPost?.author?.name]);
 
   return (
     <div
@@ -777,12 +799,18 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
 
                   <button
                     type="button"
-                    onClick={() =>
-                      setFollowedAuthors((prev) => ({
-                        ...prev,
-                        [currentPost.author.name]: !prev[currentPost.author.name],
-                      }))
-                    }
+                    onClick={async () => {
+                      await toggleFollowUser(
+                        'user-me',
+                        currentUserName || 'User',
+                        currentUserAvatar ||
+                          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
+                        currentAuthorTargetId,
+                        currentPost.author.name,
+                        currentPost.author.avatar
+                      );
+                      setFollowTick((t) => t + 1);
+                    }}
                     className={`px-3 py-1 rounded-[6px] text-[12px] font-semibold transition-colors cursor-pointer shrink-0 ${
                       isAuthorFollowed
                         ? 'bg-white/20 text-white border border-white/30'

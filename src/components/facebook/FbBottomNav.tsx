@@ -35,10 +35,10 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
 
   return (
     <nav
-      className={`fixed bottom-0 left-0 right-0 z-40 backdrop-blur-md border-t px-1 pb-[env(safe-area-inset-bottom)] shadow-md transition-colors ${
+      className={`fixed bottom-0 left-0 right-0 z-40 border-t px-1 pb-[env(safe-area-inset-bottom)] shadow-md transition-colors ${
         isReelsDark
-          ? 'bg-[#18191A]/95 border-[#2E2F30]'
-          : 'bg-white/95 supports-[backdrop-filter]:bg-white/90 border-[#E4E6EB]'
+          ? 'bg-[#18191A] border-[#2E2F30]'
+          : 'bg-white border-[#E4E6EB]'
       }`}
     >
       <div className="max-w-[500px] mx-auto h-[52px] flex items-center justify-between">

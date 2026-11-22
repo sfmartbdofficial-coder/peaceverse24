@@ -25,7 +25,12 @@ import {
   Coins,
   Music,
 } from 'lucide-react';
-import { submitRealtimeAppeal, toggleFollowUser, subscribeToFollowStatus } from '../../lib/firebase';
+import {
+  submitRealtimeAppeal,
+  toggleFollowUser,
+  subscribeToFollowStatus,
+  isTargetFollowedLocally,
+} from '../../lib/firebase';
 import { FbVideoPlayer } from './FbVideoPlayer';
 import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
 import { useLanguage } from '../../context/LanguageContext';
@@ -133,7 +138,10 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   }, [post.id]);
 
   const { currentLang } = useLanguage();
-  const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
+  const authorTargetId = post.authorId || `author-${post.author.name}`;
+  const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean>(() =>
+    isTargetFollowedLocally(authorTargetId, post.author.name)
+  );
 
   // Auto-translate state (Google Translate API)
   const [translatedBody, setTranslatedBody] = useState<string | null>(null);
@@ -189,27 +197,30 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     setIsTranslating(false);
   };
 
-  // Sync follow status
+  // Sync follow status (durable localStorage + Firestore real-time)
   React.useEffect(() => {
-    const authorTargetId = post.authorId || `author-${post.author.name}`;
-    if (!currentUserId || authorTargetId === currentUserId) return;
-    const unsub = subscribeToFollowStatus(currentUserId, authorTargetId, (following) => {
-      setIsFollowingAuthor(following);
-    });
+    if (authorTargetId === currentUserId) return;
+    const unsub = subscribeToFollowStatus(
+      currentUserId || 'user-me',
+      authorTargetId,
+      (following) => {
+        setIsFollowingAuthor(following);
+      },
+      post.author.name
+    );
     return () => unsub();
-  }, [currentUserId, post.authorId, post.author.name]);
+  }, [currentUserId, authorTargetId, post.author.name]);
 
   const handleToggleFollowAuthor = async () => {
-    const authorTargetId = post.authorId || `author-${post.author.name}`;
-    setIsFollowingAuthor(!isFollowingAuthor);
-    await toggleFollowUser(
-      currentUserId,
+    const nextState = await toggleFollowUser(
+      currentUserId || 'user-me',
       currentUserName,
       'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
       authorTargetId,
       post.author.name,
       post.author.avatar
     );
+    setIsFollowingAuthor(nextState);
   };
 
   const typingTimeoutRef = useRef<any>(null);
@@ -474,7 +485,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   }, [showBoostControls, post.authorId, post.author?.name, currentUserId, currentUserName]);
 
   return (
-    <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] overflow-hidden space-y-2.5 transition-all text-black">
+    <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] space-y-2.5 text-black">
       {copiedToast && (
         <div className="mx-3 mt-2 py-1.5 px-3 bg-emerald-50 border border-emerald-200 rounded-xl text-center text-xs font-bold text-emerald-700 flex items-center justify-center gap-1.5 animate-in fade-in">
           <Check className="w-4 h-4" />
@@ -912,7 +923,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* 5. Halal Reactions Summary Bar (hidden when all counts are 0) */}
       {hasSummaryEngagement && (
-        <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B]">
+        <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B] bg-white">
           <div className="flex items-center justify-between gap-2">
             {/* Left: Overlapping Reaction Emojis + Counts */}
             <div className="flex items-center gap-1.5 min-w-0">
@@ -968,7 +979,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
       )}
 
       {/* 6. Facebook Action Bar: Dua/Like (with 6 Halal Reactions popup), Comment, Share, Hadiya + live counts */}
-      <div className="border-t border-[#E4E6EB] mx-2 sm:mx-3 py-1 flex items-center justify-between gap-0.5 relative">
+      <div className="border-t border-[#E4E6EB] mx-2 sm:mx-3 py-1 bg-white rounded-b-[8px] flex items-center justify-between gap-0.5 relative">
         {/* Column 1: Halal Reaction Button (Tap = Dua, Hover/Long-Press = 6 Reactions Bar) */}
         <div
           className="relative flex-1 min-w-0"

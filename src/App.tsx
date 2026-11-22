@@ -103,7 +103,10 @@ import {
   fetchUserProfileFromFirestore,
   fetchUserProfileByNameFromFirestore,
   syncUserDirectoryProfile,
+  syncPageToFirestore,
   searchUsersFromFirestore,
+  searchPagesFromFirestore,
+  toggleFollowUser,
   fetchSentFriendRequestIds,
   sendFriendRequestToUser,
   cancelFriendRequestToUser,
@@ -182,6 +185,7 @@ export default function App() {
   }, [currentTab]);
   const [searchQuery, setSearchQuery] = useState('');
   const [userSearchResults, setUserSearchResults] = useState<SearchedUserProfile[]>([]);
+  const [pageSearchResults, setPageSearchResults] = useState<PageItem[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
   const [sentFriendRequests, setSentFriendRequests] = useState<Record<string, boolean>>({});
   const [viewedProfile, setViewedProfile] = useState<UserProfile | null>(null);
@@ -739,6 +743,19 @@ export default function App() {
         }));
 
         syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar);
+        try {
+          const savedPagesRaw = localStorage.getItem('qalby_fb_pages');
+          if (savedPagesRaw) {
+            const parsedPages: PageItem[] = JSON.parse(savedPagesRaw);
+            if (Array.isArray(parsedPages)) {
+              parsedPages.forEach((pg) => {
+                if (pg?.isOwner) {
+                  void syncPageToFirestore(pg, usr.uid);
+                }
+              });
+            }
+          }
+        } catch {}
         fetchUserFriendsFromFirestore(usr.uid).then(({ count }) => {
           setUserProfile((prev) =>
             prev.id === usr.uid ? { ...prev, friendsCount: count } : prev
@@ -760,18 +777,35 @@ export default function App() {
           if (remote.emailOtpVerified) {
             setRemoteOtpVerified(true);
           }
-          setUserProfile((prev) => ({
-            ...prev,
-            whatsapp: prev.whatsapp || remote.whatsapp || '',
-            imo: prev.imo || remote.imo || '',
-            viber: prev.viber || remote.viber || '',
-            messengerLink: prev.messengerLink || remote.messengerLink || '',
-            contactPrivacy: prev.contactPrivacy || remote.contactPrivacy || 'public',
-            bio: prev.bio || remote.bio || '',
-            work: prev.work || remote.work || '',
-            education: prev.education || remote.education || '',
-            website: prev.website || remote.website || '',
-          }));
+          setUserProfile((prev) => {
+            const emailPrefix = usr.email ? usr.email.split('@')[0].toLowerCase() : '';
+            const prevIsPlaceholder =
+              !prev.name ||
+              prev.name === 'Member' ||
+              prev.name === 'User' ||
+              (emailPrefix && prev.name.toLowerCase() === emailPrefix);
+            const resolvedRemoteName =
+              remote.name && remote.name !== 'Member' && remote.name !== 'User'
+                ? remote.name
+                : '';
+            const nextName =
+              prevIsPlaceholder && resolvedRemoteName ? resolvedRemoteName : prev.name;
+            return {
+              ...prev,
+              name: nextName,
+              username: prev.username || remote.username || '',
+              avatar: prev.avatar || remote.avatar || '',
+              whatsapp: prev.whatsapp || remote.whatsapp || '',
+              imo: prev.imo || remote.imo || '',
+              viber: prev.viber || remote.viber || '',
+              messengerLink: prev.messengerLink || remote.messengerLink || '',
+              contactPrivacy: prev.contactPrivacy || remote.contactPrivacy || 'public',
+              bio: prev.bio || remote.bio || '',
+              work: prev.work || remote.work || '',
+              education: prev.education || remote.education || '',
+              website: prev.website || remote.website || '',
+            };
+          });
         });
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/" (unless opening Admin Panel)
         const path = window.location.pathname;
@@ -1891,18 +1925,23 @@ export default function App() {
     }, 1000);
   };
 
-  // Debounced Facebook-style Firestore user search
+  // Debounced Facebook-style Firestore user + page search
   const runUserSearch = React.useCallback(async (rawQuery: string, forceRefresh = false) => {
     const trimmed = rawQuery.trim();
     if (!trimmed) {
       setUserSearchResults([]);
+      setPageSearchResults([]);
       setIsSearchingUsers(false);
       return;
     }
 
     setIsSearchingUsers(true);
-    const matched = await searchUsersFromFirestore(trimmed, forceRefresh);
-    setUserSearchResults(matched);
+    const [matchedUsers, matchedPages] = await Promise.all([
+      searchUsersFromFirestore(trimmed, forceRefresh),
+      searchPagesFromFirestore(trimmed, forceRefresh),
+    ]);
+    setUserSearchResults(matchedUsers);
+    setPageSearchResults(matchedPages);
     setIsSearchingUsers(false);
   }, []);
 
@@ -1910,6 +1949,7 @@ export default function App() {
     const trimmed = searchQuery.trim();
     if (!trimmed) {
       setUserSearchResults([]);
+      setPageSearchResults([]);
       setIsSearchingUsers(false);
       return;
     }
@@ -2454,7 +2494,7 @@ export default function App() {
 
   return (
     <div
-      className={`min-h-screen w-full overflow-x-hidden font-sans selection:bg-[#0866FF] selection:text-white ${
+      className={`min-h-screen w-full overflow-x-clip font-sans selection:bg-[#0866FF] selection:text-white ${
         currentTab === 'reels' ? 'bg-black text-white' : 'bg-white text-black'
       }`}
     >
@@ -2551,10 +2591,43 @@ export default function App() {
               <FbUserSearchResults
                 query={searchQuery}
                 results={userSearchResults}
+                pageResults={pageSearchResults}
                 isLoading={isSearchingUsers}
                 currentUserId={firebaseUser?.uid || userProfile.id}
                 sentRequestIds={sentFriendRequests}
                 onToggleFriendRequest={handleToggleFriendRequest}
+                onOpenPage={(page) => {
+                  try {
+                    localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(page));
+                    localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
+                  } catch {}
+                  setSelectedPageIdToOpen(page.id);
+                  setSearchQuery('');
+                  navigateToTab('pages');
+                }}
+                onToggleFollowPage={async (page) => {
+                  const nextFollowed = await toggleFollowUser(
+                    firebaseUser?.uid || userProfile.id || 'user-me',
+                    effectiveProfile.name,
+                    effectiveProfile.avatar,
+                    page.id,
+                    page.name,
+                    page.avatar || ''
+                  );
+                  setPageSearchResults((prev) =>
+                    prev.map((pg) =>
+                      pg.id === page.id
+                        ? {
+                            ...pg,
+                            isLiked: nextFollowed,
+                            followersCount: nextFollowed
+                              ? (pg.followersCount || 0) + (pg.isLiked ? 0 : 1)
+                              : Math.max(0, (pg.followersCount || 1) - (pg.isLiked ? 1 : 0)),
+                          }
+                        : pg
+                    )
+                  );
+                }}
                 onOpenUserProfile={async (targetUser) => {
                   const currentUid = firebaseUser?.uid || userProfile.id;
                   if (currentUid && targetUser.id === currentUid) {
@@ -2690,7 +2763,7 @@ export default function App() {
 
                 {/* Freshly uploaded post(s) (< 3 mins) pinned #1 directly below Stories matching Facebook */}
                 {freshTopPosts.length > 0 && (
-                  <div className="space-y-2.5 animate-in fade-in">
+                  <div className="space-y-2.5">
                     {freshTopPosts.map((post) => {
                       const normAuthor = (s?: string) =>
                         (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -3016,15 +3089,20 @@ export default function App() {
                                   return;
                                 }
                               } catch {}
-                              if (
-                                activeSwitchedPage &&
-                                ((post.authorId && activeSwitchedPage.id === post.authorId) ||
-                                  (authorName && norm(activeSwitchedPage.name) === norm(authorName)))
-                              ) {
-                                setSelectedPageIdToOpen(activeSwitchedPage.id);
-                                navigateToTab('pages');
-                                return;
-                              }
+                                if (
+                                  activeSwitchedPage &&
+                                  ((post.authorId && activeSwitchedPage.id === post.authorId) ||
+                                    (authorName && norm(activeSwitchedPage.name) === norm(authorName)))
+                                ) {
+                                  setSelectedPageIdToOpen(activeSwitchedPage.id);
+                                  navigateToTab('pages');
+                                  return;
+                                }
+                                if (post.authorId?.startsWith('page-')) {
+                                  setSelectedPageIdToOpen(post.authorId);
+                                  navigateToTab('pages');
+                                  return;
+                                }
                               if (!authorName || authorName === userProfile.name) {
                                 setViewedProfile(null);
                                 navigateToTab('profile');
@@ -3507,7 +3585,7 @@ export default function App() {
           aria-live="polite"
           className="fixed bottom-[70px] left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-[430px] pointer-events-auto"
         >
-          <div className="bg-white/95 backdrop-blur-md text-black border border-emerald-200 rounded-2xl px-4 py-2.5 shadow-xl flex items-center justify-between gap-2 text-xs font-semibold">
+          <div className="bg-white text-black border border-emerald-200 rounded-2xl px-4 py-2.5 shadow-xl flex items-center justify-between gap-2 text-xs font-semibold">
             <span className="truncate">{adhanToast}</span>
             <button
               type="button"

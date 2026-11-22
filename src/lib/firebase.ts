@@ -32,7 +32,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile } from '../types';
+import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem } from '../types';
 import {
   getEnvApiKey,
   emitApiKeyEnvWarning,
@@ -871,8 +871,104 @@ export async function markAllRealtimeNotificationsRead(notifications: Notificati
 }
 
 // ==========================================
-// REAL-TIME FOLLOW / UNFOLLOW SYSTEM
+// REAL-TIME FOLLOW / UNFOLLOW SYSTEM (DURABLE LOCAL + FIRESTORE)
 // ==========================================
+
+const FOLLOWS_STORE_KEY = 'peaceverse_follows_store_v1';
+
+interface LocalFollowsStore {
+  followingIds: Record<string, boolean>;
+  followingNames: Record<string, boolean>;
+  unfollowedIds: Record<string, boolean>;
+  unfollowedNames: Record<string, boolean>;
+}
+
+function normalizeFollowName(name?: string): string {
+  return (name || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+}
+
+function safeFollowDocKey(val: string): string {
+  return encodeURIComponent((val || '').trim()).replace(/%/g, '_') || 'unknown';
+}
+
+function readLocalFollowsStore(): LocalFollowsStore {
+  const empty: LocalFollowsStore = {
+    followingIds: {},
+    followingNames: {},
+    unfollowedIds: {},
+    unfollowedNames: {},
+  };
+  try {
+    const raw = localStorage.getItem(FOLLOWS_STORE_KEY);
+    if (!raw) return empty;
+    const parsed = JSON.parse(raw);
+    return {
+      followingIds: parsed?.followingIds && typeof parsed.followingIds === 'object' ? parsed.followingIds : {},
+      followingNames: parsed?.followingNames && typeof parsed.followingNames === 'object' ? parsed.followingNames : {},
+      unfollowedIds: parsed?.unfollowedIds && typeof parsed.unfollowedIds === 'object' ? parsed.unfollowedIds : {},
+      unfollowedNames: parsed?.unfollowedNames && typeof parsed.unfollowedNames === 'object' ? parsed.unfollowedNames : {},
+    };
+  } catch {
+    return empty;
+  }
+}
+
+function writeLocalFollowsStore(store: LocalFollowsStore): void {
+  try {
+    localStorage.setItem(FOLLOWS_STORE_KEY, JSON.stringify(store));
+    window.dispatchEvent(new Event('peaceverse:follows-updated'));
+  } catch {}
+}
+
+export function isTargetFollowedLocally(targetId?: string, targetName?: string): boolean {
+  const store = readLocalFollowsStore();
+  const cleanId = (targetId || '').trim();
+  const normName = normalizeFollowName(targetName);
+  if (cleanId && store.followingIds[cleanId]) return true;
+  if (normName && store.followingNames[normName]) return true;
+  return false;
+}
+
+function isTargetExplicitlyUnfollowed(targetId?: string, targetName?: string): boolean {
+  const store = readLocalFollowsStore();
+  const cleanId = (targetId || '').trim();
+  const normName = normalizeFollowName(targetName);
+  if (cleanId && store.unfollowedIds[cleanId]) return true;
+  if (normName && store.unfollowedNames[normName]) return true;
+  return false;
+}
+
+export function setTargetFollowedLocally(
+  following: boolean,
+  targetId?: string,
+  targetName?: string
+): void {
+  const store = readLocalFollowsStore();
+  const cleanId = (targetId || '').trim();
+  const normName = normalizeFollowName(targetName);
+
+  if (following) {
+    if (cleanId) {
+      store.followingIds[cleanId] = true;
+      delete store.unfollowedIds[cleanId];
+    }
+    if (normName) {
+      store.followingNames[normName] = true;
+      delete store.unfollowedNames[normName];
+    }
+  } else {
+    if (cleanId) {
+      delete store.followingIds[cleanId];
+      store.unfollowedIds[cleanId] = true;
+    }
+    if (normName) {
+      delete store.followingNames[normName];
+      store.unfollowedNames[normName] = true;
+    }
+  }
+
+  writeLocalFollowsStore(store);
+}
 
 export async function toggleFollowUser(
   followerId: string,
@@ -882,18 +978,29 @@ export async function toggleFollowUser(
   targetName: string,
   targetAvatar: string
 ): Promise<boolean> {
-  try {
-    const followDocId = `${followerId}_${targetId}`;
-    const followRef = doc(db, 'follows', followDocId);
-    const snap = await getDocSafe(followRef);
+  const effectiveFollowerId = auth.currentUser?.uid || followerId || 'user-me';
+  const safeDocId = `${safeFollowDocKey(effectiveFollowerId)}_${safeFollowDocKey(targetId)}`;
+  const legacyDocId = `${followerId}_${targetId}`;
+  const followRef = doc(db, 'follows', safeDocId);
+  const legacyRef = legacyDocId !== safeDocId ? doc(db, 'follows', legacyDocId) : null;
 
-    if (snap && snap.exists()) {
-      await deleteDoc(followRef);
-      return false; // Unfollowed
+  const wasFollowedLocally = isTargetFollowedLocally(targetId, targetName);
+  const nextFollowing = !wasFollowedLocally;
+
+  // Persist immediately in localStorage so state never disappears on app close/reload
+  setTargetFollowedLocally(nextFollowing, targetId, targetName);
+
+  try {
+    if (!nextFollowing) {
+      await deleteDoc(followRef).catch(() => {});
+      if (legacyRef) {
+        await deleteDoc(legacyRef).catch(() => {});
+      }
+      return false;
     } else {
       await setDoc(followRef, {
-        id: followDocId,
-        followerId,
+        id: safeDocId,
+        followerId: effectiveFollowerId,
         followerName,
         followerAvatar,
         targetId,
@@ -915,37 +1022,75 @@ export async function toggleFollowUser(
         badgeType: 'heart',
       });
 
-      return true; // Followed
+      return true;
     }
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
-      handleFirestoreError(err, OperationType.WRITE, `follows/${followerId}_${targetId}`);
+      handleFirestoreError(err, OperationType.WRITE, `follows/${safeDocId}`);
     } else if (!isOfflineOrUnavailableError(err)) {
       console.warn('Notice toggling follow:', err);
     }
-    return false;
+    // Keep local persistent follow state intact even if offline
+    return nextFollowing;
   }
 }
 
 export function subscribeToFollowStatus(
   followerId: string,
   targetId: string,
-  onUpdate: (isFollowing: boolean) => void
+  onUpdate: (isFollowing: boolean) => void,
+  targetName?: string
 ) {
+  const syncFromLocal = () => {
+    onUpdate(isTargetFollowedLocally(targetId, targetName));
+  };
+
+  syncFromLocal();
+
+  window.addEventListener('peaceverse:follows-updated', syncFromLocal);
+  window.addEventListener('storage', syncFromLocal);
+
+  let unsubFirestore = () => {};
+  let unsubLegacy = () => {};
   try {
-    const followDocId = `${followerId}_${targetId}`;
-    const followRef = doc(db, 'follows', followDocId);
-    return onSnapshot(
-      followRef,
-      (snap) => {
-        onUpdate(snap.exists());
-      },
-      () => onUpdate(false)
+    const effectiveFollowerId = auth.currentUser?.uid || followerId || 'user-me';
+    const safeDocId = `${safeFollowDocKey(effectiveFollowerId)}_${safeFollowDocKey(targetId)}`;
+    const legacyDocId = `${followerId}_${targetId}`;
+
+    const handleSnap = (snap: any) => {
+      if (snap.exists() && !isTargetExplicitlyUnfollowed(targetId, targetName)) {
+        if (!isTargetFollowedLocally(targetId, targetName)) {
+          setTargetFollowedLocally(true, targetId, targetName);
+        }
+        onUpdate(true);
+      } else {
+        onUpdate(isTargetFollowedLocally(targetId, targetName));
+      }
+    };
+
+    unsubFirestore = onSnapshot(
+      doc(db, 'follows', safeDocId),
+      handleSnap,
+      () => syncFromLocal()
     );
+
+    if (legacyDocId !== safeDocId && !/[\/\s]/.test(legacyDocId)) {
+      unsubLegacy = onSnapshot(
+        doc(db, 'follows', legacyDocId),
+        handleSnap,
+        () => {}
+      );
+    }
   } catch {
-    onUpdate(false);
-    return () => {};
+    syncFromLocal();
   }
+
+  return () => {
+    window.removeEventListener('peaceverse:follows-updated', syncFromLocal);
+    window.removeEventListener('storage', syncFromLocal);
+    unsubFirestore();
+    unsubLegacy();
+  };
 }
 
 export function subscribeToUserFollowsList(
@@ -1057,8 +1202,9 @@ export async function registerWithEmail(
 
     try {
       const userRef = doc(db, 'users', res.user.uid);
+      const latinFromName = transliterateBnToEn(cleanName).replace(/[^a-z0-9]+/g, '');
       const generatedUsername =
-        cleanName.toLowerCase().replace(/[^a-z0-9]+/g, '') ||
+        latinFromName ||
         (res.user.email ? res.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : `user${res.user.uid.slice(0, 6)}`);
       await setDoc(
         userRef,
@@ -1068,6 +1214,7 @@ export async function registerWithEmail(
           name: cleanName,
           displayName: cleanName,
           username: generatedUsername,
+          transliteratedName: transliterateBnToEn(cleanName),
           email: res.user.email,
           emailOtpVerified: true,
           friendsCount: 0,
@@ -1138,9 +1285,13 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
   try {
     const userRef = doc(db, 'users', targetId);
     const cleanName = sanitizeInput(profile.name || '');
+    const latinFromName = cleanName ? transliterateBnToEn(cleanName).replace(/[^a-z0-9]+/g, '') : '';
     const resolvedUsername =
       (profile.username && sanitizeInput(profile.username.trim())) ||
-      (cleanName ? cleanName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '') : '');
+      latinFromName;
+    if (cleanName && auth.currentUser && auth.currentUser.displayName !== cleanName) {
+      updateProfile(auth.currentUser, { displayName: cleanName }).catch(() => {});
+    }
     await setDoc(
       userRef,
       {
@@ -1148,6 +1299,7 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
         uid: targetId,
         name: cleanName,
         displayName: cleanName,
+        transliteratedName: cleanName ? transliterateBnToEn(cleanName) : '',
         ...(resolvedUsername ? { username: resolvedUsername } : {}),
         email: profile.email || auth.currentUser?.email || '',
         avatar: profile.avatar || '',
@@ -1563,6 +1715,123 @@ export async function fetchUserPublicPresenceStats(
 }
 
 // ==========================================
+// BENGALI <-> ENGLISH TRANSLITERATION & SEARCH MATCHING
+// ==========================================
+
+const BN_CONSONANTS: Record<string, string> = {
+  ক: 'k', খ: 'kh', গ: 'g', ঘ: 'gh', ঙ: 'ng',
+  চ: 'ch', ছ: 'chh', জ: 'j', ঝ: 'jh', ঞ: 'n',
+  ট: 't', ঠ: 'th', ড: 'd', ঢ: 'dh', ণ: 'n',
+  ত: 't', থ: 'th', দ: 'd', ধ: 'dh', ন: 'n',
+  প: 'p', ফ: 'f', ব: 'b', ভ: 'bh', ম: 'm',
+  য: 'j', র: 'r', ল: 'l', শ: 'sh', ষ: 'sh',
+  স: 's', হ: 'h', ড়: 'r', ঢ়: 'rh', য়: 'y',
+  ৎ: 't',
+};
+
+const BN_INDEP_VOWELS: Record<string, string> = {
+  অ: 'o', আ: 'a', ই: 'i', ঈ: 'i', উ: 'u', ঊ: 'u',
+  ঋ: 'ri', এ: 'e', ঐ: 'oi', ও: 'o', ঔ: 'ou',
+};
+
+const BN_VOWEL_SIGNS: Record<string, string> = {
+  'া': 'a', 'ি': 'i', 'ী': 'i', 'ু': 'u', 'ূ': 'u',
+  'ৃ': 'ri', 'ে': 'e', 'ৈ': 'oi', 'ো': 'o', 'ৌ': 'ou',
+};
+
+export function transliterateBnToEn(input: string): string {
+  const s = (input || '').normalize('NFC').trim();
+  if (!s) return '';
+  let out = '';
+  const chars = Array.from(s);
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (BN_INDEP_VOWELS[ch]) {
+      out += BN_INDEP_VOWELS[ch];
+      continue;
+    }
+    if (BN_CONSONANTS[ch]) {
+      const next = chars[i + 1];
+      const next2 = chars[i + 2];
+      if (next === '্') {
+        if (next2 === 'য') {
+          out += BN_CONSONANTS[ch] + 'y';
+          i += 2;
+        } else if (next2 === 'ব') {
+          out += BN_CONSONANTS[ch] + 'w';
+          i += 2;
+        } else {
+          out += BN_CONSONANTS[ch];
+          i += 1;
+        }
+        continue;
+      }
+      if (next && BN_VOWEL_SIGNS[next]) {
+        out += BN_CONSONANTS[ch] + BN_VOWEL_SIGNS[next];
+        i += 1;
+        continue;
+      }
+      // Inherent vowel at word start/middle vs word end
+      const isWordEnd = !next || /\s/.test(next) || !/[\u0980-\u09FF]/.test(next);
+      out += BN_CONSONANTS[ch] + (isWordEnd ? '' : 'a');
+      continue;
+    }
+    if (BN_VOWEL_SIGNS[ch]) {
+      out += BN_VOWEL_SIGNS[ch];
+      continue;
+    }
+    if (ch === 'ং') {
+      out += 'ng';
+      continue;
+    }
+    if (ch === 'ঃ') {
+      out += 'h';
+      continue;
+    }
+    if (ch === 'ঁ' || ch === '্') {
+      continue;
+    }
+    out += ch;
+  }
+  return out.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function phoneticNormalize(text: string): string {
+  const latin = transliterateBnToEn(text)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!latin) return '';
+  return latin
+    .replace(/ph/g, 'f')
+    .replace(/bh/g, 'v')
+    .replace(/kh/g, 'k')
+    .replace(/gh/g, 'g')
+    .replace(/chh/g, 'ch')
+    .replace(/sh/g, 's')
+    .replace(/th/g, 't')
+    .replace(/dh/g, 'd')
+    .replace(/ee/g, 'i')
+    .replace(/oo/g, 'u')
+    .replace(/ou/g, 'o')
+    .replace(/([a-z])\1+/g, '$1')
+    .replace(/[aeiou]+/g, (m, offset) => (offset === 0 ? m[0] : 'a'))
+    .trim();
+}
+
+function isPlaceholderDisplayName(name?: string, email?: string): boolean {
+  const clean = (name || '').trim().toLowerCase();
+  if (!clean) return true;
+  if (['member', 'user', 'peaceverse user', 'peaceverse creator'].includes(clean)) return true;
+  if (email) {
+    const localPart = email.split('@')[0].trim().toLowerCase();
+    if (localPart && clean === localPart) return true;
+  }
+  return false;
+}
+
+// ==========================================
 // FACEBOOK-STYLE USER SEARCH & FRIEND REQUESTS
 // ==========================================
 
@@ -1580,18 +1849,29 @@ export async function syncUserDirectoryProfile(
   try {
     const existingSnap = await getDocSafe(userRef);
     const existingData = existingSnap && existingSnap.exists() ? existingSnap.data() : null;
+    const incomingName = displayName.trim();
+    const existingName = String(existingData?.displayName || existingData?.name || '').trim();
+    const finalName =
+      existingName &&
+      (!isPlaceholderDisplayName(existingName, email) || isPlaceholderDisplayName(incomingName, email))
+        ? existingName
+        : incomingName;
+
+    const existingUsername = existingData?.username ? String(existingData.username).trim() : '';
+    const transliterated = transliterateBnToEn(finalName);
     const derivedUsername =
-      (existingData?.username && String(existingData.username).trim()) ||
-      (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '') ||
-      displayName.trim().toLowerCase().replace(/[^a-z0-9]+/g, '');
+      existingUsername ||
+      transliterated.replace(/[^a-z0-9]+/g, '') ||
+      (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '');
 
     await setDoc(
       userRef,
       {
         id: uid,
         uid,
-        displayName: existingData?.displayName || existingData?.name || displayName.trim(),
-        name: existingData?.name || existingData?.displayName || displayName.trim(),
+        displayName: finalName,
+        name: finalName,
+        transliteratedName: transliterated,
         username: derivedUsername,
         avatar: existingData?.avatar || existingData?.photoURL || avatar,
         ...(existingData?.profileCategory ? { profileCategory: existingData.profileCategory } : {}),
@@ -1611,12 +1891,110 @@ export async function syncUserDirectoryProfile(
   }
 }
 
+async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
+  const byId = new Map<string, SearchedUserProfile>();
+
+  const usersSnap = await getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.LIST, 'users');
+    }
+    return null;
+  });
+
+  (usersSnap?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data();
+    const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
+    const emailLocal = data.email ? String(data.email).split('@')[0] : '';
+    const username = String(data.username || data.handle || emailLocal || '').trim();
+    const avatar =
+      String(data.avatar || data.photoURL || '').trim() ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        displayName
+      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
+    byId.set(docSnap.id, {
+      id: docSnap.id,
+      uid: String(data.uid || docSnap.id),
+      displayName,
+      username,
+      avatar,
+      coverPhoto: data.coverPhoto ? String(data.coverPhoto) : undefined,
+      bio: data.bio ? String(data.bio) : undefined,
+      location: data.location ? String(data.location) : undefined,
+      verified: Boolean(data.verified || data.isVerified),
+    });
+  });
+
+  // Fallback: also index active creators from recent posts in case a profile doc hasn't synced yet
+  const postsSnap = await getDocs(query(collection(db, 'posts'), limit(200))).catch(() => null);
+  (postsSnap?.docs || []).forEach((pDoc) => {
+    const pData = pDoc.data();
+    const aName = String(pData?.author?.name || '').trim();
+    const aId = String(pData?.authorId || (aName ? `author-${aName}` : '')).trim();
+    if (!aName || !aId || byId.has(aId)) return;
+    const sameNameExists = Array.from(byId.values()).some(
+      (u) => u.displayName.toLowerCase() === aName.toLowerCase()
+    );
+    if (sameNameExists) return;
+    byId.set(aId, {
+      id: aId,
+      uid: aId,
+      displayName: aName,
+      username: transliterateBnToEn(aName).replace(/[^a-z0-9]+/g, ''),
+      avatar:
+        String(pData?.author?.avatar || '').trim() ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          aName
+        )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+      verified: Boolean(pData?.author?.verified),
+    });
+  });
+
+  return Array.from(byId.values());
+}
+
 export async function searchUsersFromFirestore(
   searchTerm: string,
   forceRefresh = false
 ): Promise<SearchedUserProfile[]> {
-  const q = searchTerm.trim().toLowerCase();
+  const rawTrimmed = searchTerm.normalize('NFC').trim();
+  const q = rawTrimmed.toLowerCase();
   if (!q) return [];
+
+  const qTranslit = transliterateBnToEn(rawTrimmed);
+  const qPhonetic = phoneticNormalize(rawTrimmed);
+  const qTokens = qTranslit.split(/\s+/).filter(Boolean);
+  const qPhoneticTokens = qPhonetic.split(/\s+/).filter(Boolean);
+
+  const matchesCandidate = (u: SearchedUserProfile): boolean => {
+    const dn = u.displayName.normalize('NFC').toLowerCase();
+    const un = (u.username || '').toLowerCase();
+    if (dn.includes(q) || un.includes(q)) return true;
+
+    const uTranslit = transliterateBnToEn(u.displayName);
+    if (qTranslit && (uTranslit.includes(qTranslit) || un.includes(qTranslit.replace(/\s+/g, '')))) {
+      return true;
+    }
+
+    if (qTokens.length > 0) {
+      const hay = `${dn} ${uTranslit} ${un}`;
+      if (qTokens.every((t) => hay.includes(t))) return true;
+    }
+
+    const uPhonetic = phoneticNormalize(u.displayName);
+    if (qPhonetic && uPhonetic && (uPhonetic.includes(qPhonetic) || qPhonetic.includes(uPhonetic))) {
+      return true;
+    }
+    if (qPhoneticTokens.length > 0 && uPhonetic) {
+      const uPhoneticWords = uPhonetic.split(/\s+/).filter(Boolean);
+      const allTokensRoughMatch = qPhoneticTokens.every((qt) =>
+        uPhoneticWords.some((uw) => uw.includes(qt) || qt.includes(uw))
+      );
+      if (allTokensRoughMatch) return true;
+    }
+
+    return false;
+  };
 
   try {
     const now = Date.now();
@@ -1629,49 +2007,58 @@ export async function searchUsersFromFirestore(
     ) {
       directoryUsers = cachedDirectoryUsers.users;
     } else {
-      const usersQuery = query(collection(db, 'users'), limit(500));
-      const snap = await getDocs(usersQuery);
-      directoryUsers = snap.docs.map((docSnap) => {
-        const data = docSnap.data();
-        const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
-        const username = String(data.username || data.handle || '').trim();
-        const avatar =
-          String(data.avatar || data.photoURL || '').trim() ||
-          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-            displayName
-          )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
-
-        return {
-          id: docSnap.id,
-          uid: String(data.uid || docSnap.id),
-          displayName,
-          username,
-          avatar,
-          coverPhoto: data.coverPhoto ? String(data.coverPhoto) : undefined,
-          bio: data.bio ? String(data.bio) : undefined,
-          location: data.location ? String(data.location) : undefined,
-          verified: Boolean(data.verified || data.isVerified),
-        };
-      });
+      directoryUsers = await fetchDirectoryUsersFromServer();
       cachedDirectoryUsers = { users: directoryUsers, fetchedAt: now };
     }
 
-    const matched = directoryUsers.filter((u) => {
-      const displayMatch = u.displayName.toLowerCase().includes(q);
-      const usernameMatch = (u.username || '').toLowerCase().includes(q);
-      return displayMatch || usernameMatch;
-    });
+    let matched = directoryUsers.filter(matchesCandidate);
+
+    // If cached search returned 0 results, bypass cache immediately once so newly created accounts are found right away
+    if (matched.length === 0 && !forceRefresh) {
+      directoryUsers = await fetchDirectoryUsersFromServer();
+      cachedDirectoryUsers = { users: directoryUsers, fetchedAt: Date.now() };
+      matched = directoryUsers.filter(matchesCandidate);
+    }
+
+    // Also check current logged-in local user if somehow not yet indexed in server snapshot
+    try {
+      const currentAuth = auth.currentUser;
+      const savedName = localStorage.getItem('peaceverse_registered_name');
+      if (currentAuth) {
+        const localName = (currentAuth.displayName || savedName || '').trim();
+        if (localName && !matched.some((m) => m.id === currentAuth.uid)) {
+          const selfCandidate: SearchedUserProfile = {
+            id: currentAuth.uid,
+            uid: currentAuth.uid,
+            displayName: localName,
+            username: transliterateBnToEn(localName).replace(/[^a-z0-9]+/g, ''),
+            avatar:
+              currentAuth.photoURL ||
+              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                localName
+              )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+          };
+          if (matchesCandidate(selfCandidate)) {
+            matched.unshift(selfCandidate);
+          }
+        }
+      }
+    } catch {}
 
     // Prioritize exact and prefix matches
     matched.sort((a, b) => {
       const aName = a.displayName.toLowerCase();
       const bName = b.displayName.toLowerCase();
-      const aExact = aName === q || (a.username || '').toLowerCase() === q ? 0 : 1;
-      const bExact = bName === q || (b.username || '').toLowerCase() === q ? 0 : 1;
+      const aT = transliterateBnToEn(a.displayName);
+      const bT = transliterateBnToEn(b.displayName);
+      const aExact =
+        aName === q || aT === qTranslit || (a.username || '').toLowerCase() === q ? 0 : 1;
+      const bExact =
+        bName === q || bT === qTranslit || (b.username || '').toLowerCase() === q ? 0 : 1;
       if (aExact !== bExact) return aExact - bExact;
 
-      const aStarts = aName.startsWith(q) ? 0 : 1;
-      const bStarts = bName.startsWith(q) ? 0 : 1;
+      const aStarts = aName.startsWith(q) || aT.startsWith(qTranslit) ? 0 : 1;
+      const bStarts = bName.startsWith(q) || bT.startsWith(qTranslit) ? 0 : 1;
       if (aStarts !== bStarts) return aStarts - bStarts;
 
       return aName.localeCompare(bName);
@@ -1683,6 +2070,279 @@ export async function searchUsersFromFirestore(
       handleFirestoreError(err, OperationType.LIST, 'users');
     } else if (!isOfflineOrUnavailableError(err)) {
       console.warn('Notice searching users collection:', err);
+    }
+    return [];
+  }
+}
+
+// ==========================================
+// PAGE DIRECTORY SYNC & CROSS-SCRIPT PAGE SEARCH
+// ==========================================
+
+let cachedDirectoryPages: { pages: PageItem[]; fetchedAt: number } | null = null;
+const PAGE_DIRECTORY_CACHE_TTL_MS = 20 * 1000;
+
+function trimOversizedImageForFirestore(url?: string): string {
+  const clean = (url || '').trim();
+  if (!clean || clean.startsWith('blob:')) return '';
+  if (clean.startsWith('data:') && clean.length > 420000) return '';
+  return clean;
+}
+
+export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Promise<void> {
+  if (!page?.id || !page?.name?.trim()) return;
+  try {
+    const cleanName = page.name.trim();
+    const resolvedOwnerUid = ownerUid || auth.currentUser?.uid || '';
+    const payload: Record<string, any> = {
+      id: page.id,
+      name: cleanName,
+      transliteratedName: transliterateBnToEn(cleanName),
+      category: page.category || 'Community',
+      likes: page.likes || '0 লাইক',
+      followersCount: typeof page.followersCount === 'number' ? page.followersCount : 1,
+      followingCount: typeof page.followingCount === 'number' ? page.followingCount : 0,
+      avatar: trimOversizedImageForFirestore(page.avatar),
+      cover: trimOversizedImageForFirestore(page.cover),
+      description: page.description || '',
+      bio: page.bio || '',
+      location: page.location || '',
+      website: page.website || '',
+      email: page.email || '',
+      phone: page.phone || '',
+      whatsapp: page.whatsapp || '',
+      imo: page.imo || '',
+      viber: page.viber || '',
+      rating: page.rating || '5.0 ★',
+      createdAt: page.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+    };
+    if (resolvedOwnerUid) {
+      payload.ownerUid = resolvedOwnerUid;
+    }
+    await setDoc(doc(db, 'pages', page.id), payload, { merge: true });
+    cachedDirectoryPages = null;
+  } catch (err: any) {
+    if (!isOfflineOrUnavailableError(err) && err?.code !== 'permission-denied') {
+      console.warn('Notice syncing page to Firestore:', err);
+    }
+  }
+}
+
+export async function fetchPageByIdFromFirestore(pageId: string): Promise<PageItem | null> {
+  if (!pageId) return null;
+  try {
+    const snap = await getDocSafe(doc(db, 'pages', pageId));
+    if (!snap || !snap.exists()) return null;
+    const data = snap.data();
+    const currentUid = auth.currentUser?.uid || '';
+    const isOwner = Boolean(currentUid && data.ownerUid && data.ownerUid === currentUid);
+    const name = String(data.name || 'Page').trim();
+    return {
+      id: snap.id,
+      name,
+      category: String(data.category || 'Community'),
+      likes: String(data.likes || `${data.followersCount || 0} লাইক`),
+      followersCount: Number(data.followersCount || 0),
+      followingCount: Number(data.followingCount || 0),
+      avatar: String(data.avatar || ''),
+      cover: String(data.cover || ''),
+      role: isOwner ? 'Admin' : undefined,
+      isOwner,
+      isLiked: isTargetFollowedLocally(snap.id, name),
+      description: String(data.description || ''),
+      bio: String(data.bio || ''),
+      phone: data.phone ? String(data.phone) : undefined,
+      whatsapp: data.whatsapp ? String(data.whatsapp) : undefined,
+      imo: data.imo ? String(data.imo) : undefined,
+      viber: data.viber ? String(data.viber) : undefined,
+      website: data.website ? String(data.website) : undefined,
+      email: data.email ? String(data.email) : undefined,
+      location: data.location ? String(data.location) : undefined,
+      rating: data.rating ? String(data.rating) : undefined,
+      createdAt: data.createdAt ? String(data.createdAt) : undefined,
+    };
+  } catch {
+    return null;
+  }
+}
+
+async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
+  const byId = new Map<string, PageItem>();
+  const currentUid = auth.currentUser?.uid || '';
+
+  // 1. Local user-created pages (instant availability even before server round-trip completes)
+  try {
+    const localRaw = localStorage.getItem('qalby_fb_pages');
+    if (localRaw) {
+      const parsed: PageItem[] = JSON.parse(localRaw);
+      if (Array.isArray(parsed)) {
+        parsed.forEach((p) => {
+          if (p?.id && p?.name) {
+            byId.set(p.id, {
+              ...p,
+              isLiked: isTargetFollowedLocally(p.id, p.name) || Boolean(p.isLiked),
+            });
+          }
+        });
+      }
+    }
+  } catch {}
+
+  // 2. Firestore 'pages' collection (all public pages created across users)
+  const pagesSnap = await getDocs(query(collection(db, 'pages'), limit(500))).catch(() => null);
+  (pagesSnap?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data();
+    const name = String(data.name || '').trim();
+    if (!name) return;
+    const existing = byId.get(docSnap.id);
+    const isOwner = Boolean(
+      existing?.isOwner || (currentUid && data.ownerUid && data.ownerUid === currentUid)
+    );
+    byId.set(docSnap.id, {
+      id: docSnap.id,
+      name,
+      category: String(data.category || existing?.category || 'Community'),
+      likes: String(data.likes || existing?.likes || `${data.followersCount || 0} লাইক`),
+      followersCount: Number(data.followersCount ?? existing?.followersCount ?? 1),
+      followingCount: Number(data.followingCount ?? existing?.followingCount ?? 0),
+      avatar: String(existing?.avatar || data.avatar || ''),
+      cover: String(existing?.cover || data.cover || ''),
+      role: isOwner ? 'Admin' : undefined,
+      isOwner,
+      isLiked: isTargetFollowedLocally(docSnap.id, name) || Boolean(existing?.isLiked),
+      description: String(data.description || existing?.description || ''),
+      bio: String(data.bio || existing?.bio || ''),
+      phone: data.phone ? String(data.phone) : existing?.phone,
+      whatsapp: data.whatsapp ? String(data.whatsapp) : existing?.whatsapp,
+      imo: data.imo ? String(data.imo) : existing?.imo,
+      viber: data.viber ? String(data.viber) : existing?.viber,
+      website: data.website ? String(data.website) : existing?.website,
+      email: data.email ? String(data.email) : existing?.email,
+      location: data.location ? String(data.location) : existing?.location,
+      rating: data.rating ? String(data.rating) : existing?.rating,
+      createdAt: data.createdAt ? String(data.createdAt) : existing?.createdAt,
+    });
+  });
+
+  // 3. Fallback: index any Page-authored posts from 'posts' collection (e.g. page-* IDs)
+  const postsSnap = await getDocs(query(collection(db, 'posts'), limit(200))).catch(() => null);
+  (postsSnap?.docs || []).forEach((pDoc) => {
+    const pData = pDoc.data();
+    const aId = String(pData?.authorId || '').trim();
+    const aName = String(pData?.author?.name || '').trim();
+    if (!aId.startsWith('page-') || !aName || byId.has(aId)) return;
+    const sameNameExists = Array.from(byId.values()).some(
+      (pg) => pg.name.normalize('NFC').toLowerCase() === aName.normalize('NFC').toLowerCase()
+    );
+    if (sameNameExists) return;
+    byId.set(aId, {
+      id: aId,
+      name: aName,
+      category: String(pData?.author?.subtitle || 'Community'),
+      likes: '১ লাইক',
+      followersCount: 1,
+      followingCount: 0,
+      avatar: String(pData?.author?.avatar || ''),
+      cover: '',
+      isOwner: false,
+      isLiked: isTargetFollowedLocally(aId, aName),
+      description: String(pData?.author?.subtitle || 'Peaceverse Page'),
+      bio: '',
+    });
+  });
+
+  return Array.from(byId.values());
+}
+
+export async function searchPagesFromFirestore(
+  searchTerm: string,
+  forceRefresh = false
+): Promise<PageItem[]> {
+  const rawTrimmed = searchTerm.normalize('NFC').trim();
+  const q = rawTrimmed.toLowerCase();
+  if (!q) return [];
+
+  const qTranslit = transliterateBnToEn(rawTrimmed);
+  const qPhonetic = phoneticNormalize(rawTrimmed);
+  const qTokens = qTranslit.split(/\s+/).filter(Boolean);
+  const qPhoneticTokens = qPhonetic.split(/\s+/).filter(Boolean);
+
+  const matchesPage = (pg: PageItem): boolean => {
+    const pn = pg.name.normalize('NFC').toLowerCase();
+    const cat = (pg.category || '').normalize('NFC').toLowerCase();
+    const bio = (pg.bio || pg.description || '').normalize('NFC').toLowerCase();
+    if (pn.includes(q) || cat.includes(q) || bio.includes(q)) return true;
+
+    const pTranslit = transliterateBnToEn(pg.name);
+    const pSlug = pTranslit.replace(/\s+/g, '');
+    if (qTranslit && (pTranslit.includes(qTranslit) || pSlug.includes(qTranslit.replace(/\s+/g, '')))) {
+      return true;
+    }
+
+    if (qTokens.length > 0) {
+      const hay = `${pn} ${pTranslit} ${cat}`;
+      if (qTokens.every((t) => hay.includes(t))) return true;
+    }
+
+    const pPhonetic = phoneticNormalize(pg.name);
+    if (qPhonetic && pPhonetic && (pPhonetic.includes(qPhonetic) || qPhonetic.includes(pPhonetic))) {
+      return true;
+    }
+    if (qPhoneticTokens.length > 0 && pPhonetic) {
+      const pPhoneticWords = pPhonetic.split(/\s+/).filter(Boolean);
+      const allTokensRoughMatch = qPhoneticTokens.every((qt) =>
+        pPhoneticWords.some((pw) => pw.includes(qt) || qt.includes(pw))
+      );
+      if (allTokensRoughMatch) return true;
+    }
+
+    return false;
+  };
+
+  try {
+    const now = Date.now();
+    let directoryPages: PageItem[] = [];
+
+    if (
+      !forceRefresh &&
+      cachedDirectoryPages &&
+      now - cachedDirectoryPages.fetchedAt < PAGE_DIRECTORY_CACHE_TTL_MS
+    ) {
+      directoryPages = cachedDirectoryPages.pages;
+    } else {
+      directoryPages = await fetchDirectoryPagesFromServer();
+      cachedDirectoryPages = { pages: directoryPages, fetchedAt: now };
+    }
+
+    let matched = directoryPages.filter(matchesPage);
+
+    if (matched.length === 0 && !forceRefresh) {
+      directoryPages = await fetchDirectoryPagesFromServer();
+      cachedDirectoryPages = { pages: directoryPages, fetchedAt: Date.now() };
+      matched = directoryPages.filter(matchesPage);
+    }
+
+    matched.sort((a, b) => {
+      const aName = a.name.normalize('NFC').toLowerCase();
+      const bName = b.name.normalize('NFC').toLowerCase();
+      const aT = transliterateBnToEn(a.name);
+      const bT = transliterateBnToEn(b.name);
+      const aExact = aName === q || aT === qTranslit ? 0 : 1;
+      const bExact = bName === q || bT === qTranslit ? 0 : 1;
+      if (aExact !== bExact) return aExact - bExact;
+
+      const aStarts = aName.startsWith(q) || aT.startsWith(qTranslit) ? 0 : 1;
+      const bStarts = bName.startsWith(q) || bT.startsWith(qTranslit) ? 0 : 1;
+      if (aStarts !== bStarts) return aStarts - bStarts;
+
+      return aName.localeCompare(bName);
+    });
+
+    return matched;
+  } catch (err: any) {
+    if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice searching pages collection:', err);
     }
     return [];
   }

@@ -96,6 +96,15 @@ import {
   checkMediaVisualSafety,
   checkPost,
 } from '../../lib/halalFilter';
+import {
+  syncPageToFirestore,
+  fetchPageByIdFromFirestore,
+  searchPagesFromFirestore,
+  isTargetFollowedLocally,
+  setTargetFollowedLocally,
+  toggleFollowUser,
+  subscribeToFollowStatus,
+} from '../../lib/firebase';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -532,16 +541,25 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     try {
       localStorage.setItem('qalby_fb_pages', JSON.stringify(pages));
     } catch {}
-  }, [pages]);
+    pages.forEach((p) => {
+      if (p?.isOwner) {
+        void syncPageToFirestore(p, userProfile?.id);
+      }
+    });
+  }, [pages, userProfile?.id]);
 
   // Hub sub-views (main Pages view, Invites, Followed Pages) & header search toggle
   const [hubSection, setHubSection] = useState<'home' | 'invites' | 'followed'>('home');
   const [showHubSearch, setShowHubSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
+  const [remoteHubPages, setRemoteHubPages] = useState<PageItem[]>([]);
   const [followedSuggestedIds, setFollowedSuggestedIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('peace_followed_suggested_pages');
-      return saved ? JSON.parse(saved) : [];
+      const parsed: string[] = saved ? JSON.parse(saved) : [];
+      return Array.isArray(parsed)
+        ? parsed.filter((id) => isTargetFollowedLocally(id) || parsed.includes(id))
+        : [];
     } catch {
       return [];
     }
@@ -563,6 +581,25 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   }, [followedSuggestedIds]);
 
   useEffect(() => {
+    const q = searchQuery.trim();
+    if (!q) {
+      setRemoteHubPages([]);
+      return;
+    }
+    let active = true;
+    const timer = window.setTimeout(async () => {
+      const found = await searchPagesFromFirestore(q, false);
+      if (active) {
+        setRemoteHubPages(found);
+      }
+    }, 200);
+    return () => {
+      active = false;
+      window.clearTimeout(timer);
+    };
+  }, [searchQuery]);
+
+  useEffect(() => {
     try {
       localStorage.setItem('peace_removed_suggested_pages', JSON.stringify(removedSuggestedIds));
     } catch {}
@@ -573,7 +610,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       const targetId =
         initialSelectedPageId || localStorage.getItem('peaceverse_selected_page_id_v1');
       if (!targetId) return null;
-      return pages.find((p) => p.id === targetId) || null;
+      const owned = pages.find((p) => p.id === targetId);
+      if (owned) return owned;
+      const visitedRaw = localStorage.getItem('peaceverse_visited_page_v1');
+      if (visitedRaw) {
+        const visited: PageItem = JSON.parse(visitedRaw);
+        if (visited?.id === targetId) {
+          return {
+            ...visited,
+            isLiked: isTargetFollowedLocally(visited.id, visited.name) || Boolean(visited.isLiked),
+          };
+        }
+      }
+      return null;
     } catch {
       return null;
     }
@@ -591,18 +640,67 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     setPostFilterMode('all');
   }, [selectedPage?.id]);
 
+  // Keep selectedPage follow status permanently synced with localStorage + Firestore
   useEffect(() => {
-    if (initialSelectedPageId) {
-      const found = pages.find((p) => p.id === initialSelectedPageId);
-      if (found) {
-        setSelectedPage(found);
-        if (openSwitchSheetOnInitialOpen) {
-          setSheetPage(found);
-          onClearOpenSwitchSheet?.();
-        }
-        onClearInitialSelectedPageId?.();
+    if (!selectedPage?.id) return;
+    const unsub = subscribeToFollowStatus(
+      userProfile?.id || 'user-me',
+      selectedPage.id,
+      (following) => {
+        setSelectedPage((prev) =>
+          prev && prev.id === selectedPage.id && Boolean(prev.isLiked) !== following
+            ? { ...prev, isLiked: following }
+            : prev
+        );
+      },
+      selectedPage.name
+    );
+    return () => unsub();
+  }, [selectedPage?.id, selectedPage?.name, userProfile?.id]);
+
+  useEffect(() => {
+    if (!initialSelectedPageId) return;
+    let active = true;
+    const owned = pages.find((p) => p.id === initialSelectedPageId);
+    if (owned) {
+      setSelectedPage(owned);
+      if (openSwitchSheetOnInitialOpen) {
+        setSheetPage(owned);
+        onClearOpenSwitchSheet?.();
       }
+      onClearInitialSelectedPageId?.();
+      return;
     }
+
+    try {
+      const visitedRaw = localStorage.getItem('peaceverse_visited_page_v1');
+      if (visitedRaw) {
+        const visited: PageItem = JSON.parse(visitedRaw);
+        if (visited?.id === initialSelectedPageId) {
+          setSelectedPage({
+            ...visited,
+            isLiked: isTargetFollowedLocally(visited.id, visited.name) || Boolean(visited.isLiked),
+          });
+          onClearInitialSelectedPageId?.();
+          return;
+        }
+      }
+    } catch {}
+
+    fetchPageByIdFromFirestore(initialSelectedPageId).then((remote) => {
+      if (!active) return;
+      if (remote) {
+        try {
+          localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(remote));
+        } catch {}
+        setSelectedPage(remote);
+      }
+      onClearInitialSelectedPageId?.();
+    });
+
+    return () => {
+      active = false;
+    };
   }, [initialSelectedPageId, openSwitchSheetOnInitialOpen, onClearInitialSelectedPageId, onClearOpenSwitchSheet, pages]);
 
   const [pageSearchOpen, setPageSearchOpen] = useState(false);
@@ -1017,13 +1115,31 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     setTimeout(() => setToastMessage(null), 3000);
   };
 
-  // Toggle Like / Follow on a page
-  const handleToggleLike = (pageId: string) => {
+  // Toggle Like / Follow on a page (persisted permanently in localStorage + Firestore)
+  const handleToggleLike = async (pageId: string) => {
+    const targetPage =
+      (selectedPage && selectedPage.id === pageId ? selectedPage : null) ||
+      pages.find((p) => p.id === pageId) ||
+      remoteHubPages.find((p) => p.id === pageId);
+
+    const targetName = targetPage?.name || 'Page';
+    const targetAvatar = targetPage?.avatar || '';
+
+    const nextLiked = await toggleFollowUser(
+      userProfile?.id || 'user-me',
+      userProfile?.name || 'User',
+      userProfile?.avatar || '',
+      pageId,
+      targetName,
+      targetAvatar
+    );
+
     setPages((prev) =>
       prev.map((p) => {
         if (p.id === pageId) {
-          const nextLiked = !p.isLiked;
-          const nextFollowers = nextLiked ? p.followersCount + 1 : Math.max(0, p.followersCount - 1);
+          const nextFollowers = nextLiked
+            ? p.followersCount + (p.isLiked ? 0 : 1)
+            : Math.max(0, p.followersCount - (p.isLiked ? 1 : 0));
           return {
             ...p,
             isLiked: nextLiked,
@@ -1036,17 +1152,21 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     );
 
     if (selectedPage && selectedPage.id === pageId) {
-      setSelectedPage((prev) =>
-        prev
-          ? {
-              ...prev,
-              isLiked: !prev.isLiked,
-              followersCount: !prev.isLiked ? prev.followersCount + 1 : Math.max(0, prev.followersCount - 1),
-            }
-          : null
-      );
+      const nextFollowers = nextLiked
+        ? selectedPage.followersCount + (selectedPage.isLiked ? 0 : 1)
+        : Math.max(0, selectedPage.followersCount - (selectedPage.isLiked ? 1 : 0));
+      const updatedSelected: PageItem = {
+        ...selectedPage,
+        isLiked: nextLiked,
+        followersCount: nextFollowers,
+      };
+      setSelectedPage(updatedSelected);
+      try {
+        localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(updatedSelected));
+      } catch {}
     }
-    showToast('লাইক / ফলো স্ট্যাটাস আপডেট হয়েছে!');
+
+    showToast(nextLiked ? `Following ${targetName}` : `Unfollowed ${targetName}`);
   };
 
   // Create Page Handler (Triggered only on explicit step 3 submit)
@@ -7455,6 +7575,72 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             )}
           </section>
 
+          {/* SECTION 1.5: Public Pages Search Results (when searching inside Pages Hub) */}
+          {searchQuery.trim().length > 0 &&
+            remoteHubPages.filter((rp) => !managedPages.some((mp) => mp.id === rp.id)).length > 0 && (
+              <>
+                <div className="h-[1px] bg-[#E4E6EB] mx-4" />
+                <section className="px-4 pt-4 pb-4">
+                  <h2 className="text-[18px] font-bold text-[#050505] mb-3">
+                    Pages matching &ldquo;{searchQuery.trim()}&rdquo;
+                  </h2>
+                  <div className="space-y-3">
+                    {remoteHubPages
+                      .filter((rp) => !managedPages.some((mp) => mp.id === rp.id))
+                      .map((rp) => {
+                        const isFollowed = isTargetFollowedLocally(rp.id, rp.name);
+                        return (
+                          <div key={rp.id} className="flex items-center justify-between gap-3 py-1">
+                            <button
+                              type="button"
+                              onClick={() => {
+                                try {
+                                  localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(rp));
+                                } catch {}
+                                setSelectedPage({ ...rp, isLiked: isFollowed });
+                              }}
+                              className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
+                            >
+                              {rp.avatar ? (
+                                <img
+                                  src={rp.avatar}
+                                  alt={rp.name}
+                                  className="w-12 h-12 rounded-full object-cover shrink-0 bg-[#E4E6EB]"
+                                />
+                              ) : (
+                                <div className="w-12 h-12 rounded-full shrink-0 bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-bold text-lg">
+                                  {rp.name.trim().charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div className="min-w-0">
+                                <p className="text-[15px] font-bold text-[#050505] truncate">
+                                  {rp.name}
+                                </p>
+                                <p className="text-[12px] text-[#65676B] truncate">
+                                  {rp.category} · {(rp.followersCount || 1).toLocaleString()} followers
+                                </p>
+                              </div>
+                            </button>
+
+                            <button
+                              type="button"
+                              onClick={() => handleToggleLike(rp.id)}
+                              className={`px-3.5 py-1.5 rounded-lg text-[13px] font-semibold shrink-0 cursor-pointer ${
+                                isFollowed
+                                  ? 'bg-[#E7F3FF] text-[#1877F2]'
+                                  : 'bg-[#1877F2] hover:bg-[#166FE5] text-white'
+                              }`}
+                            >
+                              {isFollowed ? 'Following' : '+ Follow'}
+                            </button>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </section>
+              </>
+            )}
+
           <div className="h-[1px] bg-[#E4E6EB] mx-4" />
 
           {/* SECTION 2: Suggested Pages */}
@@ -7492,6 +7678,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           <button
                             type="button"
                             onClick={() => {
+                              const nextFollowed = !isFollowed;
+                              setTargetFollowedLocally(nextFollowed, sp.id, sp.name);
                               setFollowedSuggestedIds((prev) =>
                                 prev.includes(sp.id)
                                   ? prev.filter((id) => id !== sp.id)
