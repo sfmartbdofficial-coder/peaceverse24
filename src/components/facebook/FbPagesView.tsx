@@ -67,10 +67,11 @@ import {
   CircleDollarSign,
   Eye,
 } from 'lucide-react';
-import { NotificationItem, PageItem, UserProfile } from '../../types';
+import { NotificationItem, PageItem, PostItem, ReactionType, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
 import { FbCreatePageLandingView } from './FbCreatePageLandingView';
 import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
+import { FbPostCard } from './FbPostCard';
 import {
   getWhatsAppUrl,
   getImoDeepLink,
@@ -109,6 +110,15 @@ interface FbPagesViewProps {
   onClearOpenSwitchSheet?: () => void;
   initialCreatePageName?: string | null;
   onClearInitialCreatePageName?: () => void;
+  feedPosts?: PostItem[];
+  onToggleFeedReaction?: (postId: string, reaction: ReactionType) => void;
+  onToggleFeedSave?: (postId: string) => void;
+  onAddFeedComment?: (postId: string, text: string) => void;
+  onEditFeedPost?: (postId: string, newContent: string, newArabic?: string, newTranslation?: string) => void;
+  onDeleteFeedPost?: (postId: string) => void;
+  onOpenFeedReel?: (post: PostItem) => void;
+  onOpenFeedGiftModal?: (post: PostItem) => void;
+  onPublishFeedPost?: (post: PostItem) => void;
 }
 
 const DEMO_PAGE_IDS = [
@@ -480,6 +490,15 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   onClearOpenSwitchSheet,
   initialCreatePageName,
   onClearInitialCreatePageName,
+  feedPosts = [],
+  onToggleFeedReaction,
+  onToggleFeedSave,
+  onAddFeedComment,
+  onEditFeedPost,
+  onDeleteFeedPost,
+  onOpenFeedReel,
+  onOpenFeedGiftModal,
+  onPublishFeedPost,
 }) => {
   const [creatorPrefs, setCreatorPrefs] = useState<PeaceSettingsPrefs>(() => loadPeaceSettings());
   const updateCreatorPref = (patch: Partial<PeaceSettingsPrefs>) => {
@@ -1159,6 +1178,37 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       [currentPageId]: [newPost, ...(prev[currentPageId] || [])],
     }));
 
+    if (onPublishFeedPost) {
+      onPublishFeedPost({
+        id: newPost.id,
+        authorId: selectedPage.id,
+        author: {
+          name: selectedPage.name,
+          avatar: selectedPage.avatar,
+          subtitle: selectedPage.category,
+          verified: true,
+        },
+        timeAgo: 'Just now',
+        isPublic: true,
+        createdAtMillis: newPost.createdAtMillis,
+        privacy: 'public',
+        contentBangla: newPost.text,
+        mediaType: newPost.image ? 'image' : 'none',
+        mediaUrl: newPost.image || undefined,
+        category: 'Community',
+        reactions: {
+          total: 0,
+          likeCount: 0,
+          loveCount: 0,
+          subhanallahCount: 0,
+          mashaallahCount: 0,
+        },
+        comments: [],
+        sharesCount: 0,
+        isFreshUpload: true,
+      });
+    }
+
     logPageActivity(
       selectedPage.id,
       'post',
@@ -1371,6 +1421,22 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   if (selectedPage) {
     const isOwnerView = selectedPage.isOwner && !viewAsVisitor;
     const rawPosts = pagePostsList[selectedPage.id] || [];
+    const rawIds = new Set(rawPosts.map((rp) => rp.id));
+    const matchedFeedPosts = feedPosts.filter((fp) => {
+      if (rawIds.has(fp.id)) return false;
+      const byId = Boolean(fp.authorId && fp.authorId === selectedPage.id);
+      const byName = Boolean(
+        fp.author?.name &&
+          selectedPage.name &&
+          fp.author.name.trim().toLowerCase() === selectedPage.name.trim().toLowerCase()
+      );
+      if (!byId && !byName) return false;
+      if (pageSearchQuery.trim()) {
+        const q = pageSearchQuery.trim().toLowerCase();
+        return (fp.contentBangla || '').toLowerCase().includes(q);
+      }
+      return true;
+    });
     const activePosts = pageSearchQuery.trim()
       ? rawPosts.filter((p) => p.text.toLowerCase().includes(pageSearchQuery.trim().toLowerCase()))
       : rawPosts;
@@ -1870,6 +1936,44 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
               if (postFilterMode === 'top') return b.likes + b.comments - (a.likes + a.comments);
               return a.pinned === b.pinned ? 0 : a.pinned ? -1 : 1;
+            });
+
+            type UnifiedPageEntry =
+              | { kind: 'feed'; post: PostItem; sortTime: number; fresh: boolean; score: number }
+              | { kind: 'local'; post: (typeof sortedPosts)[number]; sortTime: number; fresh: boolean; score: number };
+
+            const unifiedPageFeed: UnifiedPageEntry[] = [
+              ...(postFilterMode === 'pinned'
+                ? []
+                : matchedFeedPosts.map((fp) => ({
+                    kind: 'feed' as const,
+                    post: fp,
+                    sortTime: fp.createdAtMillis || 0,
+                    fresh:
+                      (fp.createdAtMillis || 0) > 0 &&
+                      pageFreshNowTick - (fp.createdAtMillis || 0) < PAGE_FRESH_MS,
+                    score: (fp.reactions?.total || 0) + fp.comments.length,
+                  }))),
+              ...sortedPosts.map((lp) => ({
+                kind: 'local' as const,
+                post: lp,
+                sortTime: lp.createdAtMillis || 0,
+                fresh:
+                  (lp.createdAtMillis || 0) > 0 &&
+                  pageFreshNowTick - (lp.createdAtMillis || 0) < PAGE_FRESH_MS,
+                score: lp.likes + lp.comments,
+              })),
+            ].sort((a, b) => {
+              if (a.fresh && !b.fresh) return -1;
+              if (!a.fresh && b.fresh) return 1;
+              if (a.fresh && b.fresh) return b.sortTime - a.sortTime;
+
+              const aPinned = a.kind === 'local' ? Boolean(a.post.pinned) : false;
+              const bPinned = b.kind === 'local' ? Boolean(b.post.pinned) : false;
+              if (aPinned !== bPinned) return aPinned ? -1 : 1;
+
+              if (postFilterMode === 'top') return b.score - a.score;
+              return b.sortTime - a.sortTime;
             });
 
             return (
@@ -2454,9 +2558,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </>
               )}
 
-              {/* Feed of Posts for this Page (Fresh < 3 mins #1 at top, then pinned/top posts) */}
+              {/* Feed of Posts for this Page (Unified Feed & Page Posts, Fresh < 3 mins #1 at top) */}
               <div className="space-y-3">
-                {sortedPosts.length === 0 && !(pendingPageUpload && pendingPageUpload.pageId === selectedPage.id) ? (
+                {unifiedPageFeed.length === 0 && !(pendingPageUpload && pendingPageUpload.pageId === selectedPage.id) ? (
                   <div className="bg-white rounded-xl p-6 text-center border border-[#E4E6EB]">
                     <Flag className="w-8 h-8 text-[#65676B] mx-auto mb-2 opacity-50" />
                     <p className="text-xs font-semibold text-[#65676B]">
@@ -2466,7 +2570,27 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     </p>
                   </div>
                 ) : (
-                  sortedPosts.map((post) => (
+                  unifiedPageFeed.map((entry) => {
+                    if (entry.kind === 'feed') {
+                      const fp = entry.post;
+                      return (
+                        <FbPostCard
+                          key={`feed-${fp.id}`}
+                          post={fp}
+                          onToggleReaction={onToggleFeedReaction || (() => {})}
+                          onToggleSave={onToggleFeedSave || (() => {})}
+                          onAddComment={onAddFeedComment || (() => {})}
+                          onEditPost={isOwnerView ? onEditFeedPost : undefined}
+                          onDeletePost={isOwnerView ? onDeleteFeedPost : undefined}
+                          onOpenReel={onOpenFeedReel}
+                          onOpenGiftModal={onOpenFeedGiftModal}
+                          currentUserId={selectedPage.id}
+                          currentUserName={selectedPage.name}
+                        />
+                      );
+                    }
+                    const post = entry.post;
+                    return (
                       <div
                         key={post.id}
                         className="bg-white rounded-xl border border-[#E4E6EB] p-3.5 space-y-2.5 shadow-2xs relative"
@@ -3018,20 +3142,33 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           </div>
                         )}
                       </div>
-                    ))
+                    );
+                  })
                 )}
               </div>
             </div>
             );
           })()}
 
-          {/* PHOTOS TAB (Synced with Cover, Avatar & all Post Photos) */}
+          {/* PHOTOS TAB (Synced with Cover, Avatar, Page Posts & Feed Posts) */}
           {pageSubTab === 'photos' && (() => {
-            const allPagePhotos = [
-              selectedPage.cover,
-              selectedPage.avatar,
-              ...rawPosts.map((p) => p.image).filter((img): img is string => Boolean(img)),
-            ].filter(Boolean) as string[];
+            const feedPhotoUrls = matchedFeedPosts.flatMap((fp) => {
+              if (fp.mediaType === 'video') return [];
+              const list: string[] = [];
+              if (Array.isArray(fp.mediaUrls)) list.push(...fp.mediaUrls);
+              if (fp.mediaUrl && !list.includes(fp.mediaUrl)) list.push(fp.mediaUrl);
+              return list;
+            });
+            const allPagePhotos = Array.from(
+              new Set(
+                [
+                  ...feedPhotoUrls,
+                  ...rawPosts.map((p) => p.image).filter((img): img is string => Boolean(img)),
+                  selectedPage.cover,
+                  selectedPage.avatar,
+                ].filter(Boolean) as string[]
+              )
+            );
             return (
               <div className="bg-white rounded-xl border border-[#E4E6EB] p-3">
                 {allPagePhotos.length === 0 ? (
@@ -3054,15 +3191,19 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             );
           })()}
 
-          {/* REELS TAB */}
+          {/* REELS TAB (Synced with Page Reels & Feed Video Posts) */}
           {pageSubTab === 'reels' && (() => {
             const pageReels = rawPosts.filter((p) => p.text.startsWith('🎬 Reel:'));
+            const feedVideoReels = matchedFeedPosts.filter(
+              (fp) => fp.mediaType === 'video' || Boolean(fp.youtubeId)
+            );
+            const totalReelsCount = pageReels.length + feedVideoReels.length;
             return (
               <div className="bg-white rounded-xl border border-[#E4E6EB] p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="text-sm font-bold text-[#050505] flex items-center gap-1.5">
                     <Film className="w-4 h-4 text-[#0866FF]" />
-                    <span>{selectedPage.name} • Reels ({pageReels.length})</span>
+                    <span>{selectedPage.name} • Reels ({totalReelsCount})</span>
                   </h3>
                   {isOwnerView && (
                     <button
@@ -3075,7 +3216,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   )}
                 </div>
 
-                {pageReels.length === 0 ? (
+                {totalReelsCount === 0 ? (
                   <div className="py-6 text-center space-y-2">
                     <div className="w-11 h-11 rounded-full bg-[#F0F2F5] text-[#0866FF] flex items-center justify-center mx-auto">
                       <Film className="w-5 h-5" />
@@ -3086,6 +3227,29 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                   </div>
                 ) : (
                   <div className="space-y-2">
+                    {feedVideoReels.map((reel) => (
+                      <div
+                        key={`reel-feed-${reel.id}`}
+                        onClick={() => onOpenFeedReel && onOpenFeedReel(reel)}
+                        className="p-3 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] flex items-center gap-3 cursor-pointer transition-colors"
+                      >
+                        <div className="w-14 h-20 rounded-lg bg-black overflow-hidden shrink-0 flex items-center justify-center">
+                          {reel.mediaUrl ? (
+                            <video src={reel.mediaUrl} className="w-full h-full object-cover" muted />
+                          ) : (
+                            <Film className="w-5 h-5 text-white" />
+                          )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-[#050505] line-clamp-2">
+                            {reel.contentBangla || `${selectedPage.name} Reel`}
+                          </p>
+                          <p className="text-[11px] text-[#65676B] mt-1">
+                            {reel.timeAgo} • {reel.reactions?.total || 0} likes
+                          </p>
+                        </div>
+                      </div>
+                    ))}
                     {pageReels.map((reel) => (
                       <div key={reel.id} className="p-3 rounded-xl bg-[#F0F2F5] space-y-1">
                         <p className="text-xs font-bold text-[#050505]">{reel.text}</p>

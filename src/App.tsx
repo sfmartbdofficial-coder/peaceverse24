@@ -1632,6 +1632,7 @@ export default function App() {
     const nowMillis = newPost.createdAtMillis || Date.now();
     const sanitizedPost: PostItem = {
       ...newPost,
+      authorId: activeSwitchedPage ? activeSwitchedPage.id : newPost.authorId,
       createdAtMillis: nowMillis,
       isFreshUpload: true,
       contentBangla: sanitizeInput(newPost.contentBangla || '', POST_MAX_LENGTH),
@@ -3202,6 +3203,19 @@ export default function App() {
               onClearOpenSwitchSheet={() => setOpenPageSwitchSheetOnOpen(false)}
               initialCreatePageName={initialCreatePageName}
               onClearInitialCreatePageName={() => setInitialCreatePageName(null)}
+              feedPosts={posts}
+              onToggleFeedReaction={handleToggleReaction}
+              onToggleFeedSave={handleToggleSave}
+              onAddFeedComment={handleAddComment}
+              onEditFeedPost={handleEditPost}
+              onDeleteFeedPost={handleDeletePost}
+              onOpenFeedReel={(p) => setActiveReelPostId(p.id)}
+              onOpenFeedGiftModal={(p) => setSelectedGiftPost(p)}
+              onPublishFeedPost={(newFeedPost) => {
+                setPosts((prev) => [newFeedPost, ...prev.filter((p) => p.id !== newFeedPost.id)]);
+                insertSupabasePost(newFeedPost, firebaseUser?.uid || userProfile.id);
+                createRealtimePost(newFeedPost);
+              }}
             />
           </div>
         )}
