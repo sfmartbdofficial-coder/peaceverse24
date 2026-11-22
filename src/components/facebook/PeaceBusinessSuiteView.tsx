@@ -17,7 +17,7 @@ import {
   Eye,
   Check,
 } from 'lucide-react';
-import { PageItem, UserProfile } from '../../types';
+import { PageItem, PostItem, ReactionType, UserProfile } from '../../types';
 import { FbPagesView } from './FbPagesView';
 
 type BusinessSuiteTab = 'pages' | 'orders' | 'inbox' | 'insights';
@@ -49,6 +49,15 @@ interface PeaceBusinessSuiteViewProps {
   onBack: () => void;
   userProfile: UserProfile;
   onSwitchToPage?: (page: PageItem) => void;
+  feedPosts?: PostItem[];
+  onToggleFeedReaction?: (postId: string, reaction: ReactionType) => void;
+  onToggleFeedSave?: (postId: string) => void;
+  onAddFeedComment?: (postId: string, text: string) => void;
+  onEditFeedPost?: (postId: string, newContent: string, newArabic?: string, newTranslation?: string) => void;
+  onDeleteFeedPost?: (postId: string) => void;
+  onOpenFeedReel?: (post: PostItem) => void;
+  onOpenFeedGiftModal?: (post: PostItem) => void;
+  onPublishFeedPost?: (post: PostItem) => void;
 }
 
 const INITIAL_ORDERS: BusinessOrder[] = [
@@ -158,6 +167,15 @@ export const PeaceBusinessSuiteView: React.FC<PeaceBusinessSuiteViewProps> = ({
   onBack,
   userProfile,
   onSwitchToPage,
+  feedPosts = [],
+  onToggleFeedReaction,
+  onToggleFeedSave,
+  onAddFeedComment,
+  onEditFeedPost,
+  onDeleteFeedPost,
+  onOpenFeedReel,
+  onOpenFeedGiftModal,
+  onPublishFeedPost,
 }) => {
   const [activeTab, setActiveTab] = useState<BusinessSuiteTab>('pages');
   const [orders, setOrders] = useState<BusinessOrder[]>(INITIAL_ORDERS);
@@ -297,6 +315,15 @@ export const PeaceBusinessSuiteView: React.FC<PeaceBusinessSuiteViewProps> = ({
             onSwitchToPage={(page) => {
               if (onSwitchToPage) onSwitchToPage(page);
             }}
+            feedPosts={feedPosts}
+            onToggleFeedReaction={onToggleFeedReaction}
+            onToggleFeedSave={onToggleFeedSave}
+            onAddFeedComment={onAddFeedComment}
+            onEditFeedPost={onEditFeedPost}
+            onDeleteFeedPost={onDeleteFeedPost}
+            onOpenFeedReel={onOpenFeedReel}
+            onOpenFeedGiftModal={onOpenFeedGiftModal}
+            onPublishFeedPost={onPublishFeedPost}
           />
         )}
 

@@ -1153,7 +1153,24 @@ export default function App() {
       setPosts((prev) => {
         const map = new Map<string, PostItem>();
         prev.forEach((p) => map.set(p.id, p));
-        cleanPosts.forEach((p) => map.set(p.id, p));
+        cleanPosts.forEach((p) => {
+          const existing = map.get(p.id);
+          map.set(
+            p.id,
+            existing
+              ? {
+                  ...existing,
+                  ...p,
+                  authorId: p.authorId || existing.authorId,
+                  mediaType:
+                    p.mediaType && p.mediaType !== 'none' ? p.mediaType : existing.mediaType,
+                  mediaUrl: p.mediaUrl || existing.mediaUrl,
+                  mediaUrls:
+                    p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls : existing.mediaUrls,
+                }
+              : p
+          );
+        });
         return Array.from(map.values()).sort((a: any, b: any) => {
           const tA = new Date(a.createdAt || a.createdAtMillis || 0).getTime();
           const tB = new Date(b.createdAt || b.createdAtMillis || 0).getTime();
@@ -1726,28 +1743,33 @@ export default function App() {
 
   // Handle new reel created (triggers Creator Broadcast /api/notify-all when enabled)
   const handleReelCreated = (newReel: PostItem) => {
-    setPosts((prev) => [newReel, ...prev]);
-    insertSupabasePost(newReel);
-    createRealtimePost(newReel);
+    const taggedReel: PostItem = {
+      ...newReel,
+      authorId: activeSwitchedPage ? activeSwitchedPage.id : newReel.authorId,
+      createdAtMillis: newReel.createdAtMillis || Date.now(),
+    };
+    setPosts((prev) => [taggedReel, ...prev]);
+    insertSupabasePost(taggedReel);
+    createRealtimePost(taggedReel);
     setShowCreateReel(false);
     navigateToTab('reels');
     logUserActivity(userProfile.id, 'Reel', 'নতুন ভিডিও রিল আপলোড করেছেন');
 
     const prefs = loadPeaceSettings();
     if (prefs.creatorNotifyFollowersOnPost) {
-      const creatorName = newReel.author?.name || 'প্রিয় দাদা';
+      const creatorName = taggedReel.author?.name || 'প্রিয় দাদা';
       broadcastCreatorNotification({
-        creatorId: newReel.authorId || activeSwitchedPage?.id || effectiveProfile.id || creatorName,
+        creatorId: taggedReel.authorId || activeSwitchedPage?.id || effectiveProfile.id || creatorName,
         creatorName,
-        creatorAvatar: newReel.author?.avatar || effectiveProfile.avatar,
+        creatorAvatar: taggedReel.author?.avatar || effectiveProfile.avatar,
         contentType: 'video',
         title: `${creatorName} নতুন ভিডিও আপলোড করেছেন`,
         body:
-          newReel.contentBangla?.trim().slice(0, 95) ||
+          taggedReel.contentBangla?.trim().slice(0, 95) ||
           '১০০% হালাল পণ্যের নতুন কালেকশন দেখুন',
-        thumbnail: newReel.mediaUrl,
-        postId: newReel.id,
-        link: `/?tab=reels&postId=${newReel.id}`,
+        thumbnail: taggedReel.mediaUrl,
+        postId: taggedReel.id,
+        link: `/?tab=reels&postId=${taggedReel.id}`,
         broadcastToAll: prefs.creatorSendPushToAllUsers,
         onLocalNotify: addLocalBroadcastNotification,
       });
@@ -1756,7 +1778,12 @@ export default function App() {
 
   // Handle new live created
   const handleLiveCreated = (newLive: PostItem) => {
-    setPosts((prev) => [newLive, ...prev]);
+    const taggedLive: PostItem = {
+      ...newLive,
+      authorId: activeSwitchedPage ? activeSwitchedPage.id : newLive.authorId,
+      createdAtMillis: newLive.createdAtMillis || Date.now(),
+    };
+    setPosts((prev) => [taggedLive, ...prev]);
     setShowLive(false);
     navigateToTab('home');
   };
@@ -2381,6 +2408,19 @@ export default function App() {
           handleSwitchToPage(page);
           navigateToPath('/home');
         }}
+        feedPosts={posts}
+        onToggleFeedReaction={handleToggleReaction}
+        onToggleFeedSave={handleToggleSave}
+        onAddFeedComment={handleAddComment}
+        onEditFeedPost={handleEditPost}
+        onDeleteFeedPost={handleDeletePost}
+        onOpenFeedReel={(p) => setActiveReelPostId(p.id)}
+        onOpenFeedGiftModal={(p) => setSelectedGiftPost(p)}
+        onPublishFeedPost={(newFeedPost) => {
+          setPosts((prev) => [newFeedPost, ...prev.filter((p) => p.id !== newFeedPost.id)]);
+          insertSupabasePost(newFeedPost, firebaseUser?.uid || userProfile.id);
+          createRealtimePost(newFeedPost);
+        }}
       />
     );
   }
@@ -2652,6 +2692,32 @@ export default function App() {
                           onEditPost={handleEditPost}
                           onDeletePost={handleDeletePost}
                           onOpenProfile={async (authorName) => {
+                            const norm = (s?: string) =>
+                              (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+                            try {
+                              const storedPages: PageItem[] = JSON.parse(
+                                localStorage.getItem('qalby_fb_pages') || '[]'
+                              );
+                              const matchedPage = storedPages.find(
+                                (pg) =>
+                                  (post.authorId && pg.id === post.authorId) ||
+                                  (authorName && norm(pg.name) === norm(authorName))
+                              );
+                              if (matchedPage) {
+                                setSelectedPageIdToOpen(matchedPage.id);
+                                navigateToTab('pages');
+                                return;
+                              }
+                            } catch {}
+                            if (
+                              activeSwitchedPage &&
+                              ((post.authorId && activeSwitchedPage.id === post.authorId) ||
+                                (authorName && norm(activeSwitchedPage.name) === norm(authorName)))
+                            ) {
+                              setSelectedPageIdToOpen(activeSwitchedPage.id);
+                              navigateToTab('pages');
+                              return;
+                            }
                             if (!authorName || authorName === userProfile.name) {
                               setViewedProfile(null);
                               navigateToTab('profile');
@@ -2874,6 +2940,32 @@ export default function App() {
                             onEditPost={handleEditPost}
                             onDeletePost={handleDeletePost}
                             onOpenProfile={async (authorName) => {
+                              const norm = (s?: string) =>
+                                (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+                              try {
+                                const storedPages: PageItem[] = JSON.parse(
+                                  localStorage.getItem('qalby_fb_pages') || '[]'
+                                );
+                                const matchedPage = storedPages.find(
+                                  (pg) =>
+                                    (post.authorId && pg.id === post.authorId) ||
+                                    (authorName && norm(pg.name) === norm(authorName))
+                                );
+                                if (matchedPage) {
+                                  setSelectedPageIdToOpen(matchedPage.id);
+                                  navigateToTab('pages');
+                                  return;
+                                }
+                              } catch {}
+                              if (
+                                activeSwitchedPage &&
+                                ((post.authorId && activeSwitchedPage.id === post.authorId) ||
+                                  (authorName && norm(activeSwitchedPage.name) === norm(authorName)))
+                              ) {
+                                setSelectedPageIdToOpen(activeSwitchedPage.id);
+                                navigateToTab('pages');
+                                return;
+                              }
                               if (!authorName || authorName === userProfile.name) {
                                 setViewedProfile(null);
                                 navigateToTab('profile');

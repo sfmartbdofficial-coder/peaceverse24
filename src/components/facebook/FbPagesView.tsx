@@ -587,7 +587,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         localStorage.removeItem('peaceverse_selected_page_id_v1');
       }
     } catch {}
-  }, [selectedPage]);
+    setPageSearchQuery('');
+    setPostFilterMode('all');
+  }, [selectedPage?.id]);
 
   useEffect(() => {
     if (initialSelectedPageId) {
@@ -1422,15 +1424,22 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     const isOwnerView = selectedPage.isOwner && !viewAsVisitor;
     const rawPosts = pagePostsList[selectedPage.id] || [];
     const rawIds = new Set(rawPosts.map((rp) => rp.id));
+    const normStr = (val?: string) =>
+      (val || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+    const normPageName = normStr(selectedPage.name);
+    const normPersonalName = normStr(userProfile?.name);
     const matchedFeedPosts = feedPosts.filter((fp) => {
       if (rawIds.has(fp.id)) return false;
       const byId = Boolean(fp.authorId && fp.authorId === selectedPage.id);
-      const byName = Boolean(
-        fp.author?.name &&
-          selectedPage.name &&
-          fp.author.name.trim().toLowerCase() === selectedPage.name.trim().toLowerCase()
+      const normAuthorName = normStr(fp.author?.name);
+      const byName = Boolean(normAuthorName && normPageName && normAuthorName === normPageName);
+      const byAvatar = Boolean(
+        selectedPage.avatar &&
+          fp.author?.avatar &&
+          fp.author.avatar === selectedPage.avatar &&
+          (!normPersonalName || normAuthorName !== normPersonalName)
       );
-      if (!byId && !byName) return false;
+      if (!byId && !byName && !byAvatar) return false;
       if (pageSearchQuery.trim()) {
         const q = pageSearchQuery.trim().toLowerCase();
         return (fp.contentBangla || '').toLowerCase().includes(q);
@@ -4408,14 +4417,17 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     day: 'numeric',
                     year: 'numeric',
                   });
+                  const newReelId = `reel-${Date.now()}`;
+                  const nowMs = Date.now();
                   setPagePostsList((prev) => ({
                     ...prev,
                     [selectedPage.id]: [
                       {
-                        id: `reel-${Date.now()}`,
+                        id: newReelId,
                         text: `🎬 Reel: ${title}`,
                         time: 'এখনই',
                         dateLabel: todayStr,
+                        createdAtMillis: nowMs,
                         likes: 1,
                         comments: 0,
                         reach: 185,
@@ -4424,6 +4436,35 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                       ...(prev[selectedPage.id] || []),
                     ],
                   }));
+                  if (onPublishFeedPost) {
+                    onPublishFeedPost({
+                      id: newReelId,
+                      authorId: selectedPage.id,
+                      author: {
+                        name: selectedPage.name,
+                        avatar: selectedPage.avatar,
+                        subtitle: selectedPage.category,
+                        verified: true,
+                      },
+                      timeAgo: 'Just now',
+                      isPublic: true,
+                      createdAtMillis: nowMs,
+                      privacy: 'public',
+                      contentBangla: `🎬 ${title}`,
+                      mediaType: 'none',
+                      category: 'Lecture',
+                      reactions: {
+                        total: 1,
+                        likeCount: 1,
+                        loveCount: 0,
+                        subhanallahCount: 0,
+                        mashaallahCount: 0,
+                      },
+                      comments: [],
+                      sharesCount: 0,
+                      isFreshUpload: true,
+                    });
+                  }
                   logPageActivity(selectedPage.id, 'post', 'Published a Page Reel', title);
                   setPageReelTitle('');
                   setShowPageReelModal(false);
