@@ -6,14 +6,23 @@ interface FbStoriesProps {
   stories: StoryItem[];
   onOpenCreateStory: () => void;
   onOpenCreateReel?: () => void;
+  currentUserAvatar?: string;
+  currentUserName?: string;
 }
 
-export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory, onOpenCreateReel }) => {
+export const FbStories: React.FC<FbStoriesProps> = ({
+  stories,
+  onOpenCreateStory,
+  onOpenCreateReel,
+  currentUserAvatar,
+  currentUserName = 'User',
+}) => {
   const viewableStories = stories.filter((s) => s.id !== 'story-create');
   const [selectedStoryIndex, setSelectedStoryIndex] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
   const [replySentNotice, setReplySentNotice] = useState<string | null>(null);
   const selectedStory = selectedStoryIndex !== null ? viewableStories[selectedStoryIndex] || null : null;
+  const userInitial = currentUserName.trim().charAt(0).toUpperCase() || 'P';
 
   return (
     <>
@@ -25,13 +34,19 @@ export const FbStories: React.FC<FbStoriesProps> = ({ stories, onOpenCreateStory
           onClick={onOpenCreateStory}
           className="w-[112px] min-w-[112px] h-[190px] rounded-[10px] bg-white border border-[#E4E6EB] hover:border-[#0866FF] flex-shrink-0 cursor-pointer overflow-hidden flex flex-col group shadow-xs transition-all relative"
         >
-          {/* Top cover image */}
-          <div className="h-[130px] w-full bg-gradient-to-b from-blue-500/20 to-neutral-200 overflow-hidden relative">
-            <img
-              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80"
-              alt="Create Story"
-              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
-            />
+          {/* Top cover image (shows active personal or switched Page logo/avatar) */}
+          <div className="h-[130px] w-full bg-[#E7F3FF] overflow-hidden relative flex items-center justify-center">
+            {currentUserAvatar ? (
+              <img
+                src={currentUserAvatar}
+                alt={currentUserName || 'Create Story'}
+                className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-200"
+              />
+            ) : (
+              <div className="w-full h-full bg-gradient-to-br from-[#0866FF] to-[#1877F2] flex items-center justify-center text-white text-3xl font-black">
+                {userInitial}
+              </div>
+            )}
           </div>
           {/* Overlapping Blue Plus Button */}
           <div className="absolute top-[114px] left-1/2 -translate-x-1/2 z-10 w-8 h-8 rounded-full bg-[#0866FF] flex items-center justify-center text-white shadow-md ring-4 ring-white">

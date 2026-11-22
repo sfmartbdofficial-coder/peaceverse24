@@ -2497,46 +2497,6 @@ export default function App() {
               </div>
             )}
 
-            {/* Clean 56px Facebook-style Active Profile Header (Clicking opens Page Profile) */}
-            {activeSwitchedPage && (
-              <div
-                onClick={() => {
-                  setSelectedPageIdToOpen(activeSwitchedPage.id);
-                  navigateToTab('pages');
-                }}
-                className="h-[56px] bg-[#0866FF] hover:bg-[#1877F2] text-white rounded-[10px] px-3.5 shadow-xs flex items-center justify-between gap-3 cursor-pointer transition-colors"
-                title="পেজ প্রোফাইল দেখুন"
-              >
-                <div className="flex items-center gap-2.5 min-w-0">
-                  {activeSwitchedPage.avatar ? (
-                    <img
-                      src={activeSwitchedPage.avatar}
-                      alt={activeSwitchedPage.name}
-                      className="w-9 h-9 rounded-full object-cover border border-white/80 shrink-0"
-                    />
-                  ) : (
-                    <div className="w-9 h-9 rounded-full bg-white text-[#0866FF] font-extrabold text-sm flex items-center justify-center border border-white/80 shrink-0">
-                      {activeSwitchedPage.name.trim().charAt(0).toUpperCase()}
-                    </div>
-                  )}
-                  <div className="min-w-0 leading-tight">
-                    <p className="font-bold text-[15px] text-white truncate">
-                      {activeSwitchedPage.name}
-                    </p>
-                    <div className="flex items-center gap-1.5 text-[11px] text-white/90 font-medium">
-                      <span className="w-2 h-2 rounded-full bg-[#31A24C] inline-block shrink-0" />
-                      <span>Profile Active • View Page</span>
-                    </div>
-                  </div>
-                </div>
-
-                <span
-                  className="w-2.5 h-2.5 rounded-full bg-[#31A24C] ring-2 ring-white/80 shrink-0"
-                  aria-label="Online"
-                />
-              </div>
-            )}
-
             {searchQuery.trim().length > 0 ? (
               <FbUserSearchResults
                 query={searchQuery}
@@ -2619,6 +2579,8 @@ export default function App() {
                     stories={stories}
                     onOpenCreateStory={() => setShowCreateStory(true)}
                     onOpenCreateReel={() => setShowCreateReel(true)}
+                    currentUserAvatar={effectiveProfile.avatar}
+                    currentUserName={effectiveProfile.name}
                   />
                 </div>
 
