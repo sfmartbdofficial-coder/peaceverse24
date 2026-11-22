@@ -65,6 +65,7 @@ interface FbPostCardProps {
   onTypingChange?: (postId: string, isTyping: boolean) => void;
   onOpenReel?: (post: PostItem) => void;
   onOpenGiftModal?: (post: PostItem) => void;
+  onSharePost?: (postId: string) => void;
   currentUserId?: string;
   currentUserName?: string;
   showBoostControls?: boolean;
@@ -83,6 +84,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   onTypingChange,
   onOpenReel,
   onOpenGiftModal,
+  onSharePost,
   currentUserId = 'user-me',
   currentUserName = 'User',
   showBoostControls,
@@ -102,6 +104,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [commentInput, setCommentInput] = useState('');
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
+  const [localShareDelta, setLocalShareDelta] = useState(0);
   const [hidden, setHidden] = useState(false);
   const [showPhotoLightbox, setShowPhotoLightbox] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState(0);
@@ -338,7 +341,14 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     }
   };
 
+  const displaySharesCount = (post.sharesCount || 0) + localShareDelta;
+
   const handleShare = () => {
+    if (onSharePost) {
+      onSharePost(post.id);
+    } else {
+      setLocalShareDelta((c) => c + 1);
+    }
     if (navigator.share) {
       navigator.share({
         title: post.author.name,
@@ -346,7 +356,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         url: window.location.href,
       }).catch(() => {});
     } else {
-      navigator.clipboard.writeText(`${post.contentBangla}\n\n— ${post.author.name} via Peaceverse24.com`);
+      try {
+        navigator.clipboard?.writeText(`${post.contentBangla}\n\n— ${post.author.name} via Peaceverse24.com`);
+      } catch {}
       setCopiedToast(true);
       setTimeout(() => setCopiedToast(false), 2500);
     }
@@ -393,7 +405,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const hasSummaryEngagement =
     post.reactions.total > 0 ||
     post.comments.length > 0 ||
-    post.sharesCount > 0 ||
+    displaySharesCount > 0 ||
     Boolean(activeReactionMeta);
 
   const normIdentity = (s?: string) =>
@@ -926,7 +938,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             </div>
 
             {/* Right: Comments & Shares (only show non-zero counts) */}
-            {(post.comments.length > 0 || post.sharesCount > 0) && (
+            {(post.comments.length > 0 || displaySharesCount > 0) && (
               <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] shrink-0 tabular-nums">
                 {post.comments.length > 0 && (
                   <button
@@ -936,10 +948,10 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                     {post.comments.length} {post.comments.length === 1 ? 'comment' : 'comments'}
                   </button>
                 )}
-                {post.comments.length > 0 && post.sharesCount > 0 && <span>•</span>}
-                {post.sharesCount > 0 && (
+                {post.comments.length > 0 && displaySharesCount > 0 && <span>•</span>}
+                {displaySharesCount > 0 && (
                   <button onClick={handleShare} className="hover:underline cursor-pointer">
-                    {post.sharesCount} {post.sharesCount === 1 ? 'share' : 'shares'}
+                    {displaySharesCount} {displaySharesCount === 1 ? 'share' : 'shares'}
                   </button>
                 )}
               </div>
@@ -955,11 +967,11 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
       )}
 
-      {/* 6. Facebook Action Bar: Dua/Like (with 6 Halal Reactions popup), Comment, Share, Hadiya */}
-      <div className="border-t border-[#E4E6EB] mx-3 py-1 flex items-center justify-between relative">
+      {/* 6. Facebook Action Bar: Dua/Like (with 6 Halal Reactions popup), Comment, Share, Hadiya + live counts */}
+      <div className="border-t border-[#E4E6EB] mx-2 sm:mx-3 py-1 flex items-center justify-between gap-0.5 relative">
         {/* Column 1: Halal Reaction Button (Tap = Dua, Hover/Long-Press = 6 Reactions Bar) */}
         <div
-          className="relative flex-1"
+          className="relative flex-1 min-w-0"
           onMouseEnter={() => setShowReactionsMenu(true)}
           onMouseLeave={() => {
             setShowReactionsMenu(false);
@@ -1039,50 +1051,60 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               }
               triggerReactionWithAnimation(post.userReaction || 'like');
             }}
-            className={`w-full py-1.5 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-1.5 transition-colors cursor-pointer select-none ${
+            className={`w-full py-1.5 px-1 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-1 transition-colors cursor-pointer select-none ${
               activeReactionMeta
                 ? `${activeReactionMeta.textColor} font-bold`
                 : 'text-[#65676B] font-medium'
             }`}
           >
             {activeReactionMeta ? (
-              <span className="text-lg leading-none">{activeReactionMeta.emoji}</span>
+              <span className="text-base sm:text-lg leading-none shrink-0">{activeReactionMeta.emoji}</span>
             ) : (
-              <span className="text-lg leading-none">🤲</span>
+              <span className="text-base sm:text-lg leading-none shrink-0">🤲</span>
             )}
-            <span className="text-[14px] sm:text-[15px] whitespace-nowrap">
+            <span className="text-[12px] sm:text-[14px] whitespace-nowrap truncate">
               {activeReactionMeta ? activeReactionMeta.label : 'Dua'}
+            </span>
+            <span className="text-[12px] sm:text-[13px] font-bold tabular-nums shrink-0">
+              {post.reactions.total || 0}
             </span>
           </button>
         </div>
 
-        {/* Column 2: Comment (bubble 20px, text 15px medium) */}
+        {/* Column 2: Comment */}
         <button
           onClick={() => setShowComments(!showComments)}
-          className="flex-1 py-1.5 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-2 text-[#65676B] font-medium transition-colors cursor-pointer"
+          className="flex-1 min-w-0 py-1.5 px-1 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-1 text-[#65676B] font-medium transition-colors cursor-pointer"
         >
-          <MessageCircle className="w-5 h-5 text-[#65676B]" />
-          <span className="text-[15px]">Comment</span>
+          <MessageCircle className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[#65676B] shrink-0" />
+          <span className="text-[12px] sm:text-[14px] whitespace-nowrap">Comment</span>
+          <span className="text-[12px] sm:text-[13px] font-bold tabular-nums shrink-0">
+            {post.comments.length}
+          </span>
         </button>
 
-        {/* Column 3: Share (arrow 20px, text 15px medium) */}
+        {/* Column 3: Share */}
         <button
           onClick={handleShare}
-          className="flex-1 py-1.5 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-2 text-[#65676B] font-medium transition-colors cursor-pointer"
+          className="flex-1 min-w-0 py-1.5 px-1 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-1 text-[#65676B] font-medium transition-colors cursor-pointer"
         >
-          <Share2 className="w-5 h-5 text-[#65676B]" />
-          <span className="text-[15px]">Share</span>
+          <Share2 className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[#65676B] shrink-0" />
+          <span className="text-[12px] sm:text-[14px] whitespace-nowrap">Share</span>
+          <span className="text-[12px] sm:text-[13px] font-bold tabular-nums shrink-0">
+            {displaySharesCount}
+          </span>
         </button>
 
         {/* Column 4: Golden Hadia Gift */}
         <button
           onClick={() => onOpenGiftModal?.(post)}
-          className="flex-1 py-1.5 rounded-md hover:bg-amber-50 flex items-center justify-center gap-1.5 text-amber-600 font-bold transition-colors cursor-pointer"
+          className="flex-1 min-w-0 py-1.5 px-1 rounded-md hover:bg-amber-50 flex items-center justify-center gap-1 text-amber-600 font-bold transition-colors cursor-pointer"
           title="গোল্ডেন হাদিয়া পাঠান (Gift Gold Coins)"
         >
-          <Gift className="w-4 h-4 text-amber-500" />
-          <span className="text-[14px]">
-            {post.goldenGiftsCount ? `🪙 ${post.goldenGiftsCount}` : 'হাদিয়া'}
+          <Gift className="w-4 h-4 text-amber-500 shrink-0" />
+          <span className="text-[12px] sm:text-[13.5px] whitespace-nowrap">হাদিয়া</span>
+          <span className="text-[12px] sm:text-[13px] font-bold tabular-nums shrink-0">
+            {post.goldenGiftsCount || 0}
           </span>
         </button>
       </div>

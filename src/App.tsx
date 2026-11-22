@@ -1442,6 +1442,15 @@ export default function App() {
     logUserActivity(userProfile.id, 'Comment', `মন্তব্য করেছেন: "${safeText.slice(0, 60)}"`);
   };
 
+  const handleSharePost = (postId: string) => {
+    setPosts((prev) =>
+      prev.map((p) =>
+        p.id === postId ? { ...p, sharesCount: (p.sharesCount || 0) + 1 } : p
+      )
+    );
+    logUserActivity(userProfile.id, 'Share', `পোস্ট শেয়ার করেছেন`);
+  };
+
   // Handle sending golden gift coins
   const handleSendGoldenGift = (postId: string, amount: number, message?: string) => {
     const currentCoins = userProfile.goldenCoins ?? 0;
@@ -2772,6 +2781,7 @@ export default function App() {
                           onTypingChange={handleTypingChange}
                           onOpenReel={(p) => setActiveReelPostId(p.id)}
                           onOpenGiftModal={(p) => setSelectedGiftPost(p)}
+                          onSharePost={handleSharePost}
                         />
                       </div>
                       );
@@ -3043,6 +3053,7 @@ export default function App() {
                             onTypingChange={handleTypingChange}
                             onOpenReel={(p) => setActiveReelPostId(p.id)}
                             onOpenGiftModal={(p) => setSelectedGiftPost(p)}
+                            onSharePost={handleSharePost}
                           />
                         </div>
                         {feedAd && (

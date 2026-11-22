@@ -2982,7 +2982,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             className="flex items-center gap-1.5 hover:text-[#050505] py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer"
                           >
                             <Share2 className="w-4 h-4" />
-                            <span>{post.shares ? `${post.shares} Share` : 'Share'}</span>
+                            <span className="tabular-nums">{post.shares || 0} Share</span>
                           </button>
                         </div>
 
