@@ -2682,7 +2682,29 @@ export default function App() {
                 {/* Freshly uploaded post(s) (< 3 mins) pinned #1 directly below Stories matching Facebook */}
                 {freshTopPosts.length > 0 && (
                   <div className="space-y-2.5 animate-in fade-in">
-                    {freshTopPosts.map((post) => (
+                    {freshTopPosts.map((post) => {
+                      const normAuthor = (s?: string) =>
+                        (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+                      const isOwnedPost = (() => {
+                        if (post.authorId && (post.authorId === userProfile.id || post.authorId === activeSwitchedPage?.id)) {
+                          return true;
+                        }
+                        const an = normAuthor(post.author?.name);
+                        if (an && (an === normAuthor(userProfile.name) || (activeSwitchedPage && an === normAuthor(activeSwitchedPage.name)))) {
+                          return true;
+                        }
+                        try {
+                          const sp: PageItem[] = JSON.parse(localStorage.getItem('qalby_fb_pages') || '[]');
+                          return sp.some(
+                            (pg) =>
+                              pg.isOwner !== false &&
+                              ((post.authorId && pg.id === post.authorId) || (an && normAuthor(pg.name) === an))
+                          );
+                        } catch {
+                          return false;
+                        }
+                      })();
+                      return (
                       <div key={post.id} id={`post-${post.id}`}>
                         <FbPostCard
                           post={post}
@@ -2691,6 +2713,9 @@ export default function App() {
                           onAddComment={handleAddComment}
                           onEditPost={handleEditPost}
                           onDeletePost={handleDeletePost}
+                          currentUserId={effectiveProfile.id || userProfile.id}
+                          currentUserName={effectiveProfile.name}
+                          showBoostControls={isOwnedPost}
                           onOpenProfile={async (authorName) => {
                             const norm = (s?: string) =>
                               (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -2745,13 +2770,12 @@ export default function App() {
                             }
                           }}
                           onTypingChange={handleTypingChange}
-                          currentUserId={userProfile.id || 'user-me'}
-                          currentUserName={userProfile.name}
                           onOpenReel={(p) => setActiveReelPostId(p.id)}
                           onOpenGiftModal={(p) => setSelectedGiftPost(p)}
                         />
                       </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
 
@@ -2929,6 +2953,28 @@ export default function App() {
                       ? homeFeedAds[Math.floor(postIndex / adFreq) % homeFeedAds.length]
                       : null;
 
+                    const isOwnedPost = (() => {
+                      const normAuthor = (s?: string) =>
+                        (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+                      if (post.authorId && (post.authorId === userProfile.id || post.authorId === activeSwitchedPage?.id)) {
+                        return true;
+                      }
+                      const an = normAuthor(post.author?.name);
+                      if (an && (an === normAuthor(userProfile.name) || (activeSwitchedPage && an === normAuthor(activeSwitchedPage.name)))) {
+                        return true;
+                      }
+                      try {
+                        const sp: PageItem[] = JSON.parse(localStorage.getItem('qalby_fb_pages') || '[]');
+                        return sp.some(
+                          (pg) =>
+                            pg.isOwner !== false &&
+                            ((post.authorId && pg.id === post.authorId) || (an && normAuthor(pg.name) === an))
+                        );
+                      } catch {
+                        return false;
+                      }
+                    })();
+
                     return (
                       <React.Fragment key={post.id}>
                         <div id={`post-${post.id}`}>
@@ -2939,6 +2985,9 @@ export default function App() {
                             onAddComment={handleAddComment}
                             onEditPost={handleEditPost}
                             onDeletePost={handleDeletePost}
+                            currentUserId={effectiveProfile.id || userProfile.id}
+                            currentUserName={effectiveProfile.name}
+                            showBoostControls={isOwnedPost}
                             onOpenProfile={async (authorName) => {
                               const norm = (s?: string) =>
                                 (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -2992,8 +3041,6 @@ export default function App() {
                               }
                             }}
                             onTypingChange={handleTypingChange}
-                            currentUserId={userProfile.id || 'user-me'}
-                            currentUserName={userProfile.name}
                             onOpenReel={(p) => setActiveReelPostId(p.id)}
                             onOpenGiftModal={(p) => setSelectedGiftPost(p)}
                           />

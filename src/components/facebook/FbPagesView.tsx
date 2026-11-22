@@ -2595,6 +2595,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           onOpenGiftModal={onOpenFeedGiftModal}
                           currentUserId={selectedPage.id}
                           currentUserName={selectedPage.name}
+                          showBoostControls={isOwnerView}
                         />
                       );
                     }
@@ -3128,14 +3129,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
                         {/* Facebook-style See insights and ads + Boost post row below each post */}
                         {isOwnerView && (
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#F0F2F5]">
+                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E4E6EB]">
                             <button
                               type="button"
                               onClick={() => setInsightsPost(post)}
-                              className="text-[12.5px] font-semibold text-[#0866FF] hover:underline flex items-center gap-1.5 cursor-pointer"
+                              className="text-[13px] sm:text-[13.5px] font-semibold text-[#0866FF] hover:underline text-left leading-snug cursor-pointer"
                             >
-                              <TrendingUp className="w-3.5 h-3.5" />
-                              <span>See insights and ads</span>
+                              See insights and ads
                             </button>
 
                             <button
@@ -3144,9 +3144,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 setBoostTargetPost({ id: post.id, text: post.text || 'Photo post' });
                                 setShowAdvertiseModal(true);
                               }}
-                              className="px-3.5 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white text-[12px] font-bold transition-colors cursor-pointer"
+                              className="px-3 sm:px-3.5 py-2 rounded-[6px] bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white text-[12.5px] sm:text-[13px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 max-w-[62%] sm:max-w-none truncate shadow-xs"
                             >
-                              Boost post
+                              পোস্টটি বুস্ট করুন · Boost post
                             </button>
                           </div>
                         )}

@@ -944,6 +944,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               onEditPost={onEditPost}
               onDeletePost={onDeletePost}
               onOpenReel={onOpenReel}
+              currentUserId={activeProfile.id || userProfile.id}
+              currentUserName={activeProfile.name}
+              showBoostControls={isOwnProfile}
             />
           ))
         )}

@@ -31,6 +31,11 @@ import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
 import { useLanguage } from '../../context/LanguageContext';
 import { detectTextScript, shouldAutoTranslate, translateText } from '../../lib/translate';
 import { signBunnyCdnUrl } from '../../lib/bunnyCdn';
+import {
+  FbBoostPostModal,
+  getBoostedPostCampaign,
+  BoostedCampaign,
+} from './FbBoostPostModal';
 
 interface HalalReactionMeta {
   type: ReactionType;
@@ -62,6 +67,9 @@ interface FbPostCardProps {
   onOpenGiftModal?: (post: PostItem) => void;
   currentUserId?: string;
   currentUserName?: string;
+  showBoostControls?: boolean;
+  onBoostPost?: (post: PostItem) => void;
+  onSeeInsights?: (post: PostItem) => void;
 }
 
 export const FbPostCard: React.FC<FbPostCardProps> = ({
@@ -77,6 +85,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   onOpenGiftModal,
   currentUserId = 'user-me',
   currentUserName = 'User',
+  showBoostControls,
+  onBoostPost,
+  onSeeInsights,
 }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState(post.contentBangla);
@@ -100,6 +111,23 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [appealReason, setAppealReason] = useState('');
   const [isSubmittingAppeal, setIsSubmittingAppeal] = useState(false);
   const [appealSubmitted, setAppealSubmitted] = useState(false);
+  const [boostModalMode, setBoostModalMode] = useState<'boost' | 'insights' | null>(null);
+  const [boostedCampaign, setBoostedCampaign] = useState<BoostedCampaign | null>(() =>
+    getBoostedPostCampaign(post.id)
+  );
+
+  React.useEffect(() => {
+    const syncBoost = () => {
+      setBoostedCampaign(getBoostedPostCampaign(post.id));
+    };
+    syncBoost();
+    window.addEventListener('peaceverse:boost-updated', syncBoost);
+    window.addEventListener('storage', syncBoost);
+    return () => {
+      window.removeEventListener('peaceverse:boost-updated', syncBoost);
+      window.removeEventListener('storage', syncBoost);
+    };
+  }, [post.id]);
 
   const { currentLang } = useLanguage();
   const [isFollowingAuthor, setIsFollowingAuthor] = useState(false);
@@ -367,6 +395,71 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     post.comments.length > 0 ||
     post.sharesCount > 0 ||
     Boolean(activeReactionMeta);
+
+  const normIdentity = (s?: string) =>
+    (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  const canShowBoostRow = React.useMemo(() => {
+    if (typeof showBoostControls === 'boolean') return showBoostControls;
+    const normAuthor = normIdentity(post.author?.name);
+    if (
+      currentUserId &&
+      currentUserId !== 'user-me' &&
+      post.authorId &&
+      post.authorId === currentUserId
+    ) {
+      return true;
+    }
+    if (
+      currentUserName &&
+      currentUserName !== 'User' &&
+      normAuthor &&
+      normAuthor === normIdentity(currentUserName)
+    ) {
+      return true;
+    }
+    try {
+      const switchedRaw = localStorage.getItem('qalby_switched_page');
+      if (switchedRaw) {
+        const switched = JSON.parse(switchedRaw);
+        if (
+          (switched?.id && post.authorId && switched.id === post.authorId) ||
+          (switched?.name && normAuthor && normIdentity(switched.name) === normAuthor)
+        ) {
+          return true;
+        }
+      }
+      const pagesRaw = localStorage.getItem('qalby_fb_pages');
+      if (pagesRaw) {
+        const storedPages: Array<{ id?: string; name?: string; isOwner?: boolean }> =
+          JSON.parse(pagesRaw);
+        if (
+          Array.isArray(storedPages) &&
+          storedPages.some(
+            (pg) =>
+              pg.isOwner !== false &&
+              ((pg.id && post.authorId && pg.id === post.authorId) ||
+                (pg.name && normAuthor && normIdentity(pg.name) === normAuthor))
+          )
+        ) {
+          return true;
+        }
+      }
+      const profileRaw =
+        localStorage.getItem('qalby_user_profile') ||
+        localStorage.getItem('peaceverse_user_profile');
+      if (profileRaw) {
+        const prof = JSON.parse(profileRaw);
+        if (
+          (prof?.id && post.authorId && prof.id === post.authorId) ||
+          (prof?.name && normAuthor && normIdentity(prof.name) === normAuthor)
+        ) {
+          return true;
+        }
+      }
+    } catch {}
+    return false;
+  }, [showBoostControls, post.authorId, post.author?.name, currentUserId, currentUserName]);
 
   return (
     <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] overflow-hidden space-y-2.5 transition-all text-black">
@@ -761,6 +854,50 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           />
         )}
 
+      {/* 4.9 Facebook-style "See insights and ads" + "পোস্টটি বুস্ট করুন · Boost post" bar */}
+      {canShowBoostRow && (
+        <div className="px-3 sm:px-4 py-2 border-t border-[#E4E6EB] flex items-center justify-between gap-2 bg-white">
+          <button
+            type="button"
+            onClick={() => {
+              if (onSeeInsights) {
+                onSeeInsights(post);
+              } else {
+                setBoostModalMode('insights');
+              }
+            }}
+            className="text-[13px] sm:text-[13.5px] font-semibold text-[#0866FF] hover:underline text-left leading-snug cursor-pointer"
+          >
+            See insights and ads
+          </button>
+
+          <button
+            type="button"
+            onClick={() => {
+              if (onBoostPost) {
+                onBoostPost(post);
+              } else {
+                setBoostModalMode('boost');
+              }
+            }}
+            className={`px-3 sm:px-3.5 py-2 rounded-[6px] text-[12.5px] sm:text-[13px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 max-w-[62%] sm:max-w-none truncate flex items-center gap-1.5 ${
+              boostedCampaign
+                ? 'bg-[#E7F3FF] hover:bg-[#DBEAFE] text-[#0866FF] border border-[#0866FF]/30'
+                : 'bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white shadow-xs'
+            }`}
+          >
+            {boostedCampaign ? (
+              <>
+                <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                <span className="truncate">Boosted • Manage ad</span>
+              </>
+            ) : (
+              <span className="truncate">পোস্টটি বুস্ট করুন · Boost post</span>
+            )}
+          </button>
+        </div>
+      )}
+
       {/* 5. Halal Reactions Summary Bar (hidden when all counts are 0) */}
       {hasSummaryEngagement && (
         <div className="px-3 sm:px-4 py-1.5 space-y-1 text-[13px] text-[#65676B]">
@@ -1129,6 +1266,15 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           onToggleSave={onToggleSave}
           onOpenGiftModal={onOpenGiftModal}
           currentUserName={currentUserName}
+        />
+      )}
+
+      {/* 9. Facebook Boost Post & Insights Modal */}
+      {boostModalMode && (
+        <FbBoostPostModal
+          post={post}
+          initialMode={boostModalMode}
+          onClose={() => setBoostModalMode(null)}
         />
       )}
 
