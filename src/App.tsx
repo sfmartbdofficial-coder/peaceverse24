@@ -2403,7 +2403,11 @@ export default function App() {
   }
 
   return (
-    <div className="min-h-screen w-full overflow-x-hidden font-sans bg-white text-black selection:bg-[#0866FF] selection:text-white">
+    <div
+      className={`min-h-screen w-full overflow-x-hidden font-sans selection:bg-[#0866FF] selection:text-white ${
+        currentTab === 'reels' ? 'bg-black text-white' : 'bg-white text-black'
+      }`}
+    >
       
       {urlKeyBlockedMsg && (
         <div className="bg-rose-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between gap-2">
@@ -2421,8 +2425,8 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. Facebook App Top Bar (shown on Home, Reels, Marketplace; Friends/Groups/Pages/Feeds/Profile/Notifications/Menu render their own exact FB headers) */}
-      {currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && currentTab !== 'groups' && currentTab !== 'friends' && currentTab !== 'pages' && currentTab !== 'feeds' && (
+      {/* 1. Facebook App Top Bar (shown on Home and Marketplace; Reels/Friends/Groups/Pages/Feeds/Profile/Notifications/Menu render their own exact FB headers) */}
+      {currentTab !== 'reels' && currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && currentTab !== 'groups' && currentTab !== 'friends' && currentTab !== 'pages' && currentTab !== 'feeds' && (
         <FbHeader
           userProfile={userProfile}
           searchQuery={searchQuery}
@@ -2993,26 +2997,50 @@ export default function App() {
           </div>
         )}
 
-        {/* TAB 2: Reels / Watch (ভিডিও) */}
+        {/* TAB 2: Reels / Watch (সরাসরি ফুল-স্ক্রিন ফেসবুক রিলস প্লেয়ার) */}
         {currentTab === 'reels' && (
-          <div className="pt-2 space-y-2">
-            {adPlacementConfig.reels_preroll_enabled && reelsAds.length > 0 && (
-              <SponsoredAdCard
-                ad={reelsAds[0]}
-                variant="banner"
-                onAdClick={(ad) => trackAdClick(ad.id)}
-              />
-            )}
-            <FbWatchView
-              posts={posts}
-              onToggleReaction={handleToggleReaction}
-              onToggleSave={handleToggleSave}
-              onAddComment={handleAddComment}
-              onBack={goBack}
-              onOpenReel={(p) => setActiveReelPostId(p.id)}
-              onOpenGiftModal={(p) => setSelectedGiftPost(p)}
-            />
-          </div>
+          <FbWatchView
+            posts={posts}
+            onToggleReaction={handleToggleReaction}
+            onToggleSave={handleToggleSave}
+            onAddComment={handleAddComment}
+            onBack={goBack}
+            onOpenReel={(p) => setActiveReelPostId(p.id)}
+            onOpenGiftModal={(p) => setSelectedGiftPost(p)}
+            onOpenLive={() => setShowLive(true)}
+            onOpenMenu={() => navigateToTab('menu')}
+            onOpenCreateReel={() => setShowCreateReel(true)}
+            onOpenProfile={async (name, avatar, subtitle) => {
+              if (!name || name === userProfile.name) {
+                setViewedProfile(null);
+                navigateToTab('profile');
+                return;
+              }
+              const baseAuthorProfile: UserProfile = {
+                id: `author-${name}`,
+                name,
+                avatar,
+                bio: subtitle,
+                coverPhoto:
+                  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                friendsCount: 0,
+                location: 'Dhaka, Bangladesh',
+                hometown: 'Bangladesh',
+                birthDate: '1994',
+                contactPrivacy: 'public',
+              };
+              setViewedProfile(baseAuthorProfile);
+              navigateToTab('profile');
+              const remote = await fetchUserProfileByNameFromFirestore(name);
+              if (remote) {
+                setViewedProfile((prev) =>
+                  prev && prev.name === name ? { ...prev, ...remote } : prev
+                );
+              }
+            }}
+            currentUserName={effectiveProfile.name}
+            currentUserAvatar={effectiveProfile.avatar}
+          />
         )}
 
         {/* TAB 3: Friends (ফ্রেন্ডস ও উম্মাহ - matching FB Friends) */}
