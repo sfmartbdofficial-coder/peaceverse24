@@ -66,12 +66,15 @@ import {
   UserCircle2,
   CircleDollarSign,
   Eye,
+  CheckCircle2,
 } from 'lucide-react';
 import { NotificationItem, PageItem, PostItem, ReactionType, UserProfile } from '../../types';
 import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationModal';
 import { FbCreatePageLandingView } from './FbCreatePageLandingView';
 import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
 import { FbPostCard } from './FbPostCard';
+import { FbCreateReelModal } from './FbCreateReelModal';
+import { FbBoostPostModal, getBoostedPostCampaign } from './FbBoostPostModal';
 import {
   FbCommentBottomSheet,
   readCommentLikesStore,
@@ -920,6 +923,37 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [extraAddress, setExtraAddress] = useState('');
   const [showPageReelModal, setShowPageReelModal] = useState(false);
   const [pageReelTitle, setPageReelTitle] = useState('');
+  const [pendingPageBoostDraft, setPendingPageBoostDraft] = useState<{
+    localPost: {
+      id: string;
+      text: string;
+      image?: string;
+      time: string;
+      dateLabel: string;
+      createdAtMillis: number;
+      likes: number;
+      isLikedByMe: boolean;
+      comments: number;
+      shares: number;
+      commentsList: any[];
+      pinned: boolean;
+      reach: number;
+      clicks: number;
+    };
+    feedPost: PostItem;
+  } | null>(null);
+  const [showPagePostBoostPrompt, setShowPagePostBoostPrompt] = useState(false);
+  const [showPagePostBoostSetup, setShowPagePostBoostSetup] = useState(false);
+  const [inlineBoostModalState, setInlineBoostModalState] = useState<{
+    post: PostItem;
+    mode: 'boost' | 'insights';
+  } | null>(null);
+  const [, setInlineBoostTick] = useState(0);
+  useEffect(() => {
+    const refresh = () => setInlineBoostTick((t) => t + 1);
+    window.addEventListener('peaceverse:boost-updated', refresh);
+    return () => window.removeEventListener('peaceverse:boost-updated', refresh);
+  }, []);
   const [showPageLiveModal, setShowPageLiveModal] = useState(false);
   const [pageLiveTitle, setPageLiveTitle] = useState('');
   const [showPageSettings, setShowPageSettings] = useState(false);
@@ -1310,7 +1344,101 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     showToast(`🎉 "${createdPage.name}" পেজটি সফলভাবে সংরক্ষিত ও চালু হয়েছে!`);
   };
 
-  // Add post directly to the active page
+  // Finalize & publish a prepared Page post (with optional Boost confirmation)
+  const finalizePublishPagePost = async (
+    newPost: {
+      id: string;
+      text: string;
+      image?: string;
+      time: string;
+      dateLabel: string;
+      createdAtMillis: number;
+      likes: number;
+      isLikedByMe: boolean;
+      comments: number;
+      shares: number;
+      commentsList: any[];
+      pinned: boolean;
+      reach: number;
+      clicks: number;
+    },
+    feedPost: PostItem,
+    boosted?: boolean
+  ) => {
+    if (!selectedPage) return;
+    const currentPageId = selectedPage.id;
+    setPagePostText('');
+    setPagePostImage('');
+    setShowPageComposer(false);
+    setPendingPageUpload({
+      pageId: currentPageId,
+      id: newPost.id,
+      text: newPost.text,
+      image: newPost.image,
+      progress: 16,
+    });
+
+    const t1 = window.setTimeout(() => {
+      setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 48 } : cur));
+    }, 260);
+    const t2 = window.setTimeout(() => {
+      setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 82 } : cur));
+    }, 680);
+
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 1150));
+    window.clearTimeout(t1);
+    window.clearTimeout(t2);
+
+    setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 100 } : cur));
+    await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
+    setPendingPageUpload((cur) => (cur?.id === newPost.id ? null : cur));
+
+    setPageFreshNowTick(Date.now());
+    setPagePostsList((prev) => ({
+      ...prev,
+      [currentPageId]: [newPost, ...(prev[currentPageId] || [])],
+    }));
+
+    if (onPublishFeedPost) {
+      onPublishFeedPost(feedPost);
+    }
+
+    logPageActivity(
+      selectedPage.id,
+      'post',
+      boosted ? 'Published & boosted a post' : 'Published a new post',
+      newPost.text ? newPost.text.slice(0, 80) : 'Photo post'
+    );
+
+    if (creatorPrefs.creatorNotifyFollowersOnPost) {
+      showToast(
+        boosted
+          ? '🚀 পোস্ট প্রকাশিত ও বুস্ট চালু হয়েছে! ফলোয়ারদের নোটিফিকেশন পাঠানো হচ্ছে!'
+          : 'পেজে পোস্ট প্রকাশিত ও সব ফলোয়ারকে নোটিফিকেশন পাঠানো হচ্ছে!'
+      );
+      await broadcastCreatorNotification({
+        creatorId: selectedPage.id,
+        creatorName: selectedPage.name,
+        creatorAvatar: selectedPage.avatar,
+        contentType: 'post',
+        title: `${selectedPage.name} নতুন পোস্ট আপলোড করেছেন`,
+        body: newPost.text
+          ? newPost.text.length > 90
+            ? newPost.text.slice(0, 90) + '...'
+            : newPost.text
+          : 'নতুন ছবি পোস্ট করা হয়েছে',
+        thumbnail: newPost.image || selectedPage.cover || selectedPage.avatar,
+        postId: newPost.id,
+        link: `/?tab=pages&pageId=${selectedPage.id}`,
+        broadcastToAll: creatorPrefs.creatorSendPushToAllUsers,
+        onLocalNotify: onBroadcastNotification,
+      });
+    } else {
+      showToast(boosted ? '🚀 পোস্ট প্রকাশিত ও বুস্ট করা হয়েছে!' : 'পেজে পোস্ট প্রকাশিত হয়েছে!');
+    }
+  };
+
+  // Validate Page post & ask "Apni ki eti Boost korte chan?" before publishing
   const handlePublishPagePost = async () => {
     if ((!pagePostText.trim() && !pagePostImage) || !selectedPage) return;
 
@@ -1355,100 +1483,37 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       clicks: 14,
     };
 
-    // Close composer immediately & show Facebook-style "Posting..." charging ring at top of Page feed
-    const currentPageId = selectedPage.id;
-    setPagePostText('');
-    setPagePostImage('');
-    setShowPageComposer(false);
-    setPendingPageUpload({
-      pageId: currentPageId,
+    const feedPost: PostItem = {
       id: newPost.id,
-      text: newPost.text,
-      image: newPost.image,
-      progress: 16,
-    });
+      authorId: selectedPage.id,
+      author: {
+        name: selectedPage.name,
+        avatar: selectedPage.avatar,
+        subtitle: selectedPage.category,
+        verified: true,
+      },
+      timeAgo: 'Just now',
+      isPublic: true,
+      createdAtMillis: newPost.createdAtMillis,
+      privacy: 'public',
+      contentBangla: newPost.text,
+      mediaType: newPost.image ? 'image' : 'none',
+      mediaUrl: newPost.image || undefined,
+      category: 'Community',
+      reactions: {
+        total: 0,
+        likeCount: 0,
+        loveCount: 0,
+        subhanallahCount: 0,
+        mashaallahCount: 0,
+      },
+      comments: [],
+      sharesCount: 0,
+      isFreshUpload: true,
+    };
 
-    const t1 = window.setTimeout(() => {
-      setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 48 } : cur));
-    }, 260);
-    const t2 = window.setTimeout(() => {
-      setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 82 } : cur));
-    }, 680);
-
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 1150));
-    window.clearTimeout(t1);
-    window.clearTimeout(t2);
-
-    setPendingPageUpload((cur) => (cur?.id === newPost.id ? { ...cur, progress: 100 } : cur));
-    await new Promise<void>((resolve) => window.setTimeout(resolve, 180));
-    setPendingPageUpload((cur) => (cur?.id === newPost.id ? null : cur));
-
-    setPageFreshNowTick(Date.now());
-    setPagePostsList((prev) => ({
-      ...prev,
-      [currentPageId]: [newPost, ...(prev[currentPageId] || [])],
-    }));
-
-    if (onPublishFeedPost) {
-      onPublishFeedPost({
-        id: newPost.id,
-        authorId: selectedPage.id,
-        author: {
-          name: selectedPage.name,
-          avatar: selectedPage.avatar,
-          subtitle: selectedPage.category,
-          verified: true,
-        },
-        timeAgo: 'Just now',
-        isPublic: true,
-        createdAtMillis: newPost.createdAtMillis,
-        privacy: 'public',
-        contentBangla: newPost.text,
-        mediaType: newPost.image ? 'image' : 'none',
-        mediaUrl: newPost.image || undefined,
-        category: 'Community',
-        reactions: {
-          total: 0,
-          likeCount: 0,
-          loveCount: 0,
-          subhanallahCount: 0,
-          mashaallahCount: 0,
-        },
-        comments: [],
-        sharesCount: 0,
-        isFreshUpload: true,
-      });
-    }
-
-    logPageActivity(
-      selectedPage.id,
-      'post',
-      'Published a new post',
-      newPost.text ? newPost.text.slice(0, 80) : 'Photo post'
-    );
-
-    if (creatorPrefs.creatorNotifyFollowersOnPost) {
-      showToast('পেজে পোস্ট প্রকাশিত ও সব ফলোয়ারকে নোটিফিকেশন পাঠানো হচ্ছে!');
-      await broadcastCreatorNotification({
-        creatorId: selectedPage.id,
-        creatorName: selectedPage.name,
-        creatorAvatar: selectedPage.avatar,
-        contentType: 'post',
-        title: `${selectedPage.name} নতুন পোস্ট আপলোড করেছেন`,
-        body: newPost.text
-          ? newPost.text.length > 90
-            ? newPost.text.slice(0, 90) + '...'
-            : newPost.text
-          : 'নতুন ছবি পোস্ট করা হয়েছে',
-        thumbnail: pagePostImage || selectedPage.cover || selectedPage.avatar,
-        postId: newPost.id,
-        link: `/?tab=pages&pageId=${selectedPage.id}`,
-        broadcastToAll: creatorPrefs.creatorSendPushToAllUsers,
-        onLocalNotify: onBroadcastNotification,
-      });
-    } else {
-      showToast('পেজে পোস্ট প্রকাশিত হয়েছে!');
-    }
+    setPendingPageBoostDraft({ localPost: newPost, feedPost });
+    setShowPagePostBoostPrompt(true);
   };
 
   // Custom photo upload handlers with permanent Base64 conversion & 5MB image-only validation
@@ -2946,7 +3011,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               ? selectedPage.avatar || userProfile?.avatar
                               : userProfile?.avatar
                           }
-                          showBoostControls={false}
+                          showBoostControls={isOwnerView}
                         />
                       );
                     }
@@ -3349,6 +3414,81 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             />
                           </div>
                         )}
+
+                        {isOwnerView && (() => {
+                          const existingBoost = getBoostedPostCampaign(post.id);
+                          const adapterPost: PostItem = {
+                            id: post.id,
+                            authorId: selectedPage.id,
+                            author: {
+                              name: selectedPage.name,
+                              avatar: selectedPage.avatar,
+                              verified: true,
+                              subtitle: selectedPage.category,
+                            },
+                            timeAgo: post.time || 'Just now',
+                            isPublic: true,
+                            contentBangla: post.text || '',
+                            mediaType: post.image ? 'image' : 'none',
+                            mediaUrl: post.image,
+                            category: 'Community',
+                            reactions: {
+                              total: post.likes || 0,
+                              likeCount: post.likes || 0,
+                              loveCount: 0,
+                              subhanallahCount: 0,
+                              mashaallahCount: 0,
+                            },
+                            comments: mergedCommentsList.map((c) => ({
+                              id: c.id,
+                              author: c.author,
+                              avatar: c.avatar || '',
+                              text: c.text,
+                              timeAgo: c.time,
+                              likes: 0,
+                            })),
+                            sharesCount: post.shares || 0,
+                            createdAtMillis: post.createdAtMillis,
+                          };
+                          return (
+                            <div className="px-1 py-2 border-t border-[#E4E6EB] flex items-center justify-between gap-2">
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setInlineBoostModalState({ post: adapterPost, mode: 'insights' })
+                                }
+                                className="text-[13px] font-semibold text-[#0866FF] hover:underline flex items-center gap-1.5 cursor-pointer"
+                              >
+                                <TrendingUp className="w-4 h-4 shrink-0" />
+                                <span>See insights</span>
+                              </button>
+
+                              <button
+                                type="button"
+                                onClick={() =>
+                                  setInlineBoostModalState({ post: adapterPost, mode: 'boost' })
+                                }
+                                className={`px-3.5 py-2 rounded-[8px] text-[12.5px] font-bold flex items-center gap-1.5 transition-all cursor-pointer ${
+                                  existingBoost
+                                    ? 'bg-[#E7F3FF] hover:bg-[#DBEAFE] text-[#0866FF] border border-[#0866FF]/30'
+                                    : 'bg-[#0866FF] hover:bg-[#1877F2] text-white shadow-xs'
+                                }`}
+                              >
+                                {existingBoost ? (
+                                  <>
+                                    <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Boosted • Manage ad</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                                    <span>Boost post</span>
+                                  </>
+                                )}
+                              </button>
+                            </div>
+                          );
+                        })()}
 
                         <div className="flex items-center justify-between pt-2 border-t border-[#E4E6EB] text-xs font-semibold text-[#65676B]">
                           <button
@@ -4900,99 +5040,172 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
         )}
 
-        {/* Create Page Reel Modal */}
+        {/* Full Gallery -> Preview -> Boost Prompt Page Reel Flow */}
         {showPageReelModal && (
-          <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
-            <div className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-3.5 animate-in fade-in">
-              <div className="flex items-center justify-between pb-2 border-b border-[#E4E6EB]">
-                <h3 className="font-bold text-base text-[#050505] flex items-center gap-2">
-                  <Film className="w-5 h-5 text-[#0866FF]" />
-                  <span>Create Page Reel</span>
-                </h3>
+          <FbCreateReelModal
+            userProfile={{
+              ...(userProfile || {
+                name: selectedPage.name,
+                avatar: selectedPage.avatar,
+                coverPhoto: selectedPage.cover,
+                bio: selectedPage.bio || '',
+                location: selectedPage.location || 'Dhaka, Bangladesh',
+                birthDate: '',
+                friendsCount: 0,
+              }),
+              id: selectedPage.id,
+              name: selectedPage.name,
+              avatar: selectedPage.avatar || userProfile?.avatar || '',
+            }}
+            isPageAccount={true}
+            pageId={selectedPage.id}
+            onClose={() => {
+              setPageReelTitle('');
+              setShowPageReelModal(false);
+            }}
+            onReelCreated={async (newReel, options) => {
+              const pageTaggedReel: PostItem = {
+                ...newReel,
+                authorId: selectedPage.id,
+                author: {
+                  name: selectedPage.name,
+                  avatar: selectedPage.avatar || userProfile?.avatar || '',
+                  verified: true,
+                  subtitle: `Reels • ${selectedPage.category}`,
+                },
+                isFreshUpload: true,
+              };
+              setPageFreshNowTick(Date.now());
+              if (onPublishFeedPost) {
+                onPublishFeedPost(pageTaggedReel);
+              } else {
+                const todayStr = new Date().toLocaleDateString('en-US', {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                });
+                setPagePostsList((prev) => ({
+                  ...prev,
+                  [selectedPage.id]: [
+                    {
+                      id: pageTaggedReel.id,
+                      text: pageTaggedReel.contentBangla || 'PeaceVerse Reels',
+                      time: 'Just now',
+                      dateLabel: todayStr,
+                      createdAtMillis: pageTaggedReel.createdAtMillis || Date.now(),
+                      likes: 0,
+                      comments: 0,
+                      reach: 185,
+                      clicks: 21,
+                    },
+                    ...(prev[selectedPage.id] || []),
+                  ],
+                }));
+              }
+              logPageActivity(
+                selectedPage.id,
+                'post',
+                options?.boosted ? 'Published & boosted a Page Reel' : 'Published a Page Reel',
+                pageTaggedReel.contentBangla.slice(0, 80)
+              );
+              setShowPageReelModal(false);
+              showToast(
+                options?.boosted
+                  ? '🚀 আপনার পেজ রিলস পোস্ট ও বুস্ট করা হয়েছে!'
+                  : '🎬 রিলস পেজে প্রকাশিত হয়েছে!'
+              );
+              if (creatorPrefs.creatorNotifyFollowersOnPost) {
+                await broadcastCreatorNotification({
+                  creatorId: selectedPage.id,
+                  creatorName: selectedPage.name,
+                  creatorAvatar: selectedPage.avatar,
+                  contentType: 'video',
+                  title: `${selectedPage.name} নতুন রিলস আপলোড করেছেন`,
+                  body: pageTaggedReel.contentBangla.slice(0, 95) || 'PeaceVerse Reels',
+                  thumbnail: pageTaggedReel.mediaUrl || selectedPage.avatar,
+                  postId: pageTaggedReel.id,
+                  link: `/?tab=pages&pageId=${selectedPage.id}`,
+                  broadcastToAll: creatorPrefs.creatorSendPushToAllUsers,
+                  onLocalNotify: onBroadcastNotification,
+                });
+              }
+            }}
+          />
+        )}
+
+        {/* Boost Confirmation Popup for Regular Page Posts ("Apni ki eti Boost korte chan?") */}
+        {showPagePostBoostPrompt && pendingPageBoostDraft && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
+            onClick={() => setShowPagePostBoostPrompt(false)}
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-5 space-y-4 text-[#050505]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center shrink-0">
+                  <Megaphone className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-[#050505] leading-snug">
+                    Apni ki eti Boost korte chan?
+                  </h3>
+                  <p className="text-xs text-[#65676B] mt-1 leading-relaxed">
+                    আপনি কি আপনার পেজের এই পোস্টটি Boost করে আরও বেশি মানুষের কাছে পৌঁছাতে চান?
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
                 <button
                   type="button"
-                  onClick={() => setShowPageReelModal(false)}
-                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                  onClick={() => {
+                    setShowPagePostBoostPrompt(false);
+                    setShowPagePostBoostSetup(true);
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-extrabold text-sm cursor-pointer"
                 >
-                  <X className="w-5 h-5" />
+                  YES, BOOST KORUN
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const draft = pendingPageBoostDraft;
+                    setShowPagePostBoostPrompt(false);
+                    setPendingPageBoostDraft(null);
+                    void finalizePublishPagePost(draft.localPost, draft.feedPost, false);
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] font-bold text-sm cursor-pointer"
+                >
+                  NOT NOW / EKHON NA
                 </button>
               </div>
-              <input
-                type="text"
-                value={pageReelTitle}
-                onChange={(e) => setPageReelTitle(e.target.value)}
-                placeholder="রিলসের শিরোনাম / ক্যাপশন লিখুন..."
-                className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2.5 text-xs sm:text-sm text-[#050505] focus:outline-none focus:border-[#0866FF]"
-                autoFocus
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  const title = pageReelTitle.trim() || `${selectedPage.name} New Reel`;
-                  const todayStr = new Date().toLocaleDateString('en-US', {
-                    month: 'short',
-                    day: 'numeric',
-                    year: 'numeric',
-                  });
-                  const newReelId = `reel-${Date.now()}`;
-                  const nowMs = Date.now();
-                  setPagePostsList((prev) => ({
-                    ...prev,
-                    [selectedPage.id]: [
-                      {
-                        id: newReelId,
-                        text: `🎬 Reel: ${title}`,
-                        time: 'এখনই',
-                        dateLabel: todayStr,
-                        createdAtMillis: nowMs,
-                        likes: 1,
-                        comments: 0,
-                        reach: 185,
-                        clicks: 21,
-                      },
-                      ...(prev[selectedPage.id] || []),
-                    ],
-                  }));
-                  if (onPublishFeedPost) {
-                    onPublishFeedPost({
-                      id: newReelId,
-                      authorId: selectedPage.id,
-                      author: {
-                        name: selectedPage.name,
-                        avatar: selectedPage.avatar,
-                        subtitle: selectedPage.category,
-                        verified: true,
-                      },
-                      timeAgo: 'Just now',
-                      isPublic: true,
-                      createdAtMillis: nowMs,
-                      privacy: 'public',
-                      contentBangla: `🎬 ${title}`,
-                      mediaType: 'none',
-                      category: 'Lecture',
-                      reactions: {
-                        total: 1,
-                        likeCount: 1,
-                        loveCount: 0,
-                        subhanallahCount: 0,
-                        mashaallahCount: 0,
-                      },
-                      comments: [],
-                      sharesCount: 0,
-                      isFreshUpload: true,
-                    });
-                  }
-                  logPageActivity(selectedPage.id, 'post', 'Published a Page Reel', title);
-                  setPageReelTitle('');
-                  setShowPageReelModal(false);
-                  showToast('🎬 রিলস পেজে যুক্ত করা হয়েছে!');
-                }}
-                className="w-full py-2.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-white font-bold text-sm cursor-pointer"
-              >
-                Publish Reel
-              </button>
             </div>
           </div>
+        )}
+
+        {/* Boost Page Modal for Newly Submitted Page Post */}
+        {showPagePostBoostSetup && pendingPageBoostDraft && (
+          <FbBoostPostModal
+            post={pendingPageBoostDraft.feedPost}
+            initialMode="boost"
+            onClose={() => setShowPagePostBoostSetup(false)}
+            onBoostConfirmed={() => {
+              const draft = pendingPageBoostDraft;
+              setShowPagePostBoostSetup(false);
+              setPendingPageBoostDraft(null);
+              void finalizePublishPagePost(draft.localPost, draft.feedPost, true);
+            }}
+          />
+        )}
+
+        {/* Boost / Insights Modal for Inline Page Posts */}
+        {inlineBoostModalState && (
+          <FbBoostPostModal
+            post={inlineBoostModalState.post}
+            initialMode={inlineBoostModalState.mode}
+            onClose={() => setInlineBoostModalState(null)}
+          />
         )}
 
         {/* Go Live Modal */}

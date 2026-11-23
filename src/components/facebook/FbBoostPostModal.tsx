@@ -16,7 +16,8 @@ import { PostItem } from '../../types';
 
 export interface BoostedCampaign {
   postId: string;
-  budget: '500' | '1000' | '2500' | '5000';
+  budget: '200' | '500' | '1000' | '2500' | '5000';
+  durationDays?: number;
   goal: 'engagement' | 'messages' | 'visits';
   audience: 'bangladesh' | 'global' | 'followers';
   startedAt: number;
@@ -61,28 +62,34 @@ interface FbBoostPostModalProps {
   post: PostItem;
   initialMode: 'boost' | 'insights';
   onClose: () => void;
+  onBoostConfirmed?: (campaign: BoostedCampaign) => void;
 }
 
 const BUDGET_OPTIONS: Array<{
   id: BoostedCampaign['budget'];
   label: string;
-  duration: string;
-  reach: string;
+  numericAmount: number;
+  defaultDays: number;
 }> = [
-  { id: '500', label: '৳500', duration: '3 দিন', reach: '1.4K – 3.8K reach' },
-  { id: '1000', label: '৳1,000', duration: '5 দিন', reach: '3.2K – 9.0K reach' },
-  { id: '2500', label: '৳2,500', duration: '7 দিন', reach: '8.5K – 24K reach' },
-  { id: '5000', label: '৳5,000', duration: '14 দিন', reach: '18K – 52K reach' },
+  { id: '200', label: '৳200', numericAmount: 200, defaultDays: 1 },
+  { id: '500', label: '৳500', numericAmount: 500, defaultDays: 3 },
+  { id: '1000', label: '৳1,000', numericAmount: 1000, defaultDays: 5 },
+  { id: '2500', label: '৳2,500', numericAmount: 2500, defaultDays: 7 },
+  { id: '5000', label: '৳5,000', numericAmount: 5000, defaultDays: 14 },
 ];
+
+const DURATION_DAY_OPTIONS = [1, 3, 5, 7, 14, 30];
 
 export const FbBoostPostModal: React.FC<FbBoostPostModalProps> = ({
   post,
   initialMode,
   onClose,
+  onBoostConfirmed,
 }) => {
   const existing = getBoostedPostCampaign(post.id);
   const [mode, setMode] = useState<'boost' | 'insights'>(initialMode);
-  const [budget, setBudget] = useState<BoostedCampaign['budget']>(existing?.budget || '1000');
+  const [budget, setBudget] = useState<BoostedCampaign['budget']>(existing?.budget || '500');
+  const [durationDays, setDurationDays] = useState<number>(existing?.durationDays || 3);
   const [goal, setGoal] = useState<BoostedCampaign['goal']>(existing?.goal || 'engagement');
   const [audience, setAudience] = useState<BoostedCampaign['audience']>(
     existing?.audience || 'bangladesh'
@@ -106,29 +113,39 @@ export const FbBoostPostModal: React.FC<FbBoostPostModalProps> = ({
     (isBoosted ? 1850 : 180) + reactionsTotal * 26 + commentsTotal * 35 + sharesTotal * 48;
   const estimatedClicks = Math.max(8, Math.round(estimatedReach * 0.085));
 
+  const selectedBudgetObj = BUDGET_OPTIONS.find((b) => b.id === budget) || BUDGET_OPTIONS[1];
+  const minEstReach = Math.round(selectedBudgetObj.numericAmount * 2.8);
+  const maxEstReach = Math.round(selectedBudgetObj.numericAmount * 7.6);
+
   const previewImage =
     post.mediaType !== 'video'
       ? (Array.isArray(post.mediaUrls) && post.mediaUrls[0]) || post.mediaUrl
       : undefined;
 
   const handleSubmitBoost = () => {
-    saveBoostedPostCampaign({
+    const campaign: BoostedCampaign = {
       postId: post.id,
       budget,
+      durationDays,
       goal,
       audience,
       startedAt: existing?.startedAt || Date.now(),
       status: 'active',
-    });
+    };
+    saveBoostedPostCampaign(campaign);
     setIsBoosted(true);
     setSubmittedNotice(
       existing
         ? 'আপনার বুস্ট ক্যাম্পেইন আপডেট করা হয়েছে!'
-        : '🚀 আপনার পোস্টটি সফলভাবে বুস্ট করা হয়েছে!'
+        : `🚀 ${selectedBudgetObj.label} বাজেটে ${durationDays} দিনের জন্য পোস্ট বুস্ট সফল হয়েছে!`
     );
+    if (onBoostConfirmed) {
+      onBoostConfirmed(campaign);
+      return;
+    }
     setTimeout(() => {
       onClose();
-    }, 1100);
+    }, 1000);
   };
 
   const handlePauseBoost = () => {
@@ -137,7 +154,7 @@ export const FbBoostPostModal: React.FC<FbBoostPostModalProps> = ({
     setSubmittedNotice('⏸️ পোস্ট বুস্ট বন্ধ করা হয়েছে।');
     setTimeout(() => {
       onClose();
-    }, 900);
+    }, 800);
   };
 
   return (
@@ -343,34 +360,67 @@ export const FbBoostPostModal: React.FC<FbBoostPostModalProps> = ({
                 </div>
               </div>
 
-              {/* Budget & Duration */}
-              <div className="space-y-1.5">
-                <p className="text-xs font-bold text-[#050505]">
-                  বাজেট ও সময় (Total Budget & Duration)
-                </p>
-                <div className="grid grid-cols-2 gap-2">
-                  {BUDGET_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.id}
-                      type="button"
-                      onClick={() => setBudget(opt.id)}
-                      className={`p-2.5 rounded-xl border text-left transition-all cursor-pointer ${
-                        budget === opt.id
-                          ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF]'
-                          : 'bg-white border-[#E4E6EB] text-[#050505] hover:bg-[#F7F8FA]'
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-xs font-extrabold">{opt.label}</span>
-                        <span className="text-[10.5px] font-semibold text-[#65676B]">
-                          {opt.duration}
+              {/* Budget (কত টাকা) & Duration (কত দিন) */}
+              <div className="space-y-3">
+                <div className="space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs font-bold text-[#050505]">
+                      কত টাকা বাজেট (Total Budget)
+                    </p>
+                    <span className="text-[11px] font-bold text-[#0866FF] tabular-nums">
+                      {minEstReach.toLocaleString()} – {maxEstReach.toLocaleString()} est. reach
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 sm:grid-cols-5 gap-1.5">
+                    {BUDGET_OPTIONS.map((opt) => (
+                      <button
+                        key={opt.id}
+                        type="button"
+                        onClick={() => {
+                          setBudget(opt.id);
+                          if (!existing) setDurationDays(opt.defaultDays);
+                        }}
+                        className={`py-2 px-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          budget === opt.id
+                            ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF] shadow-2xs'
+                            : 'bg-white border-[#E4E6EB] text-[#050505] hover:bg-[#F7F8FA]'
+                        }`}
+                      >
+                        <span className="text-xs font-extrabold block tabular-nums">
+                          {opt.label}
                         </span>
-                      </div>
-                      <span className="text-[10.5px] text-[#65676B] block mt-0.5">
-                        {opt.reach}
-                      </span>
-                    </button>
-                  ))}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-1.5">
+                  <p className="text-xs font-bold text-[#050505]">
+                    কত দিন Boost করবেন (Duration)
+                  </p>
+                  <div className="grid grid-cols-3 sm:grid-cols-6 gap-1.5">
+                    {DURATION_DAY_OPTIONS.map((days) => (
+                      <button
+                        key={days}
+                        type="button"
+                        onClick={() => setDurationDays(days)}
+                        className={`py-2 px-2 rounded-xl border text-center transition-all cursor-pointer ${
+                          durationDays === days
+                            ? 'bg-[#E7F3FF] border-[#0866FF] text-[#0866FF] shadow-2xs'
+                            : 'bg-white border-[#E4E6EB] text-[#050505] hover:bg-[#F7F8FA]'
+                        }`}
+                      >
+                        <span className="text-xs font-bold block tabular-nums">{days} দিন</span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="px-3 py-2 rounded-xl bg-[#F0F2F5] flex items-center justify-between text-xs">
+                  <span className="text-[#65676B] font-semibold">মোট খরচ ({durationDays} দিন)</span>
+                  <span className="font-extrabold text-[#050505] tabular-nums">
+                    {selectedBudgetObj.label} BDT
+                  </span>
                 </div>
               </div>
 

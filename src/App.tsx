@@ -2858,7 +2858,7 @@ export default function App() {
                           currentUserId={effectiveProfile.id || userProfile.id}
                           currentUserName={effectiveProfile.name}
                           currentUserAvatar={effectiveProfile.avatar}
-                          showBoostControls={false}
+                          showBoostControls={isOwnedPagePost}
                           onOpenProfile={async (authorName) => {
                             const norm = (s?: string) =>
                               (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -3142,7 +3142,7 @@ export default function App() {
                             currentUserId={effectiveProfile.id || userProfile.id}
                             currentUserName={effectiveProfile.name}
                             currentUserAvatar={effectiveProfile.avatar}
-                            showBoostControls={false}
+                            showBoostControls={isOwnedPagePost}
                             onOpenProfile={async (authorName) => {
                               const norm = (s?: string) =>
                                 (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -3644,6 +3644,7 @@ export default function App() {
       {showCreatePost && (
         <FbCreatePostModal
           userProfile={effectiveProfile}
+          isPageAccount={Boolean(activeSwitchedPage)}
           initialPhoto={initialPostPhotos[0]?.startsWith('data:video/') ? initialPostPhotos[0] : null}
           initialPhotos={initialPostPhotos.filter((item) => !item.startsWith('data:video/'))}
           onClose={() => {
@@ -3668,6 +3669,8 @@ export default function App() {
       {showCreateReel && (
         <FbCreateReelModal
           userProfile={effectiveProfile}
+          isPageAccount={Boolean(activeSwitchedPage)}
+          pageId={activeSwitchedPage?.id}
           onClose={() => setShowCreateReel(false)}
           onReelCreated={handleReelCreated}
         />

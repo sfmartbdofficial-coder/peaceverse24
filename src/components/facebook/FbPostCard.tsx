@@ -25,6 +25,8 @@ import {
   Coins,
   Music,
   UserPlus,
+  TrendingUp,
+  Megaphone,
 } from 'lucide-react';
 import {
   submitRealtimeAppeal,
@@ -520,8 +522,8 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const normIdentity = (s?: string) =>
     (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
 
-  // Boosted / Manage ad / See insights and ads disabled on all posts until Ad system is ready
-  const canShowBoostRow = false;
+  // Boost + See insights shown strictly for Page posts (controlled via showBoostControls)
+  const canShowBoostRow = Boolean(showBoostControls);
 
   return (
     <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] space-y-2.5 text-black">
@@ -943,9 +945,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           />
         )}
 
-      {/* 4.9 Facebook-style "See insights and ads" + "পোস্টটি বুস্ট করুন · Boost post" bar */}
+      {/* 4.9 Facebook-style "See insights" + "Boost post" bar for Page posts */}
       {canShowBoostRow && (
-        <div className="px-3 sm:px-4 py-2 border-t border-[#E4E6EB] flex items-center justify-between gap-2 bg-white">
+        <div className="px-3 sm:px-4 py-2 border-t border-[#E4E6EB] flex items-center justify-between gap-2 bg-[#F7F8FA]">
           <button
             type="button"
             onClick={() => {
@@ -955,9 +957,10 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 setBoostModalMode('insights');
               }
             }}
-            className="text-[13px] sm:text-[13.5px] font-semibold text-[#0866FF] hover:underline text-left leading-snug cursor-pointer"
+            className="text-[13px] sm:text-[13.5px] font-semibold text-[#0866FF] hover:underline text-left leading-snug cursor-pointer flex items-center gap-1.5"
           >
-            See insights and ads
+            <TrendingUp className="w-4 h-4 shrink-0" />
+            <span>See insights</span>
           </button>
 
           <button
@@ -969,7 +972,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
                 setBoostModalMode('boost');
               }
             }}
-            className={`px-3 sm:px-3.5 py-2 rounded-[6px] text-[12.5px] sm:text-[13px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 max-w-[62%] sm:max-w-none truncate flex items-center gap-1.5 ${
+            className={`px-3.5 py-2 rounded-[8px] text-[12.5px] sm:text-[13px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 flex items-center gap-1.5 ${
               boostedCampaign
                 ? 'bg-[#E7F3FF] hover:bg-[#DBEAFE] text-[#0866FF] border border-[#0866FF]/30'
                 : 'bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white shadow-xs'
@@ -978,10 +981,13 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             {boostedCampaign ? (
               <>
                 <CheckCircle2 className="w-3.5 h-3.5 shrink-0" />
-                <span className="truncate">Boosted • Manage ad</span>
+                <span>Boosted • Manage ad</span>
               </>
             ) : (
-              <span className="truncate">পোস্টটি বুস্ট করুন · Boost post</span>
+              <>
+                <Megaphone className="w-3.5 h-3.5 shrink-0" />
+                <span>Boost post</span>
+              </>
             )}
           </button>
         </div>

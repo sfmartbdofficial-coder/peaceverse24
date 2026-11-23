@@ -21,8 +21,10 @@ import {
   ChevronRight,
   Share2,
   PlusCircle,
+  Megaphone,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
+import { FbBoostPostModal } from './FbBoostPostModal';
 import {
   ADULT_BLOCK_MESSAGE,
   checkMediaFilenamesSafe,
@@ -39,6 +41,7 @@ import {
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
+  isPageAccount?: boolean;
   initialPhoto?: string | null;
   initialPhotos?: string[] | null;
   onClose: () => void;
@@ -113,6 +116,7 @@ const SHAREABLE_GROUPS = [
 
 export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
   userProfile,
+  isPageAccount = false,
   initialPhoto = null,
   initialPhotos = null,
   onClose,
@@ -121,6 +125,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 }) => {
   const [step, setStep] = useState<'compose' | 'options'>('compose');
   const [content, setContent] = useState('');
+  const [pendingBoostPost, setPendingBoostPost] = useState<PostItem | null>(null);
+  const [showBoostPrompt, setShowBoostPrompt] = useState(false);
+  const [showBoostPageModal, setShowBoostPageModal] = useState(false);
   
   // Privacy selector: public | friends | private
   const [privacy, setPrivacy] = useState<'public' | 'friends' | 'private'>('public');
@@ -438,6 +445,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         sharesCount: 0,
         isSaved: false,
       };
+
+      if (isPageAccount) {
+        setPendingBoostPost(newPost);
+        setShowBoostPrompt(true);
+        return;
+      }
 
       await onPostCreated(newPost);
 
@@ -867,6 +880,71 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             )}
           </button>
         </div>
+
+        {/* Boost Confirmation Popup ("Apni ki eti Boost korte chan?") */}
+        {showBoostPrompt && pendingBoostPost && (
+          <div
+            className="fixed inset-0 z-[60] bg-black/65 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4 animate-in fade-in"
+            onClick={() => setShowBoostPrompt(false)}
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-5 space-y-4 text-[#050505]"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-start gap-3">
+                <div className="w-11 h-11 rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center shrink-0">
+                  <Megaphone className="w-6 h-6" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-[#050505] leading-snug">
+                    Apni ki eti Boost korte chan?
+                  </h3>
+                  <p className="text-xs text-[#65676B] mt-1 leading-relaxed">
+                    আপনি কি আপনার পেজের এই পোস্টটি Boost করে আরও বেশি মানুষের কাছে পৌঁছাতে চান?
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-col gap-2 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowBoostPrompt(false);
+                    setShowBoostPageModal(true);
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] text-white font-extrabold text-sm cursor-pointer"
+                >
+                  YES, BOOST KORUN
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const postToPublish = pendingBoostPost;
+                    setShowBoostPrompt(false);
+                    setPendingBoostPost(null);
+                    await onPostCreated(postToPublish);
+                  }}
+                  className="w-full py-3 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] font-bold text-sm cursor-pointer"
+                >
+                  NOT NOW / EKHON NA
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {showBoostPageModal && pendingBoostPost && (
+          <FbBoostPostModal
+            post={pendingBoostPost}
+            initialMode="boost"
+            onClose={() => setShowBoostPageModal(false)}
+            onBoostConfirmed={async () => {
+              const postToPublish = pendingBoostPost;
+              setShowBoostPageModal(false);
+              setPendingBoostPost(null);
+              await onPostCreated(postToPublish);
+            }}
+          />
+        )}
       </div>
     );
   }
