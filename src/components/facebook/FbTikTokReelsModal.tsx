@@ -1,7 +1,8 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import {
-  ArrowLeft,
+  ChevronLeft,
   X,
+  ThumbsUp,
   Heart,
   MessageCircle,
   Share2,
@@ -10,18 +11,19 @@ import {
   VolumeX,
   Play,
   Pause,
-  ChevronUp,
-  ChevronDown,
-  Music,
-  Send,
   Check,
   Copy,
   Sparkles,
   UserPlus,
-  ShieldCheck,
-  Flame,
+  BadgeCheck,
   Gift,
-  Coins,
+  Search,
+  MoreHorizontal,
+  Globe,
+  Smile,
+  AtSign,
+  ChevronUp,
+  ChevronDown,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
 import {
@@ -58,18 +60,39 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
   currentUserAvatar,
   onOpenGiftModal,
 }) => {
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
+
   // 1. Gather all video / reel posts
-  const videoPosts = posts.filter(
-    (p) =>
-      p.mediaType === 'video' ||
-      Boolean(p.mediaUrl && p.mediaUrl.match(/\.(mp4|webm|mov|ogg|m4v)($|\?)/i))
+  const videoPosts = useMemo(
+    () =>
+      posts.filter(
+        (p) =>
+          p.mediaType === 'video' ||
+          Boolean(p.mediaUrl && p.mediaUrl.match(/\.(mp4|webm|mov|ogg|m4v)($|\?)/i))
+      ),
+    [posts]
   );
 
-  // Fallback: If no video posts found in filtered list, find the initial post if it has video
-  const activeList =
-    videoPosts.length > 0
-      ? videoPosts
-      : posts.filter((p) => p.id === initialPostId && p.mediaUrl);
+  // Fallback: If no video posts found in filtered list, find the initial post if it has mediaUrl
+  const baseList = useMemo(
+    () =>
+      videoPosts.length > 0
+        ? videoPosts
+        : posts.filter((p) => p.id === initialPostId && p.mediaUrl),
+    [videoPosts, posts, initialPostId]
+  );
+
+  const activeList = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return baseList;
+    const filtered = baseList.filter(
+      (p) =>
+        (p.contentBangla || '').toLowerCase().includes(q) ||
+        (p.author?.name || '').toLowerCase().includes(q)
+    );
+    return filtered.length > 0 ? filtered : baseList;
+  }, [baseList, searchTerm]);
 
   const initialIndex = Math.max(
     0,
@@ -80,12 +103,11 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(false);
   const [progress, setProgress] = useState(0);
-  const [currentTime, setCurrentTime] = useState('0:00');
-  const [durationTime, setDurationTime] = useState('0:00');
   const [showPlayPauseAnim, setShowPlayPauseAnim] = useState(false);
   const [showHeartAnim, setShowHeartAnim] = useState(false);
   const [heartAnimPos, setHeartAnimPos] = useState({ x: 0, y: 0 });
   const [showCommentDrawer, setShowCommentDrawer] = useState(false);
+  const [showMoreSheet, setShowMoreSheet] = useState(false);
   const [isCopied, setIsCopied] = useState(false);
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
   const [reelSyncTick, setReelSyncTick] = useState(0);
@@ -106,7 +128,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
     }
   }, [initialPostId, activeList.length]);
 
-  const currentPost: PostItem | undefined = activeList[currentIndex];
+  const currentPost: PostItem | undefined = activeList[currentIndex] || activeList[0];
 
   // Auto-play and reset video on index change
   useEffect(() => {
@@ -123,7 +145,6 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
       playPromise
         .then(() => setIsPlaying(true))
         .catch(() => {
-          // Fallback if browser requires muted autoplay
           video.muted = true;
           setIsMuted(true);
           video.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -131,55 +152,52 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
     }
   }, [currentIndex, isOpen]);
 
-  // Format seconds to mm:ss
-  const formatTime = (seconds: number) => {
-    if (isNaN(seconds) || seconds < 0) return '0:00';
-    const mins = Math.floor(seconds / 60);
-    const secs = Math.floor(seconds % 60);
-    return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-  };
-
   const handleTimeUpdate = () => {
     const video = videoRef.current;
     if (!video || !video.duration) return;
     setProgress((video.currentTime / video.duration) * 100);
-    setCurrentTime(formatTime(video.currentTime));
-    setDurationTime(formatTime(video.duration));
   };
 
   const goToNext = useCallback(() => {
+    if (activeList.length === 0) return;
     if (currentIndex < activeList.length - 1) {
       setCurrentIndex((prev) => prev + 1);
-      setShowCommentDrawer(false);
-      setExpandedCaption(false);
     } else {
-      // Loop back to first video
       setCurrentIndex(0);
-      setShowCommentDrawer(false);
     }
+    setShowCommentDrawer(false);
+    setShowMoreSheet(false);
+    setExpandedCaption(false);
   }, [currentIndex, activeList.length]);
 
   const goToPrev = useCallback(() => {
     if (currentIndex > 0) {
       setCurrentIndex((prev) => prev - 1);
       setShowCommentDrawer(false);
+      setShowMoreSheet(false);
       setExpandedCaption(false);
     }
   }, [currentIndex]);
 
-  // Keyboard navigation (ArrowUp, ArrowDown, Space, Escape)
+  // Keyboard navigation
   useEffect(() => {
     if (!isOpen) return;
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
-      } else if (e.key === 'ArrowDown') {
+        if (showMoreSheet) {
+          setShowMoreSheet(false);
+        } else if (showCommentDrawer) {
+          setShowCommentDrawer(false);
+        } else {
+          onClose();
+        }
+      } else if (e.key === 'ArrowDown' && !showCommentDrawer) {
         e.preventDefault();
         goToNext();
-      } else if (e.key === 'ArrowUp') {
+      } else if (e.key === 'ArrowUp' && !showCommentDrawer) {
         e.preventDefault();
         goToPrev();
-      } else if (e.key === ' ' && !showCommentDrawer) {
+      } else if (e.key === ' ' && !showCommentDrawer && !searchOpen) {
         e.preventDefault();
         togglePlayPause();
       }
@@ -187,17 +205,15 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, goToNext, goToPrev, showCommentDrawer]);
+  }, [isOpen, goToNext, goToPrev, showCommentDrawer, showMoreSheet, searchOpen, onClose]);
 
   if (!isOpen || !currentPost) return null;
 
-  // Single / Double tap handler
   const handleVideoTap = (e: React.MouseEvent<HTMLDivElement>) => {
     const now = Date.now();
     const DOUBLE_TAP_DELAY = 320;
 
     if (now - lastTapRef.current < DOUBLE_TAP_DELAY) {
-      // DOUBLE TAP DETECTED -> Trigger Heart Animation & Like
       const rect = e.currentTarget.getBoundingClientRect();
       setHeartAnimPos({
         x: e.clientX - rect.left,
@@ -206,12 +222,10 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
       setShowHeartAnim(true);
       setTimeout(() => setShowHeartAnim(false), 900);
 
-      // Trigger love/like reaction
-      onToggleReaction(currentPost.id, 'love');
+      onToggleReaction(currentPost.id, 'like');
       lastTapRef.current = 0;
     } else {
       lastTapRef.current = now;
-      // Delay single tap to differentiate from double tap
       setTimeout(() => {
         if (Date.now() - lastTapRef.current >= DOUBLE_TAP_DELAY - 20) {
           togglePlayPause();
@@ -225,7 +239,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
     if (!video) return;
 
     setShowPlayPauseAnim(true);
-    setTimeout(() => setShowPlayPauseAnim(false), 800);
+    setTimeout(() => setShowPlayPauseAnim(false), 700);
 
     if (video.paused) {
       video.play().then(() => setIsPlaying(true)).catch(() => {});
@@ -235,8 +249,8 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
     }
   };
 
-  const toggleMute = (e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleMute = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
     const video = videoRef.current;
     if (!video) return;
     const nextMuted = !isMuted;
@@ -244,41 +258,48 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
     setIsMuted(nextMuted);
   };
 
-  // Mobile Swipe Up / Down
   const handleTouchStart = (e: React.TouchEvent) => {
+    if (showCommentDrawer || showMoreSheet) return;
     touchStartY.current = e.touches[0].clientY;
   };
 
   const handleTouchEnd = (e: React.TouchEvent) => {
-    if (touchStartY.current === null) return;
+    if (touchStartY.current === null || showCommentDrawer || showMoreSheet) return;
     const touchEndY = e.changedTouches[0].clientY;
     const diff = touchStartY.current - touchEndY;
     const SWIPE_THRESHOLD = 50;
 
     if (diff > SWIPE_THRESHOLD) {
-      // Swiped Up -> Next Reel
       goToNext();
     } else if (diff < -SWIPE_THRESHOLD) {
-      // Swiped Down -> Previous Reel
       goToPrev();
     }
     touchStartY.current = null;
   };
 
-  // Copy link / share
-  const handleShare = () => {
-    navigator.clipboard.writeText(window.location.href);
+  const handleShare = async () => {
+    const shareUrl = `${window.location.origin}/?tab=reels&postId=${currentPost.id}`;
+    try {
+      if (navigator.share) {
+        await navigator.share({
+          title: currentPost.author.name,
+          text: currentPost.contentBangla || 'PeaceVerse Reels',
+          url: shareUrl,
+        });
+        return;
+      }
+      await navigator.clipboard.writeText(shareUrl);
+    } catch {
+      try {
+        await navigator.clipboard.writeText(window.location.href);
+      } catch {}
+    }
     setIsCopied(true);
     setTimeout(() => setIsCopied(false), 1800);
   };
 
-  const isLiked =
-    currentPost.userReaction === 'like' ||
-    currentPost.userReaction === 'love' ||
-    currentPost.reactions.total > 0;
-
+  const isLiked = Boolean(currentPost.userReaction);
   const isSaved = currentPost.isSaved || false;
-  const isAuthorFollowed = Boolean(followedAuthors[currentPost.author.name]);
 
   const toggleFollow = (authorName: string) => {
     setFollowedAuthors((prev) => ({
@@ -287,10 +308,19 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
     }));
   };
 
+  const formatCount = (n: number) => {
+    if (!n) return '0';
+    if (n >= 1000000) return `${(n / 1000000).toFixed(1).replace(/\.0$/, '')}M`;
+    if (n >= 1000) return `${(n / 1000).toFixed(1).replace(/\.0$/, '')}K`;
+    return String(n);
+  };
+
+  const captionText = (currentPost.contentBangla || '').trim();
+  const isLongCaption = captionText.length > 48 || captionText.includes('\n');
+
   return (
     <div className="fixed inset-0 z-50 bg-black flex items-center justify-center select-none overflow-hidden font-sans">
-      
-      {/* Background blurred ambient lighting */}
+      {/* Ambient background blur on desktop */}
       <div
         className="absolute inset-0 bg-cover bg-center filter blur-3xl opacity-25 scale-110 pointer-events-none"
         style={{
@@ -298,12 +328,13 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
         }}
       />
 
-      {/* Main TikTok / Reels Phone Frame Container */}
+      {/* Main Facebook Reels Frame */}
       <div
         className="relative w-full h-full sm:max-w-[440px] sm:h-[94vh] sm:rounded-3xl sm:border sm:border-white/10 sm:shadow-2xl overflow-hidden bg-black flex flex-col justify-between will-change-transform"
         onTouchStart={handleTouchStart}
         onTouchEnd={handleTouchEnd}
         onWheel={(e) => {
+          if (showCommentDrawer || showMoreSheet) return;
           const now = Date.now();
           if (now - lastWheelRef.current < 450) return;
           if (e.deltaY > 40) {
@@ -316,38 +347,66 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
         }}
       >
         {/* ========================================================= */}
-        {/* TOP OVERLAY HEADER BAR */}
+        {/* TOP BAR — Clean Facebook Reels Header (<         🔍  •••) */}
         {/* ========================================================= */}
-        <div className="absolute top-0 inset-x-0 z-30 px-3.5 pt-3.5 pb-8 bg-gradient-to-b from-black/85 via-black/40 to-transparent flex items-center justify-between pointer-events-auto">
-          {/* Back Button */}
-          <button
-            onClick={onClose}
-            className="flex items-center gap-2 p-2 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-            title="ফিডে ফিরে যান (Back to feed)"
-          >
-            <ArrowLeft className="w-5 h-5 stroke-[2.5]" />
-            <span className="text-xs font-bold pr-1">ফিডে ফিরুন</span>
-          </button>
+        <div
+          className="absolute top-0 inset-x-0 z-30 px-3 pt-3 pb-8 bg-gradient-to-b from-black/70 via-black/25 to-transparent pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="flex items-center justify-between">
+            <button
+              type="button"
+              onClick={onClose}
+              className="p-1.5 -ml-1 rounded-full hover:bg-white/15 text-white transition-colors active:scale-95 cursor-pointer"
+              aria-label="Back"
+            >
+              <ChevronLeft className="w-7 h-7 stroke-[2.3] drop-shadow" />
+            </button>
 
-          {/* Center Title Badge */}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-black/40 backdrop-blur-md border border-white/15 text-white shadow-xs">
-            <Flame className="w-3.5 h-3.5 text-emerald-400 fill-emerald-400" />
-            <span className="text-xs font-extrabold tracking-wide uppercase">
-              Reels
-            </span>
-            <span className="text-[10px] text-sky-400 font-bold ml-0.5 tabular-nums">
-              {currentIndex + 1}/{activeList.length}
-            </span>
+            <div className="flex items-center gap-3.5">
+              <button
+                type="button"
+                onClick={() => setSearchOpen((prev) => !prev)}
+                className="p-1.5 rounded-full hover:bg-white/15 text-white transition-colors active:scale-95 cursor-pointer"
+                aria-label="Search reels"
+              >
+                <Search className="w-6 h-6 stroke-[2.2] drop-shadow" />
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setShowMoreSheet(true)}
+                className="w-7 h-7 rounded-full border-[1.8px] border-white/95 hover:bg-white/15 text-white flex items-center justify-center transition-colors active:scale-95 cursor-pointer drop-shadow"
+                aria-label="More options"
+              >
+                <MoreHorizontal className="w-4 h-4 stroke-[2.5]" />
+              </button>
+            </div>
           </div>
 
-          {/* Close X Button */}
-          <button
-            onClick={onClose}
-            className="p-2 rounded-full bg-black/40 hover:bg-black/70 text-white backdrop-blur-md border border-white/15 transition-all active:scale-95 cursor-pointer shadow-lg"
-            title="বন্ধ করুন"
-          >
-            <X className="w-5 h-5" />
-          </button>
+          {searchOpen && (
+            <div className="mt-2.5 flex items-center gap-2 bg-[#242526]/95 border border-white/20 rounded-full px-3.5 py-1.5 backdrop-blur-md">
+              <Search className="w-4 h-4 text-[#B0B3B8] shrink-0" />
+              <input
+                type="text"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                placeholder="Search reels..."
+                className="flex-1 bg-transparent text-sm text-white placeholder-[#B0B3B8] focus:outline-none"
+                autoFocus
+              />
+              <button
+                type="button"
+                onClick={() => {
+                  setSearchTerm('');
+                  setSearchOpen(false);
+                }}
+                className="text-[#B0B3B8] hover:text-white cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+          )}
         </div>
 
         {/* ========================================================= */}
@@ -380,29 +439,26 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
             />
           )}
 
-          {/* Center Play / Pause Animated Icon */}
           {showPlayPauseAnim && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 z-20">
-              <div className="w-20 h-20 rounded-full bg-black/70 backdrop-blur-lg flex items-center justify-center text-white shadow-2xl animate-in zoom-in-75 duration-150">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/15 z-20">
+              <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white shadow-2xl animate-in zoom-in-75 duration-150">
                 {isPlaying ? (
-                  <Pause className="w-10 h-10 fill-white" />
+                  <Pause className="w-8 h-8 fill-white" />
                 ) : (
-                  <Play className="w-10 h-10 fill-white translate-x-1" />
+                  <Play className="w-8 h-8 fill-white translate-x-0.5" />
                 )}
               </div>
             </div>
           )}
 
-          {/* Floating Center Play Button when video is paused */}
           {!isPlaying && !showPlayPauseAnim && (
-            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 z-10">
-              <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl">
+            <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 z-10">
+              <div className="w-16 h-16 rounded-full bg-black/55 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl">
                 <Play className="w-8 h-8 fill-white translate-x-0.5" />
               </div>
             </div>
           )}
 
-          {/* Double Tap TikTok Heart Animation */}
           {showHeartAnim && (
             <div
               className="pointer-events-none absolute z-30 text-rose-500 animate-in zoom-in-50 fade-out-down duration-700 -translate-x-1/2 -translate-y-1/2"
@@ -417,281 +473,331 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
         </div>
 
         {/* ========================================================= */}
-        {/* RIGHT FLOATING ACTION COLUMN (CLASSIC TIKTOK / REELS) */}
+        {/* RIGHT VERTICAL ACTION COLUMN (Exact FB Reels + Golden হাদিয়া) */}
         {/* ========================================================= */}
-        {/* ========================================================= */}
-        {/* RIGHT FLOATING ACTION COLUMN (COMPACT & BALANCED) */}
-        {/* ========================================================= */}
-        <div className="absolute right-2 sm:right-3.5 bottom-4 sm:bottom-8 z-30 flex flex-col items-center gap-1.5 sm:gap-2 text-white pointer-events-auto select-none max-h-[72vh] justify-end">
-          {/* 1. Like Button (Heart) */}
+        <div
+          className="absolute right-3 bottom-20 z-30 flex flex-col items-center gap-4 text-white pointer-events-auto select-none"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* 1. Like (Facebook ThumbsUp) */}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleReaction(currentPost.id, isLiked ? 'like' : 'love');
-            }}
-            className="flex flex-col items-center gap-0.5 group active:scale-90 transition-transform cursor-pointer"
+            type="button"
+            onClick={() => onToggleReaction(currentPost.id, 'like')}
+            className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform cursor-pointer"
           >
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md border shadow-lg transition-colors ${
-                isLiked
-                  ? 'bg-rose-600/90 text-white border-rose-400 shadow-rose-600/40'
-                  : 'bg-black/50 text-white border-white/20 hover:bg-black/70'
+            <ThumbsUp
+              className={`w-7 h-7 drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)] transition-colors ${
+                isLiked ? 'text-[#0866FF] fill-[#0866FF]' : 'text-white stroke-[2]'
               }`}
-            >
-              <Heart
-                className={`w-5 h-5 transition-all ${
-                  isLiked ? 'fill-white stroke-white scale-110' : 'fill-none stroke-white'
-                }`}
-              />
-            </div>
-            <span className="text-[10px] font-bold drop-shadow">
-              {currentPost.reactions.total || 1}
+            />
+            <span className="text-[12px] font-semibold drop-shadow">
+              {formatCount(currentPost.reactions.total || 0)}
             </span>
           </button>
 
-          {/* 1.5. Golden Hadia / Gift Button */}
+          {/* 2. Signature Golden Hadia Button */}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpenGiftModal?.(currentPost);
-            }}
-            className="flex flex-col items-center gap-0.5 group active:scale-90 transition-transform cursor-pointer"
-            title="গোল্ডেন হাদিয়া পাঠান (Gift Gold)"
+            type="button"
+            onClick={() => onOpenGiftModal?.(currentPost)}
+            className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform cursor-pointer"
+            title="হাদিয়া পাঠান"
           >
-            <div className="w-10 h-10 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 text-neutral-950 flex items-center justify-center shadow-lg shadow-amber-500/40 border border-yellow-200">
+            <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 text-neutral-950 flex items-center justify-center shadow-lg shadow-amber-500/40 border border-yellow-200">
               <Gift className="w-4.5 h-4.5 stroke-[2.4]" />
             </div>
-            <span className="text-[10px] font-black text-amber-300 drop-shadow">
+            <span className="text-[11px] font-extrabold text-amber-300 drop-shadow">
               {currentPost.goldenGiftsCount ? `🪙 ${currentPost.goldenGiftsCount}` : 'হাদিয়া'}
             </span>
           </button>
 
-          {/* 2. Comment Button */}
+          {/* 3. Comment */}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              setShowCommentDrawer(!showCommentDrawer);
-            }}
-            className="flex flex-col items-center gap-0.5 group active:scale-90 transition-transform cursor-pointer"
+            type="button"
+            onClick={() => setShowCommentDrawer(true)}
+            className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg transition-colors">
-              <MessageCircle className="w-5 h-5 fill-white/15 stroke-white" />
-            </div>
-            <span className="text-[10px] font-bold drop-shadow">
-              {currentPost.comments.length || 0}
+            <MessageCircle className="w-7 h-7 text-white stroke-[2] drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]" />
+            <span className="text-[12px] font-semibold drop-shadow">
+              {formatCount(currentPost.comments.length || 0)}
             </span>
           </button>
 
-          {/* 3. Share Button */}
+          {/* 4. Share */}
           <button
-            onClick={(e) => {
-              e.stopPropagation();
-              handleShare();
-            }}
-            className="flex flex-col items-center gap-0.5 group active:scale-90 transition-transform cursor-pointer"
+            type="button"
+            onClick={handleShare}
+            className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform cursor-pointer"
           >
-            <div className="w-10 h-10 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg transition-colors">
-              {isCopied ? (
-                <Check className="w-4.5 h-4.5 text-emerald-400 stroke-[3]" />
-              ) : (
-                <Share2 className="w-4.5 h-4.5 stroke-[2.2]" />
-              )}
-            </div>
-            <span className="text-[10px] font-bold drop-shadow">
-              {isCopied ? 'কপি!' : currentPost.sharesCount || 'শেয়ার'}
-            </span>
-          </button>
-
-          {/* 4. Bookmark / Save Button */}
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onToggleSave(currentPost.id);
-            }}
-            className="flex flex-col items-center gap-0.5 group active:scale-90 transition-transform cursor-pointer"
-          >
-            <div
-              className={`w-10 h-10 rounded-full flex items-center justify-center backdrop-blur-md border shadow-lg transition-colors ${
-                isSaved
-                  ? 'bg-amber-500/90 text-white border-amber-300'
-                  : 'bg-black/50 text-white border-white/20 hover:bg-black/70'
-              }`}
-            >
-              <Bookmark
-                className={`w-4.5 h-4.5 ${isSaved ? 'fill-white' : 'fill-none'}`}
-              />
-            </div>
-            <span className="text-[10px] font-bold drop-shadow">
-              {isSaved ? 'সংরক্ষিত' : 'সেভ'}
-            </span>
-          </button>
-
-          {/* 5. Sound Mute Toggle Button */}
-          <button
-            onClick={toggleMute}
-            className="w-8.5 h-8.5 rounded-full bg-black/50 hover:bg-black/70 text-white backdrop-blur-md border border-white/20 flex items-center justify-center shadow-lg active:scale-90 transition-all cursor-pointer"
-            title={isMuted ? 'আনমিউট করুন' : 'মিউট করুন'}
-          >
-            {isMuted ? (
-              <VolumeX className="w-4 h-4 text-rose-400" />
+            {isCopied ? (
+              <Check className="w-7 h-7 text-emerald-400 stroke-[2.6] drop-shadow" />
             ) : (
-              <Volume2 className="w-4 h-4 text-sky-400" />
+              <Share2 className="w-7 h-7 text-white stroke-[2] drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]" />
             )}
+            <span className="text-[12px] font-semibold drop-shadow">
+              {isCopied ? 'Copied' : formatCount(currentPost.sharesCount || 0)}
+            </span>
           </button>
 
-          {/* 6. Up / Down Navigation Controls (Compact Horizontal Pair) */}
-          <div className="flex items-center gap-1 pt-0.5">
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                goToPrev();
-              }}
-              disabled={currentIndex === 0}
-              className="w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 disabled:opacity-25 text-white backdrop-blur-md border border-white/20 shadow-sm flex items-center justify-center active:scale-90 transition-all cursor-pointer"
-              title="পূর্ববর্তী রিলস"
-            >
-              <ChevronUp className="w-3.5 h-3.5" />
-            </button>
-            <button
-              onClick={(e) => {
-                e.stopPropagation();
-                goToNext();
-              }}
-              className="w-7 h-7 rounded-full bg-black/50 hover:bg-black/80 text-white backdrop-blur-md border border-white/20 shadow-sm flex items-center justify-center active:scale-90 transition-all cursor-pointer"
-              title="পরবর্তী রিলস"
-            >
-              <ChevronDown className="w-3.5 h-3.5" />
-            </button>
-          </div>
+          {/* 5. Bookmark / Save */}
+          <button
+            type="button"
+            onClick={() => onToggleSave(currentPost.id)}
+            className="flex flex-col items-center gap-0.5 active:scale-90 transition-transform cursor-pointer"
+          >
+            <Bookmark
+              className={`w-7 h-7 drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)] transition-colors ${
+                isSaved ? 'fill-amber-400 text-amber-400' : 'text-white stroke-[2]'
+              }`}
+            />
+            <span className="text-[12px] font-semibold drop-shadow">
+              {isSaved ? 'Saved' : 'Save'}
+            </span>
+          </button>
+
+          {/* 6. More (•••) */}
+          <button
+            type="button"
+            onClick={() => setShowMoreSheet(true)}
+            className="flex items-center justify-center py-0.5 active:scale-90 transition-transform cursor-pointer"
+            aria-label="More actions"
+          >
+            <MoreHorizontal className="w-6 h-6 text-white drop-shadow-[0_2px_6px_rgba(0,0,0,0.65)]" />
+          </button>
         </div>
 
         {/* ========================================================= */}
-        {/* BOTTOM METADATA & AUTHOR INFO OVERLAY */}
+        {/* BOTTOM AUTHOR + CAPTION + "Add a comment" PILL BAR */}
         {/* ========================================================= */}
-        <div className="absolute bottom-0 inset-x-0 z-20 pb-3 pt-14 px-3.5 bg-gradient-to-t from-black via-black/70 to-transparent pointer-events-auto pr-16 sm:pr-20">
-          {/* Author Avatar, Name + Follow Pill */}
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            <div className="w-8 h-8 rounded-full overflow-hidden border border-white/60 shadow-md bg-neutral-800 shrink-0">
-              <img
-                src={currentPost.author.avatar}
-                alt={currentPost.author.name}
-                className="w-full h-full object-cover"
-              />
-            </div>
-            <span className="font-extrabold text-sm text-white drop-shadow flex items-center gap-1.5">
-              <span>{currentPost.author.name}</span>
-              {currentPost.author.verified && (
-                <ShieldCheck className="w-4 h-4 text-sky-400 fill-sky-400/20" />
-              )}
-            </span>
+        <div
+          className="absolute bottom-0 inset-x-0 z-20 pt-14 bg-gradient-to-t from-black/95 via-black/70 to-transparent pointer-events-auto"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {/* Author + Verified + Globe + Follow + Caption */}
+          <div className="px-3.5 pb-2.5 pr-16 space-y-1.5">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="w-9 h-9 rounded-full overflow-hidden border border-white/50 bg-neutral-800 shrink-0">
+                <img
+                  src={currentPost.author.avatar}
+                  alt={currentPost.author.name}
+                  className="w-full h-full object-cover"
+                />
+              </div>
 
-            {(() => {
-              void reelSyncTick;
-              const relKind = getAuthorRelationshipKind(currentPost, undefined, currentUserName);
-              if (relKind === 'self' || relKind === 'friend') return null;
-              const targetId = currentPost.authorId || `author-${currentPost.author.name}`;
-              if (relKind === 'add_friend') {
-                const reqSent = isFriendRequestSentLocally(targetId, currentPost.author.name);
+              <div className="flex items-center gap-1.5 min-w-0">
+                <span className="font-bold text-[15px] text-white drop-shadow truncate max-w-[165px]">
+                  {currentPost.author.name}
+                </span>
+                {currentPost.author.verified && (
+                  <BadgeCheck className="w-4 h-4 text-[#0866FF] fill-white shrink-0" />
+                )}
+                <Globe className="w-3.5 h-3.5 text-white/85 shrink-0" />
+              </div>
+
+              {(() => {
+                void reelSyncTick;
+                const relKind = getAuthorRelationshipKind(currentPost, undefined, currentUserName);
+                if (relKind === 'self' || relKind === 'friend') return null;
+                const targetId = currentPost.authorId || `author-${currentPost.author.name}`;
+                if (relKind === 'add_friend') {
+                  const reqSent = isFriendRequestSentLocally(targetId, currentPost.author.name);
+                  return (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await toggleLocalFriendRequestAndSync(
+                          'user-me',
+                          currentUserName || 'Member',
+                          currentUserAvatar || '',
+                          {
+                            id: targetId,
+                            name: currentPost.author.name,
+                            avatar: currentPost.author.avatar,
+                          }
+                        );
+                        setReelSyncTick((t) => t + 1);
+                      }}
+                      className={`px-3 py-1 rounded-[8px] text-[12.5px] font-semibold border transition-colors cursor-pointer flex items-center gap-1 ${
+                        reqSent
+                          ? 'bg-white/20 text-white border-white/40'
+                          : 'bg-black/25 text-white border-white/75 hover:bg-white/15'
+                      }`}
+                    >
+                      <UserPlus className="w-3 h-3" />
+                      <span>{reqSent ? 'Request sent' : 'Add Friend'}</span>
+                    </button>
+                  );
+                }
+                const followed =
+                  Boolean(followedAuthors[currentPost.author.name]) ||
+                  isTargetFollowedLocally(targetId, currentPost.author.name);
                 return (
                   <button
+                    type="button"
                     onClick={async () => {
-                      await toggleLocalFriendRequestAndSync(
+                      await toggleFollowUser(
                         'user-me',
                         currentUserName || 'Member',
                         currentUserAvatar || '',
-                        {
-                          id: targetId,
-                          name: currentPost.author.name,
-                          avatar: currentPost.author.avatar,
-                        }
+                        targetId,
+                        currentPost.author.name,
+                        currentPost.author.avatar
                       );
+                      toggleFollow(currentPost.author.name);
                       setReelSyncTick((t) => t + 1);
                     }}
-                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 ${
-                      reqSent
-                        ? 'bg-white/20 text-white border border-white/30'
-                        : 'bg-[#1877F2] text-white hover:bg-blue-600'
+                    className={`px-3 py-1 rounded-[8px] text-[12.5px] font-semibold border transition-colors cursor-pointer ${
+                      followed
+                        ? 'bg-white/20 text-white border-white/40'
+                        : 'bg-black/25 text-white border-white/75 hover:bg-white/15'
                     }`}
                   >
-                    <UserPlus className="w-3 h-3" />
-                    <span>{reqSent ? 'Request sent' : 'Add Friend'}</span>
+                    {followed ? 'Following' : 'Follow'}
                   </button>
                 );
-              }
-              const followed =
-                Boolean(followedAuthors[currentPost.author.name]) ||
-                isTargetFollowedLocally(targetId, currentPost.author.name);
-              return (
-                <button
-                  onClick={async () => {
-                    await toggleFollowUser(
-                      'user-me',
-                      currentUserName || 'Member',
-                      currentUserAvatar || '',
-                      targetId,
-                      currentPost.author.name,
-                      currentPost.author.avatar
-                    );
-                    toggleFollow(currentPost.author.name);
-                    setReelSyncTick((t) => t + 1);
-                  }}
-                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer ${
-                    followed
-                      ? 'bg-white/20 text-white border border-white/30'
-                      : 'bg-[#1877F2] text-white hover:bg-blue-600'
-                  }`}
-                >
-                  {followed ? 'অনুসরণ করছেন ✓' : '+ Follow'}
-                </button>
-              );
-            })()}
-          </div>
+              })()}
+            </div>
 
-          {/* Post Caption with "more" expander */}
-          <div className="text-xs text-white/95 leading-relaxed drop-shadow mb-2">
-            <p className={expandedCaption ? 'whitespace-pre-line' : 'line-clamp-2'}>
-              {currentPost.contentBangla}
-            </p>
-            {currentPost.contentBangla.length > 80 && (
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  setExpandedCaption(!expandedCaption);
-                }}
-                className="text-sky-300 font-bold hover:underline ml-1"
-              >
-                {expandedCaption ? 'সংক্ষেপ করুন' : '...আরও দেখুন'}
-              </button>
+            {captionText && (
+              <div className="text-[13px] text-white/95 leading-snug drop-shadow">
+                <span className={expandedCaption ? 'whitespace-pre-line' : 'line-clamp-1 inline'}>
+                  {captionText}
+                </span>
+                {isLongCaption && (
+                  <button
+                    type="button"
+                    onClick={() => setExpandedCaption((prev) => !prev)}
+                    className="text-white/80 font-semibold hover:underline ml-1 cursor-pointer"
+                  >
+                    {expandedCaption ? 'less' : '... more'}
+                  </button>
+                )}
+              </div>
+            )}
+
+            {currentPost.arabicVerse && (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-emerald-950/75 border border-emerald-500/40 text-emerald-200 text-[11px] font-semibold">
+                <Sparkles className="w-3 h-3 text-emerald-400" />
+                <span className="font-serif">{currentPost.arabicVerse}</span>
+              </div>
             )}
           </div>
 
-          {/* Quranic Verse / Arabic Pill if present */}
-          {currentPost.arabicVerse && (
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-emerald-950/70 border border-emerald-500/40 text-emerald-200 text-xs font-semibold mb-2 shadow-xs backdrop-blur-md">
-              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
-              <span className="font-serif">{currentPost.arabicVerse}</span>
-            </div>
-          )}
-
-          {/* Halal Audio Marquee Track */}
-          <div className="flex items-center gap-2 text-xs text-slate-300 font-medium">
-            <Music className="w-3.5 h-3.5 text-sky-400 shrink-0 animate-spin" style={{ animationDuration: '4s' }} />
-            <span className="truncate">
-              {currentPost.author.name} • Original Audio (Halal Sound)
-            </span>
-            <span className="text-[10px] text-slate-400 shrink-0 font-mono">
-              {currentTime} / {durationTime}
-            </span>
+          {/* Exact Facebook Bottom "Add a comment" Pill Bar */}
+          <div className="px-3 pb-2.5">
+            <button
+              type="button"
+              onClick={() => setShowCommentDrawer(true)}
+              className="w-full h-11 rounded-full bg-[#1C1E21]/90 border border-white/25 px-4 flex items-center justify-between gap-2 text-left hover:border-white/45 transition-colors cursor-pointer"
+            >
+              <span className="text-[14px] text-[#B0B3B8] font-normal truncate">
+                Add a comment
+              </span>
+              <div className="flex items-center gap-3 text-white/90 shrink-0">
+                <AtSign className="w-4.5 h-4.5 stroke-[2]" />
+                <Smile className="w-4.5 h-4.5 stroke-[2]" />
+                <span className="px-1.5 py-0.5 rounded border border-white/80 text-[9px] font-extrabold leading-none tracking-tight">
+                  GIF
+                </span>
+              </div>
+            </button>
           </div>
 
-          {/* Slim Bottom Timeline Scrub Bar */}
-          <div className="mt-2.5 w-full bg-white/25 h-1 rounded-full overflow-hidden">
+          {/* Slim edge timeline progress */}
+          <div className="w-full bg-white/20 h-[2px] overflow-hidden">
             <div
-              className="bg-[#1877F2] h-full transition-all duration-100 rounded-full shadow-[0_0_8px_rgba(24,119,242,0.8)]"
+              className="bg-white h-full transition-all duration-100"
               style={{ width: `${progress}%` }}
             />
           </div>
         </div>
+
+        {/* MORE OPTIONS BOTTOM SHEET (from top-right or bottom-right •••) */}
+        {showMoreSheet && (
+          <div
+            className="fixed inset-0 z-40 bg-black/60 flex items-end justify-center animate-in fade-in"
+            onClick={() => setShowMoreSheet(false)}
+          >
+            <div
+              className="w-full max-w-[440px] bg-[#242526] text-white rounded-t-2xl border-t border-white/15 p-4 space-y-2 pb-6"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="w-10 h-1 rounded-full bg-white/25 mx-auto mb-2" />
+
+              <button
+                type="button"
+                onClick={() => {
+                  toggleMute();
+                  setShowMoreSheet(false);
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-white/10 flex items-center justify-between text-sm font-semibold cursor-pointer"
+              >
+                <span className="flex items-center gap-3">
+                  {isMuted ? (
+                    <VolumeX className="w-5 h-5 text-rose-400" />
+                  ) : (
+                    <Volume2 className="w-5 h-5 text-sky-400" />
+                  )}
+                  <span>{isMuted ? 'Unmute audio' : 'Mute audio'}</span>
+                </span>
+                <span className="text-xs text-[#B0B3B8]">{isMuted ? 'Muted' : 'On'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  onToggleSave(currentPost.id);
+                  setShowMoreSheet(false);
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-white/10 flex items-center gap-3 text-sm font-semibold cursor-pointer"
+              >
+                <Bookmark
+                  className={`w-5 h-5 ${isSaved ? 'fill-amber-400 text-amber-400' : 'text-white'}`}
+                />
+                <span>{isSaved ? 'Remove from Saved' : 'Save reel'}</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => {
+                  void handleShare();
+                  setShowMoreSheet(false);
+                }}
+                className="w-full px-3.5 py-3 rounded-xl hover:bg-white/10 flex items-center gap-3 text-sm font-semibold cursor-pointer"
+              >
+                <Copy className="w-5 h-5 text-white" />
+                <span>Copy link</span>
+              </button>
+
+              {activeList.length > 1 && (
+                <div className="grid grid-cols-2 gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      goToPrev();
+                      setShowMoreSheet(false);
+                    }}
+                    disabled={currentIndex === 0}
+                    className="py-2.5 rounded-xl bg-white/10 hover:bg-white/15 disabled:opacity-35 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ChevronUp className="w-4 h-4" />
+                    <span>Previous reel</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      goToNext();
+                      setShowMoreSheet(false);
+                    }}
+                    className="py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    <ChevronDown className="w-4 h-4" />
+                    <span>Next reel</span>
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* FACEBOOK-EXACT COMMENT BOTTOM SHEET */}
         <FbCommentBottomSheet
@@ -707,7 +813,6 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
           onAddComment={(text) => onAddComment(currentPost.id, text)}
           onToggleReaction={(reaction) => onToggleReaction(currentPost.id, reaction)}
         />
-
       </div>
     </div>
   );
