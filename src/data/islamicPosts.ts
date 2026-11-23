@@ -8,6 +8,8 @@ import {
   UserProfile
 } from '../types';
 
+import { DUMMY_GLOBAL_POSTS } from './dummyCommunity';
+
 export const USER_PROFILE: UserProfile = {
   name: 'Member',
   avatar: 'https://api.dicebear.com/7.x/initials/svg?seed=Peaceverse&backgroundColor=1877f2,0ea5e9,3b82f6',
@@ -35,67 +37,7 @@ export const USER_PROFILE: UserProfile = {
 // 100% EMPTY by default per Part 1 instructions - Genuine posts & stories will load from Supabase / Firestore
 export const INITIAL_STORIES: StoryItem[] = [];
 
-export const INITIAL_POSTS: PostItem[] = [
-  {
-    id: 'post-makkah-global-2026',
-    authorId: 'user-sheikh-makkah',
-    author: {
-      name: 'Sheikh Tariq Al-Harbi · Makkah 🇸🇦',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-      verified: true,
-      subtitle: 'Makkah, Saudi Arabia • 🌐',
-    },
-    timeAgo: '15m',
-    isPublic: true,
-    privacy: 'public',
-    status: 'approved',
-    contentBangla: 'الحمد لله رب العالمين، السلام عليكم ورحمة الله وبركاته إخوتي في كل مكان. نسأل الله أن يجمع قلوب المسلمين على الخير والسلام والبركة.',
-    arabicVerse: 'إِنَّمَا الْمُؤْمِنُونَ إِخْوَةٌ فَأَصْلِحُوا بَيْنَ أَخَوَيْكُمْ',
-    translation: 'The believers are but brothers, so make peace between your brothers. (Surah Al-Hujurat 49:10)',
-    reference: 'Surah Al-Hujurat 49:10',
-    category: 'Global Ummah',
-    reactions: {
-      total: 428,
-      likeCount: 310,
-      loveCount: 92,
-      subhanallahCount: 16,
-      mashaallahCount: 10,
-    },
-    userReaction: 'like',
-    comments: [],
-    sharesCount: 44,
-    isSaved: false,
-  },
-  {
-    id: 'post-user-first-post-2026',
-    authorId: 'user-siddik',
-    author: {
-      name: 'Siddik',
-      avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=300&q=80',
-      verified: true,
-      subtitle: 'Just now • 🌐',
-    },
-    timeAgo: 'Just now',
-    isPublic: true,
-    privacy: 'public',
-    status: 'approved',
-    contentBangla: 'আপনারা সবাই আমার পরিবারের সদস্য। আপনাদের দোয়া ও ভালোবাসায় এগিয়ে যেতে চাই।\n\n#Peaceverse24 #PeaceVerse #HalalCommunity #Alhamdulillah',
-    mediaType: 'image',
-    mediaUrl: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=800&q=80',
-    category: 'Community',
-    reactions: {
-      total: 15,
-      likeCount: 12,
-      loveCount: 3,
-      subhanallahCount: 0,
-      mashaallahCount: 0,
-    },
-    userReaction: 'like',
-    comments: [],
-    sharesCount: 1,
-    isSaved: false,
-  }
-];
+export const INITIAL_POSTS: PostItem[] = DUMMY_GLOBAL_POSTS;
 
 export const INITIAL_NOTIFICATIONS: NotificationItem[] = [];
 

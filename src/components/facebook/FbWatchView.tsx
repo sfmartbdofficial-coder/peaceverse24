@@ -27,13 +27,19 @@ import {
   ShieldCheck,
   Sparkles,
   Heart,
+  UserPlus,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
 import {
   isTargetFollowedLocally,
   subscribeToFollowStatus,
   toggleFollowUser,
+  isSameOwnerIdentity,
+  getAuthorRelationshipKind,
+  isFriendRequestSentLocally,
+  toggleLocalFriendRequestAndSync,
 } from '../../lib/firebase';
+import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 
 interface FbWatchViewProps {
   posts: PostItem[];
@@ -98,7 +104,6 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
   const [expandedCaption, setExpandedCaption] = useState(false);
   const [followTick, setFollowTick] = useState(0);
   const [showCommentDrawer, setShowCommentDrawer] = useState(false);
-  const [commentInput, setCommentInput] = useState('');
   const [showMoreSheet, setShowMoreSheet] = useState(false);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
   const [heartBurst, setHeartBurst] = useState<{ x: number; y: number } | null>(null);
@@ -354,24 +359,31 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
     }
   };
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!currentPost || !commentInput.trim()) return;
-    onAddComment(currentPost.id, commentInput.trim());
-    setCommentInput('');
-  };
-
   const totalReactions = currentPost ? currentPost.reactions.total || 0 : 0;
   const isLiked = Boolean(currentPost?.userReaction);
   const currentAuthorTargetId = currentPost
     ? currentPost.authorId || `author-${currentPost.author.name}`
     : '';
+  const watchRelationshipKind = currentPost
+    ? getAuthorRelationshipKind(currentPost, undefined, currentUserName)
+    : 'self';
+  const isOwnWatchAuthor =
+    watchRelationshipKind === 'self' ||
+    (currentPost
+      ? isSameOwnerIdentity(currentPost.authorId, currentPost.author.name, undefined, currentUserName)
+      : false);
   const isAuthorFollowed = React.useMemo(() => {
     void followTick;
-    return currentPost
+    return currentPost && watchRelationshipKind === 'follow_only'
       ? isTargetFollowedLocally(currentAuthorTargetId, currentPost.author.name)
       : false;
-  }, [currentPost, currentAuthorTargetId, followTick]);
+  }, [currentPost, currentAuthorTargetId, followTick, watchRelationshipKind]);
+  const isWatchFriendReqSent = React.useMemo(() => {
+    void followTick;
+    return currentPost && watchRelationshipKind === 'add_friend'
+      ? isFriendRequestSentLocally(currentAuthorTargetId, currentPost.author.name)
+      : false;
+  }, [currentPost, currentAuthorTargetId, followTick, watchRelationshipKind]);
 
   useEffect(() => {
     if (!currentPost) return;
@@ -797,35 +809,72 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                     </div>
                   </button>
 
-                  <button
-                    type="button"
-                    onClick={async () => {
-                      await toggleFollowUser(
-                        'user-me',
-                        currentUserName || 'User',
-                        currentUserAvatar ||
-                          'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
-                        currentAuthorTargetId,
-                        currentPost.author.name,
-                        currentPost.author.avatar
-                      );
-                      setFollowTick((t) => t + 1);
-                    }}
-                    className={`px-3 py-1 rounded-[6px] text-[12px] font-semibold transition-colors cursor-pointer shrink-0 ${
-                      isAuthorFollowed
-                        ? 'bg-white/20 text-white border border-white/30'
-                        : 'border border-white/80 text-white hover:bg-white/15'
-                    }`}
-                  >
-                    {isAuthorFollowed ? (
-                      <span className="inline-flex items-center gap-1">
-                        <Check className="w-3 h-3" />
-                        Following
-                      </span>
-                    ) : (
-                      'Follow'
-                    )}
-                  </button>
+                  {watchRelationshipKind === 'follow_only' && !isOwnWatchAuthor && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await toggleFollowUser(
+                          'user-me',
+                          currentUserName || 'User',
+                          currentUserAvatar ||
+                            'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
+                          currentAuthorTargetId,
+                          currentPost.author.name,
+                          currentPost.author.avatar
+                        );
+                        setFollowTick((t) => t + 1);
+                      }}
+                      className={`px-3 py-1 rounded-[6px] text-[12px] font-semibold transition-colors cursor-pointer shrink-0 ${
+                        isAuthorFollowed
+                          ? 'bg-white/20 text-white border border-white/30'
+                          : 'border border-white/80 text-white hover:bg-white/15'
+                      }`}
+                    >
+                      {isAuthorFollowed ? (
+                        <span className="inline-flex items-center gap-1">
+                          <Check className="w-3 h-3" />
+                          Following
+                        </span>
+                      ) : (
+                        'Follow'
+                      )}
+                    </button>
+                  )}
+                  {watchRelationshipKind === 'add_friend' && !isOwnWatchAuthor && (
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        await toggleLocalFriendRequestAndSync(
+                          'user-me',
+                          currentUserName || 'User',
+                          currentUserAvatar || '',
+                          {
+                            id: currentAuthorTargetId,
+                            name: currentPost.author.name,
+                            avatar: currentPost.author.avatar,
+                          }
+                        );
+                        setFollowTick((t) => t + 1);
+                      }}
+                      className={`px-3 py-1 rounded-[6px] text-[12px] font-semibold transition-colors cursor-pointer shrink-0 inline-flex items-center gap-1 ${
+                        isWatchFriendReqSent
+                          ? 'bg-white/20 text-white border border-white/30'
+                          : 'bg-[#0866FF] text-white hover:bg-[#166FE5]'
+                      }`}
+                    >
+                      {isWatchFriendReqSent ? (
+                        <>
+                          <Check className="w-3 h-3" />
+                          <span>Request sent</span>
+                        </>
+                      ) : (
+                        <>
+                          <UserPlus className="w-3 h-3" />
+                          <span>Add Friend</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                 </div>
 
                 {/* Caption with "... more" */}
@@ -904,90 +953,21 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
           </div>
         )}
 
-        {/* COMMENT DRAWER */}
-        {showCommentDrawer && currentPost && (
-          <div
-            className="absolute inset-x-0 bottom-0 z-40 bg-[#242526] text-white rounded-t-2xl border-t border-white/15 max-h-[68%] flex flex-col shadow-2xl"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div className="px-4 py-3 border-b border-white/10 flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-white">মন্তব্যসমূহ</h3>
-                <span className="px-2 py-0.5 rounded-full bg-white/10 text-[11px] font-bold text-[#B0B3B8]">
-                  {currentPost.comments.length}
-                </span>
-              </div>
-              <button
-                type="button"
-                onClick={() => setShowCommentDrawer(false)}
-                className="p-1.5 rounded-full hover:bg-white/10 text-[#B0B3B8] hover:text-white cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            <div className="flex-1 overflow-y-auto p-4 space-y-3">
-              {currentPost.comments.length === 0 ? (
-                <div className="text-center py-8 text-[#B0B3B8] text-xs">
-                  <p>এখনো কোনো মন্তব্য নেই। প্রথম মন্তব্যটি আপনিই করুন!</p>
-                </div>
-              ) : (
-                currentPost.comments.map((c) => (
-                  <div key={c.id} className="flex gap-2.5 items-start">
-                    {c.avatar ? (
-                      <img
-                        src={c.avatar}
-                        alt={c.author}
-                        className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/15"
-                      />
-                    ) : (
-                      <div className="w-8 h-8 rounded-full bg-[#3A3B3C] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                        {getInitials(c.author)}
-                      </div>
-                    )}
-                    <div className="flex-1 min-w-0 bg-[#3A3B3C] rounded-2xl px-3 py-2 text-xs text-white">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-bold text-white">{c.author}</span>
-                        <span className="text-[10px] text-[#B0B3B8]">{c.timeAgo}</span>
-                      </div>
-                      <p className="text-white/95 leading-relaxed break-words">{c.text}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            <form
-              onSubmit={handleCommentSubmit}
-              className="p-3 border-t border-white/10 flex items-center gap-2 bg-[#18191A]"
-            >
-              {currentUserAvatar ? (
-                <img
-                  src={currentUserAvatar}
-                  alt={currentUserName}
-                  className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/15"
-                />
-              ) : (
-                <div className="w-8 h-8 rounded-full bg-[#0866FF] text-white flex items-center justify-center text-xs font-bold shrink-0">
-                  {getInitials(currentUserName)}
-                </div>
-              )}
-              <input
-                type="text"
-                placeholder="একটি সুন্দর মন্তব্য লিখুন..."
-                value={commentInput}
-                onChange={(e) => setCommentInput(e.target.value)}
-                className="flex-1 bg-[#3A3B3C] rounded-full px-4 py-2 text-xs text-white placeholder-[#B0B3B8] focus:outline-none"
-              />
-              <button
-                type="submit"
-                disabled={!commentInput.trim()}
-                className="p-2 rounded-full bg-[#0866FF] hover:bg-blue-600 disabled:opacity-40 text-white cursor-pointer shrink-0"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
+        {/* FACEBOOK-EXACT COMMENT BOTTOM SHEET */}
+        {currentPost && (
+          <FbCommentBottomSheet
+            isOpen={showCommentDrawer}
+            onClose={() => setShowCommentDrawer(false)}
+            postId={currentPost.id}
+            likesCount={currentPost.reactions?.total || 0}
+            hasUserReacted={Boolean(currentPost.userReaction)}
+            userReaction={currentPost.userReaction || null}
+            comments={currentPost.comments || []}
+            currentUserName={currentUserName}
+            currentUserAvatar={currentUserAvatar}
+            onAddComment={(text) => onAddComment(currentPost.id, text)}
+            onToggleReaction={(reaction) => onToggleReaction(currentPost.id, reaction)}
+          />
         )}
 
         {/* MORE / FILTER SHEET (Opened via ••• button) */}

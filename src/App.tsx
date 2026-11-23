@@ -6,6 +6,7 @@ import {
   INITIAL_CHAT_FRIENDS,
   USER_PROFILE
 } from './data/islamicPosts';
+import { findDummyCommunityUser } from './data/dummyCommunity';
 import {
   PostItem,
   StoryItem,
@@ -40,6 +41,7 @@ import { FbPagesView } from './components/facebook/FbPagesView';
 import { FbFeedsView } from './components/facebook/FbFeedsView';
 import { FbMemoriesView } from './components/facebook/FbMemoriesView';
 import { FbUserSearchResults } from './components/facebook/FbUserSearchResults';
+import { FbPeopleYouMayKnowSection } from './components/facebook/FbPeopleYouMayKnowSection';
 import { PeaceThreadsView } from './components/facebook/PeaceThreadsView';
 import { PeaceInstaView } from './components/facebook/PeaceInstaView';
 import { PeaceBusinessSuiteView } from './components/facebook/PeaceBusinessSuiteView';
@@ -107,10 +109,15 @@ import {
   searchUsersFromFirestore,
   searchPagesFromFirestore,
   toggleFollowUser,
+  isTargetFollowedLocally,
+  subscribeToUserFollowsList,
   fetchSentFriendRequestIds,
   sendFriendRequestToUser,
   cancelFriendRequestToUser,
   fetchUserFriendsFromFirestore,
+  readSentFriendRequestsStore,
+  setFriendRequestSentLocally,
+  addLocalFriend,
   logUserActivity,
   markCurrentUserEmailOtpVerified,
 } from './lib/firebase';
@@ -187,7 +194,9 @@ export default function App() {
   const [userSearchResults, setUserSearchResults] = useState<SearchedUserProfile[]>([]);
   const [pageSearchResults, setPageSearchResults] = useState<PageItem[]>([]);
   const [isSearchingUsers, setIsSearchingUsers] = useState(false);
-  const [sentFriendRequests, setSentFriendRequests] = useState<Record<string, boolean>>({});
+  const [sentFriendRequests, setSentFriendRequests] = useState<Record<string, boolean>>(() =>
+    readSentFriendRequestsStore()
+  );
   const [viewedProfile, setViewedProfile] = useState<UserProfile | null>(null);
 
   // Modals state
@@ -756,13 +765,17 @@ export default function App() {
             }
           }
         } catch {}
-        fetchUserFriendsFromFirestore(usr.uid).then(({ count }) => {
+        fetchUserFriendsFromFirestore(usr.uid).then(({ count, friends }) => {
+          friends.forEach((f) => {
+            addLocalFriend({ id: f.id, name: f.name, avatar: f.avatar });
+          });
           setUserProfile((prev) =>
             prev.id === usr.uid ? { ...prev, friendsCount: count } : prev
           );
         });
         fetchSentFriendRequestIds(usr.uid).then((ids) => {
           if (ids.length === 0) return;
+          ids.forEach((id) => setFriendRequestSentLocally(true, id));
           setSentFriendRequests((prev) => {
             const next = { ...prev };
             ids.forEach((id) => {
@@ -776,6 +789,14 @@ export default function App() {
           if (!remote) return;
           if (remote.emailOtpVerified) {
             setRemoteOtpVerified(true);
+            try {
+              if (usr.email) {
+                localStorage.setItem(
+                  `peaceverse_otp_verified_${usr.uid}`,
+                  usr.email.trim().toLowerCase()
+                );
+              }
+            } catch {}
           }
           setUserProfile((prev) => {
             const emailPrefix = usr.email ? usr.email.split('@')[0].toLowerCase() : '';
@@ -1079,27 +1100,35 @@ export default function App() {
   // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
   const [stories, setStories] = useState<StoryItem[]>([]);
 
-  // Posts Feed (Loads user's first post and any newly created posts)
+  // Common "All Posts" Global Feed (merges shared localStorage store with 20 community users' global posts)
   const [posts, setPosts] = useState<PostItem[]>(() => {
+    const mergeUniquePosts = (primary: PostItem[], fallback: PostItem[]): PostItem[] => {
+      const byId = new Map<string, PostItem>();
+      fallback.forEach((p) => byId.set(p.id, p));
+      primary.forEach((p) => {
+        const base = byId.get(p.id);
+        byId.set(
+          p.id,
+          base
+            ? {
+                ...base,
+                ...p,
+                createdAtMillis: p.createdAtMillis || base.createdAtMillis,
+              }
+            : p
+        );
+      });
+      return Array.from(byId.values()).sort(
+        (a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0)
+      );
+    };
+
     try {
       const stored = localStorage.getItem('peaceverse_posts');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (
-          Array.isArray(parsed) &&
-          !parsed.some(
-            (p) =>
-              p.id?.includes('post-sohel') ||
-              p.id?.includes('post-hadith') ||
-              p.id?.includes('post-mishary') ||
-              p.id?.includes('post-live-makkah')
-          )
-        ) {
-          // If stored doesn't have the user's first post, ensure it is included
-          if (!parsed.some((p: PostItem) => p.contentBangla?.includes('পরিবারের সদস্য'))) {
-            return [...INITIAL_POSTS, ...parsed];
-          }
-          return parsed;
+        if (Array.isArray(parsed)) {
+          return mergeUniquePosts(parsed, INITIAL_POSTS);
         }
       }
       return INITIAL_POSTS;
@@ -1107,6 +1136,26 @@ export default function App() {
       return INITIAL_POSTS;
     }
   });
+
+  // Reactive trigger whenever user follows/unfollows anyone across Search, Profile, or Feed
+  const [followsTick, setFollowsTick] = useState(0);
+  useEffect(() => {
+    const onFollowsChanged = () => setFollowsTick((t) => t + 1);
+    window.addEventListener('peaceverse:follows-updated', onFollowsChanged);
+    window.addEventListener('storage', onFollowsChanged);
+    return () => {
+      window.removeEventListener('peaceverse:follows-updated', onFollowsChanged);
+      window.removeEventListener('storage', onFollowsChanged);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!firebaseUser?.uid) return;
+    const unsub = subscribeToUserFollowsList(firebaseUser.uid, () => {
+      setFollowsTick((t) => t + 1);
+    });
+    return () => unsub();
+  }, [firebaseUser?.uid]);
 
   // Infinite Scroll state: load 10 videos/posts at a time, scroll down to load next 10
   const [visibleCount, setVisibleCount] = useState<number>(10);
@@ -1175,35 +1224,34 @@ export default function App() {
       }
     });
 
-    // 3. Sync real-time Firestore posts (filter out any legacy dummy posts)
+    // 3. Sync real-time Firestore posts into the shared "All Posts" global feed
     const unsubPosts = subscribeToRealtimePosts((livePosts) => {
-      const cleanPosts = livePosts.filter(
-        (p) =>
-          !p.id?.includes('post-sohel') &&
-          !p.id?.includes('post-hadith') &&
-          !p.id?.includes('post-mishary') &&
-          !p.id?.includes('post-live-makkah')
-      );
       setPosts((prev) => {
         const map = new Map<string, PostItem>();
         prev.forEach((p) => map.set(p.id, p));
-        cleanPosts.forEach((p) => {
+        livePosts.forEach((p) => {
           const existing = map.get(p.id);
-          map.set(
-            p.id,
-            existing
-              ? {
-                  ...existing,
-                  ...p,
-                  authorId: p.authorId || existing.authorId,
-                  mediaType:
-                    p.mediaType && p.mediaType !== 'none' ? p.mediaType : existing.mediaType,
-                  mediaUrl: p.mediaUrl || existing.mediaUrl,
-                  mediaUrls:
-                    p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls : existing.mediaUrls,
-                }
-              : p
-          );
+          if (existing) {
+            // Merge comments cleanly by id so local/remote comments never overwrite each other
+            const commentMap = new Map<string, any>();
+            (existing.comments || []).forEach((c) => commentMap.set(c.id, c));
+            (p.comments || []).forEach((c) => commentMap.set(c.id, c));
+            const mergedComments = Array.from(commentMap.values());
+            map.set(p.id, {
+              ...existing,
+              ...p,
+              authorId: p.authorId || existing.authorId,
+              createdAtMillis: p.createdAtMillis || existing.createdAtMillis,
+              mediaType:
+                p.mediaType && p.mediaType !== 'none' ? p.mediaType : existing.mediaType,
+              mediaUrl: p.mediaUrl || existing.mediaUrl,
+              mediaUrls:
+                p.mediaUrls && p.mediaUrls.length > 0 ? p.mediaUrls : existing.mediaUrls,
+              comments: mergedComments,
+            });
+          } else {
+            map.set(p.id, p);
+          }
         });
         return Array.from(map.values()).sort((a: any, b: any) => {
           const tA = new Date(a.createdAt || a.createdAtMillis || 0).getTime();
@@ -1444,36 +1492,35 @@ export default function App() {
     );
   };
 
-  // Handle comment submit with Realtime Firestore sync, Email Verification & DOMPurify XSS sanitization
+  // Handle comment submit with Realtime Firestore sync & DOMPurify XSS sanitization
   const handleAddComment = (postId: string, text: string) => {
-    if (
-      firebaseUser &&
-      !firebaseUser.emailVerified &&
-      !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
-      firebaseUser.providerData.some((p) => p.providerId === 'password')
-    ) {
-      return;
-    }
     const safeText = sanitizeInput(text, POST_MAX_LENGTH);
     if (!safeText) return;
+    const commentAuthorName = sanitizeInput(effectiveProfile.name || userProfile.name, 80);
+    const commentAuthorAvatar = effectiveProfile.avatar || userProfile.avatar;
     const newComment = {
       id: `c-${Date.now()}`,
-      author: sanitizeInput(userProfile.name, 80),
-      avatar: userProfile.avatar,
+      author: commentAuthorName,
+      avatar: commentAuthorAvatar,
       text: safeText,
       timeAgo: 'Just now',
       likes: 1,
     };
 
+    const existingPost = posts.find((p) => p.id === postId);
+
     setPosts((prev) =>
       prev.map((p) =>
-        p.id === postId ? { ...p, comments: [newComment, ...p.comments] } : p
+        p.id === postId ? { ...p, comments: [newComment, ...(p.comments || [])] } : p
       )
     );
 
-    const post = posts.find((p) => p.id === postId);
-    addRealtimeComment(postId, newComment, post?.author.name);
-    logUserActivity(userProfile.id, 'Comment', `মন্তব্য করেছেন: "${safeText.slice(0, 60)}"`);
+    addRealtimeComment(postId, newComment, existingPost?.author.name, existingPost);
+    logUserActivity(
+      effectiveProfile.id || userProfile.id,
+      'Comment',
+      `মন্তব্য করেছেন: "${safeText.slice(0, 60)}"`
+    );
   };
 
   const handleSharePost = (postId: string) => {
@@ -1988,10 +2035,12 @@ export default function App() {
         }
       }
 
+      const nextSent = !currentlySent;
       setSentFriendRequests((prev) => ({
         ...prev,
-        [targetUser.id]: !currentlySent,
+        [targetUser.id]: nextSent,
       }));
+      setFriendRequestSentLocally(nextSent, targetUser.id, targetUser.displayName);
 
       if (currentlySent) {
         await cancelFriendRequestToUser(senderId, targetUser.id);
@@ -2049,12 +2098,14 @@ export default function App() {
     const isFresh = (p: PostItem) =>
       (p.createdAtMillis || 0) > 0 && freshNowTick - (p.createdAtMillis || 0) < FRESH_PIN_WINDOW_MS;
 
+    // Home Feed = Global Feed:
+    // 1) Just-uploaded post (< 3 mins) pinned at #1
+    // 2) Posts from people I Follow, sorted newest-first
+    // 3) All other users' posts, sorted newest-first
     if (feedSortMode === 'latest') {
       return [...base].sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
     }
 
-    // "For You" ranking: freshly uploaded posts (< 3 mins) ALWAYS sit at #1 at the top,
-    // then transition into normal engagement + recency ranking after a few minutes
     return [...base].sort((a, b) => {
       const aFresh = isFresh(a);
       const bFresh = isFresh(b);
@@ -2062,17 +2113,12 @@ export default function App() {
       if (!aFresh && bFresh) return 1;
       if (aFresh && bFresh) return (b.createdAtMillis || 0) - (a.createdAtMillis || 0);
 
-      const scoreA =
-        (a.reactions?.total || 0) * 2 +
-        (a.comments?.length || 0) * 3 +
-        (a.sharesCount || 0) * 4 +
-        ((a.createdAtMillis || 0) > 0 ? 5 : 0);
-      const scoreB =
-        (b.reactions?.total || 0) * 2 +
-        (b.comments?.length || 0) * 3 +
-        (b.sharesCount || 0) * 4 +
-        ((b.createdAtMillis || 0) > 0 ? 5 : 0);
-      return scoreB - scoreA;
+      const aFollowed = isTargetFollowedLocally(a.authorId, a.author.name);
+      const bFollowed = isTargetFollowedLocally(b.authorId, b.author.name);
+      if (aFollowed && !bFollowed) return -1;
+      if (!aFollowed && bFollowed) return 1;
+
+      return (b.createdAtMillis || 0) - (a.createdAtMillis || 0);
     });
   }, [
     posts,
@@ -2083,6 +2129,7 @@ export default function App() {
     effectiveProfile.name,
     freshNowTick,
     FRESH_PIN_WINDOW_MS,
+    followsTick,
   ]);
 
   // Freshly uploaded posts (< 3 minutes old) shown directly below Stories at #1 like Facebook
@@ -2103,9 +2150,15 @@ export default function App() {
     return visiblePosts.filter((p) => !freshIds.has(p.id));
   }, [visiblePosts, freshTopPosts]);
 
+  const matchesProfileAuthor = React.useCallback((post: PostItem, profile: UserProfile) => {
+    const norm = (s?: string) => (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+    if (profile.id && post.authorId && post.authorId === profile.id) return true;
+    return norm(post.author?.name) === norm(profile.name);
+  }, []);
+
   const userPosts = useMemo(() => {
-    return posts.filter((p) => p.author.name === userProfile.name);
-  }, [posts, userProfile.name]);
+    return posts.filter((p) => matchesProfileAuthor(p, userProfile));
+  }, [posts, userProfile, matchesProfileAuthor]);
 
   const pendingFriendRequestsCount = useMemo(() => {
     return notifications.filter((n) => n.type === 'friend_request').length;
@@ -2594,6 +2647,8 @@ export default function App() {
                 pageResults={pageSearchResults}
                 isLoading={isSearchingUsers}
                 currentUserId={firebaseUser?.uid || userProfile.id}
+                currentUserName={effectiveProfile.name}
+                currentUserAvatar={effectiveProfile.avatar}
                 sentRequestIds={sentFriendRequests}
                 onToggleFriendRequest={handleToggleFriendRequest}
                 onOpenPage={(page) => {
@@ -2648,6 +2703,7 @@ export default function App() {
                     location: targetUser.location || '',
                     birthDate: '',
                     bio: targetUser.bio || '',
+                    isCreator: targetUser.allowFriendRequests === false,
                     contactPrivacy: 'public',
                   };
                   setViewedProfile(baseProfile);
@@ -2767,12 +2823,16 @@ export default function App() {
                     {freshTopPosts.map((post) => {
                       const normAuthor = (s?: string) =>
                         (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
-                      const isOwnedPost = (() => {
-                        if (post.authorId && (post.authorId === userProfile.id || post.authorId === activeSwitchedPage?.id)) {
+                      const isOwnedPagePost = (() => {
+                        const an = normAuthor(post.author?.name);
+                        const isPersonalAuthor =
+                          Boolean(post.authorId && userProfile.id && post.authorId === userProfile.id) ||
+                          (Boolean(post.authorId) && !post.authorId!.startsWith('page-'));
+                        if (isPersonalAuthor) return false;
+                        if (activeSwitchedPage && post.authorId && post.authorId === activeSwitchedPage.id) {
                           return true;
                         }
-                        const an = normAuthor(post.author?.name);
-                        if (an && (an === normAuthor(userProfile.name) || (activeSwitchedPage && an === normAuthor(activeSwitchedPage.name)))) {
+                        if (activeSwitchedPage && an && an === normAuthor(activeSwitchedPage.name)) {
                           return true;
                         }
                         try {
@@ -2797,7 +2857,8 @@ export default function App() {
                           onDeletePost={handleDeletePost}
                           currentUserId={effectiveProfile.id || userProfile.id}
                           currentUserName={effectiveProfile.name}
-                          showBoostControls={isOwnedPost}
+                          currentUserAvatar={effectiveProfile.avatar}
+                          showBoostControls={false}
                           onOpenProfile={async (authorName) => {
                             const norm = (s?: string) =>
                               (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -2830,16 +2891,22 @@ export default function App() {
                               navigateToTab('profile');
                               return;
                             }
+                            const dummyMatch = findDummyCommunityUser(post.authorId || authorName);
                             const baseAuthorProfile: UserProfile = {
-                              id: post.authorId || `author-${authorName}`,
-                              name: authorName,
-                              avatar: post.author.avatar,
+                              id: dummyMatch?.id || post.authorId || `author-${authorName}`,
+                              name: dummyMatch?.displayName || authorName,
+                              username: dummyMatch?.username,
+                              avatar: dummyMatch?.avatar || post.author.avatar,
                               coverPhoto:
+                                dummyMatch?.coverPhoto ||
                                 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
                               friendsCount: 0,
-                              location: 'Dhaka, Bangladesh',
+                              bio: dummyMatch?.bio || '',
+                              location: dummyMatch?.location || 'Dhaka, Bangladesh',
                               hometown: 'Bangladesh',
                               birthDate: '1994',
+                              verified: dummyMatch?.verified ?? post.author.verified,
+                              isCreator: dummyMatch?.allowFriendRequests === false,
                               contactPrivacy: 'public',
                             };
                             setViewedProfile(baseAuthorProfile);
@@ -3036,14 +3103,18 @@ export default function App() {
                       ? homeFeedAds[Math.floor(postIndex / adFreq) % homeFeedAds.length]
                       : null;
 
-                    const isOwnedPost = (() => {
+                    const isOwnedPagePost = (() => {
                       const normAuthor = (s?: string) =>
                         (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
-                      if (post.authorId && (post.authorId === userProfile.id || post.authorId === activeSwitchedPage?.id)) {
+                      const an = normAuthor(post.author?.name);
+                      const isPersonalAuthor =
+                        Boolean(post.authorId && userProfile.id && post.authorId === userProfile.id) ||
+                        (Boolean(post.authorId) && !post.authorId!.startsWith('page-'));
+                      if (isPersonalAuthor) return false;
+                      if (activeSwitchedPage && post.authorId && post.authorId === activeSwitchedPage.id) {
                         return true;
                       }
-                      const an = normAuthor(post.author?.name);
-                      if (an && (an === normAuthor(userProfile.name) || (activeSwitchedPage && an === normAuthor(activeSwitchedPage.name)))) {
+                      if (activeSwitchedPage && an && an === normAuthor(activeSwitchedPage.name)) {
                         return true;
                       }
                       try {
@@ -3070,7 +3141,8 @@ export default function App() {
                             onDeletePost={handleDeletePost}
                             currentUserId={effectiveProfile.id || userProfile.id}
                             currentUserName={effectiveProfile.name}
-                            showBoostControls={isOwnedPost}
+                            currentUserAvatar={effectiveProfile.avatar}
+                            showBoostControls={false}
                             onOpenProfile={async (authorName) => {
                               const norm = (s?: string) =>
                                 (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
@@ -3108,32 +3180,68 @@ export default function App() {
                                 navigateToTab('profile');
                                 return;
                               }
+                              const dummyMatch = findDummyCommunityUser(post.authorId || authorName);
                               const baseAuthorProfile: UserProfile = {
-                                id: post.authorId || `author-${authorName}`,
-                                name: authorName,
-                                avatar: post.author.avatar,
-                                coverPhoto: 'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                                id: dummyMatch?.id || post.authorId || `author-${authorName}`,
+                                name: dummyMatch?.displayName || authorName,
+                                username: dummyMatch?.username,
+                                avatar: dummyMatch?.avatar || post.author.avatar,
+                                coverPhoto:
+                                  dummyMatch?.coverPhoto ||
+                                  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
                                 friendsCount: 0,
-                                location: 'Dhaka, Bangladesh',
+                                bio: dummyMatch?.bio || '',
+                                location: dummyMatch?.location || 'Dhaka, Bangladesh',
                                 hometown: 'Bangladesh',
                                 birthDate: '1994',
-                                contactPrivacy: 'public',
-                              };
-                              setViewedProfile(baseAuthorProfile);
-                              navigateToTab('profile');
-                              const remote = await fetchUserProfileByNameFromFirestore(authorName);
-                              if (remote) {
-                                setViewedProfile((prev) =>
-                                  prev && prev.name === authorName ? { ...prev, ...remote } : prev
-                                );
-                              }
-                            }}
-                            onTypingChange={handleTypingChange}
-                            onOpenReel={(p) => setActiveReelPostId(p.id)}
-                            onOpenGiftModal={(p) => setSelectedGiftPost(p)}
-                            onSharePost={handleSharePost}
-                          />
+                              verified: dummyMatch?.verified ?? post.author.verified,
+                              isCreator: dummyMatch?.allowFriendRequests === false,
+                              contactPrivacy: 'public',
+                            };
+                            setViewedProfile(baseAuthorProfile);
+                            navigateToTab('profile');
+                            const remote = await fetchUserProfileByNameFromFirestore(authorName);
+                            if (remote) {
+                              setViewedProfile((prev) =>
+                                prev && prev.name === authorName ? { ...prev, ...remote } : prev
+                              );
+                            }
+                          }}
+                          onTypingChange={handleTypingChange}
+                          onOpenReel={(p) => setActiveReelPostId(p.id)}
+                          onOpenGiftModal={(p) => setSelectedGiftPost(p)}
+                          onSharePost={handleSharePost}
+                        />
                         </div>
+                        {postIndex === 1 && (
+                          <FbPeopleYouMayKnowSection
+                            variant="feed"
+                            currentUserId={effectiveProfile.id || userProfile.id}
+                            currentUserName={effectiveProfile.name}
+                            currentUserAvatar={effectiveProfile.avatar}
+                            onSeeAllFriends={() => navigateToTab('friends')}
+                            onOpenUserProfile={(targetUser) => {
+                              setViewedProfile({
+                                id: targetUser.id,
+                                name: targetUser.displayName,
+                                username: targetUser.username,
+                                avatar: targetUser.avatar,
+                                coverPhoto:
+                                  targetUser.coverPhoto ||
+                                  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                                friendsCount: 0,
+                                bio: targetUser.bio || '',
+                                location: targetUser.location || 'Dhaka, Bangladesh',
+                                hometown: 'Bangladesh',
+                                birthDate: '1994',
+                                verified: targetUser.verified,
+                                isCreator: targetUser.allowFriendRequests === false,
+                                contactPrivacy: 'public',
+                              });
+                              navigateToTab('profile');
+                            }}
+                          />
+                        )}
                         {feedAd && (
                           <SponsoredAdCard
                             ad={feedAd}
@@ -3144,6 +3252,35 @@ export default function App() {
                       </React.Fragment>
                     );
                   })}
+                  {regularVisiblePosts.length < 2 && (
+                    <FbPeopleYouMayKnowSection
+                      variant="feed"
+                      currentUserId={effectiveProfile.id || userProfile.id}
+                      currentUserName={effectiveProfile.name}
+                      currentUserAvatar={effectiveProfile.avatar}
+                      onSeeAllFriends={() => navigateToTab('friends')}
+                      onOpenUserProfile={(targetUser) => {
+                        setViewedProfile({
+                          id: targetUser.id,
+                          name: targetUser.displayName,
+                          username: targetUser.username,
+                          avatar: targetUser.avatar,
+                          coverPhoto:
+                            targetUser.coverPhoto ||
+                            'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+                          friendsCount: 0,
+                          bio: targetUser.bio || '',
+                          location: targetUser.location || 'Dhaka, Bangladesh',
+                          hometown: 'Bangladesh',
+                          birthDate: '1994',
+                          verified: targetUser.verified,
+                          isCreator: targetUser.allowFriendRequests === false,
+                          contactPrivacy: 'public',
+                        });
+                        navigateToTab('profile');
+                      }}
+                    />
+                  )}
 
                   {/* Infinite Scroll Sentinel: loads next 10 videos as user scrolls */}
                   <div ref={bottomSentinelRef} className="py-4 flex items-center justify-center">
@@ -3207,17 +3344,22 @@ export default function App() {
                 navigateToTab('profile');
                 return;
               }
+              const dummyMatch = findDummyCommunityUser(name);
               const baseAuthorProfile: UserProfile = {
-                id: `author-${name}`,
-                name,
-                avatar,
-                bio: subtitle,
+                id: dummyMatch?.id || `author-${name}`,
+                name: dummyMatch?.displayName || name,
+                username: dummyMatch?.username,
+                avatar: dummyMatch?.avatar || avatar,
+                bio: dummyMatch?.bio || subtitle,
                 coverPhoto:
+                  dummyMatch?.coverPhoto ||
                   'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
                 friendsCount: 0,
-                location: 'Dhaka, Bangladesh',
+                location: dummyMatch?.location || 'Dhaka, Bangladesh',
                 hometown: 'Bangladesh',
                 birthDate: '1994',
+                verified: dummyMatch?.verified,
+                isCreator: dummyMatch?.allowFriendRequests === false,
                 contactPrivacy: 'public',
               };
               setViewedProfile(baseAuthorProfile);
@@ -3295,7 +3437,7 @@ export default function App() {
             userProfile={userProfile}
             userPosts={
               viewedProfile
-                ? posts.filter((p) => p.author.name === viewedProfile.name)
+                ? posts.filter((p) => matchesProfileAuthor(p, viewedProfile))
                 : userPosts
             }
             viewedProfile={viewedProfile}

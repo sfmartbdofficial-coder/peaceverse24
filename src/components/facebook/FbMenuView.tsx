@@ -740,6 +740,23 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           <span className="text-[15px] font-semibold text-neutral-900">PeaceVerse24 Blog</span>
         </button>
 
+        {/* 12. Install App (ইন্সটল এপ্স - Direct 1-click install) */}
+        {onOpenInstallModal && (
+          <button
+            type="button"
+            onClick={onOpenInstallModal}
+            className="w-full h-[44px] flex items-center justify-between gap-3.5 px-3 hover:bg-[#E7F3FF] active:bg-[#DBE7F2] rounded-lg transition-colors text-left cursor-pointer"
+          >
+            <div className="flex items-center gap-3.5">
+              <Download className="w-6 h-6 text-[#0866FF] shrink-0" />
+              <span className="text-[15px] font-semibold text-neutral-900">ইন্সটল এপ্স (Install App)</span>
+            </div>
+            <span className="px-2.5 py-0.5 rounded-full bg-[#0866FF] text-white text-[11px] font-bold">
+              ইন্সটল
+            </span>
+          </button>
+        )}
+
         {/* Section 2: See More / See Less (Avatars, Birthdays) */}
         {seeMore && (
           <div className="space-y-0.5 pt-0.5 animate-in fade-in">

@@ -33,6 +33,7 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem } from '../types';
+import { DUMMY_COMMUNITY_USERS, DUMMY_GLOBAL_POSTS } from '../data/dummyCommunity';
 import {
   getEnvApiKey,
   emitApiKeyEnvWarning,
@@ -434,13 +435,9 @@ export async function createRealtimePost(post: PostItem): Promise<boolean> {
 export async function addRealtimeComment(
   postId: string,
   comment: PostComment,
-  _postAuthorName?: string
+  _postAuthorName?: string,
+  postFallback?: PostItem
 ): Promise<boolean> {
-  if (!isCurrentUserVerifiedForPosting()) {
-    console.warn('Security Block: Email verification required before commenting.');
-    return false;
-  }
-
   const actorId = auth.currentUser?.uid || comment.author || 'anonymous';
   const rate = checkRateLimit(actorId);
   if (!rate.allowed) {
@@ -456,15 +453,26 @@ export async function addRealtimeComment(
     };
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDocSafe(postRef);
-    if (!postSnap || !postSnap.exists()) return false;
+    let existingComments: PostComment[] = [];
+    if (!postSnap || !postSnap.exists()) {
+      const fallback = postFallback || DUMMY_GLOBAL_POSTS.find((dp) => dp.id === postId);
+      if (!fallback) return false;
+      existingComments = (fallback.comments || []).filter((c) => c.id !== safeComment.id);
+      await setDoc(postRef, {
+        ...stripUndefinedFields(fallback),
+        comments: [safeComment, ...existingComments],
+        createdAt: new Date(fallback.createdAtMillis || Date.now()).toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      existingComments = (postSnap.data().comments || []).filter((c: PostComment) => c.id !== safeComment.id);
+      const updatedComments = [safeComment, ...existingComments];
 
-    const existingComments: PostComment[] = postSnap.data().comments || [];
-    const updatedComments = [safeComment, ...existingComments];
-
-    await updateDoc(postRef, {
-      comments: updatedComments,
-      updatedAt: new Date().toISOString(),
-    });
+      await updateDoc(postRef, {
+        comments: updatedComments,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     // Also write to subcollection for individual snapshot listener
     const commentDocRef = doc(db, `posts/${postId}/comments`, safeComment.id);
@@ -515,9 +523,10 @@ export async function toggleRealtimeReaction(
   try {
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDocSafe(postRef);
+    const dummyPost = !postSnap || !postSnap.exists() ? DUMMY_GLOBAL_POSTS.find((dp) => dp.id === postId) : null;
 
-    if (!postSnap || !postSnap.exists()) return false;
-    const data = postSnap.data();
+    if ((!postSnap || !postSnap.exists()) && !dummyPost) return false;
+    const data = postSnap && postSnap.exists() ? postSnap.data() : (dummyPost as any);
 
     const isSame = currentReaction === reaction;
     const nextReaction = isSame ? null : reaction;
@@ -555,11 +564,21 @@ export async function toggleRealtimeReaction(
       updatedReactions[nextKey] = (updatedReactions[nextKey] || 0) + 1;
     }
 
-    await updateDoc(postRef, {
-      reactions: updatedReactions,
-      userReaction: nextReaction,
-      updatedAt: new Date().toISOString(),
-    });
+    if (dummyPost) {
+      await setDoc(postRef, {
+        ...stripUndefinedFields(dummyPost),
+        reactions: updatedReactions,
+        userReaction: nextReaction,
+        createdAt: new Date(dummyPost.createdAtMillis || Date.now()).toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+    } else {
+      await updateDoc(postRef, {
+        reactions: updatedReactions,
+        userReaction: nextReaction,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     if (!isSame) {
       // Send realtime notification
@@ -929,6 +948,302 @@ export function isTargetFollowedLocally(targetId?: string, targetName?: string):
   return false;
 }
 
+export function isSameOwnerIdentity(
+  authorId?: string,
+  authorName?: string,
+  currentUserId?: string,
+  currentUserName?: string
+): boolean {
+  const norm = (s?: string) =>
+    (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
+
+  const targetId = (authorId || '').trim();
+  const targetName = norm(authorName);
+
+  const ownedIds = new Set<string>();
+  const ownedNames = new Set<string>();
+
+  if (currentUserId) ownedIds.add(currentUserId.trim());
+  if (currentUserName) {
+    const n = norm(currentUserName);
+    if (n) ownedNames.add(n);
+  }
+  if (auth.currentUser?.uid) ownedIds.add(auth.currentUser.uid);
+  if (auth.currentUser?.displayName) {
+    const n = norm(auth.currentUser.displayName);
+    if (n) ownedNames.add(n);
+  }
+
+  try {
+    const rawProfile =
+      localStorage.getItem('qalby_user_profile') ||
+      localStorage.getItem('peaceverse_user_profile');
+    if (rawProfile) {
+      const prof = JSON.parse(rawProfile);
+      if (prof?.id) ownedIds.add(String(prof.id).trim());
+      if (prof?.name) {
+        const n = norm(String(prof.name));
+        if (n) ownedNames.add(n);
+      }
+    }
+  } catch {}
+
+  try {
+    const switchedRaw = localStorage.getItem('qalby_switched_page');
+    if (switchedRaw) {
+      const sw = JSON.parse(switchedRaw);
+      if (sw?.id) ownedIds.add(String(sw.id).trim());
+      if (sw?.name) {
+        const n = norm(String(sw.name));
+        if (n) ownedNames.add(n);
+      }
+    }
+  } catch {}
+
+  try {
+    const pagesRaw = localStorage.getItem('qalby_fb_pages');
+    if (pagesRaw) {
+      const pages = JSON.parse(pagesRaw);
+      if (Array.isArray(pages)) {
+        pages.forEach((pg: { id?: string; name?: string; isOwner?: boolean }) => {
+          if (pg?.isOwner !== false) {
+            if (pg?.id) ownedIds.add(String(pg.id).trim());
+            if (pg?.name) {
+              const n = norm(String(pg.name));
+              if (n) ownedNames.add(n);
+            }
+          }
+        });
+      }
+    }
+  } catch {}
+
+  if (targetId && ownedIds.has(targetId)) return true;
+  if (targetName && ownedNames.has(targetName)) return true;
+  return false;
+}
+
+const FRIENDS_LIST_STORAGE_KEY = 'peace_friends_list';
+const SENT_FRIEND_REQUESTS_STORAGE_KEY = 'peaceverse_sent_friend_requests_v1';
+const REMOVED_SUGGESTIONS_STORAGE_KEY = 'peaceverse_removed_suggestions_v1';
+
+const DEFAULT_FRIEND_IDENTITIES: Array<{ id: string; name: string }> = [
+  { id: 'on-1', name: 'নিস্তব্ধ হৃদয়' },
+  { id: 'on-2', name: 'সুনামগঞ্জ রাজনৈতিক' },
+  { id: 'on-3', name: 'Sujon Ahmed' },
+  { id: 'user-fatima-zahra', name: 'Fatima Zahra' },
+  { id: 'user-nusrat-jahan', name: 'Nusrat Jahan' },
+];
+
+const FOLLOW_ONLY_DUMMY_IDS = new Set<string>([
+  'user-sheikh-makkah',
+  'user-ayesha-rahman',
+  'user-bilal-ahmed',
+  'user-zayd-hasan',
+  'user-hafsa-noor',
+  'user-yusuf-ali',
+  'user-hamza-chowdhury',
+  'user-maryam-siddiqua',
+]);
+
+const FOLLOW_ONLY_DUMMY_NAMES = new Set<string>([
+  'sheikh tariq al-harbi',
+  'ayesha rahman',
+  'bilal ahmed',
+  'zayd hasan',
+  'hafsa noor',
+  'yusuf ali',
+  'hamza chowdhury',
+  'maryam siddiqua',
+]);
+
+export function isTargetFriendLocally(targetId?: string, targetName?: string): boolean {
+  const cleanId = (targetId || '').trim();
+  const normName = normalizeFollowName(targetName);
+
+  try {
+    const saved = localStorage.getItem(FRIENDS_LIST_STORAGE_KEY);
+    if (saved) {
+      const list = JSON.parse(saved);
+      if (Array.isArray(list)) {
+        const matched = list.some((f: { id?: string; name?: string }) => {
+          if (cleanId && f?.id && String(f.id).trim() === cleanId) return true;
+          if (normName && f?.name && normalizeFollowName(String(f.name)) === normName) return true;
+          return false;
+        });
+        if (matched) return true;
+      }
+    } else {
+      const matchedDefault = DEFAULT_FRIEND_IDENTITIES.some(
+        (f) =>
+          (cleanId && f.id === cleanId) ||
+          (normName && normalizeFollowName(f.name) === normName)
+      );
+      if (matchedDefault) return true;
+    }
+  } catch {}
+
+  try {
+    const confirmedRaw = localStorage.getItem('peace_friends_confirmed');
+    if (confirmedRaw) {
+      const confirmed = JSON.parse(confirmedRaw);
+      if (cleanId && confirmed?.[cleanId]) return true;
+    }
+  } catch {}
+
+  return false;
+}
+
+export function addLocalFriend(friend: { id: string; name: string; avatar: string }): void {
+  try {
+    const raw = localStorage.getItem(FRIENDS_LIST_STORAGE_KEY);
+    const list: Array<{
+      id: string;
+      name: string;
+      avatar: string;
+      mutualCount?: number;
+      isOnline?: boolean;
+    }> = raw ? JSON.parse(raw) : [];
+    const safeList = Array.isArray(list) ? list : [];
+    const normNew = normalizeFollowName(friend.name);
+    const exists = safeList.some(
+      (f) => f.id === friend.id || (normNew && normalizeFollowName(f.name) === normNew)
+    );
+    if (!exists) {
+      const next = [
+        {
+          id: friend.id,
+          name: friend.name,
+          avatar: friend.avatar,
+          mutualCount: 1,
+          isOnline: true,
+        },
+        ...safeList,
+      ];
+      localStorage.setItem(FRIENDS_LIST_STORAGE_KEY, JSON.stringify(next));
+    }
+    setFriendRequestSentLocally(false, friend.id, friend.name);
+    window.dispatchEvent(new Event('peaceverse:friends-updated'));
+  } catch {}
+}
+
+export function readSentFriendRequestsStore(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(SENT_FRIEND_REQUESTS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function isFriendRequestSentLocally(targetId?: string, targetName?: string): boolean {
+  const store = readSentFriendRequestsStore();
+  const cleanId = (targetId || '').trim();
+  const normName = normalizeFollowName(targetName);
+  if (cleanId && store[cleanId]) return true;
+  if (normName && store[`name:${normName}`]) return true;
+  return false;
+}
+
+export function setFriendRequestSentLocally(
+  sent: boolean,
+  targetId?: string,
+  targetName?: string
+): void {
+  try {
+    const store = readSentFriendRequestsStore();
+    const cleanId = (targetId || '').trim();
+    const normName = normalizeFollowName(targetName);
+    if (sent) {
+      if (cleanId) store[cleanId] = true;
+      if (normName) store[`name:${normName}`] = true;
+    } else {
+      if (cleanId) delete store[cleanId];
+      if (normName) delete store[`name:${normName}`];
+    }
+    localStorage.setItem(SENT_FRIEND_REQUESTS_STORAGE_KEY, JSON.stringify(store));
+    window.dispatchEvent(new Event('peaceverse:friend-requests-updated'));
+  } catch {}
+}
+
+export async function toggleLocalFriendRequestAndSync(
+  senderId: string,
+  senderName: string,
+  senderAvatar: string,
+  target: { id: string; name: string; avatar: string }
+): Promise<boolean> {
+  const currentlySent = isFriendRequestSentLocally(target.id, target.name);
+  const nextSent = !currentlySent;
+  setFriendRequestSentLocally(nextSent, target.id, target.name);
+
+  if (senderId && senderId !== target.id) {
+    if (nextSent) {
+      await sendFriendRequestToUser(senderId, senderName, senderAvatar, {
+        id: target.id,
+        uid: target.id,
+        displayName: target.name,
+        avatar: target.avatar,
+      });
+    } else {
+      await cancelFriendRequestToUser(senderId, target.id);
+    }
+  }
+  return nextSent;
+}
+
+export function readRemovedSuggestionsStore(): Record<string, boolean> {
+  try {
+    const raw = localStorage.getItem(REMOVED_SUGGESTIONS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw);
+    return parsed && typeof parsed === 'object' ? parsed : {};
+  } catch {
+    return {};
+  }
+}
+
+export function markSuggestionRemovedLocally(id: string): void {
+  try {
+    const store = readRemovedSuggestionsStore();
+    store[id] = true;
+    localStorage.setItem(REMOVED_SUGGESTIONS_STORAGE_KEY, JSON.stringify(store));
+    window.dispatchEvent(new Event('peaceverse:suggestions-updated'));
+  } catch {}
+}
+
+export function getAuthorRelationshipKind(
+  post: PostItem,
+  currentUserId?: string,
+  currentUserName?: string
+): 'self' | 'friend' | 'add_friend' | 'follow_only' {
+  if (isSameOwnerIdentity(post.authorId, post.author.name, currentUserId, currentUserName)) {
+    return 'self';
+  }
+  if (
+    post.authorConnectionMode === 'friend' ||
+    isTargetFriendLocally(post.authorId, post.author.name)
+  ) {
+    return 'friend';
+  }
+  if (
+    post.authorConnectionMode === 'follow_only' ||
+    Boolean(post.authorId && post.authorId.startsWith('page-'))
+  ) {
+    return 'follow_only';
+  }
+  if (post.authorConnectionMode === 'add_friend') {
+    return 'add_friend';
+  }
+  const cleanId = (post.authorId || '').trim().toLowerCase();
+  const normName = normalizeFollowName(post.author.name);
+  if (FOLLOW_ONLY_DUMMY_IDS.has(cleanId) || FOLLOW_ONLY_DUMMY_NAMES.has(normName)) {
+    return 'follow_only';
+  }
+  return 'add_friend';
+}
+
 function isTargetExplicitlyUnfollowed(targetId?: string, targetName?: string): boolean {
   const store = readLocalFollowsStore();
   const cleanId = (targetId || '').trim();
@@ -1102,13 +1417,39 @@ export function subscribeToUserFollowsList(
     return onSnapshot(
       q,
       (snap) => {
-        const ids = snap.docs.map((d) => d.data().targetId);
-        onUpdate(ids);
+        const ids: string[] = [];
+        const store = readLocalFollowsStore();
+        let mutated = false;
+        snap.docs.forEach((d) => {
+          const data = d.data();
+          const tId = String(data.targetId || '').trim();
+          const tName = String(data.targetName || '').trim();
+          if (tId) ids.push(tId);
+          if (!isTargetExplicitlyUnfollowed(tId, tName)) {
+            if (tId && !store.followingIds[tId]) {
+              store.followingIds[tId] = true;
+              mutated = true;
+            }
+            const normName = normalizeFollowName(tName);
+            if (normName && !store.followingNames[normName]) {
+              store.followingNames[normName] = true;
+              mutated = true;
+            }
+          }
+        });
+        if (mutated) {
+          writeLocalFollowsStore(store);
+        }
+        onUpdate(Array.from(new Set([...ids, ...Object.keys(store.followingIds)])));
       },
-      () => onUpdate([])
+      () => {
+        const store = readLocalFollowsStore();
+        onUpdate(Object.keys(store.followingIds));
+      }
     );
   } catch {
-    onUpdate([]);
+    const store = readLocalFollowsStore();
+    onUpdate(Object.keys(store.followingIds));
     return () => {};
   }
 }
@@ -1894,6 +2235,42 @@ export async function syncUserDirectoryProfile(
 async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
   const byId = new Map<string, SearchedUserProfile>();
 
+  // Always include the 20 built-in global community members first so search works reliably offline & online
+  DUMMY_COMMUNITY_USERS.forEach((du) => {
+    byId.set(du.id, du);
+  });
+
+  // Also include authors from local shared "All Posts" store
+  try {
+    const localPostsRaw = localStorage.getItem('peaceverse_posts');
+    if (localPostsRaw) {
+      const localPosts: PostItem[] = JSON.parse(localPostsRaw);
+      if (Array.isArray(localPosts)) {
+        localPosts.forEach((lp) => {
+          const aName = String(lp?.author?.name || '').trim();
+          const aId = String(lp?.authorId || (aName ? `author-${aName}` : '')).trim();
+          if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
+          const sameNameExists = Array.from(byId.values()).some(
+            (u) => u.displayName.toLowerCase() === aName.toLowerCase()
+          );
+          if (sameNameExists) return;
+          byId.set(aId, {
+            id: aId,
+            uid: aId,
+            displayName: aName,
+            username: transliterateBnToEn(aName).replace(/[^a-z0-9]+/g, ''),
+            avatar:
+              String(lp?.author?.avatar || '').trim() ||
+              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                aName
+              )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+            verified: Boolean(lp?.author?.verified),
+          });
+        });
+      }
+    }
+  } catch {}
+
   const usersSnap = await getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
     if (err?.code === 'permission-denied') {
       handleFirestoreError(err, OperationType.LIST, 'users');
@@ -1931,7 +2308,7 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
     const pData = pDoc.data();
     const aName = String(pData?.author?.name || '').trim();
     const aId = String(pData?.authorId || (aName ? `author-${aName}` : '')).trim();
-    if (!aName || !aId || byId.has(aId)) return;
+    if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
     const sameNameExists = Array.from(byId.values()).some(
       (u) => u.displayName.toLowerCase() === aName.toLowerCase()
     );
@@ -2089,11 +2466,26 @@ function trimOversizedImageForFirestore(url?: string): string {
   return clean;
 }
 
+export function sanitizePageBioValue(raw?: string): string {
+  const text = (raw || '').trim();
+  if (!text) return '';
+  const lower = text.toLowerCase();
+  if (
+    lower === 'welcome to our official peaceverse24.com page.' ||
+    lower === 'welcome to our official peaceverse24 page.'
+  ) {
+    return '';
+  }
+  return text;
+}
+
 export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Promise<void> {
   if (!page?.id || !page?.name?.trim()) return;
   try {
     const cleanName = page.name.trim();
     const resolvedOwnerUid = ownerUid || auth.currentUser?.uid || '';
+    const cleanBio = sanitizePageBioValue(page.bio);
+    const cleanDesc = sanitizePageBioValue(page.description);
     const payload: Record<string, any> = {
       id: page.id,
       name: cleanName,
@@ -2104,8 +2496,8 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
       followingCount: typeof page.followingCount === 'number' ? page.followingCount : 0,
       avatar: trimOversizedImageForFirestore(page.avatar),
       cover: trimOversizedImageForFirestore(page.cover),
-      description: page.description || '',
-      bio: page.bio || '',
+      description: cleanDesc,
+      bio: cleanBio,
       location: page.location || '',
       website: page.website || '',
       email: page.email || '',
@@ -2150,8 +2542,8 @@ export async function fetchPageByIdFromFirestore(pageId: string): Promise<PageIt
       role: isOwner ? 'Admin' : undefined,
       isOwner,
       isLiked: isTargetFollowedLocally(snap.id, name),
-      description: String(data.description || ''),
-      bio: String(data.bio || ''),
+      description: sanitizePageBioValue(data.description ? String(data.description) : ''),
+      bio: sanitizePageBioValue(data.bio ? String(data.bio) : ''),
       phone: data.phone ? String(data.phone) : undefined,
       whatsapp: data.whatsapp ? String(data.whatsapp) : undefined,
       imo: data.imo ? String(data.imo) : undefined,
@@ -2181,6 +2573,8 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
           if (p?.id && p?.name) {
             byId.set(p.id, {
               ...p,
+              bio: sanitizePageBioValue(p.bio),
+              description: sanitizePageBioValue(p.description),
               isLiked: isTargetFollowedLocally(p.id, p.name) || Boolean(p.isLiked),
             });
           }
@@ -2211,8 +2605,12 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
       role: isOwner ? 'Admin' : undefined,
       isOwner,
       isLiked: isTargetFollowedLocally(docSnap.id, name) || Boolean(existing?.isLiked),
-      description: String(data.description || existing?.description || ''),
-      bio: String(data.bio || existing?.bio || ''),
+      description:
+        sanitizePageBioValue(existing?.description) ||
+        sanitizePageBioValue(data.description ? String(data.description) : ''),
+      bio:
+        sanitizePageBioValue(existing?.bio) ||
+        sanitizePageBioValue(data.bio ? String(data.bio) : ''),
       phone: data.phone ? String(data.phone) : existing?.phone,
       whatsapp: data.whatsapp ? String(data.whatsapp) : existing?.whatsapp,
       imo: data.imo ? String(data.imo) : existing?.imo,

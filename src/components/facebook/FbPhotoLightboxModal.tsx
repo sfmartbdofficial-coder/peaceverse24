@@ -22,6 +22,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
+import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 
 interface FbPhotoLightboxModalProps {
   isOpen: boolean;
@@ -455,16 +456,24 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
 
         {/* Quick Comment Input Form directly inside Lightbox */}
         <form onSubmit={handleCommentSubmit} className="flex items-center gap-2 pt-1">
-          <div className="w-7 h-7 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-xs font-bold shrink-0">
-            SI
-          </div>
+          {currentUserAvatar ? (
+            <img
+              src={currentUserAvatar}
+              alt={currentUserName}
+              className="w-8 h-8 rounded-full object-cover shrink-0 border border-white/25"
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-[#1877F2] text-white flex items-center justify-center text-xs font-bold shrink-0">
+              {(currentUserName || 'U').trim().charAt(0).toUpperCase()}
+            </div>
+          )}
           <div className="flex-1 relative flex items-center">
             <input
               type="text"
-              placeholder="একটি মন্তব্য লিখুন..."
+              placeholder={`Comment as ${currentUserName || 'Member'}`}
               value={commentInput}
               onChange={(e) => setCommentInput(e.target.value)}
-              className="w-full bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder-white/50 text-xs sm:text-sm rounded-full pl-3.5 pr-9 py-2 outline-none border border-white/20 focus:border-[#1877F2] transition-colors"
+              className="w-full bg-white/15 hover:bg-white/20 focus:bg-white/25 text-white placeholder-white/60 text-sm rounded-full pl-3.5 pr-9 py-2 outline-none border border-white/20 focus:border-[#1877F2] transition-colors"
             />
             {commentInput.trim() && (
               <button
@@ -476,48 +485,23 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
             )}
           </div>
         </form>
-
-        {/* Expandable Comments Drawer if opened */}
-        {showCommentsDrawer && (
-          <div className="max-h-48 overflow-y-auto space-y-2 bg-white text-black rounded-2xl p-3 border border-[#E4E6EB] animate-in fade-in slide-in-from-bottom-2 shadow-xl">
-            <div className="flex items-center justify-between border-b border-[#E4E6EB] pb-1.5">
-              <span className="font-bold text-xs text-black">মন্তব্যসমূহ ({post.comments?.length || 0})</span>
-              <button
-                onClick={() => setShowCommentsDrawer(false)}
-                className="text-[#65676B] hover:text-black text-xs"
-              >
-                ✕
-              </button>
-            </div>
-            {(!post.comments || post.comments.length === 0) ? (
-              <p className="text-xs text-[#65676B] text-center py-2">
-                এখনও কোনো মন্তব্য নেই। প্রথম মন্তব্যটি আপনি করুন!
-              </p>
-            ) : (
-              post.comments.map((comment) => (
-                <div key={comment.id} className="flex items-start gap-2 text-xs">
-                  {comment.avatar ? (
-                    <img
-                      src={comment.avatar}
-                      alt={comment.author}
-                      className="w-6 h-6 rounded-full object-cover shrink-0"
-                    />
-                  ) : (
-                    <div className="w-6 h-6 rounded-full bg-[#0866FF] text-white flex items-center justify-center font-bold text-[10px] shrink-0">
-                      {(comment.author || 'U')[0]}
-                    </div>
-                  )}
-                  <div className="bg-[#F0F2F5] rounded-xl px-2.5 py-1.5 flex-1">
-                    <p className="font-bold text-black text-[11px]">{comment.author || 'ব্যবহারকারী'}</p>
-                    <p className="text-black text-xs mt-0.5">{comment.text}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        )}
       </div>
     )}
+
+      {/* Facebook-Exact Comment Bottom Sheet */}
+      <FbCommentBottomSheet
+        isOpen={showCommentsDrawer}
+        onClose={() => setShowCommentsDrawer(false)}
+        postId={post.id}
+        likesCount={post.reactions?.total || 0}
+        hasUserReacted={Boolean(post.userReaction)}
+        userReaction={post.userReaction || null}
+        comments={post.comments || []}
+        currentUserName={currentUserName}
+        currentUserAvatar={currentUserAvatar}
+        onAddComment={(text) => onAddComment(post.id, text)}
+        onToggleReaction={(reaction) => onToggleReaction(post.id, reaction)}
+      />
 
       {/* Toast Notification */}
       {toastMessage && (

@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { Check, Search, ArrowLeft, Users, X, UserPlus } from 'lucide-react';
+import { Check, Search, ArrowLeft, Users, X } from 'lucide-react';
 import { FbSearchEmptyState } from './FbSearchEmptyState';
+import { FbPeopleYouMayKnowSection } from './FbPeopleYouMayKnowSection';
+import { addLocalFriend } from '../../lib/firebase';
 
 interface FbFriendsViewProps {
   onBack?: () => void;
@@ -100,33 +102,6 @@ const INITIAL_REQUESTS: FriendRequestCardItem[] = [
   },
 ];
 
-const INITIAL_SUGGESTIONS = [
-  {
-    id: 'sug-1',
-    name: 'Biplob Hosen',
-    avatar:
-      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=240&q=80',
-    mutualText: '5 mutual friends',
-    isOnline: true,
-  },
-  {
-    id: 'sug-2',
-    name: 'Mahmudul Hasan',
-    avatar:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=240&q=80',
-    mutualText: '2 mutual friends',
-    isOnline: true,
-  },
-  {
-    id: 'sug-3',
-    name: 'Naimur Rahman',
-    avatar:
-      'https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=240&q=80',
-    mutualText: '3 mutual friends',
-    isOnline: false,
-  },
-];
-
 const INITIAL_ONLINE_FRIENDS: FriendItem[] = [
   {
     id: 'on-1',
@@ -152,6 +127,22 @@ const INITIAL_ONLINE_FRIENDS: FriendItem[] = [
     mutualCount: 12,
     isOnline: true,
   },
+  {
+    id: 'user-fatima-zahra',
+    name: 'Fatima Zahra',
+    avatar:
+      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
+    mutualCount: 6,
+    isOnline: true,
+  },
+  {
+    id: 'user-nusrat-jahan',
+    name: 'Nusrat Jahan',
+    avatar:
+      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
+    mutualCount: 4,
+    isOnline: false,
+  },
 ];
 
 export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
@@ -160,6 +151,8 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   onDeleteRequest,
   onCreatePageWithName,
   onOpenProfile,
+  currentUserId = 'user-me',
+  currentUserName = 'Member',
   currentUserAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
 }) => {
   const [activeTab, setActiveTab] = useState<'requests' | 'online' | 'suggestions' | 'friends'>('requests');
@@ -184,9 +177,6 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
       return {};
     }
   });
-
-  const [addedSuggestions, setAddedSuggestions] = useState<Record<string, boolean>>({});
-  const [removedSuggestions, setRemovedSuggestions] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     try {
@@ -227,6 +217,11 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
 
   const handleConfirm = (req: FriendRequestCardItem) => {
     setConfirmed((prev) => ({ ...prev, [req.id]: true }));
+    addLocalFriend({
+      id: req.id,
+      name: req.name,
+      avatar: req.avatar,
+    });
     setFriendsList((prev) => {
       if (prev.some((f) => f.id === req.id)) return prev;
       return [
@@ -261,9 +256,6 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   const visibleOnline = q
     ? friendsList.filter((f) => f.isOnline && f.name.toLowerCase().includes(q))
     : friendsList.filter((f) => f.isOnline);
-  const visibleSuggestions = INITIAL_SUGGESTIONS.filter(
-    (s) => !removedSuggestions[s.id] && (!q || s.name.toLowerCase().includes(q))
-  );
 
   return (
     <div className="max-w-[700px] mx-auto min-h-screen bg-white text-[#050505] pb-24 font-sans">
@@ -530,6 +522,29 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
               ))}
             </div>
           )}
+
+          {/* People you may know below Friend Requests */}
+          <div className="pt-4 border-t border-[#E4E6EB] space-y-2.5">
+            <div className="flex items-center justify-between">
+              <h2 className="text-[18px] font-extrabold text-[#050505]">
+                People you may know
+              </h2>
+              <button
+                type="button"
+                onClick={() => setActiveTab('suggestions')}
+                className="text-[13px] font-semibold text-[#1877F2] hover:underline cursor-pointer"
+              >
+                See all
+              </button>
+            </div>
+            <FbPeopleYouMayKnowSection
+              variant="list"
+              currentUserId={currentUserId}
+              currentUserName={currentUserName}
+              currentUserAvatar={currentUserAvatar}
+              searchQuery={searchQuery}
+            />
+          </div>
         </div>
       )}
 
@@ -592,78 +607,13 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             </h2>
           </div>
 
-          {q && visibleSuggestions.length === 0 ? (
-            <FbSearchEmptyState query={searchQuery} onCreatePageWithName={onCreatePageWithName} />
-          ) : (
-            <div className="space-y-3">
-              {visibleSuggestions.map((person) => {
-                const isAdded = addedSuggestions[person.id];
-                return (
-                  <div
-                    key={person.id}
-                    className="bg-white rounded-xl py-2 flex items-center gap-3.5"
-                  >
-                    <div className="relative shrink-0">
-                      <img
-                        src={person.avatar}
-                        alt={person.name}
-                        className="w-20 h-20 rounded-full object-cover border border-[#E4E6EB]"
-                      />
-                      {person.isOnline && (
-                        <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#31A24C] border-2 border-white" />
-                      )}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <p className="font-bold text-[16px] text-[#050505] truncate">
-                        {person.name}
-                      </p>
-                      <p className="text-xs text-[#65676B] mt-0.5">{person.mutualText}</p>
-                      <div className="mt-2.5 flex items-center gap-2">
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setAddedSuggestions((prev) => ({
-                              ...prev,
-                              [person.id]: !prev[person.id],
-                            }))
-                          }
-                          className={`flex-1 py-2 rounded-lg text-[14px] font-bold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
-                            isAdded
-                              ? 'bg-[#E7F3FF] text-[#1877F2]'
-                              : 'bg-[#1877F2] hover:bg-[#166fe5] text-white'
-                          }`}
-                        >
-                          {isAdded ? (
-                            <>
-                              <Check className="w-4 h-4" />
-                              <span>Request sent</span>
-                            </>
-                          ) : (
-                            <>
-                              <UserPlus className="w-4 h-4" />
-                              <span>Add friend</span>
-                            </>
-                          )}
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() =>
-                            setRemovedSuggestions((prev) => ({
-                              ...prev,
-                              [person.id]: true,
-                            }))
-                          }
-                          className="flex-1 py-2 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-bold transition-colors cursor-pointer"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <FbPeopleYouMayKnowSection
+            variant="list"
+            currentUserId={currentUserId}
+            currentUserName={currentUserName}
+            currentUserAvatar={currentUserAvatar}
+            searchQuery={searchQuery}
+          />
         </div>
       )}
 

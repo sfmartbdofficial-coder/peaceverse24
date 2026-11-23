@@ -24,6 +24,14 @@ import {
   Coins,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
+import {
+  getAuthorRelationshipKind,
+  isFriendRequestSentLocally,
+  toggleLocalFriendRequestAndSync,
+  isTargetFollowedLocally,
+  toggleFollowUser,
+} from '../../lib/firebase';
+import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 
 interface FbTikTokReelsModalProps {
   isOpen: boolean;
@@ -78,9 +86,9 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
   const [showHeartAnim, setShowHeartAnim] = useState(false);
   const [heartAnimPos, setHeartAnimPos] = useState({ x: 0, y: 0 });
   const [showCommentDrawer, setShowCommentDrawer] = useState(false);
-  const [commentInput, setCommentInput] = useState('');
   const [isCopied, setIsCopied] = useState(false);
   const [followedAuthors, setFollowedAuthors] = useState<Record<string, boolean>>({});
+  const [reelSyncTick, setReelSyncTick] = useState(0);
   const [expandedCaption, setExpandedCaption] = useState(false);
 
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -255,14 +263,6 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
       goToPrev();
     }
     touchStartY.current = null;
-  };
-
-  // Comment submission
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!commentInput.trim()) return;
-    onAddComment(currentPost.id, commentInput.trim());
-    setCommentInput('');
   };
 
   // Copy link / share
@@ -585,16 +585,66 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
               )}
             </span>
 
-            <button
-              onClick={() => toggleFollow(currentPost.author.name)}
-              className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer ${
-                isAuthorFollowed
-                  ? 'bg-white/20 text-white border border-white/30'
-                  : 'bg-[#1877F2] text-white hover:bg-blue-600'
-              }`}
-            >
-              {isAuthorFollowed ? 'অনুসরণ করছেন ✓' : '+ অনুসরণ করুন'}
-            </button>
+            {(() => {
+              void reelSyncTick;
+              const relKind = getAuthorRelationshipKind(currentPost, undefined, currentUserName);
+              if (relKind === 'self' || relKind === 'friend') return null;
+              const targetId = currentPost.authorId || `author-${currentPost.author.name}`;
+              if (relKind === 'add_friend') {
+                const reqSent = isFriendRequestSentLocally(targetId, currentPost.author.name);
+                return (
+                  <button
+                    onClick={async () => {
+                      await toggleLocalFriendRequestAndSync(
+                        'user-me',
+                        currentUserName || 'Member',
+                        currentUserAvatar || '',
+                        {
+                          id: targetId,
+                          name: currentPost.author.name,
+                          avatar: currentPost.author.avatar,
+                        }
+                      );
+                      setReelSyncTick((t) => t + 1);
+                    }}
+                    className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer flex items-center gap-1 ${
+                      reqSent
+                        ? 'bg-white/20 text-white border border-white/30'
+                        : 'bg-[#1877F2] text-white hover:bg-blue-600'
+                    }`}
+                  >
+                    <UserPlus className="w-3 h-3" />
+                    <span>{reqSent ? 'Request sent' : 'Add Friend'}</span>
+                  </button>
+                );
+              }
+              const followed =
+                Boolean(followedAuthors[currentPost.author.name]) ||
+                isTargetFollowedLocally(targetId, currentPost.author.name);
+              return (
+                <button
+                  onClick={async () => {
+                    await toggleFollowUser(
+                      'user-me',
+                      currentUserName || 'Member',
+                      currentUserAvatar || '',
+                      targetId,
+                      currentPost.author.name,
+                      currentPost.author.avatar
+                    );
+                    toggleFollow(currentPost.author.name);
+                    setReelSyncTick((t) => t + 1);
+                  }}
+                  className={`px-3 py-1 rounded-full text-[11px] font-bold transition-all shadow-xs cursor-pointer ${
+                    followed
+                      ? 'bg-white/20 text-white border border-white/30'
+                      : 'bg-[#1877F2] text-white hover:bg-blue-600'
+                  }`}
+                >
+                  {followed ? 'অনুসরণ করছেন ✓' : '+ Follow'}
+                </button>
+              );
+            })()}
           </div>
 
           {/* Post Caption with "more" expander */}
@@ -643,86 +693,20 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
           </div>
         </div>
 
-        {/* ========================================================= */}
-        {/* INTERACTIVE COMMENT DRAWER (SLIDES UP FROM BOTTOM) */}
-        {/* ========================================================= */}
-        {showCommentDrawer && (
-          <div
-            className="absolute inset-x-0 bottom-0 z-40 bg-white text-black rounded-t-3xl border-t border-[#E4E6EB] max-h-[65%] flex flex-col shadow-2xl animate-in slide-in-from-bottom duration-200"
-            onClick={(e) => e.stopPropagation()}
-          >
-            {/* Drawer Header */}
-            <div className="px-4 py-3 border-b border-[#E4E6EB] flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <h3 className="font-bold text-sm text-black">মন্তব্যসমূহ</h3>
-                <span className="px-2 py-0.5 rounded-full bg-[#F0F2F5] text-[11px] font-bold text-[#65676B]">
-                  {currentPost.comments.length}
-                </span>
-              </div>
-              <button
-                onClick={() => setShowCommentDrawer(false)}
-                className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] hover:text-black transition-colors cursor-pointer"
-              >
-                <X className="w-4 h-4" />
-              </button>
-            </div>
-
-            {/* Comments List */}
-            <div className="flex-1 overflow-y-auto p-4 space-y-3.5 bg-white">
-              {currentPost.comments.length === 0 ? (
-                <div className="text-center py-8 text-[#65676B] text-xs">
-                  <p>এখনো কোনো মন্তব্য নেই।</p>
-                  <p className="text-[11px] text-[#65676B] mt-1">প্রথম মন্তব্যটি আপনিই করুন!</p>
-                </div>
-              ) : (
-                currentPost.comments.map((c) => (
-                  <div key={c.id} className="flex gap-2.5 items-start">
-                    <img
-                      src={c.avatar}
-                      alt={c.author}
-                      className="w-8 h-8 rounded-full object-cover shrink-0 border border-[#E4E6EB]"
-                    />
-                    <div className="flex-1 min-w-0 bg-[#F0F2F5] rounded-2xl p-2.5 text-xs text-black">
-                      <div className="flex items-center justify-between mb-0.5">
-                        <span className="font-bold text-black text-xs">{c.author}</span>
-                        <span className="text-[10px] text-[#65676B]">{c.timeAgo}</span>
-                      </div>
-                      <p className="text-black leading-relaxed break-words">{c.text}</p>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
-
-            {/* Comment Input Bar */}
-            <form
-              onSubmit={handleCommentSubmit}
-              className="p-3 border-t border-[#E4E6EB] bg-white flex items-center gap-2"
-            >
-              {currentUserAvatar && (
-                <img
-                  src={currentUserAvatar}
-                  alt={currentUserName}
-                  className="w-8 h-8 rounded-full object-cover shrink-0 border border-[#E4E6EB]"
-                />
-              )}
-              <input
-                type="text"
-                placeholder="একটি সুন্দর মন্তব্য লিখুন..."
-                value={commentInput}
-                onChange={(e) => setCommentInput(e.target.value)}
-                className="flex-1 bg-[#F0F2F5] border border-[#E4E6EB] rounded-full px-4 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:border-[#0866FF] transition-colors"
-              />
-              <button
-                type="submit"
-                disabled={!commentInput.trim()}
-                className="p-2 rounded-full bg-[#0866FF] hover:bg-blue-600 disabled:opacity-40 text-white transition-all cursor-pointer shrink-0 shadow-xs"
-              >
-                <Send className="w-4 h-4" />
-              </button>
-            </form>
-          </div>
-        )}
+        {/* FACEBOOK-EXACT COMMENT BOTTOM SHEET */}
+        <FbCommentBottomSheet
+          isOpen={showCommentDrawer}
+          onClose={() => setShowCommentDrawer(false)}
+          postId={currentPost.id}
+          likesCount={currentPost.reactions?.total || 0}
+          hasUserReacted={Boolean(currentPost.userReaction)}
+          userReaction={currentPost.userReaction || null}
+          comments={currentPost.comments || []}
+          currentUserName={currentUserName}
+          currentUserAvatar={currentUserAvatar}
+          onAddComment={(text) => onAddComment(currentPost.id, text)}
+          onToggleReaction={(reaction) => onToggleReaction(currentPost.id, reaction)}
+        />
 
       </div>
     </div>

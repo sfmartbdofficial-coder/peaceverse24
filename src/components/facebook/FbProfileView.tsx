@@ -35,6 +35,7 @@ import {
   ExternalLink,
   BadgeCheck,
   BookOpen,
+  UserPlus,
 } from 'lucide-react';
 import { UserProfile, PostItem, PageItem } from '../../types';
 import { FbPostCard } from './FbPostCard';
@@ -54,6 +55,13 @@ import {
 import {
   subscribeToUserFriendsFromFirestore,
   UserFriendItem,
+  isTargetFollowedLocally,
+  subscribeToFollowStatus,
+  toggleFollowUser,
+  isSameOwnerIdentity,
+  isTargetFriendLocally,
+  isFriendRequestSentLocally,
+  toggleLocalFriendRequestAndSync,
 } from '../../lib/firebase';
 
 interface FbProfileViewProps {
@@ -100,7 +108,85 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   onSwitchToPersonal,
 }) => {
   const activeProfile = viewedProfile || userProfile;
-  const isOwnProfile = !viewedProfile || viewedProfile.name === userProfile.name;
+  const isOwnProfile =
+    !viewedProfile ||
+    isSameOwnerIdentity(viewedProfile.id, viewedProfile.name, userProfile.id, userProfile.name);
+  const targetFollowId = activeProfile.id || `author-${activeProfile.name}`;
+  const [, setFriendStateTick] = useState(0);
+  const isFriendViewed = !isOwnProfile && isTargetFriendLocally(targetFollowId, activeProfile.name);
+  const isFollowOnlyViewed =
+    !isOwnProfile &&
+    (targetFollowId.startsWith('page-') || activeProfile.isCreator === true);
+  const [isFollowingViewed, setIsFollowingViewed] = useState<boolean>(() =>
+    !isOwnProfile && isFollowOnlyViewed
+      ? isTargetFollowedLocally(targetFollowId, activeProfile.name)
+      : false
+  );
+  const [isFriendReqSentViewed, setIsFriendReqSentViewed] = useState<boolean>(() =>
+    !isOwnProfile && !isFriendViewed && !isFollowOnlyViewed
+      ? isFriendRequestSentLocally(targetFollowId, activeProfile.name)
+      : false
+  );
+
+  React.useEffect(() => {
+    const syncState = () => {
+      setFriendStateTick((t) => t + 1);
+      if (!isOwnProfile && !isFollowOnlyViewed) {
+        setIsFriendReqSentViewed(isFriendRequestSentLocally(targetFollowId, activeProfile.name));
+      } else {
+        setIsFriendReqSentViewed(false);
+      }
+    };
+    syncState();
+    window.addEventListener('peaceverse:friends-updated', syncState);
+    window.addEventListener('peaceverse:friend-requests-updated', syncState);
+    window.addEventListener('storage', syncState);
+    return () => {
+      window.removeEventListener('peaceverse:friends-updated', syncState);
+      window.removeEventListener('peaceverse:friend-requests-updated', syncState);
+      window.removeEventListener('storage', syncState);
+    };
+  }, [isOwnProfile, isFollowOnlyViewed, targetFollowId, activeProfile.name]);
+
+  React.useEffect(() => {
+    if (isOwnProfile || isFriendViewed || !isFollowOnlyViewed) {
+      setIsFollowingViewed(false);
+      return;
+    }
+    const unsub = subscribeToFollowStatus(
+      userProfile.id || 'user-me',
+      targetFollowId,
+      (following) => setIsFollowingViewed(following),
+      activeProfile.name
+    );
+    return () => unsub();
+  }, [isOwnProfile, isFriendViewed, isFollowOnlyViewed, userProfile.id, targetFollowId, activeProfile.name]);
+
+  const handleToggleFollowProfile = async () => {
+    if (isFollowOnlyViewed) {
+      const next = await toggleFollowUser(
+        userProfile.id || 'user-me',
+        userProfile.name,
+        userProfile.avatar,
+        targetFollowId,
+        activeProfile.name,
+        activeProfile.avatar
+      );
+      setIsFollowingViewed(next);
+    } else if (!isFriendViewed) {
+      const nextSent = await toggleLocalFriendRequestAndSync(
+        userProfile.id || 'user-me',
+        userProfile.name,
+        userProfile.avatar,
+        {
+          id: targetFollowId,
+          name: activeProfile.name,
+          avatar: activeProfile.avatar,
+        }
+      );
+      setIsFriendReqSentViewed(nextSent);
+    }
+  };
   const [viewAsMode, setViewAsMode] = useState<'owner' | 'friend' | 'public'>('owner');
   const [profileTab, setProfileTab] = useState<'all' | 'photos' | 'reels'>('all');
   const [showEditModal, setShowEditModal] = useState(false);
@@ -524,7 +610,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
         </div>
 
         {/* Action buttons + Public/Private Toggle */}
-        {isOwnProfile && (
+        {isOwnProfile ? (
           <div className="space-y-2 mt-4">
             <div className="flex items-center gap-2 w-full">
               <button
@@ -557,6 +643,70 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
                 <span>{isProfileLocked ? 'Private' : 'Public'}</span>
               </button>
             </div>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2 w-full mt-4">
+            {isFriendViewed ? (
+              <div className="flex-1 h-[38px] rounded-[8px] bg-[#E4E6EB] text-[#050505] font-bold text-[14px] flex items-center justify-center gap-1.5 whitespace-nowrap">
+                <Check className="w-4 h-4 stroke-[2.75]" />
+                <span>Friends</span>
+              </div>
+            ) : isFollowOnlyViewed ? (
+              <button
+                type="button"
+                onClick={handleToggleFollowProfile}
+                className={`flex-1 h-[38px] rounded-[8px] font-bold text-[14px] flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  isFollowingViewed
+                    ? 'bg-[#E7F3FF] hover:bg-[#DBE7F2] text-[#0866FF] border border-[#0866FF]/25'
+                    : 'bg-[#0866FF] hover:bg-[#166FE5] text-white shadow-sm'
+                }`}
+              >
+                {isFollowingViewed ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[2.75]" />
+                    <span>Following</span>
+                  </>
+                ) : (
+                  <>
+                    <Plus className="w-4 h-4 stroke-[2.75]" />
+                    <span>Follow</span>
+                  </>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={handleToggleFollowProfile}
+                className={`flex-1 h-[38px] rounded-[8px] font-bold text-[14px] flex items-center justify-center gap-1.5 transition-all cursor-pointer whitespace-nowrap ${
+                  isFriendReqSentViewed
+                    ? 'bg-[#E7F3FF] hover:bg-[#DBE7F2] text-[#0866FF] border border-[#0866FF]/25'
+                    : 'bg-[#0866FF] hover:bg-[#166FE5] text-white shadow-sm'
+                }`}
+              >
+                {isFriendReqSentViewed ? (
+                  <>
+                    <Check className="w-4 h-4 stroke-[2.75]" />
+                    <span>Request sent</span>
+                  </>
+                ) : (
+                  <>
+                    <UserPlus className="w-4 h-4 stroke-[2.25]" />
+                    <span>Add Friend</span>
+                  </>
+                )}
+              </button>
+            )}
+
+            {onBackToOwnProfile && (
+              <button
+                type="button"
+                onClick={onBackToOwnProfile}
+                className="h-[38px] px-4 rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-semibold text-[13px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                <span>My Profile</span>
+              </button>
+            )}
           </div>
         )}
 
@@ -944,9 +1094,10 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               onEditPost={onEditPost}
               onDeletePost={onDeletePost}
               onOpenReel={onOpenReel}
-              currentUserId={activeProfile.id || userProfile.id}
-              currentUserName={activeProfile.name}
-              showBoostControls={isOwnProfile}
+              currentUserId={userProfile.id}
+              currentUserName={userProfile.name}
+              currentUserAvatar={userProfile.avatar}
+              showBoostControls={false}
             />
           ))
         )}

@@ -39,6 +39,7 @@ export interface PostItem {
   moderationReason?: string;
   appealStatus?: 'none' | 'pending' | 'resolved';
   authorId?: string;
+  authorConnectionMode?: 'friend' | 'add_friend' | 'follow_only';
   contentBangla: string;
   arabicVerse?: string;
   translation?: string;
@@ -243,6 +244,7 @@ export interface SearchedUserProfile {
   bio?: string;
   location?: string;
   verified?: boolean;
+  allowFriendRequests?: boolean;
 }
 
 export interface GoldenGiftTransaction {

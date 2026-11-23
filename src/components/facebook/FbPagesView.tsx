@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   ArrowLeft,
   Flag,
@@ -73,6 +73,11 @@ import { FbCreatePageLandingView } from './FbCreatePageLandingView';
 import { FbSwitchToPageSheet } from './FbSwitchToPageSheet';
 import { FbPostCard } from './FbPostCard';
 import {
+  FbCommentBottomSheet,
+  readCommentLikesStore,
+  toggleCommentLikeLocally,
+} from './FbCommentBottomSheet';
+import {
   getWhatsAppUrl,
   getImoDeepLink,
   getViberDeepLink,
@@ -104,6 +109,8 @@ import {
   setTargetFollowedLocally,
   toggleFollowUser,
   subscribeToFollowStatus,
+  isSameOwnerIdentity,
+  sanitizePageBioValue,
 } from '../../lib/firebase';
 
 interface FbPagesViewProps {
@@ -524,6 +531,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             .filter((p) => Boolean(p?.isOwner) && !DEMO_PAGE_IDS.includes(p.id))
             .map((p) => ({
               ...p,
+              bio: sanitizePageBioValue(p.bio),
+              description: sanitizePageBioValue(p.description),
               avatar: p.avatar && !p.avatar.startsWith('blob:') ? p.avatar : '',
               cover: p.cover && !p.cover.startsWith('blob:') ? p.cover : '',
               followingCount: p.followingCount ?? 0,
@@ -618,6 +627,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         if (visited?.id === targetId) {
           return {
             ...visited,
+            bio: sanitizePageBioValue(visited.bio),
+            description: sanitizePageBioValue(visited.description),
             isLiked: isTargetFollowedLocally(visited.id, visited.name) || Boolean(visited.isLiked),
           };
         }
@@ -638,6 +649,46 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     } catch {}
     setPageSearchQuery('');
     setPostFilterMode('all');
+    setBioExpanded(false);
+  }, [selectedPage?.id]);
+
+  // Hydrate missing bio/details from Firestore when opening a page after refresh or across devices
+  useEffect(() => {
+    const pageId = selectedPage?.id;
+    if (!pageId) return;
+    let active = true;
+    const localHasBio = Boolean(
+      sanitizePageBioValue(selectedPage?.bio) || sanitizePageBioValue(selectedPage?.description)
+    );
+    if (localHasBio) return;
+    fetchPageByIdFromFirestore(pageId).then((remote) => {
+      if (!active || !remote) return;
+      const remoteBio = sanitizePageBioValue(remote.bio) || sanitizePageBioValue(remote.description);
+      if (!remoteBio) return;
+      setSelectedPage((prev) =>
+        prev && prev.id === pageId
+          ? {
+              ...prev,
+              bio: sanitizePageBioValue(prev.bio) || remoteBio,
+              description: sanitizePageBioValue(prev.description) || remoteBio,
+            }
+          : prev
+      );
+      setPages((prev) =>
+        prev.map((p) =>
+          p.id === pageId
+            ? {
+                ...p,
+                bio: sanitizePageBioValue(p.bio) || remoteBio,
+                description: sanitizePageBioValue(p.description) || remoteBio,
+              }
+            : p
+        )
+      );
+    });
+    return () => {
+      active = false;
+    };
   }, [selectedPage?.id]);
 
   // Keep selectedPage follow status permanently synced with localStorage + Firestore
@@ -679,6 +730,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         if (visited?.id === initialSelectedPageId) {
           setSelectedPage({
             ...visited,
+            bio: sanitizePageBioValue(visited.bio),
+            description: sanitizePageBioValue(visited.description),
             isLiked: isTargetFollowedLocally(visited.id, visited.name) || Boolean(visited.isLiked),
           });
           onClearInitialSelectedPageId?.();
@@ -734,8 +787,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [newAvatar, setNewAvatar] = useState('');
   const [newCover, setNewCover] = useState('');
 
-  // Edit Page Modal State
+  // Edit Page Modal State & Direct Bio Editor State
   const [showEditModal, setShowEditModal] = useState(false);
+  const [showEditBioModal, setShowEditBioModal] = useState(false);
+  const [bioModalDraft, setBioModalDraft] = useState('');
+  const [bioExpanded, setBioExpanded] = useState(false);
+  useHistoryBack(showEditBioModal, () => setShowEditBioModal(false), 'page-edit-bio');
   const [editName, setEditName] = useState('');
   const [editCategory, setEditCategory] = useState('');
   const [editBio, setEditBio] = useState('');
@@ -842,7 +899,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [pageFreshNowTick, setPageFreshNowTick] = useState<number>(() => Date.now());
   const [viewAsVisitor, setViewAsVisitor] = useState(false);
   const [openCommentPostId, setOpenCommentPostId] = useState<string | null>(null);
-  const [postCommentDraft, setPostCommentDraft] = useState('');
+  const [activeCommentSheetPostId, setActiveCommentSheetPostId] = useState<string | null>(null);
+  const [pageCommentLikesMap, setPageCommentLikesMap] = useState<Record<string, boolean>>(() =>
+    readCommentLikesStore()
+  );
+  const [postCommentDrafts, setPostCommentDrafts] = useState<Record<string, string>>({});
+  const [expandedInlineCommentPostId, setExpandedInlineCommentPostId] = useState<string | null>(null);
+  const inlineCommentTextareaRefs = useRef<Record<string, HTMLTextAreaElement | null>>({});
   const [openPostMenuId, setOpenPostMenuId] = useState<string | null>(null);
   const [editingPostId, setEditingPostId] = useState<string | null>(null);
   const [editingPostText, setEditingPostText] = useState('');
@@ -1030,7 +1093,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         isLikedByMe?: boolean;
         comments: number;
         shares?: number;
-        commentsList?: Array<{ id: string; author: string; text: string; time: string }>;
+        commentsList?: Array<{ id: string; author: string; avatar?: string; text: string; time: string }>;
         pinned?: boolean;
         reach?: number;
         clicks?: number;
@@ -1106,6 +1169,32 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         window.dispatchEvent(new Event('peaceverse:switched-page-updated'));
       }
     } catch {}
+  };
+
+  const persistUpdatedPage = (updated: PageItem) => {
+    const cleanUpdated: PageItem = {
+      ...updated,
+      bio: sanitizePageBioValue(updated.bio),
+      description: sanitizePageBioValue(updated.description),
+    };
+    setSelectedPage(cleanUpdated);
+    setPages((prev) => {
+      const exists = prev.some((p) => p.id === cleanUpdated.id);
+      const next = exists
+        ? prev.map((p) => (p.id === cleanUpdated.id ? cleanUpdated : p))
+        : cleanUpdated.isOwner
+        ? [cleanUpdated, ...prev]
+        : prev;
+      try {
+        localStorage.setItem('qalby_fb_pages', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    try {
+      localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(cleanUpdated));
+    } catch {}
+    syncUpdatedPageToSwitchedStorage(cleanUpdated);
+    void syncPageToFirestore(cleanUpdated, userProfile?.id);
   };
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1190,8 +1279,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       role: 'Admin',
       isOwner: true,
       isLiked: true,
-      description: safeBio || `${safeName} - দ্বীনি ও হালাল প্ল্যাটফর্ম।`,
-      bio: safeBio || 'উম্মাহর সেবায় নিবেদিত।',
+      description: safeBio,
+      bio: safeBio,
       phone: newPhone.trim() || undefined,
       whatsapp: newWhatsapp.trim() || newPhone.trim() || undefined,
       imo: newImo.trim() || undefined,
@@ -1447,7 +1536,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const handleOpenEditModal = (page: PageItem) => {
     setEditName(page.name);
     setEditCategory(page.category);
-    setEditBio(page.bio || '');
+    setEditBio(sanitizePageBioValue(page.bio) || sanitizePageBioValue(page.description));
     setEditPhone(page.phone || '');
     setEditWhatsapp(page.whatsapp || page.phone || '');
     setEditImo(page.imo || '');
@@ -1462,12 +1551,13 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     e.preventDefault();
     if (!selectedPage || !editName.trim()) return;
 
+    const cleanBio = sanitizePageBioValue(editBio);
     const updated: PageItem = {
       ...selectedPage,
       name: editName.trim(),
       category: editCategory.trim() || selectedPage.category,
-      bio: editBio.trim(),
-      description: editBio.trim() || selectedPage.description,
+      bio: cleanBio,
+      description: cleanBio,
       phone: editPhone.trim() || undefined,
       whatsapp: editWhatsapp.trim() || undefined,
       imo: editImo.trim() || undefined,
@@ -1476,11 +1566,23 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       location: editLocation.trim() || selectedPage.location,
     };
 
-    setSelectedPage(updated);
-    setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
-    syncUpdatedPageToSwitchedStorage(updated);
+    persistUpdatedPage(updated);
     setShowEditModal(false);
     showToast('💾 পেজের তথ্য সফলভাবে সেভ করা হয়েছে!');
+  };
+
+  const handleSaveDirectBio = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPage) return;
+    const cleanBio = sanitizePageBioValue(bioModalDraft);
+    const updated: PageItem = {
+      ...selectedPage,
+      bio: cleanBio,
+      description: cleanBio,
+    };
+    persistUpdatedPage(updated);
+    setShowEditBioModal(false);
+    showToast(cleanBio ? '💾 পেজের বায়ো সেভ করা হয়েছে!' : 'পেজের বায়ো সরানো হয়েছে');
   };
 
   // Filtered user-managed pages & Islamic suggested pages
@@ -1541,7 +1643,15 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   // DETAIL VIEW FOR A SELECTED PAGE (Exact Facebook Clean White Page Profile)
   // -------------------------------------------------------------
   if (selectedPage) {
-    const isOwnerView = selectedPage.isOwner && !viewAsVisitor;
+    const isOwnerView =
+      (selectedPage.isOwner ||
+        isSameOwnerIdentity(
+          selectedPage.id,
+          selectedPage.name,
+          userProfile?.id,
+          userProfile?.name
+        )) &&
+      !viewAsVisitor;
     const rawPosts = pagePostsList[selectedPage.id] || [];
     const rawIds = new Set(rawPosts.map((rp) => rp.id));
     const normStr = (val?: string) =>
@@ -1857,12 +1967,89 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               following
             </p>
 
-            {/* Bio */}
-            {(selectedPage.bio || selectedPage.description) && (
-              <p className="text-[14px] text-[#050505] leading-snug max-w-md mx-auto pt-1.5">
-                {selectedPage.bio || selectedPage.description}
-              </p>
-            )}
+            {/* Bio (Full visible 3 lines + See more, clickable to edit like Facebook) */}
+            {(() => {
+              const displayBio =
+                sanitizePageBioValue(selectedPage.bio) ||
+                sanitizePageBioValue(selectedPage.description);
+              const isLongBio = displayBio.length > 125 || displayBio.split('\n').length > 3;
+              if (displayBio) {
+                return (
+                  <div className="max-w-md mx-auto pt-1.5 px-2">
+                    <div
+                      role={isOwnerView ? 'button' : undefined}
+                      tabIndex={isOwnerView ? 0 : undefined}
+                      onClick={() => {
+                        if (isOwnerView) {
+                          setBioModalDraft(displayBio);
+                          setShowEditBioModal(true);
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (isOwnerView && (e.key === 'Enter' || e.key === ' ')) {
+                          e.preventDefault();
+                          setBioModalDraft(displayBio);
+                          setShowEditBioModal(true);
+                        }
+                      }}
+                      title={isOwnerView ? 'Click to edit Bio' : undefined}
+                      className={`text-[14px] text-[#050505] leading-relaxed whitespace-pre-line break-words inline-block ${
+                        isOwnerView
+                          ? 'cursor-pointer hover:bg-[#F0F2F5] rounded-xl px-3 py-1 transition-colors'
+                          : ''
+                      } ${!bioExpanded && isLongBio ? 'line-clamp-3' : ''}`}
+                    >
+                      {displayBio}
+                    </div>
+                    <div className="flex items-center justify-center gap-3 mt-0.5">
+                      {isLongBio && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setBioExpanded((prev) => !prev);
+                          }}
+                          className="text-[13px] font-bold text-[#65676B] hover:text-[#050505] hover:underline cursor-pointer"
+                        >
+                          {bioExpanded ? 'See less' : 'See more'}
+                        </button>
+                      )}
+                      {isOwnerView && (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBioModalDraft(displayBio);
+                            setShowEditBioModal(true);
+                          }}
+                          className="text-[11px] font-semibold text-[#65676B] hover:text-[#0866FF] inline-flex items-center gap-1 cursor-pointer"
+                        >
+                          <Edit3 className="w-3 h-3" />
+                          <span>Edit bio</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              }
+              if (isOwnerView) {
+                return (
+                  <div className="pt-1.5">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setBioModalDraft('');
+                        setShowEditBioModal(true);
+                      }}
+                      className="text-[14px] font-semibold text-[#0866FF] hover:bg-[#E7F3FF] px-3 py-1 rounded-lg transition-colors cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <Edit3 className="w-3.5 h-3.5" />
+                      <span>Add bio</span>
+                    </button>
+                  </div>
+                );
+              }
+              return null;
+            })()}
 
             {/* Category */}
             <div className="flex items-center justify-center gap-1.5 text-[13px] font-bold text-[#050505] pt-1.5 pb-3">
@@ -2188,6 +2375,45 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                 </div>
 
                 <div className="space-y-2.5 text-[14px] text-[#050505]">
+                  {(() => {
+                    const aboutBio =
+                      sanitizePageBioValue(selectedPage.bio) ||
+                      sanitizePageBioValue(selectedPage.description);
+                    if (aboutBio) {
+                      return (
+                        <div
+                          onClick={() => {
+                            if (isOwnerView) {
+                              setBioModalDraft(aboutBio);
+                              setShowEditBioModal(true);
+                            }
+                          }}
+                          className={`flex items-start gap-3 ${
+                            isOwnerView ? 'cursor-pointer hover:bg-[#F0F2F5] rounded-lg p-1 -mx-1' : ''
+                          }`}
+                        >
+                          <FileText className="w-5 h-5 text-[#050505] shrink-0 mt-0.5" />
+                          <span className="whitespace-pre-line break-words">{aboutBio}</span>
+                        </div>
+                      );
+                    }
+                    if (isOwnerView) {
+                      return (
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setBioModalDraft('');
+                            setShowEditBioModal(true);
+                          }}
+                          className="flex items-center gap-3 text-[#0866FF] font-semibold hover:underline cursor-pointer"
+                        >
+                          <FileText className="w-5 h-5 text-[#0866FF] shrink-0" />
+                          <span>Add bio / intro</span>
+                        </button>
+                      );
+                    }
+                    return null;
+                  })()}
                   {(extra.currentCity || selectedPage.location) && (
                     <div className="flex items-center gap-3">
                       <MapPin className="w-5 h-5 text-[#050505] shrink-0" />
@@ -2715,11 +2941,99 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           onOpenGiftModal={onOpenFeedGiftModal}
                           currentUserId={selectedPage.id}
                           currentUserName={selectedPage.name}
-                          showBoostControls={isOwnerView}
+                          currentUserAvatar={
+                            isOwnerView
+                              ? selectedPage.avatar || userProfile?.avatar
+                              : userProfile?.avatar
+                          }
+                          showBoostControls={false}
                         />
                       );
                     }
                     const post = entry.post;
+                    const matchingFeedPost = feedPosts.find((fp) => fp.id === post.id);
+                    const baseComments = post.commentsList || [];
+                    const feedMappedComments = (matchingFeedPost?.comments || []).map((fc) => ({
+                      id: fc.id,
+                      author: fc.author,
+                      avatar: fc.avatar,
+                      text: fc.text,
+                      time: fc.timeAgo || 'Just now',
+                    }));
+                    const feedSeenIds = new Set(feedMappedComments.map((fc) => fc.id));
+                    const feedSeenAlt = new Set(
+                      feedMappedComments.map(
+                        (fc) => `${fc.author.trim().toLowerCase()}::${fc.text.trim()}`
+                      )
+                    );
+                    const mergedCommentsList = [
+                      ...feedMappedComments,
+                      ...baseComments.filter(
+                        (bc) =>
+                          !feedSeenIds.has(bc.id) &&
+                          !feedSeenAlt.has(`${bc.author.trim().toLowerCase()}::${bc.text.trim()}`)
+                      ),
+                    ];
+                    const displayCommentCount = Math.max(
+                      post.comments || 0,
+                      mergedCommentsList.length
+                    );
+                    const commenterAvatar = userProfile?.avatar || selectedPage.avatar || '';
+                    const commenterName = userProfile?.name || selectedPage.name || 'Member';
+                    const draftText = postCommentDrafts[post.id] || '';
+                    const isCommentInputExpanded = expandedInlineCommentPostId === post.id;
+
+                    const submitInlinePageComment = (overrideText?: string) => {
+                      const rawText = (overrideText ?? draftText).trim();
+                      if (!rawText) return;
+                      if (
+                        currentSettings.blockedUsers.some(
+                          (u) => u.toLowerCase() === commenterName.toLowerCase()
+                        )
+                      ) {
+                        showToast('এই অ্যাকাউন্টটি পেজ থেকে ব্লক করা আছে');
+                        return;
+                      }
+                      if (
+                        currentSettings.modHideLinks &&
+                        /(https?:\/\/|www\.)/i.test(rawText)
+                      ) {
+                        showToast('Moderation Assist: লিংকযুক্ত কমেন্ট হাইড করা হয়েছে');
+                        return;
+                      }
+                      const matchedWord = currentSettings.modBlockedWords.find((w) =>
+                        rawText.toLowerCase().includes(w.toLowerCase())
+                      );
+                      if (matchedWord) {
+                        showToast(`Moderation Assist: "${matchedWord}" শব্দটি ব্লক করা আছে`);
+                        return;
+                      }
+                      const newComment = {
+                        id: `cmt-${Date.now()}`,
+                        author: commenterName,
+                        avatar: commenterAvatar,
+                        text: rawText,
+                        time: 'Just now',
+                      };
+                      setPagePostsList((prev) => ({
+                        ...prev,
+                        [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
+                          item.id === post.id
+                            ? {
+                                ...item,
+                                comments: Math.max(
+                                  item.comments || 0,
+                                  (item.commentsList || []).length
+                                ) + 1,
+                                commentsList: [newComment, ...(item.commentsList || [])],
+                              }
+                            : item
+                        ),
+                      }));
+                      onAddFeedComment?.(post.id, rawText);
+                      setPostCommentDrafts((prev) => ({ ...prev, [post.id]: '' }));
+                      setOpenCommentPostId(post.id);
+                    };
                     return (
                       <div
                         key={post.id}
@@ -3064,15 +3378,16 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              setOpenCommentPostId((prev) => (prev === post.id ? null : post.id));
-                              setPostCommentDraft('');
+                              setActiveCommentSheetPostId(post.id);
                             }}
                             className={`flex items-center gap-1.5 py-1 px-2 rounded-lg hover:bg-[#F0F2F5] cursor-pointer ${
-                              openCommentPostId === post.id ? 'text-[#0866FF]' : 'hover:text-[#050505]'
+                              openCommentPostId === post.id || activeCommentSheetPostId === post.id
+                                ? 'text-[#0866FF]'
+                                : 'hover:text-[#050505]'
                             }`}
                           >
                             <MessageCircle className="w-4 h-4" />
-                            <span className="tabular-nums">{post.comments} Comment</span>
+                            <span className="tabular-nums">{displayCommentCount} Comment</span>
                           </button>
 
                           <button
@@ -3106,170 +3421,186 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           </button>
                         </div>
 
-                        {/* Interactive Comments Drawer (Enforces Page Settings & Moderation Assist) */}
-                        {openCommentPostId === post.id && (
-                          <div className="pt-2 border-t border-[#F0F2F5] space-y-2">
-                            {(post.commentsList || []).length > 0 && (
-                              <div className="space-y-1.5 max-h-44 overflow-y-auto">
-                                {(post.commentsList || []).map((c) => (
-                                  <div key={c.id} className="p-2 rounded-xl bg-[#F0F2F5] text-xs">
-                                    <div className="flex items-center justify-between gap-2">
-                                      <span className="font-bold text-[#050505]">{c.author}</span>
-                                      <span className="text-[10px] text-[#65676B]">{c.time}</span>
-                                    </div>
-                                    <p className="text-[#050505] mt-0.5">{c.text}</p>
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-
-                            {!currentSettings.allowComments ? (
-                              <p className="text-[11px] text-[#65676B] bg-[#F7F8FA] p-2 rounded-lg text-center">
-                                এই পেজে মন্তব্য সীমিত করা হয়েছে (Page Settings -&gt; Posts and tags)।
-                              </p>
-                            ) : (
-                              <div className="flex items-center gap-2">
-                                <input
-                                  type="text"
-                                  value={postCommentDraft}
-                                  onChange={(e) => setPostCommentDraft(e.target.value)}
+                        {/* Facebook-style Interactive Comments List + 48px Expandable Input */}
+                        <div className="pt-2.5 border-t border-[#F0F2F5] space-y-3">
+                          {!currentSettings.allowComments ? (
+                            <p className="text-[11px] text-[#65676B] bg-[#F7F8FA] p-2 rounded-lg text-center">
+                              এই পেজে মন্তব্য সীমিত করা হয়েছে (Page Settings -&gt; Posts and tags)।
+                            </p>
+                          ) : (
+                            <div className="flex items-start gap-2.5 w-full">
+                              {commenterAvatar ? (
+                                <img
+                                  src={commenterAvatar}
+                                  alt={commenterName}
+                                  onError={(e) => {
+                                    (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                                      commenterName || 'U'
+                                    )}&backgroundColor=0866ff,1877f2`;
+                                  }}
+                                  className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB] bg-[#F0F2F5] shrink-0 mt-1.5"
+                                />
+                              ) : (
+                                <div className="w-9 h-9 rounded-full bg-[#0866FF] text-white flex items-center justify-center font-bold text-xs shrink-0 mt-1.5">
+                                  {commenterName.trim().charAt(0).toUpperCase()}
+                                </div>
+                              )}
+                              <div
+                                className={`flex-1 flex items-end gap-2 bg-[#F0F2F5] border border-[#E4E6EB] focus-within:border-[#0866FF] focus-within:bg-white transition-all px-3.5 ${
+                                  isCommentInputExpanded
+                                    ? 'rounded-2xl py-2 min-h-[68px]'
+                                    : 'rounded-[24px] py-1 min-h-[48px]'
+                                }`}
+                              >
+                                <textarea
+                                  ref={(el) => {
+                                    inlineCommentTextareaRefs.current[post.id] = el;
+                                  }}
+                                  rows={isCommentInputExpanded ? 2 : 1}
+                                  value={draftText}
+                                  onFocus={() => setExpandedInlineCommentPostId(post.id)}
+                                  onClick={() => setExpandedInlineCommentPostId(post.id)}
+                                  onChange={(e) =>
+                                    setPostCommentDrafts((prev) => ({
+                                      ...prev,
+                                      [post.id]: e.target.value,
+                                    }))
+                                  }
                                   onKeyDown={(e) => {
-                                    if (e.key === 'Enter' && postCommentDraft.trim()) {
+                                    if (e.key === 'Enter' && !e.shiftKey && draftText.trim()) {
                                       e.preventDefault();
-                                      const commentAuthor = isOwnerView
-                                        ? selectedPage.name
-                                        : userProfile?.name || 'Follower';
-                                      const rawText = postCommentDraft.trim();
-                                      if (
-                                        currentSettings.blockedUsers.some(
-                                          (u) => u.toLowerCase() === commentAuthor.toLowerCase()
-                                        )
-                                      ) {
-                                        showToast('এই অ্যাকাউন্টটি পেজ থেকে ব্লক করা আছে');
-                                        return;
-                                      }
-                                      if (
-                                        currentSettings.modHideLinks &&
-                                        /(https?:\/\/|www\.)/i.test(rawText)
-                                      ) {
-                                        showToast('Moderation Assist: লিংকযুক্ত কমেন্ট হাইড করা হয়েছে');
-                                        return;
-                                      }
-                                      const matchedWord = currentSettings.modBlockedWords.find((w) =>
-                                        rawText.toLowerCase().includes(w.toLowerCase())
-                                      );
-                                      if (matchedWord) {
-                                        showToast(`Moderation Assist: "${matchedWord}" শব্দটি ব্লক করা আছে`);
-                                        return;
-                                      }
-                                      const newComment = {
-                                        id: `cmt-${Date.now()}`,
-                                        author: commentAuthor,
-                                        text: rawText,
-                                        time: 'এখনই',
-                                      };
-                                      setPagePostsList((prev) => ({
-                                        ...prev,
-                                        [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
-                                          item.id === post.id
-                                            ? {
-                                                ...item,
-                                                comments: item.comments + 1,
-                                                commentsList: [...(item.commentsList || []), newComment],
-                                              }
-                                            : item
-                                        ),
-                                      }));
-                                      setPostCommentDraft('');
+                                      submitInlinePageComment();
                                     }
                                   }}
-                                  placeholder="একটি মন্তব্য লিখুন..."
-                                  className="flex-1 bg-[#F0F2F5] rounded-full px-3.5 py-1.5 text-xs text-[#050505] placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
+                                  placeholder={`Comment as ${commenterName}`}
+                                  className={`flex-1 w-full bg-transparent text-[16px] leading-snug text-[#050505] placeholder-[#65676B] focus:outline-none resize-none ${
+                                    isCommentInputExpanded ? 'min-h-[52px] py-1' : 'min-h-[40px] py-2'
+                                  }`}
                                 />
                                 <button
                                   type="button"
-                                  onClick={() => {
-                                    const rawText = postCommentDraft.trim();
-                                    if (!rawText) return;
-                                    const commentAuthor = isOwnerView
-                                      ? selectedPage.name
-                                      : userProfile?.name || 'Follower';
-                                    if (
-                                      currentSettings.blockedUsers.some(
-                                        (u) => u.toLowerCase() === commentAuthor.toLowerCase()
-                                      )
-                                    ) {
-                                      showToast('এই অ্যাকাউন্টটি পেজ থেকে ব্লক করা আছে');
-                                      return;
-                                    }
-                                    if (
-                                      currentSettings.modHideLinks &&
-                                      /(https?:\/\/|www\.)/i.test(rawText)
-                                    ) {
-                                      showToast('Moderation Assist: লিংকযুক্ত কমেন্ট হাইড করা হয়েছে');
-                                      return;
-                                    }
-                                    const matchedWord = currentSettings.modBlockedWords.find((w) =>
-                                      rawText.toLowerCase().includes(w.toLowerCase())
-                                    );
-                                    if (matchedWord) {
-                                      showToast(`Moderation Assist: "${matchedWord}" শব্দটি ব্লক করা আছে`);
-                                      return;
-                                    }
-                                    const newComment = {
-                                      id: `cmt-${Date.now()}`,
-                                      author: commentAuthor,
-                                      text: rawText,
-                                      time: 'এখনই',
-                                    };
-                                    setPagePostsList((prev) => ({
-                                      ...prev,
-                                      [selectedPage.id]: (prev[selectedPage.id] || []).map((item) =>
-                                        item.id === post.id
-                                          ? {
-                                              ...item,
-                                              comments: item.comments + 1,
-                                              commentsList: [...(item.commentsList || []), newComment],
-                                            }
-                                          : item
-                                      ),
-                                    }));
-                                    setPostCommentDraft('');
-                                  }}
-                                  className="p-2 rounded-full bg-[#0866FF] text-white cursor-pointer disabled:opacity-50"
-                                  disabled={!postCommentDraft.trim()}
+                                  onClick={() => submitInlinePageComment()}
+                                  className="w-9 h-9 rounded-full bg-[#0866FF] hover:bg-[#166FE5] text-white flex items-center justify-center cursor-pointer disabled:opacity-35 shrink-0 mb-0.5"
+                                  disabled={!draftText.trim()}
                                   aria-label="Send comment"
                                 >
-                                  <Send className="w-3.5 h-3.5" />
+                                  <Send className="w-4 h-4" />
                                 </button>
                               </div>
-                            )}
-                          </div>
-                        )}
+                            </div>
+                          )}
 
-                        {/* Facebook-style See insights and ads + Boost post row below each post */}
-                        {isOwnerView && (
-                          <div className="flex items-center justify-between gap-2 pt-2 border-t border-[#E4E6EB]">
-                            <button
-                              type="button"
-                              onClick={() => setInsightsPost(post)}
-                              className="text-[13px] sm:text-[13.5px] font-semibold text-[#0866FF] hover:underline text-left leading-snug cursor-pointer"
-                            >
-                              See insights and ads
-                            </button>
+                          {mergedCommentsList.length > 0 && (
+                            <div className="space-y-2.5 max-h-64 overflow-y-auto pr-0.5">
+                              {mergedCommentsList.map((c) => {
+                                const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                                  c.author || 'U'
+                                )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+                                const likeKey = `${post.id}::${c.id}`;
+                                const isCommentLiked = Boolean(pageCommentLikesMap[likeKey]);
+                                return (
+                                  <div key={c.id} className="flex items-start gap-2.5">
+                                    <img
+                                      src={c.avatar || fallbackAvatar}
+                                      alt={c.author}
+                                      onError={(e) => {
+                                        (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
+                                      }}
+                                      className="w-8 h-8 rounded-full object-cover border border-[#E4E6EB] shrink-0 mt-0.5"
+                                    />
+                                    <div className="flex-1 min-w-0 space-y-1">
+                                      <div className="relative inline-block max-w-[95%] px-3.5 py-2 rounded-2xl bg-[#F0F2F5]">
+                                        <p className="text-[13px] font-bold text-[#050505] leading-tight">
+                                          {c.author}
+                                        </p>
+                                        <p className="text-[14px] text-[#050505] mt-0.5 break-words leading-snug">
+                                          {c.text}
+                                        </p>
+                                        {isCommentLiked && (
+                                          <span className="absolute -bottom-2 -right-2 bg-white border border-[#E4E6EB] shadow-xs rounded-full px-1.5 py-0.5 text-[10px] font-bold text-[#050505] flex items-center gap-0.5">
+                                            <span className="w-3 h-3 rounded-full bg-[#0866FF] text-white inline-flex items-center justify-center">
+                                              <ThumbsUp className="w-2 h-2 fill-white stroke-white" />
+                                            </span>
+                                            <span>1</span>
+                                          </span>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-4 px-2 text-xs text-[#65676B]">
+                                        <span>{c.time || 'Just now'}</span>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            toggleCommentLikeLocally(post.id, c.id);
+                                            setPageCommentLikesMap(readCommentLikesStore());
+                                          }}
+                                          className={`font-bold cursor-pointer ${
+                                            isCommentLiked
+                                              ? 'text-[#0866FF]'
+                                              : 'text-[#65676B] hover:text-[#0866FF]'
+                                          }`}
+                                        >
+                                          {isCommentLiked ? 'Liked' : 'Like'}
+                                        </button>
+                                        <button
+                                          type="button"
+                                          onClick={() => {
+                                            setOpenCommentPostId(post.id);
+                                            setExpandedInlineCommentPostId(post.id);
+                                            setPostCommentDrafts((prev) => ({
+                                              ...prev,
+                                              [post.id]: (prev[post.id] || '').startsWith(`@${c.author}`)
+                                                ? prev[post.id] || ''
+                                                : `@${c.author} `,
+                                            }));
+                                            setTimeout(() => {
+                                              inlineCommentTextareaRefs.current[post.id]?.focus();
+                                            }, 60);
+                                          }}
+                                          className="font-bold text-[#65676B] hover:text-[#0866FF] cursor-pointer"
+                                        >
+                                          Reply
+                                        </button>
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
 
-                            <button
-                              type="button"
-                              onClick={() => {
-                                setBoostTargetPost({ id: post.id, text: post.text || 'Photo post' });
-                                setShowAdvertiseModal(true);
-                              }}
-                              className="px-3 sm:px-3.5 py-2 rounded-[6px] bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white text-[12.5px] sm:text-[13px] font-bold whitespace-nowrap transition-all cursor-pointer shrink-0 max-w-[62%] sm:max-w-none truncate shadow-xs"
-                            >
-                              পোস্টটি বুস্ট করুন · Boost post
-                            </button>
-                          </div>
-                        )}
+                        <FbCommentBottomSheet
+                          isOpen={activeCommentSheetPostId === post.id}
+                          onClose={() => setActiveCommentSheetPostId(null)}
+                          postId={post.id}
+                          likesCount={post.likes || 0}
+                          hasUserReacted={Boolean(post.isLikedByMe)}
+                          userReaction={post.isLikedByMe ? 'like' : null}
+                          comments={mergedCommentsList.map((c) => ({
+                            id: c.id,
+                            author: c.author,
+                            avatar: c.avatar,
+                            text: c.text,
+                            timeAgo: c.time,
+                          }))}
+                          currentUserName={commenterName}
+                          currentUserAvatar={commenterAvatar}
+                          onAddComment={(text) => submitInlinePageComment(text)}
+                          onToggleReaction={() => {
+                            setPagePostsList((prev) => ({
+                              ...prev,
+                              [selectedPage.id]: (prev[selectedPage.id] || []).map((item) => {
+                                if (item.id !== post.id) return item;
+                                const nextLiked = !item.isLikedByMe;
+                                return {
+                                  ...item,
+                                  isLikedByMe: nextLiked,
+                                  likes: nextLiked ? item.likes + 1 : Math.max(0, item.likes - 1),
+                                };
+                              }),
+                            }));
+                          }}
+                        />
                       </div>
                     );
                   })
@@ -4411,6 +4742,72 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           </div>
         )}
 
+        {/* Click-to-Edit Page Bio Modal */}
+        {showEditBioModal && (
+          <div
+            className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4"
+            onClick={() => setShowEditBioModal(false)}
+          >
+            <div
+              className="bg-white w-full max-w-md rounded-t-2xl sm:rounded-2xl border border-[#E4E6EB] shadow-2xl p-4 space-y-3.5 animate-in fade-in"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between pb-2.5 border-b border-[#E4E6EB]">
+                <div className="flex items-center gap-2">
+                  <Edit3 className="w-5 h-5 text-[#0866FF]" />
+                  <h3 className="font-bold text-base text-[#050505]">Edit Bio</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setShowEditBioModal(false)}
+                  className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] cursor-pointer"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveDirectBio} className="space-y-3 text-left">
+                <div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <label className="text-xs font-bold text-[#050505]">
+                      Page Bio / পরিচিতি
+                    </label>
+                    <span className="text-[11px] text-[#65676B]">
+                      {bioModalDraft.length}/500
+                    </span>
+                  </div>
+                  <textarea
+                    rows={4}
+                    maxLength={500}
+                    autoFocus
+                    value={bioModalDraft}
+                    onChange={(e) => setBioModalDraft(e.target.value)}
+                    placeholder="আপনার পেজ সম্পর্কে লিখুন... (Describe your Page)"
+                    className="w-full bg-[#F0F2F5] border border-[#E4E6EB] focus:border-[#0866FF] focus:bg-white rounded-xl p-3 text-[15px] text-[#050505] placeholder-[#65676B] focus:outline-none resize-none leading-relaxed"
+                  />
+                </div>
+
+                <div className="flex items-center justify-end gap-2 pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setShowEditBioModal(false)}
+                    className="px-4 py-2 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-[#050505] cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-5 py-2 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] text-xs sm:text-sm font-bold text-white flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Save className="w-4 h-4" />
+                    <span>Save Bio</span>
+                  </button>
+                </div>
+              </form>
+            </div>
+          </div>
+        )}
+
         {/* Edit Personal Details & Hours Modal */}
         {showExtraDetailsModal && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-end sm:items-center justify-center p-0 sm:p-4">
@@ -4700,7 +5097,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               setConfirmDeletePage(false);
               setPrivacySubView(null);
               setSetupNameDraft(selectedPage.name);
-              setSetupBioDraft(selectedPage.bio || selectedPage.description || '');
+              setSetupBioDraft(
+                sanitizePageBioValue(selectedPage.bio) ||
+                  sanitizePageBioValue(selectedPage.description)
+              );
             } else if (key === 'Page status') {
               setPageStatusSubView(null);
             } else if (key === 'Archive') {
@@ -6483,15 +6883,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             type="button"
                             onClick={() => {
                               if (!setupNameDraft.trim()) return;
+                              const cleanBio = sanitizePageBioValue(setupBioDraft);
                               const upd = {
                                 ...selectedPage,
                                 name: setupNameDraft.trim(),
-                                bio: setupBioDraft.trim(),
-                                description: setupBioDraft.trim(),
+                                bio: cleanBio,
+                                description: cleanBio,
                               };
-                              setSelectedPage(upd);
-                              setPages((prev) => prev.map((p) => (p.id === upd.id ? upd : p)));
-                              syncUpdatedPageToSwitchedStorage(upd);
+                              persistUpdatedPage(upd);
                               logPageActivity(selectedPage.id, 'settings', 'Updated Page setup details');
                               showToast('Page setup সেভ করা হয়েছে!');
                             }}

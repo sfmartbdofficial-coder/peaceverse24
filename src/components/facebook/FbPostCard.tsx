@@ -24,12 +24,17 @@ import {
   Gift,
   Coins,
   Music,
+  UserPlus,
 } from 'lucide-react';
 import {
   submitRealtimeAppeal,
   toggleFollowUser,
   subscribeToFollowStatus,
   isTargetFollowedLocally,
+  isSameOwnerIdentity,
+  getAuthorRelationshipKind,
+  isFriendRequestSentLocally,
+  toggleLocalFriendRequestAndSync,
 } from '../../lib/firebase';
 import { FbVideoPlayer } from './FbVideoPlayer';
 import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
@@ -41,6 +46,11 @@ import {
   getBoostedPostCampaign,
   BoostedCampaign,
 } from './FbBoostPostModal';
+import {
+  FbCommentBottomSheet,
+  readCommentLikesStore,
+  toggleCommentLikeLocally,
+} from './FbCommentBottomSheet';
 
 interface HalalReactionMeta {
   type: ReactionType;
@@ -73,6 +83,7 @@ interface FbPostCardProps {
   onSharePost?: (postId: string) => void;
   currentUserId?: string;
   currentUserName?: string;
+  currentUserAvatar?: string;
   showBoostControls?: boolean;
   onBoostPost?: (post: PostItem) => void;
   onSeeInsights?: (post: PostItem) => void;
@@ -92,6 +103,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   onSharePost,
   currentUserId = 'user-me',
   currentUserName = 'User',
+  currentUserAvatar,
   showBoostControls,
   onBoostPost,
   onSeeInsights,
@@ -105,8 +117,14 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [flyingEmoji, setFlyingEmoji] = useState<{ id: number; emoji: string } | null>(null);
   const longPressTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const longPressTriggeredRef = useRef(false);
-  const [showComments, setShowComments] = useState(false);
+  const [showComments, setShowComments] = useState(() => (post.comments?.length || 0) > 0);
+  const [showCommentSheet, setShowCommentSheet] = useState(false);
+  const [commentLikesMap, setCommentLikesMap] = useState<Record<string, boolean>>(() =>
+    readCommentLikesStore()
+  );
   const [commentInput, setCommentInput] = useState('');
+  const [isCommentExpanded, setIsCommentExpanded] = useState(false);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [copiedToast, setCopiedToast] = useState(false);
   const [localShareDelta, setLocalShareDelta] = useState(0);
@@ -139,9 +157,53 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
   const { currentLang } = useLanguage();
   const authorTargetId = post.authorId || `author-${post.author.name}`;
+  const [relSyncTick, setRelSyncTick] = useState(0);
+
+  React.useEffect(() => {
+    const syncRel = () => setRelSyncTick((t) => t + 1);
+    const syncCommentLikes = () => setCommentLikesMap(readCommentLikesStore());
+    window.addEventListener('peaceverse:friends-updated', syncRel);
+    window.addEventListener('peaceverse:friend-requests-updated', syncRel);
+    window.addEventListener('peaceverse:follows-updated', syncRel);
+    window.addEventListener('peaceverse:comment-likes-updated', syncCommentLikes);
+    window.addEventListener('storage', syncRel);
+    return () => {
+      window.removeEventListener('peaceverse:friends-updated', syncRel);
+      window.removeEventListener('peaceverse:friend-requests-updated', syncRel);
+      window.removeEventListener('peaceverse:follows-updated', syncRel);
+      window.removeEventListener('peaceverse:comment-likes-updated', syncCommentLikes);
+      window.removeEventListener('storage', syncRel);
+    };
+  }, []);
+
+  const relationshipKind = React.useMemo(() => {
+    void relSyncTick;
+    return getAuthorRelationshipKind(post, currentUserId, currentUserName);
+  }, [post, currentUserId, currentUserName, relSyncTick]);
+
+  const isOwnAuthorPost =
+    relationshipKind === 'self' ||
+    isSameOwnerIdentity(post.authorId, post.author.name, currentUserId, currentUserName);
+
   const [isFollowingAuthor, setIsFollowingAuthor] = useState<boolean>(() =>
-    isTargetFollowedLocally(authorTargetId, post.author.name)
+    relationshipKind === 'follow_only'
+      ? isTargetFollowedLocally(authorTargetId, post.author.name)
+      : false
   );
+  const [isFriendReqSent, setIsFriendReqSent] = useState<boolean>(() =>
+    relationshipKind === 'add_friend'
+      ? isFriendRequestSentLocally(authorTargetId, post.author.name)
+      : false
+  );
+
+  React.useEffect(() => {
+    if (relationshipKind === 'add_friend') {
+      setIsFriendReqSent(isFriendRequestSentLocally(authorTargetId, post.author.name));
+    }
+    if (relationshipKind === 'follow_only') {
+      setIsFollowingAuthor(isTargetFollowedLocally(authorTargetId, post.author.name));
+    }
+  }, [relationshipKind, authorTargetId, post.author.name, relSyncTick]);
 
   // Auto-translate state (Google Translate API)
   const [translatedBody, setTranslatedBody] = useState<string | null>(null);
@@ -199,7 +261,9 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
   // Sync follow status (durable localStorage + Firestore real-time)
   React.useEffect(() => {
-    if (authorTargetId === currentUserId) return;
+    if (relationshipKind !== 'follow_only' || isOwnAuthorPost || authorTargetId === currentUserId) {
+      return;
+    }
     const unsub = subscribeToFollowStatus(
       currentUserId || 'user-me',
       authorTargetId,
@@ -209,13 +273,13 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
       post.author.name
     );
     return () => unsub();
-  }, [currentUserId, authorTargetId, post.author.name]);
+  }, [relationshipKind, isOwnAuthorPost, currentUserId, authorTargetId, post.author.name]);
 
   const handleToggleFollowAuthor = async () => {
     const nextState = await toggleFollowUser(
       currentUserId || 'user-me',
       currentUserName,
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
+      resolvedUserAvatar,
       authorTargetId,
       post.author.name,
       post.author.avatar
@@ -223,9 +287,39 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     setIsFollowingAuthor(nextState);
   };
 
+  const handleToggleAddFriendAuthor = async () => {
+    const nextSent = await toggleLocalFriendRequestAndSync(
+      currentUserId || 'user-me',
+      currentUserName,
+      resolvedUserAvatar,
+      {
+        id: authorTargetId,
+        name: post.author.name,
+        avatar: post.author.avatar,
+      }
+    );
+    setIsFriendReqSent(nextSent);
+  };
+
   const typingTimeoutRef = useRef<any>(null);
 
-  const handleCommentInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const resolvedUserAvatar = React.useMemo(() => {
+    if (currentUserAvatar) return currentUserAvatar;
+    try {
+      const raw =
+        localStorage.getItem('qalby_user_profile') ||
+        localStorage.getItem('peaceverse_user_profile');
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.avatar) return String(parsed.avatar);
+      }
+    } catch {}
+    return `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+      currentUserName || 'U'
+    )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+  }, [currentUserAvatar, currentUserName]);
+
+  const handleCommentInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     setCommentInput(e.target.value);
     if (onTypingChange) {
       onTypingChange(post.id, true);
@@ -376,15 +470,19 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
     setMenuOpen(false);
   };
 
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleCommentSubmit = (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     if (!commentInput.trim()) return;
     onAddComment(post.id, commentInput.trim());
     setCommentInput('');
+    setShowComments(true);
   };
 
   const addQuickPraise = (phrase: string) => {
     setCommentInput((prev) => (prev ? `${prev} ${phrase}` : phrase));
+    setShowComments(true);
+    setIsCommentExpanded(true);
+    setTimeout(() => commentTextareaRef.current?.focus(), 60);
   };
 
   const triggerReactionWithAnimation = (reaction: ReactionType) => {
@@ -422,67 +520,8 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const normIdentity = (s?: string) =>
     (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
 
-  const canShowBoostRow = React.useMemo(() => {
-    if (typeof showBoostControls === 'boolean') return showBoostControls;
-    const normAuthor = normIdentity(post.author?.name);
-    if (
-      currentUserId &&
-      currentUserId !== 'user-me' &&
-      post.authorId &&
-      post.authorId === currentUserId
-    ) {
-      return true;
-    }
-    if (
-      currentUserName &&
-      currentUserName !== 'User' &&
-      normAuthor &&
-      normAuthor === normIdentity(currentUserName)
-    ) {
-      return true;
-    }
-    try {
-      const switchedRaw = localStorage.getItem('qalby_switched_page');
-      if (switchedRaw) {
-        const switched = JSON.parse(switchedRaw);
-        if (
-          (switched?.id && post.authorId && switched.id === post.authorId) ||
-          (switched?.name && normAuthor && normIdentity(switched.name) === normAuthor)
-        ) {
-          return true;
-        }
-      }
-      const pagesRaw = localStorage.getItem('qalby_fb_pages');
-      if (pagesRaw) {
-        const storedPages: Array<{ id?: string; name?: string; isOwner?: boolean }> =
-          JSON.parse(pagesRaw);
-        if (
-          Array.isArray(storedPages) &&
-          storedPages.some(
-            (pg) =>
-              pg.isOwner !== false &&
-              ((pg.id && post.authorId && pg.id === post.authorId) ||
-                (pg.name && normAuthor && normIdentity(pg.name) === normAuthor))
-          )
-        ) {
-          return true;
-        }
-      }
-      const profileRaw =
-        localStorage.getItem('qalby_user_profile') ||
-        localStorage.getItem('peaceverse_user_profile');
-      if (profileRaw) {
-        const prof = JSON.parse(profileRaw);
-        if (
-          (prof?.id && post.authorId && prof.id === post.authorId) ||
-          (prof?.name && normAuthor && normIdentity(prof.name) === normAuthor)
-        ) {
-          return true;
-        }
-      }
-    } catch {}
-    return false;
-  }, [showBoostControls, post.authorId, post.author?.name, currentUserId, currentUserName]);
+  // Boosted / Manage ad / See insights and ads disabled on all posts until Ad system is ready
+  const canShowBoostRow = false;
 
   return (
     <article className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.08)] space-y-2.5 text-black">
@@ -515,21 +554,48 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               {post.author.verified && (
                 <CheckCircle2 className="w-4 h-4 text-[#0866FF] flex-shrink-0 fill-[#0866FF] text-white" />
               )}
-              {post.author.name !== currentUserName && (
+              {relationshipKind === 'follow_only' && (
                 <button
                   type="button"
                   onClick={(e) => {
                     e.stopPropagation();
                     handleToggleFollowAuthor();
                   }}
-                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer ml-1 shadow-xs ${
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer ml-1 shadow-xs ${
                     isFollowingAuthor
                       ? 'bg-[#F0F2F5] text-black border border-[#E4E6EB]'
                       : 'bg-[#E7F3FF] hover:bg-[#0866FF] text-[#0866FF] hover:text-white border border-[#0866FF]/20'
                   }`}
-                  title={isFollowingAuthor ? 'Unfollow this creator' : 'Follow this creator'}
+                  title={isFollowingAuthor ? 'Unfollow' : 'Follow'}
                 >
                   {isFollowingAuthor ? '✓ Following' : '+ Follow'}
+                </button>
+              )}
+              {relationshipKind === 'add_friend' && (
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void handleToggleAddFriendAuthor();
+                  }}
+                  className={`text-[11px] font-bold px-2.5 py-0.5 rounded-full transition-all flex items-center gap-1 cursor-pointer ml-1 shadow-xs ${
+                    isFriendReqSent
+                      ? 'bg-[#F0F2F5] text-[#0866FF] border border-[#0866FF]/25'
+                      : 'bg-[#E7F3FF] hover:bg-[#0866FF] text-[#0866FF] hover:text-white border border-[#0866FF]/20'
+                  }`}
+                  title={isFriendReqSent ? 'Cancel Friend Request' : 'Add Friend'}
+                >
+                  {isFriendReqSent ? (
+                    <>
+                      <Check className="w-3 h-3" />
+                      <span>Request sent</span>
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus className="w-3 h-3" />
+                      <span>Add Friend</span>
+                    </>
+                  )}
                 </button>
               )}
             </div>
@@ -953,7 +1019,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
               <div className="flex items-center gap-1.5 text-[13px] text-[#65676B] shrink-0 tabular-nums">
                 {post.comments.length > 0 && (
                   <button
-                    onClick={() => setShowComments(!showComments)}
+                    onClick={() => setShowCommentSheet(true)}
                     className="hover:underline cursor-pointer"
                   >
                     {post.comments.length} {post.comments.length === 1 ? 'comment' : 'comments'}
@@ -1084,13 +1150,16 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
         {/* Column 2: Comment */}
         <button
-          onClick={() => setShowComments(!showComments)}
+          type="button"
+          onClick={() => {
+            setShowCommentSheet(true);
+          }}
           className="flex-1 min-w-0 py-1.5 px-1 rounded-md hover:bg-[#F0F2F5] flex items-center justify-center gap-1 text-[#65676B] font-medium transition-colors cursor-pointer"
         >
           <MessageCircle className="w-4 h-4 sm:w-[18px] sm:h-[18px] text-[#65676B] shrink-0" />
           <span className="text-[12px] sm:text-[14px] whitespace-nowrap">Comment</span>
           <span className="text-[12px] sm:text-[13px] font-bold tabular-nums shrink-0">
-            {post.comments.length}
+            {post.comments?.length || 0}
           </span>
         </button>
 
@@ -1122,36 +1191,65 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* 7. Comments Drawer */}
       {showComments && (
-        <div className="px-3 sm:px-4 pb-3 space-y-2.5 border-t border-[#E4E6EB] pt-2 animate-in fade-in">
+        <div className="px-3 sm:px-4 pb-3.5 space-y-3 border-t border-[#E4E6EB] pt-2.5 animate-in fade-in">
           {/* Quick Islamic Reactions */}
           <div className="flex items-center gap-1.5 overflow-x-auto no-scrollbar py-0.5">
             {['আমিন 🤲', 'মাশাআল্লাহ ❤️', 'সুবহানাল্লাহ 🌸', 'আলহামদুলিল্লাহ ✨'].map((r) => (
               <button
                 key={r}
+                type="button"
                 onClick={() => addQuickPraise(r)}
-                className="px-2.5 py-0.5 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black text-[11px] font-medium flex-shrink-0 cursor-pointer"
+                className="px-2.5 py-1 rounded-full bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black text-xs font-medium flex-shrink-0 cursor-pointer"
               >
                 {r}
               </button>
             ))}
           </div>
 
-          {/* Add comment input */}
-          <form onSubmit={handleCommentSubmit} className="flex gap-2">
-            <input
-              type="text"
-              placeholder="Write a comment..."
-              value={commentInput}
-              onChange={handleCommentInputChange}
-              className="flex-1 bg-[#F0F2F5] rounded-full px-4 py-2 text-xs text-black placeholder-[#65676B] focus:outline-none focus:ring-1 focus:ring-[#0866FF]"
+          {/* Facebook-style Large 48px+ Rounded Comment Input with Profile Avatar */}
+          <form onSubmit={handleCommentSubmit} className="flex items-start gap-2.5 w-full">
+            <img
+              src={resolvedUserAvatar}
+              alt={currentUserName}
+              onError={(e) => {
+                (e.currentTarget as HTMLImageElement).src = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                  currentUserName || 'U'
+                )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+              }}
+              className="w-9 h-9 rounded-full object-cover border border-[#E4E6EB] bg-[#F0F2F5] shrink-0 mt-1.5"
             />
-            <button
-              type="submit"
-              disabled={!commentInput.trim()}
-              className="p-2 rounded-full bg-[#0866FF] hover:bg-[#0055d4] disabled:opacity-30 text-white transition-colors cursor-pointer"
+            <div
+              className={`flex-1 flex items-end gap-2 bg-[#F0F2F5] border border-[#E4E6EB] focus-within:border-[#0866FF] focus-within:bg-white transition-all px-3.5 ${
+                isCommentExpanded ? 'rounded-2xl py-2' : 'rounded-[24px] py-1'
+              }`}
             >
-              <Send className="w-3.5 h-3.5" />
-            </button>
+              <textarea
+                ref={commentTextareaRef}
+                rows={isCommentExpanded ? 2 : 1}
+                placeholder={`Comment as ${currentUserName || 'Member'}`}
+                value={commentInput}
+                onFocus={() => setIsCommentExpanded(true)}
+                onClick={() => setIsCommentExpanded(true)}
+                onChange={handleCommentInputChange}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    handleCommentSubmit();
+                  }
+                }}
+                className={`flex-1 w-full bg-transparent text-[16px] leading-snug text-black placeholder-[#65676B] focus:outline-none resize-none ${
+                  isCommentExpanded ? 'min-h-[56px] py-1' : 'min-h-[40px] py-2'
+                }`}
+              />
+              <button
+                type="submit"
+                disabled={!commentInput.trim()}
+                aria-label="Send comment"
+                className="w-9 h-9 rounded-full bg-[#0866FF] hover:bg-[#166FE5] disabled:opacity-35 text-white flex items-center justify-center transition-all cursor-pointer shrink-0 mb-0.5"
+              >
+                <Send className="w-4 h-4" />
+              </button>
+            </div>
           </form>
 
           {/* Realtime Typing Indicator */}
@@ -1161,36 +1259,79 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             </div>
           )}
 
-          {/* Existing comments with inline Reply */}
-          {post.comments.map((c) => (
-            <div key={c.id} className="flex gap-2 text-xs pt-1">
-              <img
-                src={c.avatar}
-                alt={c.author}
-                className="w-7 h-7 rounded-full object-cover mt-0.5"
-              />
-              <div className="flex-1 min-w-0 space-y-1">
-                <div className="bg-[#F0F2F5] px-3 py-2 rounded-2xl max-w-[90%] inline-block">
-                  <p className="font-bold text-black text-[11px]">{c.author}</p>
-                  <p className="text-black text-xs font-bengali">{c.text}</p>
-                </div>
-                <div className="flex items-center gap-3 px-2 text-[11px] text-[#65676B]">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setCommentInput((prev) =>
-                        prev.startsWith(`@${c.author}`) ? prev : `@${c.author} `
-                      );
-                    }}
-                    className="font-semibold hover:text-[#0866FF] cursor-pointer"
-                  >
-                    Reply
-                  </button>
-                  <span>{c.timeAgo}</span>
-                </div>
-              </div>
+          {/* Existing comments list with name, photo, time, Like and Reply buttons */}
+          {(post.comments || []).length > 0 && (
+            <div className="space-y-2.5 pt-1">
+              {(post.comments || []).map((c) => {
+                const cFallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                  c.author || 'U'
+                )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+                const likeKey = `${post.id}::${c.id}`;
+                const isCommentLiked = Boolean(commentLikesMap[likeKey] ?? c.isLiked);
+                const commentLikeCount =
+                  Math.max(0, c.likes || 0) + (commentLikesMap[likeKey] && !c.isLiked ? 1 : 0);
+                return (
+                  <div key={c.id} className="flex gap-2.5 text-sm pt-0.5">
+                    <img
+                      src={c.avatar || cFallbackAvatar}
+                      alt={c.author}
+                      onError={(e) => {
+                        (e.currentTarget as HTMLImageElement).src = cFallbackAvatar;
+                      }}
+                      className="w-8 h-8 rounded-full object-cover mt-0.5 border border-[#E4E6EB] shrink-0"
+                    />
+                    <div className="flex-1 min-w-0 space-y-1">
+                      <div className="relative bg-[#F0F2F5] px-3.5 py-2 rounded-2xl max-w-[95%] inline-block">
+                        <p className="font-bold text-black text-[13px] leading-tight">{c.author}</p>
+                        <p className="text-black text-[14px] font-bengali leading-snug mt-0.5 break-words">
+                          {c.text}
+                        </p>
+                        {commentLikeCount > 0 && (
+                          <span className="absolute -bottom-2 -right-2 bg-white border border-[#E4E6EB] shadow-xs rounded-full px-1.5 py-0.5 text-[10px] font-bold text-[#050505] flex items-center gap-0.5">
+                            <span className="w-3 h-3 rounded-full bg-[#0866FF] text-white inline-flex items-center justify-center">
+                              <ThumbsUp className="w-2 h-2 fill-white stroke-white" />
+                            </span>
+                            <span className="tabular-nums">{commentLikeCount}</span>
+                          </span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 px-2 text-xs text-[#65676B]">
+                        <span>{c.timeAgo || 'Just now'}</span>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            toggleCommentLikeLocally(post.id, c.id);
+                            setCommentLikesMap(readCommentLikesStore());
+                          }}
+                          className={`font-bold cursor-pointer ${
+                            isCommentLiked
+                              ? 'text-[#0866FF]'
+                              : 'text-[#65676B] hover:text-[#0866FF]'
+                          }`}
+                        >
+                          {isCommentLiked ? 'Liked' : 'Like'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setShowComments(true);
+                            setIsCommentExpanded(true);
+                            setCommentInput((prev) =>
+                              prev.startsWith(`@${c.author}`) ? prev : `@${c.author} `
+                            );
+                            setTimeout(() => commentTextareaRef.current?.focus(), 60);
+                          }}
+                          className="font-bold text-[#65676B] hover:text-[#0866FF] cursor-pointer"
+                        >
+                          Reply
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          )}
         </div>
       )}
 
@@ -1299,6 +1440,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           onToggleSave={onToggleSave}
           onOpenGiftModal={onOpenGiftModal}
           currentUserName={currentUserName}
+          currentUserAvatar={resolvedUserAvatar}
         />
       )}
 
@@ -1310,6 +1452,24 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           onClose={() => setBoostModalMode(null)}
         />
       )}
+
+      {/* 10. Facebook-Exact Comment Bottom Sheet */}
+      <FbCommentBottomSheet
+        isOpen={showCommentSheet}
+        onClose={() => setShowCommentSheet(false)}
+        postId={post.id}
+        likesCount={post.reactions?.total || 0}
+        hasUserReacted={Boolean(post.userReaction)}
+        userReaction={post.userReaction || null}
+        comments={post.comments || []}
+        currentUserName={currentUserName}
+        currentUserAvatar={resolvedUserAvatar}
+        onAddComment={(text) => {
+          onAddComment(post.id, text);
+          setShowComments(true);
+        }}
+        onToggleReaction={(reaction) => triggerReactionWithAnimation(reaction)}
+      />
 
     </article>
   );
