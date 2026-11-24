@@ -28,6 +28,10 @@ import {
   Sparkles,
   Heart,
   UserPlus,
+  Globe,
+  Smile,
+  AtSign,
+  BadgeCheck,
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
 import {
@@ -677,15 +681,15 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                 </div>
               )}
 
-              {/* RIGHT VERTICAL ACTION RAIL (Matches Facebook: Like, Comment, Share, Save, •••, Mute) */}
+              {/* RIGHT VERTICAL ACTION RAIL (Matches Facebook + Golden হাদিয়া) */}
               <div
-                className="absolute right-2.5 bottom-7 z-20 flex flex-col items-center gap-4"
+                className="absolute right-2.5 bottom-20 z-20 flex flex-col items-center gap-3.5"
                 onClick={(e) => e.stopPropagation()}
               >
                 <button
                   type="button"
                   onClick={() => onToggleReaction(currentPost.id, 'like')}
-                  className="flex flex-col items-center gap-1 cursor-pointer group"
+                  className="flex flex-col items-center gap-0.5 cursor-pointer group"
                 >
                   <ThumbsUp
                     className={`w-7 h-7 drop-shadow transition-transform active:scale-110 ${
@@ -696,6 +700,21 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                   />
                   <span className="text-[12px] font-semibold text-white drop-shadow">
                     {formatCount(totalReactions)}
+                  </span>
+                </button>
+
+                {/* Signature Golden Hadia Button */}
+                <button
+                  type="button"
+                  onClick={() => onOpenGiftModal?.(currentPost)}
+                  className="flex flex-col items-center gap-0.5 cursor-pointer group active:scale-90 transition-transform"
+                  title="হাদিয়া পাঠান"
+                >
+                  <div className="w-9 h-9 rounded-full bg-gradient-to-tr from-amber-500 to-yellow-300 text-neutral-950 flex items-center justify-center shadow-lg shadow-amber-500/40 border border-yellow-200">
+                    <Gift className="w-4.5 h-4.5 stroke-[2.4]" />
+                  </div>
+                  <span className="text-[11px] font-extrabold text-amber-300 drop-shadow">
+                    {currentPost.goldenGiftsCount ? `🪙 ${currentPost.goldenGiftsCount}` : 'হাদিয়া'}
                   </span>
                 </button>
 
@@ -761,12 +780,12 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                 </button>
               </div>
 
-              {/* BOTTOM-LEFT AUTHOR, AUDIO, CAPTION, TIME (Matches Facebook Reels Screenshot) */}
+              {/* BOTTOM-LEFT AUTHOR, CAPTION + "Add a comment" BAR */}
               <div
-                className="absolute left-3 right-16 bottom-6 z-20 text-left space-y-1.5"
+                className="absolute left-3 right-16 bottom-16 z-20 text-left space-y-1.5"
                 onClick={(e) => e.stopPropagation()}
               >
-                {/* Author + Follow Row */}
+                {/* Author + Verified + Globe + Follow Row */}
                 <div className="flex items-center gap-2 flex-wrap">
                   <button
                     type="button"
@@ -792,19 +811,14 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                       </div>
                     )}
                     <div className="min-w-0">
-                      <div className="flex items-center gap-1">
-                        <span className="font-bold text-[14.5px] text-white truncate max-w-[165px] drop-shadow">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-bold text-[15px] text-white truncate max-w-[165px] drop-shadow">
                           {currentPost.author.name}
                         </span>
                         {currentPost.author.verified && (
-                          <ShieldCheck className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                          <BadgeCheck className="w-4 h-4 text-[#0866FF] fill-white shrink-0" />
                         )}
-                      </div>
-                      <div className="flex items-center gap-1 text-[11.5px] text-white/90 truncate max-w-[205px]">
-                        <Music className="w-3 h-3 shrink-0" />
-                        <span className="truncate">
-                          {currentPost.musicTitle || `${currentPost.author.name} • Original audio`}
-                        </span>
+                        <Globe className="w-3.5 h-3.5 text-white/85 shrink-0" />
                       </div>
                     </div>
                   </button>
@@ -901,13 +915,29 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                     <span className="font-serif">{currentPost.arabicVerse}</span>
                   </div>
                 )}
+              </div>
 
-                {/* Time Counter (0:01 / 0:10) */}
-                {!currentPost.youtubeId && (
-                  <div className="text-[12.5px] font-bold text-white tabular-nums drop-shadow pt-0.5">
-                    {formatDuration(currentTimeSec)} / {formatDuration(durationSec)}
+              {/* Exact Facebook Bottom "Add a comment" Pill Bar */}
+              <div
+                className="absolute inset-x-3 bottom-3 z-25"
+                onClick={(e) => e.stopPropagation()}
+              >
+                <button
+                  type="button"
+                  onClick={() => setShowCommentDrawer(true)}
+                  className="w-full h-11 rounded-full bg-[#1C1E21]/90 border border-white/25 px-4 flex items-center justify-between gap-2 text-left hover:border-white/45 transition-colors cursor-pointer"
+                >
+                  <span className="text-[14px] text-[#B0B3B8] font-normal truncate">
+                    Add a comment
+                  </span>
+                  <div className="flex items-center gap-3 text-white/90 shrink-0">
+                    <AtSign className="w-4.5 h-4.5 stroke-[2]" />
+                    <Smile className="w-4.5 h-4.5 stroke-[2]" />
+                    <span className="px-1.5 py-0.5 rounded border border-white/80 text-[9px] font-extrabold leading-none tracking-tight">
+                      GIF
+                    </span>
                   </div>
-                )}
+                </button>
               </div>
 
               {/* BOTTOM INTERACTIVE SCRUBBER BAR (Flush above dark Bottom Nav) */}

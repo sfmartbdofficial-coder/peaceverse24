@@ -275,3 +275,83 @@ export async function insertSupabasePost(
     return { ok: false, error: 'Supabase insert failed' };
   }
 }
+
+export async function syncSupabaseProfile(profile: {
+  id: string;
+  displayName: string;
+  username?: string;
+  avatar?: string;
+  bio?: string;
+  location?: string;
+}): Promise<boolean> {
+  if (!supabase || !profile.id || !profile.displayName.trim()) return false;
+  const rate = checkSupabaseRateLimit(profile.id);
+  if (!rate.allowed) return false;
+  try {
+    const { error } = await supabase.from('profiles').upsert(
+      [
+        {
+          id: profile.id,
+          display_name: sanitizeInput(profile.displayName, 120),
+          name: sanitizeInput(profile.displayName, 120),
+          username: sanitizeInput(profile.username || '', 80),
+          avatar: sanitizeUrl(profile.avatar || ''),
+          bio: sanitizeInput(profile.bio || '', 300),
+          location: sanitizeInput(profile.location || '', 120),
+          updated_at: new Date().toISOString(),
+        },
+      ],
+      { onConflict: 'id' }
+    );
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
+export async function fetchSupabaseProfiles(): Promise<
+  Array<{
+    id: string;
+    uid: string;
+    displayName: string;
+    username?: string;
+    avatar: string;
+    bio?: string;
+    location?: string;
+    verified?: boolean;
+    allowFriendRequests?: boolean;
+  }>
+> {
+  if (!supabase) return [];
+  try {
+    const { data, error } = await supabase.from('profiles').select('*').limit(500);
+    if (error || !Array.isArray(data)) return [];
+    return data
+      .map((row: any) => {
+        const displayName = sanitizeInput(
+          String(row.display_name || row.displayName || row.name || ''),
+          120
+        );
+        if (!displayName) return null;
+        return {
+          id: String(row.id || row.uid || ''),
+          uid: String(row.uid || row.id || ''),
+          displayName,
+          username: row.username ? sanitizeInput(String(row.username), 80) : undefined,
+          avatar:
+            sanitizeUrl(String(row.avatar || row.photo_url || '')) ||
+            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+              displayName
+            )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+          bio: row.bio ? sanitizeInput(String(row.bio), 300) : undefined,
+          location: row.location ? sanitizeInput(String(row.location), 120) : undefined,
+          verified: Boolean(row.verified),
+          allowFriendRequests: row.allow_friend_requests !== false,
+        };
+      })
+      .filter((x): x is NonNullable<typeof x> => Boolean(x && x.id));
+  } catch {
+    return [];
+  }
+}
+

@@ -9,6 +9,7 @@ import {
   toggleLocalFriendRequestAndSync,
   readRemovedSuggestionsStore,
   markSuggestionRemovedLocally,
+  fetchCommunityDirectoryUsers,
 } from '../../lib/firebase';
 
 export interface SuggestionPersonCard {
@@ -73,9 +74,36 @@ export const FbPeopleYouMayKnowSection: React.FC<FbPeopleYouMayKnowSectionProps>
   onOpenUserProfile,
 }) => {
   const [syncTick, setSyncTick] = useState(0);
+  const [directoryPeople, setDirectoryPeople] = useState<SuggestionPersonCard[]>([]);
   const [removedMap, setRemovedMap] = useState<Record<string, boolean>>(() =>
     readRemovedSuggestionsStore()
   );
+
+  useEffect(() => {
+    let active = true;
+    fetchCommunityDirectoryUsers(false)
+      .then((users) => {
+        if (!active || !Array.isArray(users)) return;
+        const dummyIds = new Set(DUMMY_COMMUNITY_USERS.map((d) => d.id));
+        const realUsers: SuggestionPersonCard[] = users
+          .filter((u) => !dummyIds.has(u.id) && u.allowFriendRequests !== false)
+          .map((u) => ({
+            id: u.id,
+            name: u.displayName,
+            avatar: u.avatar,
+            mutualText: u.location ? u.location : 'Peaceverse24 member',
+            isOnline: true,
+            bio: u.bio,
+            location: u.location,
+            verified: u.verified,
+          }));
+        setDirectoryPeople(realUsers);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, [currentUserId]);
 
   useEffect(() => {
     const bump = () => {
@@ -97,12 +125,11 @@ export const FbPeopleYouMayKnowSection: React.FC<FbPeopleYouMayKnowSectionProps>
   const visibleSuggestions = useMemo(() => {
     void syncTick;
     const q = searchQuery.trim().toLowerCase();
-    const seen = new Set<string>();
-    return BASE_SUGGESTION_PEOPLE.filter((person) => {
-      const normName = person.name.normalize('NFC').trim().toLowerCase();
-      if (seen.has(person.id) || seen.has(normName)) return false;
-      seen.add(person.id);
-      seen.add(normName);
+    const seenIds = new Set<string>();
+    const combined = [...directoryPeople, ...BASE_SUGGESTION_PEOPLE];
+    return combined.filter((person) => {
+      if (seenIds.has(person.id)) return false;
+      seenIds.add(person.id);
 
       if (removedMap[person.id]) return false;
       if (isSameOwnerIdentity(person.id, person.name, currentUserId, currentUserName)) {
@@ -112,7 +139,7 @@ export const FbPeopleYouMayKnowSection: React.FC<FbPeopleYouMayKnowSectionProps>
       if (q && !person.name.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [syncTick, removedMap, currentUserId, currentUserName, searchQuery]);
+  }, [syncTick, removedMap, directoryPeople, currentUserId, currentUserName, searchQuery]);
 
   if (visibleSuggestions.length === 0) return null;
 

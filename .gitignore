@@ -10,3 +10,5 @@ firebase-applet-config.json
 firebase-blueprint.json
 firestore.rules
 metadata.json
+.peaceverse-data/
+

@@ -3,6 +3,7 @@ import http from 'http';
 import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
@@ -1119,6 +1120,363 @@ app.post('/api/translate', async (req, res) => {
     console.error('Translate API Error:', error);
     return res.status(500).json({ error: error.message || 'Translation error' });
   }
+});
+
+// ==========================================
+// SHARED GLOBAL USER DIRECTORY API (CROSS-DEVICE SEARCH)
+// ==========================================
+interface ServerDirectoryUser {
+  id: string;
+  uid: string;
+  displayName: string;
+  username: string;
+  transliteratedName: string;
+  avatar: string;
+  bio: string;
+  location: string;
+  verified: boolean;
+  allowFriendRequests: boolean;
+  emailHash?: string;
+  updatedAt: string;
+  updatedAtMillis: number;
+}
+
+const FIREBASE_PROJECT_ID_FOR_TOKEN =
+  process.env.FIREBASE_PROJECT_ID?.trim() ||
+  process.env.VITE_FIREBASE_PROJECT_ID?.trim() ||
+  'gen-lang-client-0936405543';
+const USER_DIRECTORY_DATA_DIR = path.resolve(__dirname, '.peaceverse-data');
+const USER_DIRECTORY_FILE_PATH = path.resolve(USER_DIRECTORY_DATA_DIR, 'users-directory.json');
+
+const serverUserDirectoryMap = new Map<string, ServerDirectoryUser>();
+
+function loadUserDirectoryFromDisk(): void {
+  try {
+    if (!fs.existsSync(USER_DIRECTORY_FILE_PATH)) return;
+    const raw = fs.readFileSync(USER_DIRECTORY_FILE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((entry: any) => {
+        if (entry && typeof entry.id === 'string' && typeof entry.displayName === 'string') {
+          serverUserDirectoryMap.set(entry.id, {
+            id: entry.id,
+            uid: String(entry.uid || entry.id),
+            displayName: String(entry.displayName).slice(0, 120),
+            username: String(entry.username || '').slice(0, 80),
+            transliteratedName: String(entry.transliteratedName || '').slice(0, 160),
+            avatar: String(entry.avatar || '').slice(0, 1000),
+            bio: String(entry.bio || '').slice(0, 300),
+            location: String(entry.location || '').slice(0, 120),
+            verified: Boolean(entry.verified),
+            allowFriendRequests: entry.allowFriendRequests !== false,
+            emailHash: typeof entry.emailHash === 'string' ? entry.emailHash : undefined,
+            updatedAt: String(entry.updatedAt || new Date().toISOString()),
+            updatedAtMillis: Number(entry.updatedAtMillis || Date.now()),
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Notice loading user directory cache:', err);
+  }
+}
+
+function persistUserDirectoryToDisk(): void {
+  try {
+    if (!fs.existsSync(USER_DIRECTORY_DATA_DIR)) {
+      fs.mkdirSync(USER_DIRECTORY_DATA_DIR, { recursive: true });
+    }
+    const entries = Array.from(serverUserDirectoryMap.values());
+    fs.writeFileSync(USER_DIRECTORY_FILE_PATH, JSON.stringify(entries), 'utf8');
+  } catch (err) {
+    console.warn('Notice persisting user directory cache:', err);
+  }
+}
+
+loadUserDirectoryFromDisk();
+
+let cachedFirebaseCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
+
+async function getFirebasePublicCerts(): Promise<Record<string, string>> {
+  const now = Date.now();
+  if (cachedFirebaseCerts && now < cachedFirebaseCerts.expiresAt) {
+    return cachedFirebaseCerts.certs;
+  }
+  const resp = await fetch(
+    'https://www.googleapis.com/robot/v1/metadata/x509/securetoken@system.gserviceaccount.com'
+  );
+  if (!resp.ok) {
+    throw new Error(`Failed to fetch Firebase public certificates (${resp.status})`);
+  }
+  const certs = (await resp.json()) as Record<string, string>;
+  const cacheControl = resp.headers.get('cache-control') || '';
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+  const ttlMs = maxAgeMatch ? Math.min(Number(maxAgeMatch[1]) * 1000, 6 * 3600 * 1000) : 3600 * 1000;
+  cachedFirebaseCerts = { certs, expiresAt: now + ttlMs };
+  return certs;
+}
+
+async function verifyFirebaseBearerToken(authHeader?: string): Promise<{ uid: string } | null> {
+  if (!authHeader || typeof authHeader !== 'string') return null;
+  const match = authHeader.match(/^Bearer\s+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/);
+  if (!match) return null;
+  const token = match[1];
+  const [headerB64, payloadB64, sigB64] = token.split('.');
+
+  try {
+    const header = JSON.parse(Buffer.from(headerB64, 'base64url').toString('utf8'));
+    const payload = JSON.parse(Buffer.from(payloadB64, 'base64url').toString('utf8'));
+    if (header?.alg !== 'RS256' || typeof header?.kid !== 'string') return null;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (
+      typeof payload?.sub !== 'string' ||
+      !payload.sub ||
+      payload.aud !== FIREBASE_PROJECT_ID_FOR_TOKEN ||
+      payload.iss !== `https://securetoken.google.com/${FIREBASE_PROJECT_ID_FOR_TOKEN}` ||
+      typeof payload.exp !== 'number' ||
+      payload.exp <= nowSec
+    ) {
+      return null;
+    }
+
+    const certs = await getFirebasePublicCerts();
+    const certPem = certs[header.kid];
+    if (!certPem) return null;
+
+    const verifier = crypto.createVerify('RSA-SHA256');
+    verifier.update(`${headerB64}.${payloadB64}`);
+    verifier.end();
+    const sigBuf = Buffer.from(sigB64, 'base64url');
+    if (!verifier.verify(certPem, sigBuf)) return null;
+
+    return { uid: payload.sub };
+  } catch {
+    return null;
+  }
+}
+
+function sanitizeServerText(val: unknown, maxLen: number): string {
+  if (typeof val !== 'string') return '';
+  return val.replace(/[<>]/g, '').trim().slice(0, maxLen);
+}
+
+function sanitizeServerAvatarUrl(val: unknown): string {
+  if (typeof val !== 'string') return '';
+  const clean = val.trim().slice(0, 1000);
+  if (!clean || /^(javascript|vbscript|data\s*:\s*text\/html):/i.test(clean)) return '';
+  if (clean.startsWith('data:image/') || clean.startsWith('https://') || clean.startsWith('http://') || clean.startsWith('/')) {
+    return clean;
+  }
+  return '';
+}
+
+function serverBnToEn(input: string): string {
+  const cMap: Record<string, string> = {
+    ক: 'k', খ: 'kh', গ: 'g', ঘ: 'gh', ঙ: 'ng', চ: 'ch', ছ: 'chh', জ: 'j', ঝ: 'jh', ঞ: 'n',
+    ট: 't', ঠ: 'th', ড: 'd', ঢ: 'dh', ণ: 'n', ত: 't', থ: 'th', দ: 'd', ধ: 'dh', ন: 'n',
+    প: 'p', ফ: 'f', ব: 'b', ভ: 'bh', ম: 'm', য: 'j', র: 'r', ল: 'l', শ: 'sh', ষ: 'sh',
+    স: 's', হ: 'h', ড়: 'r', ঢ়: 'rh', য়: 'y', ৎ: 't',
+  };
+  const vInd: Record<string, string> = {
+    অ: 'o', আ: 'a', ই: 'i', ঈ: 'i', উ: 'u', ঊ: 'u', ঋ: 'ri', এ: 'e', ঐ: 'oi', ও: 'o', ঔ: 'ou',
+  };
+  const vSign: Record<string, string> = {
+    'া': 'a', 'ি': 'i', 'ী': 'i', 'ু': 'u', 'ূ': 'u', 'ৃ': 'ri', 'ে': 'e', 'ৈ': 'oi', 'ো': 'o', 'ৌ': 'ou',
+  };
+  const chars = Array.from((input || '').normalize('NFC').trim());
+  let out = '';
+  for (let i = 0; i < chars.length; i++) {
+    const ch = chars[i];
+    if (vInd[ch]) {
+      out += vInd[ch];
+    } else if (cMap[ch]) {
+      const next = chars[i + 1];
+      if (next === '্') {
+        out += cMap[ch];
+        i += 1;
+      } else if (next && vSign[next]) {
+        out += cMap[ch] + vSign[next];
+        i += 1;
+      } else {
+        const isEnd = !next || /\s/.test(next) || !/[\u0980-\u09FF]/.test(next);
+        out += cMap[ch] + (isEnd ? '' : 'a');
+      }
+    } else if (vSign[ch]) {
+      out += vSign[ch];
+    } else if (ch === 'ং') {
+      out += 'ng';
+    } else if (ch === 'ঃ') {
+      out += 'h';
+    } else if (ch !== 'ঁ' && ch !== '্') {
+      out += ch;
+    }
+  }
+  return out.toLowerCase().replace(/\s+/g, ' ').trim();
+}
+
+function serverPhonetic(input: string): string {
+  const latin = serverBnToEn(input)
+    .toLowerCase()
+    .replace(/[^a-z0-9\s]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
+  if (!latin) return '';
+  return latin
+    .replace(/ph/g, 'f')
+    .replace(/bh/g, 'v')
+    .replace(/kh/g, 'k')
+    .replace(/gh/g, 'g')
+    .replace(/chh/g, 'c')
+    .replace(/ch/g, 'c')
+    .replace(/sh/g, 's')
+    .replace(/th/g, 't')
+    .replace(/dh/g, 'd')
+    .replace(/z/g, 'j')
+    .replace(/q/g, 'k')
+    .replace(/w/g, 'v')
+    .replace(/ee/g, 'i')
+    .replace(/oo/g, 'u')
+    .replace(/ou/g, 'o')
+    .replace(/([a-z])\1+/g, '$1')
+    .trim();
+}
+
+function serverSkeleton(input: string): string {
+  const p = serverPhonetic(input).replace(/\s+/g, '');
+  if (!p) return '';
+  return p[0] + p.slice(1).replace(/[aeiou]/g, '');
+}
+
+function toPublicDirectoryUser(u: ServerDirectoryUser) {
+  return {
+    id: u.id,
+    uid: u.uid,
+    displayName: u.displayName,
+    username: u.username,
+    avatar: u.avatar,
+    bio: u.bio || undefined,
+    location: u.location || undefined,
+    verified: u.verified,
+    allowFriendRequests: u.allowFriendRequests,
+  };
+}
+
+app.post('/api/users/sync', async (req, res) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required to sync profile.' });
+    }
+
+    const body = req.body || {};
+    const uid = verified.uid;
+    const displayName = sanitizeServerText(body.displayName || body.name, 120);
+    if (!displayName) {
+      return res.status(400).json({ ok: false, error: 'Display name is required.' });
+    }
+
+    const existing = serverUserDirectoryMap.get(uid);
+    const lowerNew = displayName.toLowerCase();
+    const isPlaceholder = ['member', 'user', 'peaceverse user', 'peaceverse creator'].includes(lowerNew);
+    const finalName =
+      existing?.displayName && isPlaceholder ? existing.displayName : displayName;
+
+    const transliteratedName = serverBnToEn(finalName);
+    const rawUsername = sanitizeServerText(body.username, 60).toLowerCase().replace(/[^a-z0-9._-]/g, '');
+    const username =
+      rawUsername ||
+      existing?.username ||
+      transliteratedName.replace(/[^a-z0-9]+/g, '').slice(0, 40);
+    const avatar =
+      sanitizeServerAvatarUrl(body.avatar) ||
+      existing?.avatar ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(finalName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+    const bio = sanitizeServerText(body.bio, 300) || existing?.bio || '';
+    const location = sanitizeServerText(body.location, 120) || existing?.location || '';
+    const rawEmail = sanitizeServerText(body.email, 160).toLowerCase();
+    const emailHash = rawEmail
+      ? crypto.createHash('sha256').update(rawEmail).digest('hex')
+      : existing?.emailHash;
+
+    const record: ServerDirectoryUser = {
+      id: uid,
+      uid,
+      displayName: finalName,
+      username,
+      transliteratedName,
+      avatar,
+      bio,
+      location,
+      verified: Boolean(body.verified ?? existing?.verified),
+      allowFriendRequests: body.allowFriendRequests !== false,
+      emailHash,
+      updatedAt: new Date().toISOString(),
+      updatedAtMillis: Date.now(),
+    };
+
+    serverUserDirectoryMap.set(uid, record);
+    persistUserDirectoryToDisk();
+
+    return res.json({ ok: true, user: toPublicDirectoryUser(record) });
+  } catch (error: any) {
+    console.error('User directory sync error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to sync user directory.' });
+  }
+});
+
+app.get('/api/users/directory', (_req, res) => {
+  const users = Array.from(serverUserDirectoryMap.values())
+    .sort((a, b) => b.updatedAtMillis - a.updatedAtMillis)
+    .slice(0, 1000)
+    .map(toPublicDirectoryUser);
+  return res.json({ users });
+});
+
+app.get('/api/users/search', (req, res) => {
+  const rawQ = typeof req.query.q === 'string' ? req.query.q.normalize('NFC').trim() : '';
+  if (!rawQ) {
+    return res.json({ users: [] });
+  }
+
+  const q = rawQ.toLowerCase();
+  const qTranslit = serverBnToEn(rawQ);
+  const qPhonetic = serverPhonetic(rawQ);
+  const qSkel = serverSkeleton(rawQ);
+  const qTokens = qTranslit.split(/\s+/).filter(Boolean);
+  const qEmailHash = q.includes('@')
+    ? crypto.createHash('sha256').update(q).digest('hex')
+    : '';
+
+  const matched = Array.from(serverUserDirectoryMap.values())
+    .filter((u) => {
+      if (qEmailHash && u.emailHash === qEmailHash) return true;
+      const dn = u.displayName.normalize('NFC').toLowerCase();
+      const un = (u.username || '').toLowerCase();
+      if (dn.includes(q) || un.includes(q)) return true;
+
+      const uT = u.transliteratedName || serverBnToEn(u.displayName);
+      if (qTranslit && (uT.includes(qTranslit) || un.includes(qTranslit.replace(/\s+/g, '')))) {
+        return true;
+      }
+      if (qTokens.length > 0) {
+        const hay = `${dn} ${uT} ${un}`;
+        if (qTokens.every((t) => hay.includes(t))) return true;
+      }
+      const uP = serverPhonetic(u.displayName);
+      if (qPhonetic && uP && (uP.includes(qPhonetic) || qPhonetic.includes(uP))) {
+        return true;
+      }
+      const uS = serverSkeleton(u.displayName);
+      if (qSkel.length >= 3 && uS && (uS.includes(qSkel) || qSkel.includes(uS))) {
+        return true;
+      }
+      return false;
+    })
+    .slice(0, 100)
+    .map(toPublicDirectoryUser);
+
+  return res.json({ users: matched });
 });
 
 async function startServer() {

@@ -105,6 +105,7 @@ import {
   fetchUserProfileFromFirestore,
   fetchUserProfileByNameFromFirestore,
   syncUserDirectoryProfile,
+  invalidateUserDirectoryCache,
   syncPageToFirestore,
   searchUsersFromFirestore,
   searchPagesFromFirestore,
@@ -714,6 +715,7 @@ export default function App() {
   // Sync Firebase Auth State & Enforce Landing / Home redirection rules
   useEffect(() => {
     const unsub = onAuthStateChanged(auth, (usr) => {
+      invalidateUserDirectoryCache();
       setFirebaseUser(usr);
       setIsAuthChecking(false);
       if (usr) {
@@ -811,17 +813,35 @@ export default function App() {
                 : '';
             const nextName =
               prevIsPlaceholder && resolvedRemoteName ? resolvedRemoteName : prev.name;
+            const nextAvatar = prev.avatar || remote.avatar || '';
+            const nextBio = prev.bio || remote.bio || '';
+            const nextLocation = prev.location || remote.location || '';
+            const nextUsername = prev.username || remote.username || '';
+
+            void syncUserDirectoryProfile(
+              usr.uid,
+              nextName,
+              usr.email || '',
+              nextAvatar,
+              {
+                bio: nextBio,
+                location: nextLocation,
+                username: nextUsername,
+                allowFriendRequests: remote.isCreator !== true,
+              }
+            );
+
             return {
               ...prev,
               name: nextName,
-              username: prev.username || remote.username || '',
-              avatar: prev.avatar || remote.avatar || '',
+              username: nextUsername,
+              avatar: nextAvatar,
               whatsapp: prev.whatsapp || remote.whatsapp || '',
               imo: prev.imo || remote.imo || '',
               viber: prev.viber || remote.viber || '',
               messengerLink: prev.messengerLink || remote.messengerLink || '',
               contactPrivacy: prev.contactPrivacy || remote.contactPrivacy || 'public',
-              bio: prev.bio || remote.bio || '',
+              bio: nextBio,
               work: prev.work || remote.work || '',
               education: prev.education || remote.education || '',
               website: prev.website || remote.website || '',
@@ -1972,9 +1992,12 @@ export default function App() {
     }, 1000);
   };
 
+  const latestSearchSeqRef = React.useRef(0);
+
   // Debounced Facebook-style Firestore user + page search
   const runUserSearch = React.useCallback(async (rawQuery: string, forceRefresh = false) => {
     const trimmed = rawQuery.trim();
+    const seq = ++latestSearchSeqRef.current;
     if (!trimmed) {
       setUserSearchResults([]);
       setPageSearchResults([]);
@@ -1983,18 +2006,25 @@ export default function App() {
     }
 
     setIsSearchingUsers(true);
-    const [matchedUsers, matchedPages] = await Promise.all([
-      searchUsersFromFirestore(trimmed, forceRefresh),
-      searchPagesFromFirestore(trimmed, forceRefresh),
-    ]);
-    setUserSearchResults(matchedUsers);
-    setPageSearchResults(matchedPages);
-    setIsSearchingUsers(false);
+    try {
+      const [matchedUsers, matchedPages] = await Promise.all([
+        searchUsersFromFirestore(trimmed, forceRefresh),
+        searchPagesFromFirestore(trimmed, forceRefresh),
+      ]);
+      if (latestSearchSeqRef.current !== seq) return;
+      setUserSearchResults(matchedUsers);
+      setPageSearchResults(matchedPages);
+    } finally {
+      if (latestSearchSeqRef.current === seq) {
+        setIsSearchingUsers(false);
+      }
+    }
   }, []);
 
   useEffect(() => {
     const trimmed = searchQuery.trim();
     if (!trimmed) {
+      latestSearchSeqRef.current += 1;
       setUserSearchResults([]);
       setPageSearchResults([]);
       setIsSearchingUsers(false);
@@ -2019,6 +2049,51 @@ export default function App() {
       }
     },
     [currentTab, runUserSearch]
+  );
+
+  const openSearchedUserProfile = React.useCallback(
+    async (targetUser: SearchedUserProfile) => {
+      const currentUid = firebaseUser?.uid || userProfile.id;
+      if (currentUid && targetUser.id === currentUid) {
+        setViewedProfile(null);
+        setSearchQuery('');
+        navigateToTab('profile');
+        return;
+      }
+      const baseProfile: UserProfile = {
+        id: targetUser.id,
+        name: targetUser.displayName,
+        username: targetUser.username,
+        avatar: targetUser.avatar,
+        coverPhoto:
+          targetUser.coverPhoto ||
+          'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
+        friendsCount: 0,
+        location: targetUser.location || '',
+        birthDate: '',
+        bio: targetUser.bio || '',
+        verified: targetUser.verified,
+        isCreator: targetUser.allowFriendRequests === false,
+        contactPrivacy: 'public',
+      };
+      setViewedProfile(baseProfile);
+      setSearchQuery('');
+      navigateToTab('profile');
+      const remote = await fetchUserProfileFromFirestore(targetUser.id);
+      if (remote) {
+        setViewedProfile((prev) =>
+          prev && prev.id === targetUser.id
+            ? {
+                ...prev,
+                ...remote,
+                name: remote.name || targetUser.displayName,
+                avatar: remote.avatar || targetUser.avatar,
+              }
+            : prev
+        );
+      }
+    },
+    [firebaseUser?.uid, userProfile.id]
   );
 
   const handleToggleFriendRequest = React.useCallback(
@@ -2683,46 +2758,7 @@ export default function App() {
                     )
                   );
                 }}
-                onOpenUserProfile={async (targetUser) => {
-                  const currentUid = firebaseUser?.uid || userProfile.id;
-                  if (currentUid && targetUser.id === currentUid) {
-                    setViewedProfile(null);
-                    setSearchQuery('');
-                    navigateToTab('profile');
-                    return;
-                  }
-                  const baseProfile: UserProfile = {
-                    id: targetUser.id,
-                    name: targetUser.displayName,
-                    username: targetUser.username,
-                    avatar: targetUser.avatar,
-                    coverPhoto:
-                      targetUser.coverPhoto ||
-                      'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                    friendsCount: 0,
-                    location: targetUser.location || '',
-                    birthDate: '',
-                    bio: targetUser.bio || '',
-                    isCreator: targetUser.allowFriendRequests === false,
-                    contactPrivacy: 'public',
-                  };
-                  setViewedProfile(baseProfile);
-                  setSearchQuery('');
-                  navigateToTab('profile');
-                  const remote = await fetchUserProfileFromFirestore(targetUser.id);
-                  if (remote) {
-                    setViewedProfile((prev) =>
-                      prev && prev.id === targetUser.id
-                        ? {
-                            ...prev,
-                            ...remote,
-                            name: remote.name || targetUser.displayName,
-                            avatar: remote.avatar || targetUser.avatar,
-                          }
-                        : prev
-                    );
-                  }
-                }}
+                onOpenUserProfile={openSearchedUserProfile}
                 onClearSearch={() => setSearchQuery('')}
               />
             ) : (
@@ -3220,26 +3256,7 @@ export default function App() {
                             currentUserName={effectiveProfile.name}
                             currentUserAvatar={effectiveProfile.avatar}
                             onSeeAllFriends={() => navigateToTab('friends')}
-                            onOpenUserProfile={(targetUser) => {
-                              setViewedProfile({
-                                id: targetUser.id,
-                                name: targetUser.displayName,
-                                username: targetUser.username,
-                                avatar: targetUser.avatar,
-                                coverPhoto:
-                                  targetUser.coverPhoto ||
-                                  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                                friendsCount: 0,
-                                bio: targetUser.bio || '',
-                                location: targetUser.location || 'Dhaka, Bangladesh',
-                                hometown: 'Bangladesh',
-                                birthDate: '1994',
-                                verified: targetUser.verified,
-                                isCreator: targetUser.allowFriendRequests === false,
-                                contactPrivacy: 'public',
-                              });
-                              navigateToTab('profile');
-                            }}
+                            onOpenUserProfile={openSearchedUserProfile}
                           />
                         )}
                         {feedAd && (
@@ -3259,26 +3276,7 @@ export default function App() {
                       currentUserName={effectiveProfile.name}
                       currentUserAvatar={effectiveProfile.avatar}
                       onSeeAllFriends={() => navigateToTab('friends')}
-                      onOpenUserProfile={(targetUser) => {
-                        setViewedProfile({
-                          id: targetUser.id,
-                          name: targetUser.displayName,
-                          username: targetUser.username,
-                          avatar: targetUser.avatar,
-                          coverPhoto:
-                            targetUser.coverPhoto ||
-                            'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                          friendsCount: 0,
-                          bio: targetUser.bio || '',
-                          location: targetUser.location || 'Dhaka, Bangladesh',
-                          hometown: 'Bangladesh',
-                          birthDate: '1994',
-                          verified: targetUser.verified,
-                          isCreator: targetUser.allowFriendRequests === false,
-                          contactPrivacy: 'public',
-                        });
-                        navigateToTab('profile');
-                      }}
+                      onOpenUserProfile={openSearchedUserProfile}
                     />
                   )}
 
@@ -3388,9 +3386,10 @@ export default function App() {
                 setViewedProfile(null);
                 navigateToTab('profile');
               }}
-              currentUserId={userProfile.id || 'user-me'}
-              currentUserName={userProfile.name}
-              currentUserAvatar={userProfile.avatar}
+              onOpenUserProfile={openSearchedUserProfile}
+              currentUserId={firebaseUser?.uid || userProfile.id || 'user-me'}
+              currentUserName={effectiveProfile.name}
+              currentUserAvatar={effectiveProfile.avatar}
             />
           </div>
         )}

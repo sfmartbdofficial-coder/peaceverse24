@@ -58,7 +58,7 @@ export const FbSearchEmptyState: React.FC<FbSearchEmptyStateProps> = ({
 
       {/* Encouraging genuine subtitle */}
       <p className="text-[13px] text-[#65676B] max-w-sm mx-auto mt-2 leading-relaxed">
-        Peaceverse24.com এ এখনো ১ জন ইউজার আছে (আপনি) - আপনিই প্রথম!
+        এই নামে কোনো অ্যাকাউন্ট বা পেজ পাওয়া যায়নি। নামের বানান যাচাই করুন অথবা আপনার বন্ধুদের ইনভাইট করুন।
       </p>
 
       {/* Action Buttons */}

@@ -34,6 +34,7 @@ import {
 } from 'firebase/auth';
 import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem } from '../types';
 import { DUMMY_COMMUNITY_USERS, DUMMY_GLOBAL_POSTS } from '../data/dummyCommunity';
+import { syncSupabaseProfile, fetchSupabaseProfiles } from './supabase';
 import {
   getEnvApiKey,
   emitApiKeyEnvWarning,
@@ -1487,6 +1488,14 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     const result = await signInWithPopup(auth, provider);
     if (result.user) {
       resetSessionStart();
+      cachedDirectoryUsers = null;
+      const gName =
+        result.user.displayName?.trim() ||
+        (result.user.email ? result.user.email.split('@')[0] : 'Member');
+      const gAvatar =
+        result.user.photoURL ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(gName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+      void syncUserDirectoryProfile(result.user.uid, gName, result.user.email || '', gAvatar);
     }
     return result.user;
   } catch (err) {
@@ -1503,6 +1512,14 @@ export async function loginWithEmail(email: string, pass: string): Promise<Fireb
   const res = await signInWithEmailAndPassword(auth, email.trim(), pass);
   if (res.user) {
     resetSessionStart();
+    cachedDirectoryUsers = null;
+    const eName =
+      res.user.displayName?.trim() ||
+      (res.user.email ? res.user.email.split('@')[0] : 'Member');
+    const eAvatar =
+      res.user.photoURL ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(eName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+    void syncUserDirectoryProfile(res.user.uid, eName, res.user.email || '', eAvatar);
   }
   return res.user;
 }
@@ -1541,12 +1558,16 @@ export async function registerWithEmail(
       );
     } catch {}
 
+    const latinFromName = transliterateBnToEn(cleanName).replace(/[^a-z0-9]+/g, '');
+    const generatedUsername =
+      latinFromName ||
+      (res.user.email ? res.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : `user${res.user.uid.slice(0, 6)}`);
+    const resolvedAvatar =
+      res.user.photoURL ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
     try {
       const userRef = doc(db, 'users', res.user.uid);
-      const latinFromName = transliterateBnToEn(cleanName).replace(/[^a-z0-9]+/g, '');
-      const generatedUsername =
-        latinFromName ||
-        (res.user.email ? res.user.email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '') : `user${res.user.uid.slice(0, 6)}`);
       await setDoc(
         userRef,
         {
@@ -1559,9 +1580,7 @@ export async function registerWithEmail(
           email: res.user.email,
           emailOtpVerified: true,
           friendsCount: 0,
-          avatar:
-            res.user.photoURL ||
-            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+          avatar: resolvedAvatar,
           createdAt: new Date().toISOString(),
           createdAtMillis: Date.now(),
         },
@@ -1571,6 +1590,38 @@ export async function registerWithEmail(
     } catch (err) {
       console.warn('Saving user doc notice:', err);
     }
+
+    await Promise.allSettled([
+      setDoc(
+        doc(db, 'public_profiles', res.user.uid),
+        {
+          id: res.user.uid,
+          uid: res.user.uid,
+          name: cleanName,
+          displayName: cleanName,
+          username: generatedUsername,
+          transliteratedName: transliterateBnToEn(cleanName),
+          avatar: resolvedAvatar,
+          allowFriendRequests: true,
+          updatedAt: new Date().toISOString(),
+          updatedAtMillis: Date.now(),
+        },
+        { merge: true }
+      ),
+      syncUserToServerDirectory({
+        uid: res.user.uid,
+        displayName: cleanName,
+        username: generatedUsername,
+        avatar: resolvedAvatar,
+        email: res.user.email || '',
+      }),
+      syncSupabaseProfile({
+        id: res.user.uid,
+        displayName: cleanName,
+        username: generatedUsername,
+        avatar: resolvedAvatar,
+      }),
+    ]);
 
     await sendEmailVerification(res.user).catch(() => {});
   }
@@ -1666,6 +1717,46 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
       { merge: true }
     );
     cachedDirectoryUsers = null;
+    if (cleanName) {
+      void Promise.allSettled([
+        setDoc(
+          doc(db, 'public_profiles', targetId),
+          {
+            id: targetId,
+            uid: targetId,
+            name: cleanName,
+            displayName: cleanName,
+            transliteratedName: transliterateBnToEn(cleanName),
+            ...(resolvedUsername ? { username: resolvedUsername } : {}),
+            avatar: trimOversizedImageForFirestore(profile.avatar),
+            bio: sanitizeInput(profile.bio || '', 300),
+            location: sanitizeInput(profile.location || '', 120),
+            allowFriendRequests: profile.isCreator !== true,
+            updatedAt: new Date().toISOString(),
+            updatedAtMillis: Date.now(),
+          },
+          { merge: true }
+        ),
+        syncUserToServerDirectory({
+          uid: targetId,
+          displayName: cleanName,
+          username: resolvedUsername,
+          avatar: trimOversizedImageForFirestore(profile.avatar),
+          bio: sanitizeInput(profile.bio || '', 300),
+          location: sanitizeInput(profile.location || '', 120),
+          email: profile.email || auth.currentUser?.email || '',
+          allowFriendRequests: profile.isCreator !== true,
+        }),
+        syncSupabaseProfile({
+          id: targetId,
+          displayName: cleanName,
+          username: resolvedUsername,
+          avatar: trimOversizedImageForFirestore(profile.avatar),
+          bio: sanitizeInput(profile.bio || '', 300),
+          location: sanitizeInput(profile.location || '', 120),
+        }),
+      ]);
+    }
     return true;
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
@@ -2149,16 +2240,26 @@ function phoneticNormalize(text: string): string {
     .replace(/bh/g, 'v')
     .replace(/kh/g, 'k')
     .replace(/gh/g, 'g')
-    .replace(/chh/g, 'ch')
+    .replace(/chh/g, 'c')
+    .replace(/ch/g, 'c')
     .replace(/sh/g, 's')
     .replace(/th/g, 't')
     .replace(/dh/g, 'd')
+    .replace(/z/g, 'j')
+    .replace(/q/g, 'k')
+    .replace(/w/g, 'v')
     .replace(/ee/g, 'i')
     .replace(/oo/g, 'u')
     .replace(/ou/g, 'o')
     .replace(/([a-z])\1+/g, '$1')
     .replace(/[aeiou]+/g, (m, offset) => (offset === 0 ? m[0] : 'a'))
     .trim();
+}
+
+function consonantSkeleton(text: string): string {
+  const normalized = phoneticNormalize(text).replace(/\s+/g, '');
+  if (!normalized) return '';
+  return normalized[0] + normalized.slice(1).replace(/[aeiou]/g, '');
 }
 
 function isPlaceholderDisplayName(name?: string, email?: string): boolean {
@@ -2177,34 +2278,81 @@ function isPlaceholderDisplayName(name?: string, email?: string): boolean {
 // ==========================================
 
 let cachedDirectoryUsers: { users: SearchedUserProfile[]; fetchedAt: number } | null = null;
-const USER_DIRECTORY_CACHE_TTL_MS = 20 * 1000;
+const USER_DIRECTORY_CACHE_TTL_MS = 15 * 1000;
+
+export function invalidateUserDirectoryCache(): void {
+  cachedDirectoryUsers = null;
+}
+
+async function syncUserToServerDirectory(payload: {
+  uid: string;
+  displayName: string;
+  username?: string;
+  avatar?: string;
+  bio?: string;
+  location?: string;
+  email?: string;
+  verified?: boolean;
+  allowFriendRequests?: boolean;
+}): Promise<void> {
+  if (typeof window === 'undefined' || !payload.uid || !payload.displayName.trim()) return;
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== payload.uid) return;
+    const idToken = await currentUser.getIdToken();
+    if (!idToken) return;
+    await fetch('/api/users/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Non-fatal fallback if offline or serverless edge doesn't expose /api/users/sync
+  }
+}
 
 export async function syncUserDirectoryProfile(
   uid: string,
   displayName: string,
   email: string,
-  avatar: string
+  avatar: string,
+  extra?: { bio?: string; location?: string; username?: string; allowFriendRequests?: boolean }
 ): Promise<void> {
   if (!uid || !displayName.trim()) return;
   const userRef = doc(db, 'users', uid);
+
+  let existingData: Record<string, any> | null = null;
   try {
     const existingSnap = await getDocSafe(userRef);
-    const existingData = existingSnap && existingSnap.exists() ? existingSnap.data() : null;
-    const incomingName = displayName.trim();
-    const existingName = String(existingData?.displayName || existingData?.name || '').trim();
-    const finalName =
-      existingName &&
-      (!isPlaceholderDisplayName(existingName, email) || isPlaceholderDisplayName(incomingName, email))
-        ? existingName
-        : incomingName;
+    existingData = existingSnap && existingSnap.exists() ? existingSnap.data() : null;
+  } catch {
+    existingData = null;
+  }
 
-    const existingUsername = existingData?.username ? String(existingData.username).trim() : '';
-    const transliterated = transliterateBnToEn(finalName);
-    const derivedUsername =
-      existingUsername ||
-      transliterated.replace(/[^a-z0-9]+/g, '') ||
-      (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '');
+  const incomingName = displayName.trim();
+  const existingName = String(existingData?.displayName || existingData?.name || '').trim();
+  const finalName =
+    existingName &&
+    (!isPlaceholderDisplayName(existingName, email) || isPlaceholderDisplayName(incomingName, email))
+      ? existingName
+      : incomingName;
 
+  const existingUsername = existingData?.username ? String(existingData.username).trim() : '';
+  const transliterated = transliterateBnToEn(finalName);
+  const derivedUsername =
+    extra?.username?.trim() ||
+    existingUsername ||
+    transliterated.replace(/[^a-z0-9]+/g, '') ||
+    (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '');
+  const resolvedAvatar = existingData?.avatar || existingData?.photoURL || avatar;
+  const resolvedBio = extra?.bio !== undefined ? extra.bio : String(existingData?.bio || '');
+  const resolvedLocation =
+    extra?.location !== undefined ? extra.location : String(existingData?.location || '');
+
+  try {
     await setDoc(
       userRef,
       {
@@ -2214,11 +2362,14 @@ export async function syncUserDirectoryProfile(
         name: finalName,
         transliteratedName: transliterated,
         username: derivedUsername,
-        avatar: existingData?.avatar || existingData?.photoURL || avatar,
+        avatar: resolvedAvatar,
         ...(existingData?.profileCategory ? { profileCategory: existingData.profileCategory } : {}),
         ...(existingData?.friendsCount === undefined ? { friendsCount: 0 } : {}),
         ...(email && !existingData?.email ? { email } : {}),
+        ...(resolvedBio ? { bio: resolvedBio } : {}),
+        ...(resolvedLocation ? { location: resolvedLocation } : {}),
         updatedAt: new Date().toISOString(),
+        updatedAtMillis: Date.now(),
       },
       { merge: true }
     );
@@ -2230,17 +2381,199 @@ export async function syncUserDirectoryProfile(
       console.warn('Notice syncing user directory profile:', err);
     }
   }
+
+  await Promise.allSettled([
+    setDoc(
+      doc(db, 'public_profiles', uid),
+      {
+        id: uid,
+        uid,
+        displayName: finalName,
+        name: finalName,
+        transliteratedName: transliterated,
+        username: derivedUsername,
+        avatar: trimOversizedImageForFirestore(resolvedAvatar),
+        bio: resolvedBio,
+        location: resolvedLocation,
+        allowFriendRequests: extra?.allowFriendRequests ?? true,
+        updatedAt: new Date().toISOString(),
+        updatedAtMillis: Date.now(),
+      },
+      { merge: true }
+    ),
+    syncUserToServerDirectory({
+      uid,
+      displayName: finalName,
+      username: derivedUsername,
+      avatar: trimOversizedImageForFirestore(resolvedAvatar),
+      bio: resolvedBio,
+      location: resolvedLocation,
+      email,
+      allowFriendRequests: extra?.allowFriendRequests ?? true,
+    }),
+    syncSupabaseProfile({
+      id: uid,
+      displayName: finalName,
+      username: derivedUsername,
+      avatar: trimOversizedImageForFirestore(resolvedAvatar),
+      bio: resolvedBio,
+      location: resolvedLocation,
+    }),
+  ]);
 }
 
 async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
   const byId = new Map<string, SearchedUserProfile>();
 
-  // Always include the 20 built-in global community members first so search works reliably offline & online
-  DUMMY_COMMUNITY_USERS.forEach((du) => {
-    byId.set(du.id, du);
+  const upsertCandidate = (candidate: SearchedUserProfile, preferOverride = false) => {
+    if (!candidate.id || !candidate.displayName?.trim()) return;
+    const existing = byId.get(candidate.id);
+    if (!existing) {
+      byId.set(candidate.id, candidate);
+      return;
+    }
+    const existingPlaceholder = isPlaceholderDisplayName(existing.displayName);
+    const incomingPlaceholder = isPlaceholderDisplayName(candidate.displayName);
+    if (preferOverride || (existingPlaceholder && !incomingPlaceholder)) {
+      byId.set(candidate.id, {
+        ...existing,
+        ...candidate,
+        displayName: incomingPlaceholder && !existingPlaceholder ? existing.displayName : candidate.displayName,
+        username: candidate.username || existing.username,
+        avatar: candidate.avatar || existing.avatar,
+        bio: candidate.bio || existing.bio,
+        location: candidate.location || existing.location,
+        coverPhoto: candidate.coverPhoto || existing.coverPhoto,
+      });
+    }
+  };
+
+  // Query all cross-device shared directories in parallel
+  const [serverRes, usersSnap, publicProfilesSnap, supabaseProfiles, postsSnap] = await Promise.all([
+    fetch('/api/users/directory')
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
+    getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
+      if (err?.code === 'permission-denied') {
+        handleFirestoreError(err, OperationType.LIST, 'users');
+      }
+      return null;
+    }),
+    getDocs(query(collection(db, 'public_profiles'), limit(1000))).catch(() => null),
+    fetchSupabaseProfiles().catch(() => []),
+    getDocs(query(collection(db, 'posts'), limit(200))).catch(() => null),
+  ]);
+
+  // 1. Server shared user directory
+  if (serverRes && Array.isArray(serverRes.users)) {
+    serverRes.users.forEach((u: any) => {
+      const displayName = String(u?.displayName || '').trim();
+      const id = String(u?.id || u?.uid || '').trim();
+      if (!id || !displayName) return;
+      upsertCandidate(
+        {
+          id,
+          uid: String(u?.uid || id),
+          displayName,
+          username: u?.username ? String(u.username) : transliterateBnToEn(displayName).replace(/[^a-z0-9]+/g, ''),
+          avatar:
+            String(u?.avatar || '').trim() ||
+            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+              displayName
+            )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+          bio: u?.bio ? String(u.bio) : undefined,
+          location: u?.location ? String(u.location) : undefined,
+          verified: Boolean(u?.verified),
+          allowFriendRequests: u?.allowFriendRequests !== false,
+        },
+        true
+      );
+    });
+  }
+
+  // 2. Firestore public_profiles collection
+  (publicProfilesSnap?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data();
+    const displayName = String(data.displayName || data.name || '').trim();
+    if (!displayName) return;
+    const username = String(data.username || data.handle || '').trim();
+    const avatar =
+      String(data.avatar || data.photoURL || '').trim() ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        displayName
+      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
+    upsertCandidate(
+      {
+        id: docSnap.id,
+        uid: String(data.uid || docSnap.id),
+        displayName,
+        username,
+        avatar,
+        bio: data.bio ? String(data.bio) : undefined,
+        location: data.location ? String(data.location) : undefined,
+        verified: Boolean(data.verified || data.isVerified),
+        allowFriendRequests: data.allowFriendRequests !== false,
+      },
+      true
+    );
   });
 
-  // Also include authors from local shared "All Posts" store
+  // 3. Firestore users collection
+  (usersSnap?.docs || []).forEach((docSnap) => {
+    const data = docSnap.data();
+    const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
+    const emailLocal = data.email ? String(data.email).split('@')[0] : '';
+    const username = String(data.username || data.handle || emailLocal || '').trim();
+    const avatar =
+      String(data.avatar || data.photoURL || '').trim() ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        displayName
+      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
+    upsertCandidate(
+      {
+        id: docSnap.id,
+        uid: String(data.uid || docSnap.id),
+        displayName,
+        username,
+        avatar,
+        coverPhoto: data.coverPhoto ? String(data.coverPhoto) : undefined,
+        bio: data.bio ? String(data.bio) : undefined,
+        location: data.location ? String(data.location) : undefined,
+        verified: Boolean(data.verified || data.isVerified),
+        allowFriendRequests: data.isCreator !== true,
+      },
+      true
+    );
+  });
+
+  // 4. Supabase profiles table (when configured)
+  (supabaseProfiles || []).forEach((sp) => {
+    upsertCandidate(sp, false);
+  });
+
+  // 5. Fallback: active creators from Firestore posts
+  (postsSnap?.docs || []).forEach((pDoc) => {
+    const pData = pDoc.data();
+    const aName = String(pData?.author?.name || '').trim();
+    const aId = String(pData?.authorId || (aName ? `author-${aName}` : '')).trim();
+    if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
+    upsertCandidate({
+      id: aId,
+      uid: aId,
+      displayName: aName,
+      username: transliterateBnToEn(aName).replace(/[^a-z0-9]+/g, ''),
+      avatar:
+        String(pData?.author?.avatar || '').trim() ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          aName
+        )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+      verified: Boolean(pData?.author?.verified),
+    });
+  });
+
+  // 6. Local posts store authors
   try {
     const localPostsRaw = localStorage.getItem('peaceverse_posts');
     if (localPostsRaw) {
@@ -2250,11 +2583,7 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
           const aName = String(lp?.author?.name || '').trim();
           const aId = String(lp?.authorId || (aName ? `author-${aName}` : '')).trim();
           if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
-          const sameNameExists = Array.from(byId.values()).some(
-            (u) => u.displayName.toLowerCase() === aName.toLowerCase()
-          );
-          if (sameNameExists) return;
-          byId.set(aId, {
+          upsertCandidate({
             id: aId,
             uid: aId,
             displayName: aName,
@@ -2271,63 +2600,28 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
     }
   } catch {}
 
-  const usersSnap = await getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
-    if (err?.code === 'permission-denied') {
-      handleFirestoreError(err, OperationType.LIST, 'users');
+  // 7. Built-in global community members (added last so real accounts always keep priority)
+  DUMMY_COMMUNITY_USERS.forEach((du) => {
+    if (!byId.has(du.id)) {
+      byId.set(du.id, du);
     }
-    return null;
-  });
-
-  (usersSnap?.docs || []).forEach((docSnap) => {
-    const data = docSnap.data();
-    const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
-    const emailLocal = data.email ? String(data.email).split('@')[0] : '';
-    const username = String(data.username || data.handle || emailLocal || '').trim();
-    const avatar =
-      String(data.avatar || data.photoURL || '').trim() ||
-      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-        displayName
-      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
-
-    byId.set(docSnap.id, {
-      id: docSnap.id,
-      uid: String(data.uid || docSnap.id),
-      displayName,
-      username,
-      avatar,
-      coverPhoto: data.coverPhoto ? String(data.coverPhoto) : undefined,
-      bio: data.bio ? String(data.bio) : undefined,
-      location: data.location ? String(data.location) : undefined,
-      verified: Boolean(data.verified || data.isVerified),
-    });
-  });
-
-  // Fallback: also index active creators from recent posts in case a profile doc hasn't synced yet
-  const postsSnap = await getDocs(query(collection(db, 'posts'), limit(200))).catch(() => null);
-  (postsSnap?.docs || []).forEach((pDoc) => {
-    const pData = pDoc.data();
-    const aName = String(pData?.author?.name || '').trim();
-    const aId = String(pData?.authorId || (aName ? `author-${aName}` : '')).trim();
-    if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
-    const sameNameExists = Array.from(byId.values()).some(
-      (u) => u.displayName.toLowerCase() === aName.toLowerCase()
-    );
-    if (sameNameExists) return;
-    byId.set(aId, {
-      id: aId,
-      uid: aId,
-      displayName: aName,
-      username: transliterateBnToEn(aName).replace(/[^a-z0-9]+/g, ''),
-      avatar:
-        String(pData?.author?.avatar || '').trim() ||
-        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-          aName
-        )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
-      verified: Boolean(pData?.author?.verified),
-    });
   });
 
   return Array.from(byId.values());
+}
+
+export async function fetchCommunityDirectoryUsers(forceRefresh = false): Promise<SearchedUserProfile[]> {
+  const now = Date.now();
+  if (
+    !forceRefresh &&
+    cachedDirectoryUsers &&
+    now - cachedDirectoryUsers.fetchedAt < USER_DIRECTORY_CACHE_TTL_MS
+  ) {
+    return cachedDirectoryUsers.users;
+  }
+  const users = await fetchDirectoryUsersFromServer();
+  cachedDirectoryUsers = { users, fetchedAt: now };
+  return users;
 }
 
 export async function searchUsersFromFirestore(
@@ -2338,8 +2632,10 @@ export async function searchUsersFromFirestore(
   const q = rawTrimmed.toLowerCase();
   if (!q) return [];
 
+  const qNoEmailDomain = q.includes('@') ? q.split('@')[0].trim() : q;
   const qTranslit = transliterateBnToEn(rawTrimmed);
   const qPhonetic = phoneticNormalize(rawTrimmed);
+  const qSkeleton = consonantSkeleton(rawTrimmed);
   const qTokens = qTranslit.split(/\s+/).filter(Boolean);
   const qPhoneticTokens = qPhonetic.split(/\s+/).filter(Boolean);
 
@@ -2347,6 +2643,9 @@ export async function searchUsersFromFirestore(
     const dn = u.displayName.normalize('NFC').toLowerCase();
     const un = (u.username || '').toLowerCase();
     if (dn.includes(q) || un.includes(q)) return true;
+    if (qNoEmailDomain && qNoEmailDomain !== q && (dn.includes(qNoEmailDomain) || un.includes(qNoEmailDomain))) {
+      return true;
+    }
 
     const uTranslit = transliterateBnToEn(u.displayName);
     if (qTranslit && (uTranslit.includes(qTranslit) || un.includes(qTranslit.replace(/\s+/g, '')))) {
@@ -2370,6 +2669,20 @@ export async function searchUsersFromFirestore(
       if (allTokensRoughMatch) return true;
     }
 
+    if (qSkeleton.length >= 3) {
+      const uSkeleton = consonantSkeleton(u.displayName);
+      if (uSkeleton && (uSkeleton.includes(qSkeleton) || qSkeleton.includes(uSkeleton))) {
+        return true;
+      }
+      const uWordSkeletons = u.displayName
+        .split(/\s+/)
+        .map((w) => consonantSkeleton(w))
+        .filter((s) => s.length >= 3);
+      if (uWordSkeletons.some((ws) => ws.includes(qSkeleton) || qSkeleton.includes(ws))) {
+        return true;
+      }
+    }
+
     return false;
   };
 
@@ -2390,11 +2703,36 @@ export async function searchUsersFromFirestore(
 
     let matched = directoryUsers.filter(matchesCandidate);
 
-    // If cached search returned 0 results, bypass cache immediately once so newly created accounts are found right away
-    if (matched.length === 0 && !forceRefresh) {
+    // Query backend /api/users/search directly as well (supports server emailHash match & instant fresh results)
+    const serverMatched = await fetch(`/api/users/search?q=${encodeURIComponent(rawTrimmed)}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => (data && Array.isArray(data.users) ? (data.users as SearchedUserProfile[]) : []))
+      .catch(() => [] as SearchedUserProfile[]);
+
+    if (serverMatched.length > 0) {
+      const seenIds = new Set(matched.map((m) => m.id));
+      serverMatched.forEach((su) => {
+        if (su?.id && !seenIds.has(su.id)) {
+          matched.push(su);
+          seenIds.add(su.id);
+        }
+      });
+    }
+
+    // If cached search returned 0 non-dummy results, refresh directory from server once so newly created accounts are found right away
+    const hasRealMatch = matched.some((m) => !DUMMY_COMMUNITY_USERS.some((du) => du.id === m.id));
+    if (!hasRealMatch && !forceRefresh) {
       directoryUsers = await fetchDirectoryUsersFromServer();
       cachedDirectoryUsers = { users: directoryUsers, fetchedAt: Date.now() };
-      matched = directoryUsers.filter(matchesCandidate);
+      const freshMatched = directoryUsers.filter(matchesCandidate);
+      const seen = new Set(freshMatched.map((m) => m.id));
+      serverMatched.forEach((su) => {
+        if (su?.id && !seen.has(su.id)) {
+          freshMatched.push(su);
+          seen.add(su.id);
+        }
+      });
+      matched = freshMatched;
     }
 
     // Also check current logged-in local user if somehow not yet indexed in server snapshot
@@ -2422,7 +2760,8 @@ export async function searchUsersFromFirestore(
       }
     } catch {}
 
-    // Prioritize exact and prefix matches
+    // Prioritize exact and prefix matches (and real Firebase/server accounts over dummy items on ties)
+    const dummyIds = new Set(DUMMY_COMMUNITY_USERS.map((du) => du.id));
     matched.sort((a, b) => {
       const aName = a.displayName.toLowerCase();
       const bName = b.displayName.toLowerCase();
@@ -2437,6 +2776,10 @@ export async function searchUsersFromFirestore(
       const aStarts = aName.startsWith(q) || aT.startsWith(qTranslit) ? 0 : 1;
       const bStarts = bName.startsWith(q) || bT.startsWith(qTranslit) ? 0 : 1;
       if (aStarts !== bStarts) return aStarts - bStarts;
+
+      const aIsDummy = dummyIds.has(a.id) ? 1 : 0;
+      const bIsDummy = dummyIds.has(b.id) ? 1 : 0;
+      if (aIsDummy !== bIsDummy) return aIsDummy - bIsDummy;
 
       return aName.localeCompare(bName);
     });

@@ -1,8 +1,18 @@
-import React, { useState, useEffect } from 'react';
-import { Check, Search, ArrowLeft, Users, X } from 'lucide-react';
+import React, { useState, useEffect, useRef } from 'react';
+import { Check, Search, ArrowLeft, Users, X, BadgeCheck, Loader2, Plus, UserPlus, UserCheck } from 'lucide-react';
 import { FbSearchEmptyState } from './FbSearchEmptyState';
 import { FbPeopleYouMayKnowSection } from './FbPeopleYouMayKnowSection';
-import { addLocalFriend } from '../../lib/firebase';
+import { SearchedUserProfile } from '../../types';
+import {
+  addLocalFriend,
+  searchUsersFromFirestore,
+  isSameOwnerIdentity,
+  isTargetFriendLocally,
+  isFriendRequestSentLocally,
+  toggleLocalFriendRequestAndSync,
+  isTargetFollowedLocally,
+  toggleFollowUser,
+} from '../../lib/firebase';
 
 interface FbFriendsViewProps {
   onBack?: () => void;
@@ -10,6 +20,7 @@ interface FbFriendsViewProps {
   onDeleteRequest?: (id: string) => void;
   onCreatePageWithName?: (name: string) => void;
   onOpenProfile?: () => void;
+  onOpenUserProfile?: (user: SearchedUserProfile) => void;
   currentUserId?: string;
   currentUserName?: string;
   currentUserAvatar?: string;
@@ -151,6 +162,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   onDeleteRequest,
   onCreatePageWithName,
   onOpenProfile,
+  onOpenUserProfile,
   currentUserId = 'user-me',
   currentUserName = 'Member',
   currentUserAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
@@ -159,6 +171,10 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showNotifBar, setShowNotifBar] = useState(true);
+  const [directoryResults, setDirectoryResults] = useState<SearchedUserProfile[]>([]);
+  const [isSearchingDirectory, setIsSearchingDirectory] = useState(false);
+  const [, setSyncTick] = useState(0);
+  const searchSeqRef = useRef(0);
 
   const [confirmed, setConfirmed] = useState<Record<string, boolean>>(() => {
     try {
@@ -243,6 +259,48 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
     if (onDeleteRequest) onDeleteRequest(id);
   };
 
+  useEffect(() => {
+    const bump = () => setSyncTick((t) => t + 1);
+    window.addEventListener('peaceverse:friends-updated', bump);
+    window.addEventListener('peaceverse:friend-requests-updated', bump);
+    window.addEventListener('peaceverse:follows-updated', bump);
+    window.addEventListener('storage', bump);
+    return () => {
+      window.removeEventListener('peaceverse:friends-updated', bump);
+      window.removeEventListener('peaceverse:friend-requests-updated', bump);
+      window.removeEventListener('peaceverse:follows-updated', bump);
+      window.removeEventListener('storage', bump);
+    };
+  }, []);
+
+  useEffect(() => {
+    const trimmed = searchQuery.trim();
+    const seq = ++searchSeqRef.current;
+    if (!trimmed) {
+      setDirectoryResults([]);
+      setIsSearchingDirectory(false);
+      return;
+    }
+
+    setIsSearchingDirectory(true);
+    const timer = window.setTimeout(async () => {
+      try {
+        const matches = await searchUsersFromFirestore(trimmed, false);
+        if (searchSeqRef.current !== seq) return;
+        setDirectoryResults(matches);
+      } catch {
+        if (searchSeqRef.current !== seq) return;
+        setDirectoryResults([]);
+      } finally {
+        if (searchSeqRef.current === seq) {
+          setIsSearchingDirectory(false);
+        }
+      }
+    }, 220);
+
+    return () => window.clearTimeout(timer);
+  }, [searchQuery]);
+
   const pendingRequests = INITIAL_REQUESTS.filter((r) => !deleted[r.id] && !confirmed[r.id]);
   const onlineCount = Math.max(34, friendsList.filter((f) => f.isOnline).length + 31);
 
@@ -256,6 +314,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   const visibleOnline = q
     ? friendsList.filter((f) => f.isOnline && f.name.toLowerCase().includes(q))
     : friendsList.filter((f) => f.isOnline);
+  const noDirectoryMatches = Boolean(q) && !isSearchingDirectory && directoryResults.length === 0;
 
   return (
     <div className="max-w-[700px] mx-auto min-h-screen bg-white text-[#050505] pb-24 font-sans">
@@ -387,6 +446,166 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
         </div>
       </div>
 
+      {/* LIVE CROSS-DEVICE PEOPLE DIRECTORY RESULTS WHEN SEARCHING */}
+      {q && (isSearchingDirectory || directoryResults.length > 0) && (
+        <div className="mx-3.5 mt-3 bg-white rounded-xl border border-[#E4E6EB] overflow-hidden shadow-2xs">
+          <div className="px-3.5 py-2.5 bg-[#F7F8FA] border-b border-[#E4E6EB] flex items-center justify-between">
+            <span className="text-xs font-bold text-[#050505] uppercase tracking-wide flex items-center gap-1.5">
+              <Users className="w-3.5 h-3.5 text-[#1877F2]" />
+              People on Peaceverse24 {directoryResults.length > 0 ? `(${directoryResults.length})` : ''}
+            </span>
+            {isSearchingDirectory && <Loader2 className="w-3.5 h-3.5 animate-spin text-[#1877F2]" />}
+          </div>
+          {directoryResults.length > 0 && (
+            <div className="divide-y divide-[#E4E6EB]">
+              {directoryResults.map((user) => {
+                const isSelf = isSameOwnerIdentity(
+                  user.id,
+                  user.displayName,
+                  currentUserId,
+                  currentUserName
+                );
+                const isFriend = !isSelf && isTargetFriendLocally(user.id, user.displayName);
+                const isFollowOnly = !isSelf && !isFriend && user.allowFriendRequests === false;
+                const isRequested = isFriendRequestSentLocally(user.id, user.displayName);
+                const isFollowed = isTargetFollowedLocally(user.id, user.displayName);
+                const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                  user.displayName || 'User'
+                )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
+                return (
+                  <div
+                    key={user.id}
+                    className="p-3 flex items-center justify-between gap-2.5 hover:bg-[#F7F8FA] transition-colors"
+                  >
+                    <button
+                      type="button"
+                      onClick={() => onOpenUserProfile?.(user)}
+                      className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer group"
+                    >
+                      <img
+                        src={user.avatar || fallbackAvatar}
+                        alt={user.displayName}
+                        onError={(e) => {
+                          (e.currentTarget as HTMLImageElement).src = fallbackAvatar;
+                        }}
+                        className="w-12 h-12 rounded-full object-cover border border-[#E4E6EB] bg-[#F0F2F5] shrink-0"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-1 min-w-0">
+                          <span className="text-[14.5px] font-bold text-[#050505] group-hover:underline truncate">
+                            {user.displayName}
+                          </span>
+                          {user.verified && (
+                            <BadgeCheck className="w-4 h-4 text-[#1877F2] shrink-0" />
+                          )}
+                        </div>
+                        {user.username && (
+                          <p className="text-xs text-[#65676B] truncate">@{user.username}</p>
+                        )}
+                        {(user.bio || user.location) && (
+                          <p className="text-xs text-[#65676B] truncate mt-0.5">
+                            {user.bio || user.location}
+                          </p>
+                        )}
+                      </div>
+                    </button>
+
+                    <div className="shrink-0">
+                      {isSelf ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenUserProfile?.(user)}
+                          className="px-3 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <UserCheck className="w-3.5 h-3.5" />
+                          <span>You</span>
+                        </button>
+                      ) : isFriend ? (
+                        <button
+                          type="button"
+                          onClick={() => onOpenUserProfile?.(user)}
+                          className="px-3 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold flex items-center gap-1 cursor-pointer"
+                        >
+                          <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                          <span>Friends</span>
+                        </button>
+                      ) : isFollowOnly ? (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await toggleFollowUser(
+                              currentUserId,
+                              currentUserName,
+                              currentUserAvatar,
+                              user.id,
+                              user.displayName,
+                              user.avatar || ''
+                            );
+                            setSyncTick((t) => t + 1);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                            isFollowed
+                              ? 'bg-[#E7F3FF] text-[#1877F2]'
+                              : 'bg-[#1877F2] hover:bg-[#166fe5] text-white'
+                          }`}
+                        >
+                          {isFollowed ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Following</span>
+                            </>
+                          ) : (
+                            <>
+                              <Plus className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Follow</span>
+                            </>
+                          )}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          onClick={async () => {
+                            await toggleLocalFriendRequestAndSync(
+                              currentUserId,
+                              currentUserName,
+                              currentUserAvatar,
+                              {
+                                id: user.id,
+                                name: user.displayName,
+                                avatar: user.avatar,
+                              }
+                            );
+                            setSyncTick((t) => t + 1);
+                          }}
+                          className={`px-3 py-1.5 rounded-lg text-xs font-bold flex items-center gap-1 cursor-pointer transition-colors ${
+                            isRequested
+                              ? 'bg-[#E7F3FF] text-[#1877F2]'
+                              : 'bg-[#1877F2] hover:bg-[#166fe5] text-white'
+                          }`}
+                        >
+                          {isRequested ? (
+                            <>
+                              <Check className="w-3.5 h-3.5 stroke-[2.5]" />
+                              <span>Request sent</span>
+                            </>
+                          ) : (
+                            <>
+                              <UserPlus className="w-3.5 h-3.5" />
+                              <span>Add Friend</span>
+                            </>
+                          )}
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+
       {/* NOTIFICATION BAR */}
       {showNotifBar && activeTab === 'requests' && (
         <div className="mx-3.5 mt-3 p-3 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between gap-2.5 shadow-2xs">
@@ -443,9 +662,9 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             </button>
           </div>
 
-          {q && visibleRequests.length === 0 ? (
+          {q && visibleRequests.length === 0 && noDirectoryMatches ? (
             <FbSearchEmptyState query={searchQuery} onCreatePageWithName={onCreatePageWithName} />
-          ) : visibleRequests.length === 0 ? (
+          ) : q && visibleRequests.length === 0 ? null : visibleRequests.length === 0 ? (
             /* Exact Empty state when 0 requests */
             <div className="bg-white rounded-xl border border-[#E4E6EB] p-8 text-center space-y-3 shadow-2xs my-2">
               <div className="w-14 h-14 rounded-full bg-[#E7F3FF] flex items-center justify-center text-[#1877F2] mx-auto">
@@ -543,6 +762,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
               currentUserName={currentUserName}
               currentUserAvatar={currentUserAvatar}
               searchQuery={searchQuery}
+              onOpenUserProfile={onOpenUserProfile}
             />
           </div>
         </div>
@@ -560,7 +780,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             </h2>
           </div>
 
-          {q && visibleOnline.length === 0 ? (
+          {q && visibleOnline.length === 0 && noDirectoryMatches ? (
             <FbSearchEmptyState query={searchQuery} onCreatePageWithName={onCreatePageWithName} />
           ) : (
             <div className="space-y-2.5">
@@ -613,6 +833,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             currentUserName={currentUserName}
             currentUserAvatar={currentUserAvatar}
             searchQuery={searchQuery}
+            onOpenUserProfile={onOpenUserProfile}
           />
         </div>
       )}
@@ -632,9 +853,9 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
             </span>
           </div>
 
-          {q && visibleFriends.length === 0 ? (
+          {q && visibleFriends.length === 0 && noDirectoryMatches ? (
             <FbSearchEmptyState query={searchQuery} onCreatePageWithName={onCreatePageWithName} />
-          ) : visibleFriends.length === 0 ? (
+          ) : q && visibleFriends.length === 0 ? null : visibleFriends.length === 0 ? (
             <div className="bg-white rounded-xl border border-[#E4E6EB] p-8 text-center space-y-3 shadow-2xs my-2">
               <div className="w-14 h-14 rounded-full bg-[#E7F3FF] flex items-center justify-center text-[#1877F2] mx-auto">
                 <Users className="w-7 h-7" />
