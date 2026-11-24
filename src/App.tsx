@@ -750,7 +750,9 @@ export default function App() {
           relationship: prev.relationship || '',
         }));
 
-        syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar);
+        syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar, {
+          firebaseUser: usr,
+        });
         try {
           const savedPagesRaw = localStorage.getItem('qalby_fb_pages');
           if (savedPagesRaw) {
@@ -829,6 +831,7 @@ export default function App() {
                 location: nextLocation,
                 username: nextUsername,
                 allowFriendRequests: remote.isCreator !== true,
+                firebaseUser: usr,
               }
             );
 
@@ -2497,6 +2500,10 @@ export default function App() {
                   );
                 }}
                 onOpenUserProfile={openSearchedUserProfile}
+                onRefreshSearch={() => {
+                  invalidateUserDirectoryCache();
+                  void runUserSearch(searchQuery, true);
+                }}
                 onClearSearch={() => setSearchQuery('')}
               />
             ) : (

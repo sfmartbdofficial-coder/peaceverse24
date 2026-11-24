@@ -10,6 +10,7 @@ import {
   Loader2,
   X,
   Plus,
+  RefreshCw,
 } from 'lucide-react';
 import { PageItem, SearchedUserProfile } from '../../types';
 import {
@@ -33,6 +34,7 @@ interface FbUserSearchResultsProps {
   onOpenUserProfile: (user: SearchedUserProfile) => void;
   onOpenPage?: (page: PageItem) => void;
   onToggleFollowPage?: (page: PageItem) => void;
+  onRefreshSearch?: () => void;
   onClearSearch: () => void;
 }
 
@@ -49,6 +51,7 @@ export const FbUserSearchResults: React.FC<FbUserSearchResultsProps> = ({
   onOpenUserProfile,
   onOpenPage,
   onToggleFollowPage,
+  onRefreshSearch,
   onClearSearch,
 }) => {
   const trimmed = query.trim();
@@ -126,13 +129,28 @@ export const FbUserSearchResults: React.FC<FbUserSearchResultsProps> = ({
           <p className="text-[13px] text-[#65676B] max-w-xs mx-auto mt-1.5">
             No person or page matched &ldquo;{trimmed}&rdquo;. Check the spelling or try searching another name.
           </p>
-          <button
-            type="button"
-            onClick={onClearSearch}
-            className="mt-4 px-5 py-2 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold transition-colors cursor-pointer"
-          >
-            Back to Home Feed
-          </button>
+          <p className="text-[12px] text-[#65676B] max-w-sm mx-auto mt-2 leading-relaxed">
+            আপনার বন্ধু যদি আগেই একাউন্ট খুলে থাকেন, তবে তাঁর মোবাইলে Peaceverse24 অ্যাপটি একবার রিফ্রেশ করে খুলতে বলুন—তাহলে সাথে সাথেই নামটি সার্চে চলে আসবে।
+          </p>
+          <div className="mt-4 flex items-center justify-center gap-2 flex-wrap">
+            {onRefreshSearch && (
+              <button
+                type="button"
+                onClick={onRefreshSearch}
+                className="px-4 py-2 rounded-lg bg-[#0866FF] hover:bg-[#166FE5] text-white text-xs font-bold flex items-center gap-1.5 transition-colors cursor-pointer"
+              >
+                <RefreshCw className="w-3.5 h-3.5" />
+                <span>Refresh Search</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={onClearSearch}
+              className="px-5 py-2 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold transition-colors cursor-pointer"
+            >
+              Back to Home Feed
+            </button>
+          </div>
         </div>
       ) : (
         <div className="space-y-2.5">

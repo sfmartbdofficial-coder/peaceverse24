@@ -503,6 +503,27 @@ export default {
         return handleModerateMedia(request, env);
       }
 
+      if (url.pathname === '/api/users/directory' && request.method === 'GET') {
+        return new Response(JSON.stringify({ users: [] }), {
+          status: 200,
+          headers: JSON_HEADERS,
+        });
+      }
+
+      if (url.pathname === '/api/users/search' && request.method === 'GET') {
+        return new Response(JSON.stringify({ users: [] }), {
+          status: 200,
+          headers: JSON_HEADERS,
+        });
+      }
+
+      if (url.pathname === '/api/users/sync' && request.method === 'POST') {
+        return new Response(JSON.stringify({ ok: true }), {
+          status: 200,
+          headers: JSON_HEADERS,
+        });
+      }
+
       if (url.pathname === '/api/mobile-center/status' && request.method === 'GET') {
         return new Response(
           JSON.stringify({
