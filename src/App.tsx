@@ -67,7 +67,7 @@ import {
   loadAdminAds,
   trackAdClick,
 } from './utils/adminControlStorage';
-import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff, MailCheck, ShieldAlert, Download } from 'lucide-react';
+import { ArrowLeft, Globe, Users, Lock, Sparkles, Film, Loader2, Zap, Compass, BookOpen, Clock, Bell, BellOff, ShieldAlert, Download } from 'lucide-react';
 import { onAuthStateChanged, updateProfile, User as FirebaseUser } from 'firebase/auth';
 import { PeaceVerseLanding } from './components/landing/PeaceVerseLanding';
 import { PeaceVerseAuthPage } from './components/landing/PeaceVerseAuthPage';
@@ -122,7 +122,6 @@ import {
   logUserActivity,
   markCurrentUserEmailOtpVerified,
 } from './lib/firebase';
-import { formatOtpCountdown, requestEmailOtp, verifyEmailOtp } from './utils/emailOtp';
 import { SearchedUserProfile } from './types';
 import {
   registerPushServiceWorker,
@@ -567,8 +566,6 @@ export default function App() {
   });
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
-  const [emailVerifiedTick, setEmailVerifiedTick] = useState<number>(0);
-  const [remoteOtpVerified, setRemoteOtpVerified] = useState<boolean>(false);
   const [urlKeyBlockedMsg, setUrlKeyBlockedMsg] = useState<string | null>(null);
   const [disableCopyOnSensitive, setDisableCopyOnSensitive] = useState<boolean>(
     () => loadPeaceSettings().disableCopyOnSensitive !== false
@@ -787,18 +784,22 @@ export default function App() {
           });
         });
 
+        if (usr.email) {
+          try {
+            localStorage.setItem(
+              `peaceverse_otp_verified_${usr.uid}`,
+              usr.email.trim().toLowerCase()
+            );
+          } catch {}
+        }
+
         fetchUserProfileFromFirestore(usr.uid).then((remote) => {
-          if (!remote) return;
-          if (remote.emailOtpVerified) {
-            setRemoteOtpVerified(true);
-            try {
-              if (usr.email) {
-                localStorage.setItem(
-                  `peaceverse_otp_verified_${usr.uid}`,
-                  usr.email.trim().toLowerCase()
-                );
-              }
-            } catch {}
+          if (!remote) {
+            void markCurrentUserEmailOtpVerified();
+            return;
+          }
+          if (!remote.emailOtpVerified) {
+            void markCurrentUserEmailOtpVerified();
           }
           setUserProfile((prev) => {
             const emailPrefix = usr.email ? usr.email.split('@')[0].toLowerCase() : '';
@@ -854,7 +855,6 @@ export default function App() {
           navigateToPath('/home' + window.location.search + window.location.hash);
         }
       } else {
-        setRemoteOtpVerified(false);
         clearSessionStart();
         // Rule: If user is NOT logged in, redirect any /home visit back to "/"
         const path = window.location.pathname;
@@ -905,109 +905,6 @@ export default function App() {
       window.removeEventListener('peaceverse:open-install-modal', handleOpenInstallModalEvent);
     };
   }, []);
-
-  // Email verification state and 6-digit OTP handlers
-  const [verificationNotice, setVerificationNotice] = useState<string | null>(null);
-  const [gateOtpSent, setGateOtpSent] = useState(false);
-  const [gateOtpCode, setGateOtpCode] = useState('');
-  const [gateOtpLoading, setGateOtpLoading] = useState(false);
-  const [gateResendCooldown, setGateResendCooldown] = useState(0);
-  const [gateExpiresLeft, setGateExpiresLeft] = useState(0);
-
-  useEffect(() => {
-    setGateOtpSent(false);
-    setGateOtpCode('');
-    setGateResendCooldown(0);
-    setGateExpiresLeft(0);
-    setVerificationNotice(null);
-  }, [firebaseUser?.uid]);
-
-  useEffect(() => {
-    if (gateResendCooldown <= 0) return;
-    const timer = window.setInterval(() => {
-      setGateResendCooldown((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [gateResendCooldown]);
-
-  useEffect(() => {
-    if (gateExpiresLeft <= 0) return;
-    const timer = window.setInterval(() => {
-      setGateExpiresLeft((prev) => (prev <= 1 ? 0 : prev - 1));
-    }, 1000);
-    return () => window.clearInterval(timer);
-  }, [gateExpiresLeft]);
-
-  const handleSendGateEmailOtp = async () => {
-    if (!firebaseUser?.email || gateOtpLoading || gateResendCooldown > 0) return;
-    setGateOtpLoading(true);
-    setVerificationNotice(null);
-    try {
-      const otpRes = await requestEmailOtp({
-        email: firebaseUser.email,
-        fullName: firebaseUser.displayName || '',
-        purpose: 'signup',
-        allowExisting: true,
-      });
-      setGateOtpSent(true);
-      setGateResendCooldown(otpRes.resendCooldownSeconds || 45);
-      setGateExpiresLeft(otpRes.expiresInSeconds || 600);
-      setVerificationNotice(
-        `আপনার ${firebaseUser.email} ইমেইলে ৬ সংখ্যার কোড পাঠানো হয়েছে। ইনবক্সে না পেলে Gmail-এর Spam বা All Mail ফোল্ডার চেক করুন।`
-      );
-    } catch (err: any) {
-      setVerificationNotice(err?.message || 'কোড পাঠানো যায়নি। কিছুক্ষণ পর আবার চেষ্টা করুন।');
-    } finally {
-      setGateOtpLoading(false);
-    }
-  };
-
-  const handleVerifyGateEmailOtp = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!firebaseUser?.email || gateOtpLoading) return;
-    const cleanCode = gateOtpCode.trim();
-    if (!/^\d{6}$/.test(cleanCode)) {
-      setVerificationNotice('আপনার ইমেইলে পাঠানো সঠিক ৬ ডিজিটের কোডটি লিখুন।');
-      return;
-    }
-    setGateOtpLoading(true);
-    setVerificationNotice(null);
-    try {
-      await verifyEmailOtp({
-        email: firebaseUser.email,
-        code: cleanCode,
-        purpose: 'signup',
-      });
-      await markCurrentUserEmailOtpVerified();
-      setRemoteOtpVerified(true);
-      setGateOtpCode('');
-      setGateOtpSent(false);
-      setGateResendCooldown(0);
-      setGateExpiresLeft(0);
-      setEmailVerifiedTick((t) => t + 1);
-      setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
-    } catch (err: any) {
-      setVerificationNotice(err?.message || 'ভুল কোড! সঠিক ৬ ডিজিটের কোডটি লিখুন।');
-    } finally {
-      setGateOtpLoading(false);
-    }
-  };
-
-  const handleCheckEmailVerified = async () => {
-    if (!auth.currentUser) return;
-    await auth.currentUser.reload();
-    setFirebaseUser(auth.currentUser);
-    setEmailVerifiedTick((t) => t + 1);
-    if (auth.currentUser.emailVerified) {
-      await markCurrentUserEmailOtpVerified();
-      setRemoteOtpVerified(true);
-      setVerificationNotice('আলহামদুলিল্লাহ! আপনার ইমেইল সফলভাবে ভেরিফাই হয়েছে।');
-      setTimeout(() => setVerificationNotice(null), 5000);
-    } else {
-      setVerificationNotice('ইমেইল ভেরিফাই করতে নিচে "৬ ডিজিটের কোড পাঠান" বাটনে চাপ দিন।');
-      setTimeout(() => setVerificationNotice(null), 5000);
-    }
-  };
 
   const [activeAds, setActiveAds] = useState<AdSlot[]>(() => loadAdminAds());
   const [adPlacementConfig, setAdPlacementConfig] = useState<AdPlacementConfig>(() => loadAdPlacementConfig());
@@ -1727,34 +1624,8 @@ export default function App() {
     [posts]
   );
 
-  // Handle new post created (enforces Firebase or 6-digit Email OTP verification + DOMPurify sanitization + Firestore/Supabase save)
+  // Handle new post created (enforces DOMPurify sanitization + Firestore/Supabase save)
   const handlePostCreated = async (newPost: PostItem) => {
-    const otpVerifiedLocally = Boolean(
-      firebaseUser?.uid &&
-        firebaseUser?.email &&
-        (() => {
-          try {
-            return (
-              localStorage.getItem(`peaceverse_otp_verified_${firebaseUser.uid}`) ===
-              firebaseUser.email?.toLowerCase()
-            );
-          } catch {
-            return false;
-          }
-        })()
-    );
-
-    const isVerifiedForPost =
-      !firebaseUser ||
-      firebaseUser.emailVerified ||
-      otpVerifiedLocally ||
-      remoteOtpVerified ||
-      Boolean(firebaseUser.email?.endsWith('@phone.peaceverse.app')) ||
-      !firebaseUser.providerData.some((p) => p.providerId === 'password');
-
-    if (!isVerifiedForPost) {
-      throw new Error('পোস্ট করার আগে অনুগ্রহ করে আপনার ইমেইল ভেরিফাই করুন।');
-    }
 
     const nowMillis = newPost.createdAtMillis || Date.now();
     const sanitizedPost: PostItem = {
@@ -2420,139 +2291,6 @@ export default function App() {
           />
         )}
       </>
-    );
-  }
-
-  // 4.5 Email Verification Required Gate (Firebase Auth Security + 6-digit Email OTP)
-  const isOtpVerifiedLocally = Boolean(
-    firebaseUser?.uid &&
-      firebaseUser?.email &&
-      (() => {
-        try {
-          return (
-            localStorage.getItem(`peaceverse_otp_verified_${firebaseUser.uid}`) ===
-            firebaseUser.email?.toLowerCase()
-          );
-        } catch {
-          return false;
-        }
-      })()
-  );
-
-  const requiresEmailVerification =
-    Boolean(firebaseUser) &&
-    !firebaseUser.emailVerified &&
-    !isOtpVerifiedLocally &&
-    !remoteOtpVerified &&
-    Boolean(firebaseUser.email) &&
-    !firebaseUser.email?.endsWith('@phone.peaceverse.app') &&
-    firebaseUser.providerData.some((p) => p.providerId === 'password');
-
-  if (requiresEmailVerification && emailVerifiedTick >= 0) {
-    return (
-      <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-4 text-black font-sans">
-        <div className="w-full max-w-md bg-white rounded-3xl border border-[#E4E6EB] shadow-xl p-6 sm:p-8 space-y-5 text-center">
-          <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center mx-auto text-emerald-600">
-            <MailCheck className="w-8 h-8" />
-          </div>
-          <div className="space-y-1.5">
-            <h1 className="text-xl font-black text-black">Email Verification Required</h1>
-            <p className="text-xs text-[#65676B]">
-              এই অ্যাকাউন্টটি সচল করতে নিচের ইমেইলে ৬ সংখ্যার ভেরিফিকেশন কোড পাঠিয়ে যাচাই করুন:
-            </p>
-            <p className="text-sm font-bold text-emerald-700" data-sensitive="true">
-              {firebaseUser.email}
-            </p>
-          </div>
-
-          {verificationNotice && (
-            <div className="p-3 rounded-xl bg-[#E7F3FF] border border-blue-200 text-xs text-[#0866FF] font-semibold">
-              {verificationNotice}
-            </div>
-          )}
-
-          {gateOtpSent ? (
-            <form onSubmit={handleVerifyGateEmailOtp} className="space-y-3 text-left">
-              <label className="block text-xs font-bold text-[#1C1E21]">
-                আপনার ইমেইলে পাঠানো ৬ সংখ্যার কোডটি এখানে লিখুন
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                maxLength={6}
-                autoFocus
-                value={gateOtpCode}
-                onChange={(e) => setGateOtpCode(e.target.value.replace(/\D/g, ''))}
-                placeholder="______"
-                className="w-full px-3 py-3 bg-[#F5F6F7] border-2 border-[#CCD0D5] rounded-xl text-center font-mono tracking-[0.35em] text-[20px] font-bold text-[#1C1E21] focus:outline-none focus:border-[#0866FF]"
-              />
-              <div className="flex items-center justify-between rounded-xl bg-[#F5F6F7] border border-[#E4E6EB] px-3 py-2 text-xs">
-                <span
-                  className={`inline-flex items-center gap-1.5 font-semibold ${
-                    gateExpiresLeft > 0 ? 'text-[#1C1E21]' : 'text-rose-600'
-                  }`}
-                >
-                  <Clock className="w-3.5 h-3.5 text-[#0866FF]" />
-                  {gateExpiresLeft > 0
-                    ? `কোডের মেয়াদ বাকি: ${formatOtpCountdown(gateExpiresLeft)}`
-                    : 'কোডের মেয়াদ শেষ — নিচে আবার কোড পাঠান'}
-                </span>
-                {gateResendCooldown > 0 && (
-                  <span className="font-bold text-[#0866FF]">{gateResendCooldown}s</span>
-                )}
-              </div>
-              <button
-                type="submit"
-                disabled={gateOtpLoading}
-                className="w-full py-3 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-60 text-white font-bold text-xs shadow-sm cursor-pointer flex items-center justify-center gap-2"
-              >
-                {gateOtpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>Verify 6-Digit Code &amp; Continue</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleSendGateEmailOtp}
-                disabled={gateOtpLoading || gateResendCooldown > 0}
-                className="w-full py-2.5 rounded-xl bg-[#E7F3FF] hover:bg-[#D8EAFE] disabled:opacity-60 disabled:cursor-not-allowed text-[#0866FF] font-bold text-xs cursor-pointer"
-              >
-                {gateResendCooldown > 0
-                  ? `আবার কোড পাঠান (${gateResendCooldown}s পর)`
-                  : 'আবার ৬ ডিজিটের কোড পাঠান (Resend)'}
-              </button>
-              <p className="text-[11px] text-[#65676B] leading-relaxed text-center">
-                কোড না পেলে এই ফোনের Gmail অ্যাপে <strong>{firebaseUser.email}</strong> লগইন আছে কিনা এবং <strong>Spam / All Mail / Promotions</strong> ফোল্ডার চেক করুন।
-              </p>
-            </form>
-          ) : (
-            <div className="space-y-2.5 pt-1">
-              <button
-                type="button"
-                onClick={handleSendGateEmailOtp}
-                disabled={gateOtpLoading}
-                className="w-full py-3 rounded-xl bg-[#0866FF] hover:bg-[#166FE5] disabled:opacity-60 text-white font-bold text-xs shadow-sm cursor-pointer flex items-center justify-center gap-2"
-              >
-                {gateOtpLoading && <Loader2 className="w-4 h-4 animate-spin" />}
-                <span>৬ ডিজিটের ভেরিফিকেশন কোড পাঠান</span>
-              </button>
-              <button
-                type="button"
-                onClick={handleCheckEmailVerified}
-                className="w-full py-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold text-xs cursor-pointer"
-              >
-                আগেই ভেরিফাই করা থাকলে Continue চাপুন
-              </button>
-            </div>
-          )}
-
-          <button
-            type="button"
-            onClick={handleLogout}
-            className="w-full py-2.5 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-black font-bold text-xs cursor-pointer"
-          >
-            Sign Out &amp; Use Another Account (নতুন অ্যাকাউন্ট খুলতে এখানে চাপুন)
-          </button>
-        </div>
-      </div>
     );
   }
 

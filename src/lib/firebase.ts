@@ -342,13 +342,15 @@ export async function seedInitialPostsIfEmpty(_initialPosts: PostItem[]) {
   return;
 }
 
-// Force Firebase email or 6-digit Email OTP verification before creating posts/comments (phone accounts exempt)
+// Force Firebase email, phone, or authenticated email+password verification before creating posts/comments
 function isCurrentUserVerifiedForPosting(): boolean {
   const u = auth.currentUser;
   if (!u) return false;
   if (u.emailVerified) return true;
   if (u.email?.endsWith('@phone.peaceverse.app')) return true;
-  if (u.providerData?.some((p) => p.providerId === 'phone')) return true;
+  if (u.providerData?.some((p) => p.providerId === 'phone' || p.providerId === 'password')) {
+    return true;
+  }
   try {
     if (
       u.uid &&
@@ -1513,6 +1515,14 @@ export async function loginWithEmail(email: string, pass: string): Promise<Fireb
   if (res.user) {
     resetSessionStart();
     cachedDirectoryUsers = null;
+    try {
+      if (res.user.email) {
+        localStorage.setItem(
+          `peaceverse_otp_verified_${res.user.uid}`,
+          res.user.email.trim().toLowerCase()
+        );
+      }
+    } catch {}
     const eName =
       res.user.displayName?.trim() ||
       (res.user.email ? res.user.email.split('@')[0] : 'Member');
@@ -1520,6 +1530,7 @@ export async function loginWithEmail(email: string, pass: string): Promise<Fireb
       res.user.photoURL ||
       `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(eName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
     void syncUserDirectoryProfile(res.user.uid, eName, res.user.email || '', eAvatar);
+    void markCurrentUserEmailOtpVerified();
   }
   return res.user;
 }
