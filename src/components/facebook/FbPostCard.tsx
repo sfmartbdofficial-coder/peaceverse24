@@ -659,7 +659,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
         </div>
 
         {/* Top Right: ••• and ✕ buttons matching Screenshot 1 & 2 */}
-        <div className="flex items-center gap-0.5 text-[#65676B]">
+        <div className="relative flex items-center gap-0.5 text-[#65676B]">
           <button
             onClick={() => setMenuOpen(!menuOpen)}
             className="p-1.5 rounded-full hover:bg-[#F0F2F5] text-[#65676B] transition-colors cursor-pointer"
@@ -678,7 +678,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           {menuOpen && (
             <>
               <div className="fixed inset-0 z-30" onClick={() => setMenuOpen(false)} />
-              <div className="absolute right-4 top-10 z-40 w-52 py-1.5 bg-white border border-[#E4E6EB] rounded-xl shadow-2xl text-xs text-black animate-in fade-in zoom-in-95">
+              <div className="absolute right-0 top-full mt-1.5 z-40 w-52 py-1.5 bg-white border border-[#E4E6EB] rounded-xl shadow-2xl text-xs text-black animate-in fade-in zoom-in-95">
                 
                 {/* Edit Post */}
                 <button
