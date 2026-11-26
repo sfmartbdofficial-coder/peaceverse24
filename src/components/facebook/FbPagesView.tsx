@@ -115,6 +115,11 @@ import {
   subscribeToFollowStatus,
   isSameOwnerIdentity,
   sanitizePageBioValue,
+  deactivatePageInFirestore,
+  schedulePageDeletionInFirestore,
+  cancelPageDeletionInFirestore,
+  permanentlyDeletePageFromFirestore,
+  PAGE_DELETION_GRACE_DAYS,
 } from '../../lib/firebase';
 import { compressImageForFirestore } from '../../utils/imageCompress';
 import { uploadDataUrlIfOversized, useResolvedMediaUrl } from '../../lib/mediaStorage';
@@ -1037,6 +1042,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const [newAdminRole, setNewAdminRole] = useState<'Full control' | 'Partial control' | 'Task access' | 'Community manager'>('Full control');
   const [inviteSearch, setInviteSearch] = useState('');
   const [confirmDeletePage, setConfirmDeletePage] = useState(false);
+  const [deletePageMode, setDeletePageMode] = useState<'schedule_14d' | 'immediate'>('schedule_14d');
+  const [pageLifecycleBusy, setPageLifecycleBusy] = useState(false);
   const [activityFilter, setActivityFilter] = useState<'all' | 'post' | 'settings' | 'archive' | 'invite'>('all');
   const [actionBtnTypeDraft, setActionBtnTypeDraft] = useState('WhatsApp');
   const [actionBtnValueDraft, setActionBtnValueDraft] = useState('');
@@ -7352,64 +7359,242 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                     ) : privacySubView === 'deletion' ? (
                       <div className="space-y-3">
                         <div className="p-4 rounded-2xl border border-[#E4E6EB] space-y-2">
-                          <h4 className="text-sm font-bold text-[#050505]">Deactivate Page (Temporary)</h4>
+                          <h4 className="text-sm font-bold text-[#050505]">Deactivate Page (সাময়িক বন্ধ)</h4>
                           <p className="text-xs text-[#65676B]">
                             সাময়িকভাবে পেজটি লুকিয়ে রাখুন; চাইলে যেকোনো সময় আবার Publish করতে পারবেন।
                           </p>
                           <button
                             type="button"
-                            onClick={() => {
-                              const nextPub = !settings.isPublished;
-                              updatePageSettings(selectedPage.id, { isPublished: nextPub });
-                              logPageActivity(
-                                selectedPage.id,
-                                'settings',
-                                nextPub ? 'Reactivated Page' : 'Deactivated Page temporarily'
-                              );
-                              showToast(nextPub ? 'পেজটি পুনরায় সক্রিয় হয়েছে' : 'পেজটি ডিঅ্যাক্টিভেট করা হয়েছে');
+                            disabled={pageLifecycleBusy}
+                            onClick={async () => {
+                              const nextPub = selectedPage.isPublished === false || selectedPage.status === 'deactivated'
+                                ? true
+                                : !settings.isPublished;
+                              setPageLifecycleBusy(true);
+                              try {
+                                updatePageSettings(selectedPage.id, { isPublished: nextPub });
+                                const updatedPage: PageItem = {
+                                  ...selectedPage,
+                                  isPublished: nextPub,
+                                  status: nextPub ? 'active' : 'deactivated',
+                                  deletionScheduledAt: undefined,
+                                  deletionExecuteAt: undefined,
+                                };
+                                persistUpdatedPage(updatedPage);
+                                await deactivatePageInFirestore(selectedPage.id, nextPub);
+                                logPageActivity(
+                                  selectedPage.id,
+                                  'settings',
+                                  nextPub ? 'Reactivated Page' : 'Deactivated Page temporarily'
+                                );
+                                showToast(
+                                  nextPub
+                                    ? 'পেজটি পুনরায় সক্রিয় হয়েছে!'
+                                    : 'পেজটি সাময়িকভাবে ডিঅ্যাক্টিভেট করা হয়েছে (পাবলিক সার্চ থেকে লুকানো)।'
+                                );
+                              } finally {
+                                setPageLifecycleBusy(false);
+                              }
                             }}
-                            className="w-full py-2.5 rounded-lg bg-[#E4E6EB] text-[#050505] text-xs font-bold cursor-pointer"
+                            className="w-full py-2.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold cursor-pointer disabled:opacity-60"
                           >
-                            {settings.isPublished ? 'Deactivate Page Temporarily' : 'Reactivate Page Now'}
+                            {selectedPage.status === 'deactivated' || selectedPage.isPublished === false || !settings.isPublished
+                              ? 'Reactivate Page Now'
+                              : 'Deactivate Page Temporarily'}
                           </button>
                         </div>
 
-                        {!confirmDeletePage ? (
+                        {selectedPage.status === 'pending_deletion' ? (
+                          <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 space-y-2.5">
+                            <h4 className="text-sm font-bold text-amber-900">
+                              পেজ ডিলিট শিডিউল করা রয়েছে ({PAGE_DELETION_GRACE_DAYS} দিনের নিয়ম)
+                            </h4>
+                            <p className="text-xs text-amber-800 leading-relaxed">
+                              এই পেজটি{' '}
+                              <strong>
+                                {selectedPage.deletionExecuteAt
+                                  ? new Date(selectedPage.deletionExecuteAt).toLocaleDateString('bn-BD', {
+                                      day: 'numeric',
+                                      month: 'long',
+                                      year: 'numeric',
+                                    })
+                                  : `${PAGE_DELETION_GRACE_DAYS} দিন পর`}
+                              </strong>{' '}
+                              স্থায়ীভাবে ডিলিট হবে। চাইলে এখনই বাতিল করে পেজটি ফিরিয়ে আনতে পারেন।
+                            </p>
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <button
+                                type="button"
+                                disabled={pageLifecycleBusy}
+                                onClick={async () => {
+                                  setPageLifecycleBusy(true);
+                                  try {
+                                    await cancelPageDeletionInFirestore(selectedPage.id);
+                                    updatePageSettings(selectedPage.id, { isPublished: true });
+                                    persistUpdatedPage({
+                                      ...selectedPage,
+                                      isPublished: true,
+                                      status: 'active',
+                                      deletionScheduledAt: undefined,
+                                      deletionExecuteAt: undefined,
+                                    });
+                                    showToast(`"${selectedPage.name}" পেজ ডিলিট বাতিল করা হয়েছে!`);
+                                  } finally {
+                                    setPageLifecycleBusy(false);
+                                  }
+                                }}
+                                className="py-2 rounded-lg bg-[#0866FF] hover:bg-[#166FE5] text-white text-xs font-bold cursor-pointer disabled:opacity-60"
+                              >
+                                ডিলিট বাতিল করুন (Cancel Deletion)
+                              </button>
+                              <button
+                                type="button"
+                                disabled={pageLifecycleBusy}
+                                onClick={async () => {
+                                  const delId = selectedPage.id;
+                                  const delName = selectedPage.name;
+                                  setPageLifecycleBusy(true);
+                                  try {
+                                    await permanentlyDeletePageFromFirestore(delId);
+                                    setConfirmDeletePage(false);
+                                    setShowPageSettings(false);
+                                    setActiveSettingKey(null);
+                                    setSelectedPage(null);
+                                    setPages((prev) => {
+                                      const next = prev.filter((p) => p.id !== delId);
+                                      try {
+                                        localStorage.setItem('qalby_fb_pages', JSON.stringify(next));
+                                      } catch {}
+                                      return next;
+                                    });
+                                    syncUpdatedPageToSwitchedStorage(null, delId);
+                                    showToast(`"${delName}" পেজটি চিরতরে মুছে ফেলা হয়েছে`);
+                                  } finally {
+                                    setPageLifecycleBusy(false);
+                                  }
+                                }}
+                                className="py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
+                              >
+                                এখনই চিরতরে মুছুন
+                              </button>
+                            </div>
+                          </div>
+                        ) : !confirmDeletePage ? (
                           <button
                             type="button"
-                            onClick={() => setConfirmDeletePage(true)}
+                            onClick={() => {
+                              setDeletePageMode('schedule_14d');
+                              setConfirmDeletePage(true);
+                            }}
                             className="w-full py-2.5 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-bold cursor-pointer"
                           >
-                            Delete Page permanently
+                            Delete Page permanently (Facebook নিয়ম)
                           </button>
                         ) : (
-                          <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
-                            <p className="text-xs font-bold text-rose-800">
-                              আপনি কি নিশ্চিত যে &ldquo;{selectedPage.name}&rdquo; পেজটি স্থায়ীভাবে ডিলিট করতে চান?
+                          <div className="p-3.5 rounded-2xl bg-rose-50 border border-rose-200 space-y-2.5">
+                            <p className="text-xs font-bold text-rose-900">
+                              &ldquo;{selectedPage.name}&rdquo; পেজ ডিলিট অপশন নির্বাচন করুন:
                             </p>
+
+                            <div className="space-y-1.5">
+                              <label className="flex items-start gap-2 p-2 rounded-lg bg-white border border-[#E4E6EB] cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="page-delete-mode"
+                                  checked={deletePageMode === 'schedule_14d'}
+                                  onChange={() => setDeletePageMode('schedule_14d')}
+                                  className="mt-0.5 accent-[#0866FF]"
+                                />
+                                <span className="text-[11px] text-[#1C1E21]">
+                                  <strong className="block">১৪ দিন পর স্থায়ী ডিলিট (Facebook নিয়ম — প্রস্তাবিত)</strong>
+                                  পেজটি এখনই অদৃশ্য হবে, তবে ১৪ দিনের মধ্যে চাইলে ডিলিট বাতিল করতে পারবেন।
+                                </span>
+                              </label>
+                              <label className="flex items-start gap-2 p-2 rounded-lg bg-white border border-[#E4E6EB] cursor-pointer">
+                                <input
+                                  type="radio"
+                                  name="page-delete-mode"
+                                  checked={deletePageMode === 'immediate'}
+                                  onChange={() => setDeletePageMode('immediate')}
+                                  className="mt-0.5 accent-rose-600"
+                                />
+                                <span className="text-[11px] text-[#1C1E21]">
+                                  <strong className="block text-rose-700">এখনই স্থায়ীভাবে মুছুন</strong>
+                                  অপেক্ষা ছাড়াই পেজ ও পেজের সব পোস্ট সাথে সাথে ডিলিট হবে।
+                                </span>
+                              </label>
+                            </div>
+
                             <div className="grid grid-cols-2 gap-2">
                               <button
                                 type="button"
+                                disabled={pageLifecycleBusy}
                                 onClick={() => setConfirmDeletePage(false)}
-                                className="py-2 rounded-lg bg-white text-[#050505] text-xs font-bold cursor-pointer"
+                                className="py-2 rounded-lg bg-white border border-[#E4E6EB] text-[#050505] text-xs font-bold cursor-pointer disabled:opacity-50"
                               >
                                 Cancel
                               </button>
                               <button
                                 type="button"
-                                onClick={() => {
+                                disabled={pageLifecycleBusy}
+                                onClick={async () => {
                                   const delId = selectedPage.id;
                                   const delName = selectedPage.name;
-                                  setShowPageSettings(false);
-                                  setActiveSettingKey(null);
-                                  setSelectedPage(null);
-                                  setPages((prev) => prev.filter((p) => p.id !== delId));
-                                  syncUpdatedPageToSwitchedStorage(null, delId);
-                                  showToast(`"${delName}" পেজটি মুছে ফেলা হয়েছে`);
+                                  setPageLifecycleBusy(true);
+                                  try {
+                                    if (deletePageMode === 'schedule_14d') {
+                                      const { deletionExecuteAt, deletionScheduledAt } =
+                                        await schedulePageDeletionInFirestore(delId);
+                                      updatePageSettings(delId, { isPublished: false });
+                                      const updated: PageItem = {
+                                        ...selectedPage,
+                                        isPublished: false,
+                                        status: 'pending_deletion',
+                                        deletionScheduledAt,
+                                        deletionExecuteAt,
+                                      };
+                                      setPages((prev) => {
+                                        const next = prev.map((p) => (p.id === delId ? updated : p));
+                                        try {
+                                          localStorage.setItem('qalby_fb_pages', JSON.stringify(next));
+                                        } catch {}
+                                        return next;
+                                      });
+                                      syncUpdatedPageToSwitchedStorage(null, delId);
+                                      setConfirmDeletePage(false);
+                                      setShowPageSettings(false);
+                                      setActiveSettingKey(null);
+                                      setSelectedPage(null);
+                                      showToast(
+                                        `"${delName}" ১৪ দিনের জন্য ডিলিট শিডিউল করা হয়েছে (চাইলে বাতিল করতে পারবেন)`
+                                      );
+                                    } else {
+                                      await permanentlyDeletePageFromFirestore(delId);
+                                      setConfirmDeletePage(false);
+                                      setShowPageSettings(false);
+                                      setActiveSettingKey(null);
+                                      setSelectedPage(null);
+                                      setPages((prev) => {
+                                        const next = prev.filter((p) => p.id !== delId);
+                                        try {
+                                          localStorage.setItem('qalby_fb_pages', JSON.stringify(next));
+                                        } catch {}
+                                        return next;
+                                      });
+                                      syncUpdatedPageToSwitchedStorage(null, delId);
+                                      showToast(`"${delName}" পেজটি স্থায়ীভাবে মুছে ফেলা হয়েছে`);
+                                    }
+                                  } finally {
+                                    setPageLifecycleBusy(false);
+                                  }
                                 }}
-                                className="py-2 rounded-lg bg-rose-600 text-white text-xs font-bold cursor-pointer"
+                                className="py-2 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer disabled:opacity-60"
                               >
-                                Confirm Delete
+                                {pageLifecycleBusy
+                                  ? 'অপেক্ষা করুন...'
+                                  : deletePageMode === 'schedule_14d'
+                                  ? 'Schedule Delete'
+                                  : 'Confirm Delete'}
                               </button>
                             </div>
                           </div>
@@ -8232,10 +8417,48 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           <p className="text-[15px] font-bold text-[#050505] truncate leading-snug">
                             {page.name}
                           </p>
-                          <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1877F2] mt-0.5">
-                            <span className="w-2 h-2 rounded-full bg-[#1877F2] inline-block shrink-0" />
-                            <span>{unreadNewCount} new</span>
-                          </div>
+                          {page.status === 'pending_deletion' ? (
+                            <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                              <span className="text-[12px] font-semibold text-rose-600">
+                                ডিলিট শিডিউল করা (১৪ দিন)
+                              </span>
+                              <button
+                                type="button"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  await cancelPageDeletionInFirestore(page.id);
+                                  updatePageSettings(page.id, { isPublished: true });
+                                  const restored: PageItem = {
+                                    ...page,
+                                    isPublished: true,
+                                    status: 'active',
+                                    deletionScheduledAt: undefined,
+                                    deletionExecuteAt: undefined,
+                                  };
+                                  setPages((prev) => {
+                                    const next = prev.map((p) => (p.id === page.id ? restored : p));
+                                    try {
+                                      localStorage.setItem('qalby_fb_pages', JSON.stringify(next));
+                                    } catch {}
+                                    return next;
+                                  });
+                                  showToast(`"${page.name}" পেজের ডিলিট বাতিল হয়েছে!`);
+                                }}
+                                className="px-2 py-0.5 rounded bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold cursor-pointer"
+                              >
+                                Cancel Deletion
+                              </button>
+                            </div>
+                          ) : page.status === 'deactivated' || page.isPublished === false ? (
+                            <div className="flex items-center gap-1.5 text-[12px] font-semibold text-amber-700 mt-0.5">
+                              <span>Deactivated (Hidden)</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1877F2] mt-0.5">
+                              <span className="w-2 h-2 rounded-full bg-[#1877F2] inline-block shrink-0" />
+                              <span>{unreadNewCount} new</span>
+                            </div>
+                          )}
                         </div>
                       </div>
 

@@ -1460,6 +1460,14 @@ async function hydrateDirectoryFromFirestoreWithToken(bearerHeader?: string): Pr
     const docId = namePath.split('/').pop() || '';
     const fields = docObj?.fields || {};
     const uid = parseFirestoreStringField(fields.uid) || parseFirestoreStringField(fields.id) || docId;
+    const accountStatus = parseFirestoreStringField(fields.accountStatus).toLowerCase();
+    if (accountStatus === 'deactivated' || accountStatus === 'pending_deletion' || accountStatus === 'deleted') {
+      if (uid && serverUserDirectoryMap.has(uid)) {
+        serverUserDirectoryMap.delete(uid);
+        updatedAny = true;
+      }
+      return;
+    }
     const displayName = sanitizeServerText(
       parseFirestoreStringField(fields.displayName) || parseFirestoreStringField(fields.name),
       120
@@ -1591,6 +1599,31 @@ app.post('/api/users/sync', async (req, res) => {
   } catch (error: any) {
     console.error('User directory sync error:', error);
     return res.status(500).json({ ok: false, error: 'Failed to sync user directory.' });
+  }
+});
+
+app.post('/api/users/lifecycle', async (req, res) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required.' });
+    }
+    const action = sanitizeServerText(req.body?.action, 40).toLowerCase();
+    if (!['deactivate', 'schedule_delete', 'delete_now', 'reactivate'].includes(action)) {
+      return res.status(400).json({ ok: false, error: 'Invalid lifecycle action.' });
+    }
+
+    if (action === 'deactivate' || action === 'schedule_delete' || action === 'delete_now') {
+      if (serverUserDirectoryMap.has(verified.uid)) {
+        serverUserDirectoryMap.delete(verified.uid);
+        persistUserDirectoryToDisk();
+      }
+    }
+
+    return res.json({ ok: true, action, uid: verified.uid });
+  } catch (error: any) {
+    console.error('User lifecycle endpoint error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to update account lifecycle state.' });
   }
 });
 

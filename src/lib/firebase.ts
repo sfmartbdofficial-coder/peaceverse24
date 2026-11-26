@@ -18,11 +18,20 @@ import {
   where,
   serverTimestamp,
   getDocFromServer,
+  deleteField,
 } from 'firebase/firestore';
 import {
   getAuth,
+  initializeAuth,
+  indexedDBLocalPersistence,
+  browserLocalPersistence,
+  setPersistence,
   signInWithPopup,
   GoogleAuthProvider,
+  EmailAuthProvider,
+  reauthenticateWithCredential,
+  reauthenticateWithPopup,
+  deleteUser,
   signInWithEmailAndPassword,
   createUserWithEmailAndPassword,
   updateProfile,
@@ -126,8 +135,30 @@ async function getDocSafe(docRef: ReturnType<typeof doc>) {
   }
 }
 
-// Initialize Auth
-export const auth = getAuth(app);
+// Initialize Auth with durable browser persistence (IndexedDB primary + localStorage fallback)
+// so users stay logged in across tab kills, browser restarts, and long idle periods until explicit logout.
+export const auth = (() => {
+  try {
+    return initializeAuth(app, {
+      persistence: [indexedDBLocalPersistence, browserLocalPersistence],
+    });
+  } catch {
+    return getAuth(app);
+  }
+})();
+
+export async function ensurePersistentAuthSession(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    await setPersistence(auth, indexedDBLocalPersistence);
+  } catch {
+    try {
+      await setPersistence(auth, browserLocalPersistence);
+    } catch {}
+  }
+}
+
+void ensurePersistentAuthSession();
 
 // Firestore Error Handling (Section 3 of Firebase Integration Skill)
 export enum OperationType {
@@ -1626,6 +1657,7 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
     throw new Error('Firebase API key missing. Set API keys in Vercel Environment Variables, not in code.');
   }
   try {
+    await ensurePersistentAuthSession();
     const provider = new GoogleAuthProvider();
     const result = await signInWithPopup(auth, provider);
     if (result.user) {
@@ -1651,6 +1683,7 @@ export async function loginWithEmail(email: string, pass: string): Promise<Fireb
     emitApiKeyEnvWarning();
     throw new Error('Firebase API key missing. Set API keys in Vercel Environment Variables, not in code.');
   }
+  await ensurePersistentAuthSession();
   const res = await signInWithEmailAndPassword(auth, email.trim(), pass);
   if (res.user) {
     resetSessionStart();
@@ -1689,6 +1722,7 @@ export async function registerWithEmail(
     throw new Error('Email OTP verification is required before creating an account.');
   }
   const cleanDisplayName = sanitizeInput(displayName.trim()) || email.split('@')[0];
+  await ensurePersistentAuthSession();
   const res = await createUserWithEmailAndPassword(auth, email.trim(), pass);
   if (res.user) {
     resetSessionStart();
@@ -2008,6 +2042,13 @@ export async function fetchUserProfileFromFirestore(
       isCreator: data.isCreator === true,
       emailOtpVerified: data.emailOtpVerified === true,
       updatedAtMillis: typeof data.updatedAtMillis === 'number' ? data.updatedAtMillis : undefined,
+      accountStatus:
+        data.accountStatus === 'deactivated' || data.accountStatus === 'pending_deletion'
+          ? data.accountStatus
+          : 'active',
+      deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
+      deletionExecuteAt:
+        typeof data.deletionExecuteAt === 'number' ? data.deletionExecuteAt : undefined,
     };
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
@@ -2760,6 +2801,10 @@ async function fetchDirectoryUsersFromServer(): Promise<DirectoryUserRecord[]> {
   // 2. Firestore public_profiles collection
   (publicProfilesSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
+    const acctStatus = String(data.accountStatus || 'active').toLowerCase();
+    if (acctStatus === 'deactivated' || acctStatus === 'pending_deletion' || acctStatus === 'deleted') {
+      return;
+    }
     const displayName = String(data.displayName || data.name || '').trim();
     if (!displayName) return;
     const username = String(data.username || data.handle || '').trim();
@@ -2789,6 +2834,10 @@ async function fetchDirectoryUsersFromServer(): Promise<DirectoryUserRecord[]> {
   // 3. Firestore users collection
   (usersSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
+    const acctStatus = String(data.accountStatus || 'active').toLowerCase();
+    if (acctStatus === 'deactivated' || acctStatus === 'pending_deletion' || acctStatus === 'deleted') {
+      return;
+    }
     const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
     const rawEmail = data.email ? String(data.email).trim().toLowerCase() : '';
     const emailLocal = rawEmail ? rawEmail.split('@')[0] : '';
@@ -3139,6 +3188,10 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
       imo: page.imo || '',
       viber: page.viber || '',
       rating: page.rating || '5.0 ★',
+      isPublished: page.isPublished !== false,
+      status: page.status || (page.isPublished === false ? 'deactivated' : 'active'),
+      ...(page.deletionScheduledAt ? { deletionScheduledAt: page.deletionScheduledAt } : {}),
+      ...(typeof page.deletionExecuteAt === 'number' ? { deletionExecuteAt: page.deletionExecuteAt } : {}),
       createdAt: page.createdAt || new Date().toISOString(),
       updatedAt: new Date().toISOString(),
     };
@@ -3160,10 +3213,19 @@ export async function fetchOwnedPagesFromFirestore(ownerUid: string): Promise<Pa
     const q = query(collection(db, 'pages'), where('ownerUid', '==', ownerUid), limit(100));
     const snap = await getDocs(q);
     if (snap.empty) return [];
-    return snap.docs.map((docSnap) => {
+    const results: PageItem[] = [];
+    const now = Date.now();
+    for (const docSnap of snap.docs) {
       const data = docSnap.data();
+      const statusRaw = String(data.status || 'active');
+      const deleteAt = typeof data.deletionExecuteAt === 'number' ? data.deletionExecuteAt : 0;
+      if (statusRaw === 'pending_deletion' && deleteAt > 0 && now >= deleteAt) {
+        void deleteDoc(docSnap.ref).catch(() => {});
+        continue;
+      }
+      if (statusRaw === 'deleted') continue;
       const name = String(data.name || 'Page').trim();
-      return {
+      results.push({
         id: docSnap.id,
         name,
         category: String(data.category || 'Community'),
@@ -3186,8 +3248,16 @@ export async function fetchOwnedPagesFromFirestore(ownerUid: string): Promise<Pa
         location: data.location ? String(data.location) : undefined,
         rating: data.rating ? String(data.rating) : undefined,
         createdAt: data.createdAt ? String(data.createdAt) : undefined,
-      };
-    });
+        isPublished: data.isPublished !== false,
+        status:
+          statusRaw === 'deactivated' || statusRaw === 'pending_deletion'
+            ? (statusRaw as 'deactivated' | 'pending_deletion')
+            : 'active',
+        deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
+        deletionExecuteAt: deleteAt || undefined,
+      });
+    }
+    return results;
   } catch {
     return [];
   }
@@ -3201,6 +3271,11 @@ export async function fetchPageByIdFromFirestore(pageId: string): Promise<PageIt
     const data = snap.data();
     const currentUid = auth.currentUser?.uid || '';
     const isOwner = Boolean(currentUid && data.ownerUid && data.ownerUid === currentUid);
+    const statusRaw = String(data.status || 'active');
+    if (statusRaw === 'deleted') return null;
+    if (!isOwner && (statusRaw === 'deactivated' || statusRaw === 'pending_deletion' || data.isPublished === false)) {
+      return null;
+    }
     const name = String(data.name || 'Page').trim();
     return {
       id: snap.id,
@@ -3225,6 +3300,13 @@ export async function fetchPageByIdFromFirestore(pageId: string): Promise<PageIt
       location: data.location ? String(data.location) : undefined,
       rating: data.rating ? String(data.rating) : undefined,
       createdAt: data.createdAt ? String(data.createdAt) : undefined,
+      isPublished: data.isPublished !== false,
+      status:
+        statusRaw === 'deactivated' || statusRaw === 'pending_deletion'
+          ? (statusRaw as 'deactivated' | 'pending_deletion')
+          : 'active',
+      deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
+      deletionExecuteAt: typeof data.deletionExecuteAt === 'number' ? data.deletionExecuteAt : undefined,
     };
   } catch {
     return null;
@@ -3242,7 +3324,13 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
       const parsed: PageItem[] = JSON.parse(localRaw);
       if (Array.isArray(parsed)) {
         parsed.forEach((p) => {
-          if (p?.id && p?.name) {
+          if (
+            p?.id &&
+            p?.name &&
+            p.status !== 'deactivated' &&
+            p.status !== 'pending_deletion' &&
+            p.isPublished !== false
+          ) {
             byId.set(p.id, {
               ...p,
               bio: sanitizePageBioValue(p.bio),
@@ -3255,10 +3343,20 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
     }
   } catch {}
 
-  // 2. Firestore 'pages' collection (all public pages created across users)
+  // 2. Firestore 'pages' collection (all public active pages created across users)
   const pagesSnap = await getDocs(query(collection(db, 'pages'), limit(500))).catch(() => null);
   (pagesSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
+    const statusRaw = String(data.status || 'active');
+    if (
+      statusRaw === 'deactivated' ||
+      statusRaw === 'pending_deletion' ||
+      statusRaw === 'deleted' ||
+      data.isPublished === false
+    ) {
+      byId.delete(docSnap.id);
+      return;
+    }
     const name = String(data.name || '').trim();
     if (!name) return;
     const existing = byId.get(docSnap.id);
@@ -4126,6 +4224,271 @@ export async function sendRealtimeDirectMessage(
       console.warn('Notice sending direct message:', err);
     }
     return false;
+  }
+}
+
+// ==========================================
+// FACEBOOK-STANDARD ACCOUNT & PAGE DEACTIVATION / DELETION
+// ==========================================
+
+export const ACCOUNT_DELETION_GRACE_DAYS = 30;
+export const PAGE_DELETION_GRACE_DAYS = 14;
+
+async function notifyServerUserLifecycle(
+  action: 'deactivate' | 'schedule_delete' | 'delete_now' | 'reactivate'
+): Promise<void> {
+  try {
+    const user = auth.currentUser;
+    if (!user) return;
+    const idToken = await user.getIdToken();
+    if (!idToken) return;
+    await fetch('/api/users/lifecycle', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${idToken}`,
+      },
+      body: JSON.stringify({ action }),
+    });
+  } catch {}
+}
+
+async function reauthenticateCurrentUserIfNeeded(password?: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('লগইন করা নেই।');
+  const usesPasswordProvider = (user.providerData || []).some(
+    (p) => p?.providerId === 'password'
+  );
+  if (usesPasswordProvider && user.email) {
+    if (!password || !password.trim()) {
+      throw new Error('আপনার অ্যাকাউন্টের নিরাপত্তা নিশ্চিত করতে বর্তমান পাসওয়ার্ড দিন।');
+    }
+    const cred = EmailAuthProvider.credential(user.email, password);
+    try {
+      await reauthenticateWithCredential(user, cred);
+    } catch (err: any) {
+      const code = String(err?.code || '');
+      if (code === 'auth/wrong-password' || code === 'auth/invalid-credential') {
+        throw new Error('পাসওয়ার্ড সঠিক নয়! অনুগ্রহ করে সঠিক পাসওয়ার্ড দিন।');
+      }
+      if (code === 'auth/too-many-requests') {
+        throw new Error('অনেকবার ভুল চেষ্টা করা হয়েছে। কিছুক্ষণ পর আবার চেষ্টা করুন।');
+      }
+      throw new Error(err?.message || 'পরিচয় যাচাই ব্যর্থ হয়েছে।');
+    }
+  } else if ((user.providerData || []).some((p) => p?.providerId === 'google.com')) {
+    try {
+      await reauthenticateWithPopup(user, new GoogleAuthProvider());
+    } catch (err: any) {
+      if (err?.code === 'auth/popup-closed-by-user') {
+        throw new Error('পরিচয় যাচাই পপআপ বন্ধ করা হয়েছে।');
+      }
+    }
+  }
+}
+
+export async function deactivateCurrentUserAccount(reason = ''): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('অ্যাকাউন্ট পাওয়া যায়নি।');
+  const nowIso = new Date().toISOString();
+  const payload = {
+    accountStatus: 'deactivated',
+    deactivatedAt: nowIso,
+    deactivationReason: sanitizeInput(reason, 200),
+    updatedAt: nowIso,
+    updatedAtMillis: Date.now(),
+  };
+  await Promise.allSettled([
+    setDoc(doc(db, 'users', user.uid), payload, { merge: true }),
+    setDoc(doc(db, 'public_profiles', user.uid), payload, { merge: true }),
+    notifyServerUserLifecycle('deactivate'),
+  ]);
+  cachedDirectoryUsers = null;
+}
+
+export async function scheduleCurrentUserAccountDeletion(
+  password?: string,
+  reason = ''
+): Promise<{ deletionExecuteAt: number; deletionScheduledAt: string }> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('অ্যাকাউন্ট পাওয়া যায়নি।');
+  const usesPasswordProvider = (user.providerData || []).some(
+    (p) => p?.providerId === 'password'
+  );
+  if (usesPasswordProvider && password !== undefined) {
+    await reauthenticateCurrentUserIfNeeded(password);
+  }
+  const now = Date.now();
+  const deletionScheduledAt = new Date(now).toISOString();
+  const deletionExecuteAt = now + ACCOUNT_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  const payload = {
+    accountStatus: 'pending_deletion',
+    deletionScheduledAt,
+    deletionExecuteAt,
+    deletionReason: sanitizeInput(reason, 200),
+    updatedAt: deletionScheduledAt,
+    updatedAtMillis: now,
+  };
+  await Promise.allSettled([
+    setDoc(doc(db, 'users', user.uid), payload, { merge: true }),
+    setDoc(doc(db, 'public_profiles', user.uid), payload, { merge: true }),
+    notifyServerUserLifecycle('schedule_delete'),
+  ]);
+  cachedDirectoryUsers = null;
+  return { deletionExecuteAt, deletionScheduledAt };
+}
+
+export async function reactivateCurrentUserAccount(): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) return;
+  const nowIso = new Date().toISOString();
+  const payload = {
+    accountStatus: 'active',
+    deactivatedAt: deleteField(),
+    deactivationReason: deleteField(),
+    deletionScheduledAt: deleteField(),
+    deletionExecuteAt: deleteField(),
+    deletionReason: deleteField(),
+    updatedAt: nowIso,
+    updatedAtMillis: Date.now(),
+  };
+  await Promise.allSettled([
+    setDoc(doc(db, 'users', user.uid), payload, { merge: true }),
+    setDoc(doc(db, 'public_profiles', user.uid), payload, { merge: true }),
+    notifyServerUserLifecycle('reactivate'),
+  ]);
+  cachedDirectoryUsers = null;
+}
+
+export async function permanentlyDeleteCurrentUserAccount(password?: string): Promise<void> {
+  const user = auth.currentUser;
+  if (!user) throw new Error('অ্যাকাউন্ট পাওয়া যায়নি।');
+  const usesPasswordProvider = (user.providerData || []).some(
+    (p) => p?.providerId === 'password'
+  );
+  if (usesPasswordProvider || password) {
+    await reauthenticateCurrentUserIfNeeded(password);
+  }
+
+  const uid = user.uid;
+
+  // Notify backend directory removal before deleting Firebase Auth token
+  await notifyServerUserLifecycle('delete_now');
+
+  // Best-effort cleanup of Firestore posts, owned pages, follows, and profile docs
+  try {
+    const postsSnap = await getDocs(query(collection(db, 'posts'), where('authorId', '==', uid), limit(200)));
+    await Promise.allSettled(postsSnap.docs.map((d) => deleteDoc(d.ref)));
+  } catch {}
+  try {
+    const pagesSnap = await getDocs(query(collection(db, 'pages'), where('ownerUid', '==', uid), limit(100)));
+    await Promise.allSettled(pagesSnap.docs.map((d) => deleteDoc(d.ref)));
+  } catch {}
+  try {
+    const followsSnap = await getDocs(query(collection(db, 'follows'), where('followerId', '==', uid), limit(200)));
+    await Promise.allSettled(followsSnap.docs.map((d) => deleteDoc(d.ref)));
+  } catch {}
+  await Promise.allSettled([
+    deleteDoc(doc(db, 'public_profiles', uid)),
+    deleteDoc(doc(db, 'users', uid)),
+  ]);
+
+  try {
+    await deleteUser(user);
+  } catch (err: any) {
+    if (err?.code === 'auth/requires-recent-login') {
+      await reauthenticateCurrentUserIfNeeded(password);
+      await deleteUser(user);
+    } else {
+      throw err;
+    }
+  }
+  cachedDirectoryUsers = null;
+  cachedDirectoryPages = null;
+}
+
+export async function deactivatePageInFirestore(
+  pageId: string,
+  isPublished: boolean
+): Promise<void> {
+  if (!pageId) return;
+  try {
+    await setDoc(
+      doc(db, 'pages', pageId),
+      {
+        isPublished,
+        status: isPublished ? 'active' : 'deactivated',
+        deactivatedAt: isPublished ? deleteField() : new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    cachedDirectoryPages = null;
+  } catch (err) {
+    console.warn('Notice toggling page publish status:', err);
+  }
+}
+
+export async function schedulePageDeletionInFirestore(
+  pageId: string
+): Promise<{ deletionExecuteAt: number; deletionScheduledAt: string }> {
+  const now = Date.now();
+  const deletionScheduledAt = new Date(now).toISOString();
+  const deletionExecuteAt = now + PAGE_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+  if (pageId) {
+    try {
+      await setDoc(
+        doc(db, 'pages', pageId),
+        {
+          isPublished: false,
+          status: 'pending_deletion',
+          deletionScheduledAt,
+          deletionExecuteAt,
+          updatedAt: deletionScheduledAt,
+        },
+        { merge: true }
+      );
+      cachedDirectoryPages = null;
+    } catch (err) {
+      console.warn('Notice scheduling page deletion:', err);
+    }
+  }
+  return { deletionExecuteAt, deletionScheduledAt };
+}
+
+export async function cancelPageDeletionInFirestore(pageId: string): Promise<void> {
+  if (!pageId) return;
+  try {
+    await setDoc(
+      doc(db, 'pages', pageId),
+      {
+        isPublished: true,
+        status: 'active',
+        deletionScheduledAt: deleteField(),
+        deletionExecuteAt: deleteField(),
+        updatedAt: new Date().toISOString(),
+      },
+      { merge: true }
+    );
+    cachedDirectoryPages = null;
+  } catch (err) {
+    console.warn('Notice cancelling page deletion:', err);
+  }
+}
+
+export async function permanentlyDeletePageFromFirestore(pageId: string): Promise<void> {
+  if (!pageId) return;
+  try {
+    const pagePostsSnap = await getDocs(
+      query(collection(db, 'posts'), where('authorId', '==', pageId), limit(200))
+    ).catch(() => null);
+    if (pagePostsSnap) {
+      await Promise.allSettled(pagePostsSnap.docs.map((d) => deleteDoc(d.ref)));
+    }
+    await deleteDoc(doc(db, 'pages', pageId));
+    cachedDirectoryPages = null;
+  } catch (err) {
+    console.warn('Notice deleting page from Firestore:', err);
   }
 }
 

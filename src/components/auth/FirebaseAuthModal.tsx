@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { X, Mail, Lock, CheckCircle2, AlertCircle, ArrowRight, RefreshCw, ShieldCheck, Eye, EyeOff } from 'lucide-react';
-import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword, logoutUser } from '../../lib/firebase';
+import { loginWithGoogle, loginWithEmail, registerWithEmail, resetPassword } from '../../lib/firebase';
 import { TurnstileCaptchaPlaceholder } from './TurnstileCaptchaPlaceholder';
 import { StepByStepSignUpForm, StepSignUpPayload, SignUpWizardStep } from './StepByStepSignUpForm';
 import { sanitizeInput } from '../../utils/security';
@@ -131,10 +131,6 @@ export const FirebaseAuthModal: React.FC<FirebaseAuthModalProps> = ({
 
     try {
       if (tab === 'login') {
-        try {
-          await logoutUser();
-        } catch {}
-
         const user = await loginWithEmail(email.trim(), password);
         if (user) {
           setSuccessMsg('সফলভাবে লগইন হয়েছে!');

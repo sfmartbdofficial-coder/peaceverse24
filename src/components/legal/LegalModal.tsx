@@ -17,8 +17,16 @@ import {
   Award,
   Send,
   Building,
-  Heart
+  Heart,
+  Loader2,
 } from 'lucide-react';
+import {
+  auth,
+  scheduleCurrentUserAccountDeletion,
+  permanentlyDeleteCurrentUserAccount,
+  logoutUser,
+  ACCOUNT_DELETION_GRACE_DAYS,
+} from '../../lib/firebase';
 
 export type LegalTabType = 'about' | 'privacy' | 'terms' | 'guidelines' | 'delete-account' | 'contact';
 
@@ -36,9 +44,13 @@ export const LegalModal: React.FC<LegalModalProps> = ({
   const [copiedToast, setCopiedToast] = useState(false);
 
   // Account deletion form state
-  const [deleteEmail, setDeleteEmail] = useState('');
+  const [deleteEmail, setDeleteEmail] = useState(() => auth.currentUser?.email || '');
   const [deleteReason, setDeleteReason] = useState('ব্যক্তিগত বিরতি নিচ্ছি');
+  const [deleteMode, setDeleteMode] = useState<'schedule_30d' | 'immediate'>('schedule_30d');
+  const [deletePassword, setDeletePassword] = useState('');
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [deleteBusy, setDeleteBusy] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [deletionSuccess, setDeletionSuccess] = useState(false);
 
   // Contact form state
@@ -54,10 +66,38 @@ export const LegalModal: React.FC<LegalModalProps> = ({
     setTimeout(() => setCopiedToast(false), 2500);
   };
 
-  const handleDeleteAccountSubmit = (e: React.FormEvent) => {
+  const handleDeleteAccountSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!deleteConfirm) return;
-    setDeletionSuccess(true);
+    setDeleteError(null);
+    if (!auth.currentUser) {
+      setDeletionSuccess(true);
+      return;
+    }
+    setDeleteBusy(true);
+    try {
+      if (deleteMode === 'schedule_30d') {
+        await scheduleCurrentUserAccountDeletion(deletePassword, deleteReason);
+      } else {
+        await permanentlyDeleteCurrentUserAccount(deletePassword);
+        try {
+          localStorage.removeItem('qalby_user_profile');
+          localStorage.removeItem('qalby_fb_pages');
+          localStorage.removeItem('qalby_switched_page');
+        } catch {}
+      }
+      setDeletionSuccess(true);
+      setTimeout(async () => {
+        try {
+          await logoutUser();
+        } catch {}
+        onClose();
+      }, 1500);
+    } catch (err: any) {
+      setDeleteError(err?.message || 'অ্যাকাউন্ট ডিলিট করা যায়নি। পাসওয়ার্ড যাচাই করে আবার চেষ্টা করুন।');
+    } finally {
+      setDeleteBusy(false);
+    }
   };
 
   const handleContactSubmit = (e: React.FormEvent) => {
@@ -554,19 +594,29 @@ export const LegalModal: React.FC<LegalModalProps> = ({
               <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 space-y-2">
                 <div className="flex items-center gap-2 text-rose-700 font-bold text-sm">
                   <AlertTriangle className="w-5 h-5" />
-                  <span>অ্যাকাউন্ট ও সম্পূর্ণ তথ্য মুছে ফেলার সুবিধা</span>
+                  <span>অ্যাকাউন্ট ও সম্পূর্ণ তথ্য মুছে ফেলার সুবিধা (Facebook নিয়ম)</span>
                 </div>
                 <p className="text-xs text-[#65676B]">
-                  গুগল প্লে স্টোর পলিসি অনুযায়ী, আপনি চাইলে যেকোনো সময় আপনার অ্যাকাউন্ট, পোস্ট, মন্তব্য এবং প্রোফাইলের সমস্ত ডাটা চিরতরে মুছে ফেলতে পারেন।
+                  ফেসবুক ও গুগল প্লে স্টোর নীতিমালা অনুযায়ী, আপনি চাইলে ৩০ দিনের রিভার্টিবল ডিলিট শিডিউল (৩০ দিনের মধ্যে লগইন করলে বাতিলযোগ্য) অথবা এখনই স্থায়ীভাবে আপনার অ্যাকাউন্ট, পোস্ট, পেজ এবং প্রোফাইলের সমস্ত ডাটা মুছে ফেলতে পারেন।
                 </p>
               </div>
 
               {deletionSuccess ? (
                 <div className="p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-center space-y-2 animate-in fade-in">
                   <CheckCircle className="w-10 h-10 text-emerald-600 mx-auto" />
-                  <h4 className="font-bold text-sm text-black">অ্যাকাউন্ট ডিলিট রিকোয়েস্ট সফল হয়েছে</h4>
+                  <h4 className="font-bold text-sm text-black">
+                    {auth.currentUser
+                      ? deleteMode === 'schedule_30d'
+                        ? `অ্যাকাউন্ট ডিলিট শিডিউল হয়েছে (${ACCOUNT_DELETION_GRACE_DAYS} দিন)`
+                        : 'অ্যাকাউন্ট স্থায়ীভাবে মুছে ফেলা হয়েছে'
+                      : 'অ্যাকাউন্ট ডিলিট রিকোয়েস্ট গৃহীত হয়েছে'}
+                  </h4>
                   <p className="text-xs text-[#65676B]">
-                    আপনার সমস্ত পোস্ট, প্রোফাইল ফটো ও তথ্য স্থায়ীভাবে ডাটাবেজ থেকে মুছে ফেলা হচ্ছে। সাথে থাকার জন্য শুকরিয়া।
+                    {auth.currentUser
+                      ? deleteMode === 'schedule_30d'
+                        ? `আগামী ${ACCOUNT_DELETION_GRACE_DAYS} দিন আপনার প্রোফাইল সবার কাছে অদৃশ্য থাকবে। এই সময়ের মধ্যে লগইন করলে পুনরায় ফিরিয়ে আনতে পারবেন।`
+                        : 'আপনার সমস্ত পোস্ট, পেজ, প্রোফাইল ফটো ও তথ্য ডাটাবেজ থেকে স্থায়ীভাবে মুছে ফেলা হয়েছে।'
+                      : 'এই ব্রাউজারে অ্যাকাউন্ট লগইন থাকলে সরাসরি ডিলিট প্রক্রিয়া সম্পন্ন হয়। লগইন করা না থাকলে সাপোর্ট টিম ২৪ ঘণ্টার মধ্যে আপনার রিকোয়েস্ট যাচাই করবে।'}
                   </p>
                 </div>
               ) : (
@@ -597,6 +647,62 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                     </select>
                   </div>
 
+                  {auth.currentUser && (
+                    <>
+                      <div className="space-y-1.5">
+                        <label className="flex items-start gap-2 p-2.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <input
+                            type="radio"
+                            name="legal-delete-mode"
+                            checked={deleteMode === 'schedule_30d'}
+                            onChange={() => setDeleteMode('schedule_30d')}
+                            className="mt-0.5 accent-[#0866FF]"
+                          />
+                          <span className="text-xs text-[#1C1E21]">
+                            <strong className="block">৩০ দিন পর স্থায়ী ডিলিট (Facebook নিয়ম)</strong>
+                            ৩০ দিনের মধ্যে লগইন করলে ডিলিট বাতিল করতে পারবেন।
+                          </span>
+                        </label>
+                        <label className="flex items-start gap-2 p-2.5 rounded-xl bg-[#F0F2F5] cursor-pointer">
+                          <input
+                            type="radio"
+                            name="legal-delete-mode"
+                            checked={deleteMode === 'immediate'}
+                            onChange={() => setDeleteMode('immediate')}
+                            className="mt-0.5 accent-rose-600"
+                          />
+                          <span className="text-xs text-[#1C1E21]">
+                            <strong className="block text-rose-700">এখনই চিরতরে ডিলিট করুন</strong>
+                            অপেক্ষা ছাড়াই সাথে সাথে সব তথ্য মুছে যাবে।
+                          </span>
+                        </label>
+                      </div>
+
+                      {(auth.currentUser.providerData || []).some((p) => p?.providerId === 'password') && (
+                        <div>
+                          <label className="block text-xs font-bold text-black mb-1">আপনার বর্তমান পাসওয়ার্ড দিন:</label>
+                          <input
+                            type="password"
+                            required
+                            placeholder="বর্তমান পাসওয়ার্ড"
+                            value={deletePassword}
+                            onChange={(e) => {
+                              setDeletePassword(e.target.value);
+                              setDeleteError(null);
+                            }}
+                            className="w-full bg-[#F0F2F5] border border-[#E4E6EB] rounded-xl px-3.5 py-2 text-xs text-black focus:outline-none focus:border-rose-500"
+                          />
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {deleteError && (
+                    <p className="text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-xl px-3 py-2">
+                      {deleteError}
+                    </p>
+                  )}
+
                   <div className="flex items-center gap-2 pt-1">
                     <input
                       type="checkbox"
@@ -606,17 +712,21 @@ export const LegalModal: React.FC<LegalModalProps> = ({
                       className="rounded text-rose-600 focus:ring-0"
                     />
                     <label htmlFor="confirm-del" className="text-xs text-[#65676B]">
-                      আমি নিশ্চিত যে আমার অ্যাকাউন্টের সমস্ত পোস্ট ও ডাটা স্থায়ীভাবে মুছে ফেলা হবে।
+                      আমি নিশ্চিত যে আমার অ্যাকাউন্টের সমস্ত পোস্ট ও ডাটা মুছে ফেলার নিয়ম বুঝতে পেরেছি।
                     </label>
                   </div>
 
                   <button
                     type="submit"
-                    disabled={!deleteConfirm || !deleteEmail.trim()}
+                    disabled={!deleteConfirm || !deleteEmail.trim() || deleteBusy}
                     className="w-full py-2.5 rounded-xl bg-rose-600 hover:bg-rose-700 disabled:opacity-40 text-white font-bold text-xs flex items-center justify-center gap-2 transition-colors shadow-sm cursor-pointer"
                   >
-                    <Trash2 className="w-4 h-4" />
-                    <span>অ্যাকাউন্ট চিরতরে মুছে ফেলুন (Permanently Delete)</span>
+                    {deleteBusy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+                    <span>
+                      {auth.currentUser && deleteMode === 'schedule_30d'
+                        ? '৩০ দিনের ডিলিট শিডিউল করুন'
+                        : 'অ্যাকাউন্ট চিরতরে মুছে ফেলুন (Permanently Delete)'}
+                    </span>
                   </button>
                 </form>
               )}

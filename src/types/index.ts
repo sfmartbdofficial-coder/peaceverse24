@@ -184,6 +184,10 @@ export interface PageItem {
   hours?: string;
   createdAt?: string;
   posts?: PostItem[];
+  isPublished?: boolean;
+  status?: 'active' | 'deactivated' | 'pending_deletion';
+  deletionScheduledAt?: string;
+  deletionExecuteAt?: number;
 }
 
 export interface ChatMessage {
@@ -234,6 +238,9 @@ export interface UserProfile {
   hobbies?: string[];
   goldenCoins?: number;
   earnedCoins?: number;
+  accountStatus?: 'active' | 'deactivated' | 'pending_deletion';
+  deletionScheduledAt?: string;
+  deletionExecuteAt?: number;
 }
 
 export interface SearchedUserProfile {

@@ -273,10 +273,6 @@ export const PeaceVerseAuthPage: React.FC<PeaceVerseAuthPageProps> = ({
     try {
       if (mode === 'login') {
         if (!otpChallenge) {
-          try {
-            await logoutUser();
-          } catch {}
-
           const user = await loginWithEmail(email.trim(), password);
           if (user) {
             if (loadPeaceSettings().twoFactorEnabled) {

@@ -69,6 +69,11 @@ import {
   fetchUserPublicPresenceStats,
   saveUserProfileToFirestore,
   logUserActivity,
+  deactivateCurrentUserAccount,
+  scheduleCurrentUserAccountDeletion,
+  permanentlyDeleteCurrentUserAccount,
+  ACCOUNT_DELETION_GRACE_DAYS,
+  auth,
   UserLinkHistoryItem,
   UserActivityLogItem,
   UserOrderRecord,
@@ -232,6 +237,11 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
   // Email privacy reveal + Account lifecycle confirmation + Moderation Queue
   const [revealEmail, setRevealEmail] = useState(false);
   const [confirmAccountAction, setConfirmAccountAction] = useState<'deactivate' | 'delete' | null>(null);
+  const [accountDeleteMode, setAccountDeleteMode] = useState<'schedule_30d' | 'immediate'>('schedule_30d');
+  const [accountActionReason, setAccountActionReason] = useState('ব্যক্তিগত বিরতি নিচ্ছি');
+  const [accountDeletePassword, setAccountDeletePassword] = useState('');
+  const [accountActionError, setAccountActionError] = useState<string | null>(null);
+  const [accountActionBusy, setAccountActionBusy] = useState(false);
   const [accountActionFeedback, setAccountActionFeedback] = useState<string | null>(null);
   const [modQueue, setModQueue] = useState<
     Array<{ id: string; author: string; text: string; reason: string; status: 'pending' | 'approved' | 'removed' }>
@@ -786,11 +796,13 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 />
               </div>
 
-              {/* Account Deactivate / Delete Controls */}
+              {/* Account Ownership & Control: Facebook-style Deactivate / Delete */}
               <div className={`p-3.5 rounded-2xl ${cardCls} space-y-2.5`}>
                 <div>
-                  <h4 className={`font-bold text-sm ${textPrimary}`}>অ্যাকাউন্ট নিয়ন্ত্রণ</h4>
-                  <p className={`text-xs ${textSecondary}`}>সাময়িকভাবে নিষ্ক্রিয় করুন অথবা স্থায়ীভাবে মুছুন</p>
+                  <h4 className={`font-bold text-sm ${textPrimary}`}>অ্যাকাউন্ট নিয়ন্ত্রণ (Ownership &amp; Control)</h4>
+                  <p className={`text-xs ${textSecondary}`}>
+                    ফেসবুকের নিয়ম অনুযায়ী সাময়িক নিষ্ক্রিয় অথবা ৩০ দিনের গ্রেস পিরিয়ডসহ স্থায়ী ডিলিট করুন
+                  </p>
                 </div>
 
                 {accountActionFeedback && (
@@ -800,43 +812,169 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                 )}
 
                 {confirmAccountAction ? (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2">
-                    <p className="text-xs font-bold text-rose-800">
+                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 space-y-2.5">
+                    <p className="text-xs font-bold text-rose-900">
                       {confirmAccountAction === 'delete'
-                        ? 'আপনি কি নিশ্চিতভাবে অ্যাকাউন্টটি স্থায়ীভাবে মুছে ফেলতে চান?'
-                        : 'আপনি কি অ্যাকাউন্টটি সাময়িকভাবে নিষ্ক্রিয় করতে চান?'}
+                        ? 'অ্যাকাউন্ট স্থায়ীভাবে ডিলিট (Facebook নিয়ম)'
+                        : 'অ্যাকাউন্ট সাময়িকভাবে নিষ্ক্রিয় করুন (Deactivate)'}
                     </p>
-                    <div className="flex items-center gap-2">
+                    <p className="text-[11px] text-[#4B5563] leading-relaxed">
+                      {confirmAccountAction === 'delete'
+                        ? `ফেসবুকের নিয়মে ডিলিট শিডিউল করলে ${ACCOUNT_DELETION_GRACE_DAYS} দিন আপনার প্রোফাইল ও পোস্ট সবার কাছ থেকে লুকানো থাকবে। এই ${ACCOUNT_DELETION_GRACE_DAYS} দিনের মধ্যে পুনরায় লগইন করলে অ্যাকাউন্ট ফিরিয়ে আনতে পারবেন—নাহলে স্থায়ীভাবে মুছে যাবে।`
+                        : 'আপনার প্রোফাইল, নাম ও সার্চ তালিকা সাময়িকভাবে লুকানো হবে। আপনার পোস্ট, বন্ধু ও পেজ নিরাপদ থাকবে—পরে লগইন করলেই আবার সক্রিয় হয়ে যাবে।'}
+                    </p>
+
+                    {onExportMyData && confirmAccountAction === 'delete' && (
                       <button
                         type="button"
-                        onClick={() => setConfirmAccountAction(null)}
-                        className="px-3 py-1.5 rounded-lg bg-white border border-[#E4E6EB] text-xs font-bold text-[#050505] cursor-pointer whitespace-nowrap"
+                        onClick={onExportMyData}
+                        className="w-full py-2 px-3 rounded-lg bg-white border border-[#E4E6EB] hover:bg-[#F0F2F5] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer"
+                      >
+                        <Download className="w-3.5 h-3.5 text-[#0866FF]" />
+                        <span>ডিলিট করার আগে আপনার ডাটা ডাউনলোড করুন</span>
+                      </button>
+                    )}
+
+                    <div className="space-y-2">
+                      <label className="block text-[11px] font-bold text-[#1C1E21]">
+                        কারণ নির্বাচন করুন:
+                      </label>
+                      <select
+                        value={accountActionReason}
+                        onChange={(e) => setAccountActionReason(e.target.value)}
+                        className="w-full bg-white border border-[#E4E6EB] rounded-lg px-2.5 py-2 text-xs text-black focus:outline-none"
+                      >
+                        <option value="ব্যক্তিগত বিরতি নিচ্ছি">ব্যক্তিগত বিরতি নিচ্ছি</option>
+                        <option value="প্রাইভেসি কারণে">প্রাইভেসি কারণে</option>
+                        <option value="অন্য অ্যাকাউন্ট ব্যবহার করছি">অন্য অ্যাকাউন্ট ব্যবহার করছি</option>
+                        <option value="অন্যান্য">অন্যান্য</option>
+                      </select>
+                    </div>
+
+                    {confirmAccountAction === 'delete' && (
+                      <>
+                        <div className="space-y-1.5">
+                          <label className="flex items-start gap-2 p-2 rounded-lg bg-white border border-[#E4E6EB] cursor-pointer">
+                            <input
+                              type="radio"
+                              name="account-delete-mode"
+                              checked={accountDeleteMode === 'schedule_30d'}
+                              onChange={() => setAccountDeleteMode('schedule_30d')}
+                              className="mt-0.5 accent-[#0866FF]"
+                            />
+                            <span className="text-[11px] text-[#1C1E21]">
+                              <strong className="block">৩০ দিন পর স্থায়ী ডিলিট (Facebook নিয়ম — প্রস্তাবিত)</strong>
+                              ৩০ দিনের মধ্যে লগইন করলে ডিলিট বাতিল করে অ্যাকাউন্ট ফিরে পাবেন।
+                            </span>
+                          </label>
+                          <label className="flex items-start gap-2 p-2 rounded-lg bg-white border border-[#E4E6EB] cursor-pointer">
+                            <input
+                              type="radio"
+                              name="account-delete-mode"
+                              checked={accountDeleteMode === 'immediate'}
+                              onChange={() => setAccountDeleteMode('immediate')}
+                              className="mt-0.5 accent-rose-600"
+                            />
+                            <span className="text-[11px] text-[#1C1E21]">
+                              <strong className="block text-rose-700">এখনই চিরতরে ডিলিট করুন</strong>
+                              অপেক্ষা ছাড়াই সাথে সাথে অ্যাকাউন্ট, পোস্ট ও পেজ স্থায়ীভাবে মুছে যাবে।
+                            </span>
+                          </label>
+                        </div>
+
+                        {(auth.currentUser?.providerData || []).some((p) => p?.providerId === 'password') && (
+                          <div className="space-y-1">
+                            <label className="block text-[11px] font-bold text-[#1C1E21]">
+                              নিরাপত্তার জন্য বর্তমান পাসওয়ার্ড দিন:
+                            </label>
+                            <input
+                              type="password"
+                              value={accountDeletePassword}
+                              onChange={(e) => {
+                                setAccountDeletePassword(e.target.value);
+                                setAccountActionError(null);
+                              }}
+                              placeholder="আপনার বর্তমান পাসওয়ার্ড লিখুন"
+                              className="w-full bg-white border border-[#E4E6EB] rounded-lg px-2.5 py-2 text-xs text-black focus:outline-none focus:border-rose-500"
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+
+                    {accountActionError && (
+                      <p className="text-[11px] font-semibold text-rose-700 bg-white border border-rose-200 rounded-lg px-2.5 py-1.5">
+                        {accountActionError}
+                      </p>
+                    )}
+
+                    <div className="flex items-center gap-2 pt-1">
+                      <button
+                        type="button"
+                        disabled={accountActionBusy}
+                        onClick={() => {
+                          setConfirmAccountAction(null);
+                          setAccountActionError(null);
+                          setAccountDeletePassword('');
+                        }}
+                        className="px-3 py-1.5 rounded-lg bg-white border border-[#E4E6EB] text-xs font-bold text-[#050505] cursor-pointer whitespace-nowrap disabled:opacity-50"
                       >
                         বাতিল
                       </button>
                       <button
                         type="button"
-                        onClick={() => {
-                          if (confirmAccountAction === 'delete') {
-                            try {
-                              localStorage.removeItem('qalby_user_profile');
-                              localStorage.removeItem('peaceverse_deeds_log_v1');
-                            } catch {}
+                        disabled={accountActionBusy}
+                        onClick={async () => {
+                          setAccountActionError(null);
+                          setAccountActionBusy(true);
+                          try {
+                            if (confirmAccountAction === 'deactivate') {
+                              await deactivateCurrentUserAccount(accountActionReason);
+                              setAccountActionFeedback(
+                                'অ্যাকাউন্ট সাময়িকভাবে নিষ্ক্রিয় করা হয়েছে। আবার লগইন করলেই পুনরায় চালু হবে।'
+                              );
+                            } else if (accountDeleteMode === 'schedule_30d') {
+                              await scheduleCurrentUserAccountDeletion(
+                                accountDeletePassword,
+                                accountActionReason
+                              );
+                              setAccountActionFeedback(
+                                `অ্যাকাউন্ট ডিলিট শিডিউল করা হয়েছে (${ACCOUNT_DELETION_GRACE_DAYS} দিনের মধ্যে লগইন করে বাতিল করতে পারবেন)।`
+                              );
+                            } else {
+                              await permanentlyDeleteCurrentUserAccount(accountDeletePassword);
+                              try {
+                                localStorage.removeItem('qalby_user_profile');
+                                localStorage.removeItem('qalby_fb_pages');
+                                localStorage.removeItem('qalby_switched_page');
+                                localStorage.removeItem('peaceverse_deeds_log_v1');
+                              } catch {}
+                              setAccountActionFeedback('অ্যাকাউন্ট ও সকল তথ্য স্থায়ীভাবে মুছে ফেলা হয়েছে।');
+                            }
+                            setConfirmAccountAction(null);
+                            setAccountDeletePassword('');
+                            setTimeout(() => {
+                              onClose();
+                              onLogout?.();
+                            }, 900);
+                          } catch (err: any) {
+                            setAccountActionError(
+                              err?.message || 'প্রক্রিয়া সম্পন্ন করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।'
+                            );
+                          } finally {
+                            setAccountActionBusy(false);
                           }
-                          setAccountActionFeedback(
-                            confirmAccountAction === 'delete'
-                              ? 'অ্যাকাউন্ট মুছে ফেলার প্রক্রিয়া সম্পন্ন হয়েছে।'
-                              : 'অ্যাকাউন্ট সাময়িকভাবে নিষ্ক্রিয় করা হয়েছে।'
-                          );
-                          setConfirmAccountAction(null);
-                          setTimeout(() => {
-                            onClose();
-                            onLogout?.();
-                          }, 800);
                         }}
-                        className="px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold cursor-pointer whitespace-nowrap"
+                        className="px-3.5 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 disabled:opacity-60 text-white text-xs font-bold flex items-center gap-1.5 cursor-pointer whitespace-nowrap"
                       >
-                        নিশ্চিত করুন
+                        {accountActionBusy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                        <span>
+                          {confirmAccountAction === 'deactivate'
+                            ? 'নিষ্ক্রিয় নিশ্চিত করুন'
+                            : accountDeleteMode === 'schedule_30d'
+                            ? '৩০ দিনের ডিলিট শিডিউল করুন'
+                            : 'চিরতরে মুছে ফেলুন'}
+                        </span>
                       </button>
                     </div>
                   </div>
@@ -844,7 +982,10 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                   <div className="grid grid-cols-2 gap-2">
                     <button
                       type="button"
-                      onClick={() => setConfirmAccountAction('deactivate')}
+                      onClick={() => {
+                        setAccountActionError(null);
+                        setConfirmAccountAction('deactivate');
+                      }}
                       className="py-2 px-3 rounded-xl bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#050505] text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <PauseCircle className="w-4 h-4 text-amber-600" />
@@ -852,7 +993,11 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
                     </button>
                     <button
                       type="button"
-                      onClick={() => setConfirmAccountAction('delete')}
+                      onClick={() => {
+                        setAccountActionError(null);
+                        setAccountDeleteMode('schedule_30d');
+                        setConfirmAccountAction('delete');
+                      }}
                       className="py-2 px-3 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold flex items-center justify-center gap-1.5 cursor-pointer whitespace-nowrap"
                     >
                       <UserX className="w-4 h-4" />

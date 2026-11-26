@@ -277,7 +277,7 @@ export function decryptMessageBase64(storedText: string, isAuthenticated: boolea
   return value;
 }
 
-// 6. Auto-Logout After 24 Hours Session Tracker
+// 6. Persistent Login Session Tracker (Active Until Explicit Logout)
 export function recordSessionStartIfMissing(): number {
   try {
     const existing = Number(localStorage.getItem(SESSION_START_STORAGE_KEY) || 0);
@@ -305,23 +305,12 @@ export function clearSessionStart(): void {
 }
 
 export function getSessionRemainingMs(): number {
-  try {
-    const started = Number(localStorage.getItem(SESSION_START_STORAGE_KEY) || 0);
-    if (!started) return SESSION_MAX_AGE_MS;
-    return Math.max(0, SESSION_MAX_AGE_MS - (Date.now() - started));
-  } catch {
-    return SESSION_MAX_AGE_MS;
-  }
+  return SESSION_MAX_AGE_MS;
 }
 
 export function isSessionExpired(): boolean {
-  try {
-    const started = Number(localStorage.getItem(SESSION_START_STORAGE_KEY) || 0);
-    if (!started) return false;
-    return Date.now() - started >= SESSION_MAX_AGE_MS;
-  } catch {
-    return false;
-  }
+  // Facebook-style persistent login: never auto-logout on a timer; stay signed in until explicit logout.
+  return false;
 }
 
 // 7. Admin Route Email Guard (Firebase Auth Email Only)

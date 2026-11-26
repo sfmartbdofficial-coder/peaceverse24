@@ -199,10 +199,10 @@ export const SecurityStatusDashboard: React.FC<SecurityStatusDashboardProps> = (
             <div className="flex items-center justify-between">
               <span className="text-[#65676B] flex items-center gap-1.5">
                 <Clock className="w-3.5 h-3.5 text-emerald-600" />
-                24h Auto-Logout Timer
+                Login Session Persistence
               </span>
-              <span className="font-bold text-black tabular-nums">
-                {snapshot.sessionHoursLeft}h remaining
+              <span className="font-bold text-emerald-700">
+                {snapshot.authStatus === 'Signed Out' ? 'Signed Out' : 'Active until Sign Out ✓'}
               </span>
             </div>
 

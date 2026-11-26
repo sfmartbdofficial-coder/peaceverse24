@@ -134,6 +134,9 @@ import {
   addLocalFriend,
   logUserActivity,
   markCurrentUserEmailOtpVerified,
+  reactivateCurrentUserAccount,
+  permanentlyDeleteCurrentUserAccount,
+  ACCOUNT_DELETION_GRACE_DAYS,
 } from './lib/firebase';
 import { SearchedUserProfile } from './types';
 import {
@@ -147,7 +150,6 @@ import {
   detectAndBlockExposedUrlKeys,
   emitApiKeyEnvWarning,
   enforceHttpsProtocol,
-  isSessionExpired,
   recordSessionStartIfMissing,
   clearSessionStart,
   checkDailyBackupReminder,
@@ -579,6 +581,12 @@ export default function App() {
   });
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [isAuthChecking, setIsAuthChecking] = useState<boolean>(true);
+  const [pendingDeletionInfo, setPendingDeletionInfo] = useState<{
+    scheduledAt?: string;
+    executeAt: number;
+  } | null>(null);
+  const [pendingDeletionBusy, setPendingDeletionBusy] = useState<boolean>(false);
+  const [accountReactivatedToast, setAccountReactivatedToast] = useState<string | null>(null);
   const [urlKeyBlockedMsg, setUrlKeyBlockedMsg] = useState<string | null>(null);
   const [disableCopyOnSensitive, setDisableCopyOnSensitive] = useState<boolean>(
     () => loadPeaceSettings().disableCopyOnSensitive !== false
@@ -724,10 +732,36 @@ export default function App() {
 
   // Sync Firebase Auth State & Enforce Landing / Home redirection rules
   useEffect(() => {
+    let authReady = false;
+    let cancelled = false;
+    let latestObservedUser: FirebaseUser | null = auth.currentUser;
+
+    Promise.resolve(typeof auth.authStateReady === 'function' ? auth.authStateReady() : undefined)
+      .catch(() => {})
+      .finally(() => {
+        if (cancelled) return;
+        authReady = true;
+        if (auth.currentUser) {
+          latestObservedUser = auth.currentUser;
+          setFirebaseUser(auth.currentUser);
+        }
+        setIsAuthChecking(false);
+        if (!auth.currentUser && !latestObservedUser) {
+          const path = window.location.pathname;
+          if (path === '/home') {
+            navigateToPath('/' + window.location.search + window.location.hash);
+          }
+        }
+      });
+
     const unsub = onAuthStateChanged(auth, (usr) => {
+      if (cancelled) return;
+      latestObservedUser = usr;
       invalidateUserDirectoryCache();
       setFirebaseUser(usr);
-      setIsAuthChecking(false);
+      if (usr || authReady) {
+        setIsAuthChecking(false);
+      }
       if (usr) {
         recordSessionStartIfMissing();
         const savedName = localStorage.getItem('peaceverse_registered_name');
@@ -881,6 +915,29 @@ export default function App() {
             );
             return;
           }
+          if (remote.accountStatus === 'deactivated') {
+            void reactivateCurrentUserAccount();
+            setAccountReactivatedToast('আপনার সাময়িক নিষ্ক্রিয় অ্যাকাউন্টটি আবার সক্রিয় করা হয়েছে! স্বাগতম।');
+            setTimeout(() => setAccountReactivatedToast(null), 5000);
+          } else if (remote.accountStatus === 'pending_deletion') {
+            const execAt =
+              remote.deletionExecuteAt ||
+              Date.now() + ACCOUNT_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
+            if (remote.deletionExecuteAt && Date.now() >= remote.deletionExecuteAt) {
+              void permanentlyDeleteCurrentUserAccount()
+                .catch(() => {})
+                .finally(() => {
+                  void handleLogout();
+                });
+              return;
+            }
+            setPendingDeletionInfo({
+              scheduledAt: remote.deletionScheduledAt,
+              executeAt: execAt,
+            });
+          } else {
+            setPendingDeletionInfo(null);
+          }
           if (!remote.emailOtpVerified) {
             void markCurrentUserEmailOtpVerified();
           }
@@ -982,7 +1039,7 @@ export default function App() {
         if (!checkIsAdmin() && (path === '/' || path === '')) {
           navigateToPath('/home' + window.location.search + window.location.hash);
         }
-      } else {
+      } else if (authReady) {
         clearSessionStart();
         // Rule: If user is NOT logged in, redirect any /home visit back to "/"
         const path = window.location.pathname;
@@ -991,7 +1048,23 @@ export default function App() {
         }
       }
     });
-    return () => unsub();
+
+    // When returning to tab/app after 1+ hours in background, silently refresh short-lived ID token
+    // using the durable refresh token without ever signing out on temporary offline glitches.
+    const handleResumeRefresh = () => {
+      if (document.visibilityState === 'visible' && auth.currentUser) {
+        void auth.currentUser.getIdToken(false).catch(() => {});
+      }
+    };
+    document.addEventListener('visibilitychange', handleResumeRefresh);
+    window.addEventListener('online', handleResumeRefresh);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', handleResumeRefresh);
+      window.removeEventListener('online', handleResumeRefresh);
+      unsub();
+    };
   }, []);
 
   useEffect(() => {
@@ -2484,6 +2557,7 @@ export default function App() {
     } catch (err) {
       console.error('Logout error:', err);
     }
+    setPendingDeletionInfo(null);
     setFirebaseUser(null);
     setActiveSwitchedPage(null);
     setSelectedPageIdToOpen(null);
@@ -2510,17 +2584,6 @@ export default function App() {
     setUserProfile(USER_PROFILE);
     navigateToPath('/');
   };
-
-  // Auto-logout after 24 hours of session age
-  useEffect(() => {
-    if (!firebaseUser) return;
-    const interval = window.setInterval(() => {
-      if (isSessionExpired()) {
-        void handleLogout();
-      }
-    }, 60 * 1000);
-    return () => window.clearInterval(interval);
-  }, [firebaseUser]);
 
   // Export My Data JSON download
   const handleExportMyData = () => {
@@ -2666,6 +2729,76 @@ export default function App() {
     );
   }
 
+  // 4.5 Facebook-style 30-day Account Deletion Recovery Screen
+  if (pendingDeletionInfo) {
+    const formattedDate = new Date(pendingDeletionInfo.executeAt).toLocaleDateString('bn-BD', {
+      day: 'numeric',
+      month: 'long',
+      year: 'numeric',
+    });
+    return (
+      <div className="min-h-screen bg-[#F0F2F5] flex items-center justify-center p-4 text-[#050505]">
+        <div className="w-full max-w-md bg-white rounded-3xl border border-[#E4E6EB] shadow-xl p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="w-11 h-11 rounded-2xl bg-amber-100 text-amber-700 flex items-center justify-center shrink-0">
+              <ShieldAlert className="w-6 h-6" />
+            </div>
+            <div>
+              <h2 className="text-base font-bold text-[#050505]">
+                আপনার অ্যাকাউন্ট ডিলিট করার জন্য নির্ধারিত রয়েছে
+              </h2>
+              <p className="text-xs text-[#65676B]">
+                Facebook-এর {ACCOUNT_DELETION_GRACE_DAYS} দিনের নিয়ম প্রযোজ্য
+              </p>
+            </div>
+          </div>
+
+          <p className="text-xs text-[#1C1E21] leading-relaxed bg-[#F0F2F5] p-3.5 rounded-2xl">
+            আপনার অ্যাকাউন্টটি <strong>{formattedDate}</strong> তারিখে স্থায়ীভাবে মুছে ফেলার জন্য শিডিউল করা আছে। আপনি চাইলে এখনই ডিলিট বাতিল করে আবার ব্যবহার শুরু করতে পারেন, অথবা ডিলিট শিডিউল বহাল রেখে লগ-আউট থাকতে পারেন।
+          </p>
+
+          <div className="space-y-2.5 pt-1">
+            <button
+              type="button"
+              disabled={pendingDeletionBusy}
+              onClick={async () => {
+                setPendingDeletionBusy(true);
+                try {
+                  await reactivateCurrentUserAccount();
+                  setPendingDeletionInfo(null);
+                  setAccountReactivatedToast('অ্যাকাউন্ট ডিলিট বাতিল করা হয়েছে! স্বাগতম।');
+                  setTimeout(() => setAccountReactivatedToast(null), 5000);
+                } finally {
+                  setPendingDeletionBusy(false);
+                }
+              }}
+              className="w-full py-2.5 rounded-xl bg-[#0866FF] hover:bg-[#166FE5] text-white text-xs font-bold flex items-center justify-center gap-2 cursor-pointer disabled:opacity-60"
+            >
+              {pendingDeletionBusy && <Loader2 className="w-4 h-4 animate-spin" />}
+              <span>ডিলিট বাতিল করুন এবং অ্যাকাউন্ট চালু রাখুন</span>
+            </button>
+
+            <button
+              type="button"
+              disabled={pendingDeletionBusy}
+              onClick={async () => {
+                setPendingDeletionBusy(true);
+                try {
+                  await handleLogout();
+                } finally {
+                  setPendingDeletionBusy(false);
+                }
+              }}
+              className="w-full py-2.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-xs font-bold cursor-pointer disabled:opacity-60"
+            >
+              ডিলিট বহাল রাখুন এবং লগ-আউট করুন
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   // 5. Internal Peaceverse Mini-Apps (stay inside Peaceverse, no external redirect)
   if (currentPath === '/peace-threads') {
     return (
@@ -2737,6 +2870,12 @@ export default function App() {
       }`}
     >
       
+      {accountReactivatedToast && (
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg">
+          {accountReactivatedToast}
+        </div>
+      )}
+
       {urlKeyBlockedMsg && (
         <div className="bg-rose-600 text-white text-xs font-bold px-4 py-2 flex items-center justify-between gap-2">
           <span className="flex items-center gap-1.5">
