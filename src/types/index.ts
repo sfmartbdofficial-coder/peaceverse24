@@ -188,6 +188,9 @@ export interface PageItem {
   status?: 'active' | 'deactivated' | 'pending_deletion';
   deletionScheduledAt?: string;
   deletionExecuteAt?: number;
+  ownerUid?: string;
+  ownerEmail?: string;
+  ownerName?: string;
 }
 
 export interface ChatMessage {

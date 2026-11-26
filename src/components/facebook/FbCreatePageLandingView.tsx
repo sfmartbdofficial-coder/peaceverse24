@@ -35,7 +35,7 @@ import {
 } from '../../lib/halalFilter';
 import { compressImageForFirestore } from '../../utils/imageCompress';
 import { uploadDataUrlIfOversized } from '../../lib/mediaStorage';
-import { syncPageToFirestore } from '../../lib/firebase';
+import { auth, syncPageToFirestore } from '../../lib/firebase';
 
 interface FbCreatePageLandingViewProps {
   onBack: () => void;
@@ -287,7 +287,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
   };
 
   // Final Form Submit Handler
-  const handleSavePage = (e: React.FormEvent) => {
+  const handleSavePage = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!pageName.trim()) {
       setValidationError('দয়া করে পেজের একটি নাম লিখুন (Page Name is required)');
@@ -337,23 +337,29 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       actionButton: actionButton,
       rating: '5.0 ★ (New Page)',
       createdAt: 'এখনই',
+      ownerUid: auth.currentUser?.uid,
+      ownerEmail: auth.currentUser?.email || undefined,
+      ownerName: auth.currentUser?.displayName || undefined,
     };
 
-    // Save to local storage + Firestore immediately
+    // Save to local storage + Firestore/server immediately
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       const existing: PageItem[] = stored ? JSON.parse(stored) : [];
-      const updated = [newPage, ...existing];
+      const updated = [newPage, ...existing.filter((p) => p?.id !== newPage.id)];
       localStorage.setItem('qalby_fb_pages', JSON.stringify(updated));
+      window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
+      window.dispatchEvent(new Event('peaceverse:switched-page-updated'));
     } catch (err) {
       console.error('Failed to save page to storage', err);
     }
-    void syncPageToFirestore(newPage);
+    await Promise.race([
+      syncPageToFirestore(newPage, auth.currentUser?.uid),
+      new Promise<void>((resolve) => setTimeout(resolve, 1500)),
+    ]);
 
-    setTimeout(() => {
-      setIsSubmitting(false);
-      setCreatedPageSuccess(newPage);
-    }, 300);
+    setIsSubmitting(false);
+    setCreatedPageSuccess(newPage);
   };
 
   return (

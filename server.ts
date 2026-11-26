@@ -1174,8 +1174,41 @@ const FIREBASE_PROJECT_ID_FOR_TOKEN =
   'gen-lang-client-0936405543';
 const USER_DIRECTORY_DATA_DIR = path.resolve(__dirname, '.peaceverse-data');
 const USER_DIRECTORY_FILE_PATH = path.resolve(USER_DIRECTORY_DATA_DIR, 'users-directory.json');
+const PAGE_DIRECTORY_FILE_PATH = path.resolve(USER_DIRECTORY_DATA_DIR, 'pages-directory.json');
+
+interface ServerDirectoryPage {
+  id: string;
+  name: string;
+  category: string;
+  likes: string;
+  followersCount: number;
+  followingCount: number;
+  avatar: string;
+  cover: string;
+  description: string;
+  bio: string;
+  location: string;
+  website: string;
+  email: string;
+  phone: string;
+  whatsapp: string;
+  imo: string;
+  viber: string;
+  rating: string;
+  isPublished: boolean;
+  status: 'active' | 'deactivated' | 'pending_deletion';
+  deletionScheduledAt?: string;
+  deletionExecuteAt?: number;
+  ownerUid?: string;
+  ownerEmailHash?: string;
+  ownerName?: string;
+  createdAt: string;
+  updatedAt: string;
+  updatedAtMillis: number;
+}
 
 const serverUserDirectoryMap = new Map<string, ServerDirectoryUser>();
+const serverPageDirectoryMap = new Map<string, ServerDirectoryPage>();
 
 function loadUserDirectoryFromDisk(): void {
   try {
@@ -1208,6 +1241,58 @@ function loadUserDirectoryFromDisk(): void {
   }
 }
 
+function loadPageDirectoryFromDisk(): void {
+  try {
+    if (!fs.existsSync(PAGE_DIRECTORY_FILE_PATH)) return;
+    const raw = fs.readFileSync(PAGE_DIRECTORY_FILE_PATH, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed)) {
+      parsed.forEach((entry: any) => {
+        if (entry && typeof entry.id === 'string' && typeof entry.name === 'string') {
+          serverPageDirectoryMap.set(entry.id, {
+            id: entry.id,
+            name: String(entry.name).slice(0, 140),
+            category: String(entry.category || 'Community').slice(0, 80),
+            likes: String(entry.likes || '0 লাইক').slice(0, 40),
+            followersCount: Number(entry.followersCount ?? 1),
+            followingCount: Number(entry.followingCount ?? 0),
+            avatar: String(entry.avatar || ''),
+            cover: String(entry.cover || ''),
+            description: String(entry.description || '').slice(0, 500),
+            bio: String(entry.bio || '').slice(0, 500),
+            location: String(entry.location || '').slice(0, 140),
+            website: String(entry.website || '').slice(0, 300),
+            email: String(entry.email || '').slice(0, 160),
+            phone: String(entry.phone || '').slice(0, 40),
+            whatsapp: String(entry.whatsapp || '').slice(0, 40),
+            imo: String(entry.imo || '').slice(0, 40),
+            viber: String(entry.viber || '').slice(0, 40),
+            rating: String(entry.rating || '5.0 ★').slice(0, 40),
+            isPublished: entry.isPublished !== false,
+            status:
+              entry.status === 'deactivated' || entry.status === 'pending_deletion'
+                ? entry.status
+                : 'active',
+            deletionScheduledAt:
+              typeof entry.deletionScheduledAt === 'string' ? entry.deletionScheduledAt : undefined,
+            deletionExecuteAt:
+              typeof entry.deletionExecuteAt === 'number' ? entry.deletionExecuteAt : undefined,
+            ownerUid: typeof entry.ownerUid === 'string' ? entry.ownerUid : undefined,
+            ownerEmailHash:
+              typeof entry.ownerEmailHash === 'string' ? entry.ownerEmailHash : undefined,
+            ownerName: typeof entry.ownerName === 'string' ? entry.ownerName : undefined,
+            createdAt: String(entry.createdAt || new Date().toISOString()),
+            updatedAt: String(entry.updatedAt || new Date().toISOString()),
+            updatedAtMillis: Number(entry.updatedAtMillis || Date.now()),
+          });
+        }
+      });
+    }
+  } catch (err) {
+    console.warn('Notice loading page directory cache:', err);
+  }
+}
+
 function persistUserDirectoryToDisk(): void {
   try {
     if (!fs.existsSync(USER_DIRECTORY_DATA_DIR)) {
@@ -1220,7 +1305,20 @@ function persistUserDirectoryToDisk(): void {
   }
 }
 
+function persistPageDirectoryToDisk(): void {
+  try {
+    if (!fs.existsSync(USER_DIRECTORY_DATA_DIR)) {
+      fs.mkdirSync(USER_DIRECTORY_DATA_DIR, { recursive: true });
+    }
+    const entries = Array.from(serverPageDirectoryMap.values());
+    fs.writeFileSync(PAGE_DIRECTORY_FILE_PATH, JSON.stringify(entries), 'utf8');
+  } catch (err) {
+    console.warn('Notice persisting page directory cache:', err);
+  }
+}
+
 loadUserDirectoryFromDisk();
+loadPageDirectoryFromDisk();
 
 let cachedFirebaseCerts: { certs: Record<string, string>; expiresAt: number } | null = null;
 
@@ -1432,29 +1530,39 @@ async function hydrateDirectoryFromFirestoreWithToken(bearerHeader?: string): Pr
   lastFirestoreDirectoryHydrateAt = now;
 
   const rawToken = bearerHeader.slice(7).trim();
-  const baseDocUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
-    FIREBASE_PROJECT_ID_FOR_TOKEN
-  )}/databases/${encodeURIComponent(FIRESTORE_DATABASE_ID)}/documents`;
+  const dbIds = Array.from(new Set([FIRESTORE_DATABASE_ID, '(default)']));
 
-  const fetchCollection = async (colName: string) => {
-    try {
-      const resp = await fetch(`${baseDocUrl}/${colName}?pageSize=300`, {
-        headers: { Authorization: `Bearer ${rawToken}` },
-      });
-      if (!resp.ok) return [];
-      const data: any = await resp.json().catch(() => null);
-      return Array.isArray(data?.documents) ? data.documents : [];
-    } catch {
-      return [];
+  const fetchCollectionAcrossDbs = async (colName: string) => {
+    const allDocs: any[] = [];
+    for (const dbId of dbIds) {
+      const baseDocUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+        FIREBASE_PROJECT_ID_FOR_TOKEN
+      )}/databases/${encodeURIComponent(dbId)}/documents`;
+      try {
+        const resp = await fetch(`${baseDocUrl}/${colName}?pageSize=300`, {
+          headers: { Authorization: `Bearer ${rawToken}` },
+        });
+        if (!resp.ok) continue;
+        const data: any = await resp.json().catch(() => null);
+        if (Array.isArray(data?.documents) && data.documents.length > 0) {
+          allDocs.push(...data.documents);
+          break;
+        }
+      } catch {}
     }
+    return allDocs;
   };
 
-  const [publicDocs, userDocs] = await Promise.all([
-    fetchCollection('public_profiles'),
-    fetchCollection('users'),
+  const [publicDocs, userDocs, pageDocs, postDocs] = await Promise.all([
+    fetchCollectionAcrossDbs('public_profiles'),
+    fetchCollectionAcrossDbs('users'),
+    fetchCollectionAcrossDbs('pages'),
+    fetchCollectionAcrossDbs('posts'),
   ]);
 
-  let updatedAny = false;
+  let updatedUsers = false;
+  let updatedPages = false;
+
   const ingestDoc = (docObj: any) => {
     const namePath = String(docObj?.name || '');
     const docId = namePath.split('/').pop() || '';
@@ -1464,7 +1572,7 @@ async function hydrateDirectoryFromFirestoreWithToken(bearerHeader?: string): Pr
     if (accountStatus === 'deactivated' || accountStatus === 'pending_deletion' || accountStatus === 'deleted') {
       if (uid && serverUserDirectoryMap.has(uid)) {
         serverUserDirectoryMap.delete(uid);
-        updatedAny = true;
+        updatedUsers = true;
       }
       return;
     }
@@ -1524,14 +1632,155 @@ async function hydrateDirectoryFromFirestoreWithToken(bearerHeader?: string): Pr
       updatedAt: parseFirestoreStringField(fields.updatedAt) || new Date().toISOString(),
       updatedAtMillis: parseFirestoreNumberField(fields.updatedAtMillis, Date.now()),
     });
-    updatedAny = true;
+    updatedUsers = true;
   };
 
   userDocs.forEach(ingestDoc);
   publicDocs.forEach(ingestDoc);
 
-  if (updatedAny) {
+  // Recover pages from Firestore pages collection
+  pageDocs.forEach((docObj: any) => {
+    const namePath = String(docObj?.name || '');
+    const docId = namePath.split('/').pop() || '';
+    const fields = docObj?.fields || {};
+    const pageId = parseFirestoreStringField(fields.id) || docId;
+    const statusRaw = (parseFirestoreStringField(fields.status) || 'active').toLowerCase();
+    if (!pageId || statusRaw === 'deleted') {
+      if (pageId && serverPageDirectoryMap.has(pageId)) {
+        serverPageDirectoryMap.delete(pageId);
+        updatedPages = true;
+      }
+      return;
+    }
+    const pageName = sanitizeServerText(parseFirestoreStringField(fields.name), 140);
+    if (!pageName) return;
+    const existing = serverPageDirectoryMap.get(pageId);
+    const ownerEmailRaw = sanitizeServerText(parseFirestoreStringField(fields.ownerEmail), 160).toLowerCase();
+    const ownerEmailHash =
+      parseFirestoreStringField(fields.ownerEmailHash) ||
+      (ownerEmailRaw ? crypto.createHash('sha256').update(ownerEmailRaw).digest('hex') : existing?.ownerEmailHash);
+
+    serverPageDirectoryMap.set(pageId, {
+      id: pageId,
+      name: pageName,
+      category: sanitizeServerText(parseFirestoreStringField(fields.category), 80) || existing?.category || 'Community',
+      likes: sanitizeServerText(parseFirestoreStringField(fields.likes), 40) || existing?.likes || '0 লাইক',
+      followersCount: parseFirestoreNumberField(fields.followersCount, existing?.followersCount ?? 1),
+      followingCount: parseFirestoreNumberField(fields.followingCount, existing?.followingCount ?? 0),
+      avatar: sanitizeServerAvatarUrl(parseFirestoreStringField(fields.avatar)) || existing?.avatar || '',
+      cover: sanitizeServerAvatarUrl(parseFirestoreStringField(fields.cover)) || existing?.cover || '',
+      description: sanitizeServerText(parseFirestoreStringField(fields.description), 500) || existing?.description || '',
+      bio: sanitizeServerText(parseFirestoreStringField(fields.bio), 500) || existing?.bio || '',
+      location: sanitizeServerText(parseFirestoreStringField(fields.location), 140) || existing?.location || '',
+      website: sanitizeServerText(parseFirestoreStringField(fields.website), 300) || existing?.website || '',
+      email: sanitizeServerText(parseFirestoreStringField(fields.email), 160) || existing?.email || '',
+      phone: sanitizeServerText(parseFirestoreStringField(fields.phone), 40) || existing?.phone || '',
+      whatsapp: sanitizeServerText(parseFirestoreStringField(fields.whatsapp), 40) || existing?.whatsapp || '',
+      imo: sanitizeServerText(parseFirestoreStringField(fields.imo), 40) || existing?.imo || '',
+      viber: sanitizeServerText(parseFirestoreStringField(fields.viber), 40) || existing?.viber || '',
+      rating: sanitizeServerText(parseFirestoreStringField(fields.rating), 40) || existing?.rating || '5.0 ★',
+      isPublished: parseFirestoreBoolField(fields.isPublished, true),
+      status:
+        statusRaw === 'deactivated' || statusRaw === 'pending_deletion'
+          ? (statusRaw as 'deactivated' | 'pending_deletion')
+          : 'active',
+      deletionScheduledAt: parseFirestoreStringField(fields.deletionScheduledAt) || undefined,
+      deletionExecuteAt: parseFirestoreNumberField(fields.deletionExecuteAt, 0) || undefined,
+      ownerUid: parseFirestoreStringField(fields.ownerUid) || existing?.ownerUid || undefined,
+      ownerEmailHash,
+      ownerName: sanitizeServerText(parseFirestoreStringField(fields.ownerName), 120) || existing?.ownerName || undefined,
+      createdAt: parseFirestoreStringField(fields.createdAt) || existing?.createdAt || new Date().toISOString(),
+      updatedAt: parseFirestoreStringField(fields.updatedAt) || new Date().toISOString(),
+      updatedAtMillis: Date.now(),
+    });
+    updatedPages = true;
+  });
+
+  // Also recover genuine post authors & page-* authors from posts collection
+  postDocs.forEach((docObj: any) => {
+    const fields = docObj?.fields || {};
+    const authorId = parseFirestoreStringField(fields.authorId).trim();
+    const authorFields = fields?.author?.mapValue?.fields || {};
+    const authorName = sanitizeServerText(
+      parseFirestoreStringField(authorFields.name) || parseFirestoreStringField(fields.authorName),
+      120
+    );
+    if (!authorId || !authorName) return;
+    const authorAvatar = sanitizeServerAvatarUrl(
+      parseFirestoreStringField(authorFields.avatar) || parseFirestoreStringField(fields.authorAvatar)
+    );
+    const authorVerified = parseFirestoreBoolField(authorFields.verified, false);
+    const authorSub = sanitizeServerText(parseFirestoreStringField(authorFields.subtitle), 80);
+
+    if (authorId.startsWith('page-')) {
+      if (!serverPageDirectoryMap.has(authorId)) {
+        serverPageDirectoryMap.set(authorId, {
+          id: authorId,
+          name: authorName,
+          category: authorSub || 'Community',
+          likes: '১ লাইক',
+          followersCount: 1,
+          followingCount: 0,
+          avatar: authorAvatar,
+          cover: '',
+          description: authorSub || '',
+          bio: '',
+          location: '',
+          website: '',
+          email: '',
+          phone: '',
+          whatsapp: '',
+          imo: '',
+          viber: '',
+          rating: '5.0 ★',
+          isPublished: true,
+          status: 'active',
+          createdAt: parseFirestoreStringField(fields.createdAt) || new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+          updatedAtMillis: parseFirestoreNumberField(fields.createdAtMillis, Date.now()),
+        });
+        updatedPages = true;
+      }
+      return;
+    }
+
+    if (
+      authorId.startsWith('user-') &&
+      !authorId.includes('dummy') &&
+      !serverUserDirectoryMap.has(authorId)
+    ) {
+      return;
+    }
+
+    if (!serverUserDirectoryMap.has(authorId) && !authorId.startsWith('author-')) {
+      const transliteratedName = serverBnToEn(authorName);
+      serverUserDirectoryMap.set(authorId, {
+        id: authorId,
+        uid: authorId,
+        displayName: authorName,
+        username: transliteratedName.replace(/[^a-z0-9]+/g, '').slice(0, 40),
+        transliteratedName,
+        avatar:
+          authorAvatar ||
+          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+            authorName
+          )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+        bio: '',
+        location: '',
+        verified: authorVerified,
+        allowFriendRequests: true,
+        updatedAt: parseFirestoreStringField(fields.createdAt) || new Date().toISOString(),
+        updatedAtMillis: parseFirestoreNumberField(fields.createdAtMillis, Date.now()),
+      });
+      updatedUsers = true;
+    }
+  });
+
+  if (updatedUsers) {
     persistUserDirectoryToDisk();
+  }
+  if (updatedPages) {
+    persistPageDirectoryToDisk();
   }
 }
 
@@ -1682,6 +1931,135 @@ app.get('/api/users/search', async (req, res) => {
     .map(toPublicDirectoryUser);
 
   return res.json({ users: matched });
+});
+
+app.post('/api/pages/sync', async (req, res) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required to sync page.' });
+    }
+    const body = req.body || {};
+    const pageId = sanitizeServerText(body.id, 120);
+    const pageName = sanitizeServerText(body.name, 140);
+    if (!pageId || !pageName) {
+      return res.status(400).json({ ok: false, error: 'Page ID and name are required.' });
+    }
+    const existing = serverPageDirectoryMap.get(pageId);
+    if (existing?.ownerUid && existing.ownerUid !== verified.uid) {
+      return res.status(403).json({ ok: false, error: 'Only page owner can update this page.' });
+    }
+    const ownerEmailRaw = sanitizeServerText(body.ownerEmail, 160).toLowerCase();
+    const ownerEmailHash =
+      sanitizeServerText(body.ownerEmailHash, 128) ||
+      (ownerEmailRaw ? crypto.createHash('sha256').update(ownerEmailRaw).digest('hex') : existing?.ownerEmailHash);
+
+    const record: ServerDirectoryPage = {
+      id: pageId,
+      name: pageName,
+      category: sanitizeServerText(body.category, 80) || existing?.category || 'Community',
+      likes: sanitizeServerText(body.likes, 40) || existing?.likes || '0 লাইক',
+      followersCount: typeof body.followersCount === 'number' ? body.followersCount : existing?.followersCount ?? 1,
+      followingCount: typeof body.followingCount === 'number' ? body.followingCount : existing?.followingCount ?? 0,
+      avatar: sanitizeServerAvatarUrl(body.avatar) || existing?.avatar || '',
+      cover: sanitizeServerAvatarUrl(body.cover) || existing?.cover || '',
+      description: typeof body.description === 'string' ? sanitizeServerText(body.description, 500) : existing?.description ?? '',
+      bio: typeof body.bio === 'string' ? sanitizeServerText(body.bio, 500) : existing?.bio ?? '',
+      location: typeof body.location === 'string' ? sanitizeServerText(body.location, 140) : existing?.location ?? '',
+      website: typeof body.website === 'string' ? sanitizeServerText(body.website, 300) : existing?.website ?? '',
+      email: typeof body.email === 'string' ? sanitizeServerText(body.email, 160) : existing?.email ?? '',
+      phone: typeof body.phone === 'string' ? sanitizeServerText(body.phone, 40) : existing?.phone ?? '',
+      whatsapp: typeof body.whatsapp === 'string' ? sanitizeServerText(body.whatsapp, 40) : existing?.whatsapp ?? '',
+      imo: typeof body.imo === 'string' ? sanitizeServerText(body.imo, 40) : existing?.imo ?? '',
+      viber: typeof body.viber === 'string' ? sanitizeServerText(body.viber, 40) : existing?.viber ?? '',
+      rating: sanitizeServerText(body.rating, 40) || existing?.rating || '5.0 ★',
+      isPublished: body.isPublished !== false,
+      status:
+        body.status === 'deactivated' || body.status === 'pending_deletion'
+          ? body.status
+          : 'active',
+      deletionScheduledAt:
+        typeof body.deletionScheduledAt === 'string' ? body.deletionScheduledAt : undefined,
+      deletionExecuteAt:
+        typeof body.deletionExecuteAt === 'number' ? body.deletionExecuteAt : undefined,
+      ownerUid: verified.uid,
+      ownerEmailHash,
+      ownerName: sanitizeServerText(body.ownerName, 120) || existing?.ownerName,
+      createdAt: sanitizeServerText(body.createdAt, 80) || existing?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
+      updatedAtMillis: Date.now(),
+    };
+    serverPageDirectoryMap.set(pageId, record);
+    persistPageDirectoryToDisk();
+    return res.json({ ok: true, page: record });
+  } catch (error: any) {
+    console.error('Page directory sync error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to sync page.' });
+  }
+});
+
+app.post('/api/pages/lifecycle', async (req, res) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required.' });
+    }
+    const pageId = sanitizeServerText(req.body?.pageId, 120);
+    const action = sanitizeServerText(req.body?.action, 40).toLowerCase();
+    if (!pageId || !['deactivate', 'activate', 'schedule_delete', 'cancel_delete', 'delete_now'].includes(action)) {
+      return res.status(400).json({ ok: false, error: 'Invalid page lifecycle request.' });
+    }
+    const existing = serverPageDirectoryMap.get(pageId);
+    if (existing && (!existing.ownerUid || existing.ownerUid === verified.uid)) {
+      if (action === 'delete_now') {
+        serverPageDirectoryMap.delete(pageId);
+      } else if (action === 'deactivate') {
+        existing.isPublished = false;
+        existing.status = 'deactivated';
+        existing.updatedAt = new Date().toISOString();
+      } else if (action === 'activate' || action === 'cancel_delete') {
+        existing.isPublished = true;
+        existing.status = 'active';
+        delete existing.deletionScheduledAt;
+        delete existing.deletionExecuteAt;
+        existing.updatedAt = new Date().toISOString();
+      } else if (action === 'schedule_delete') {
+        existing.isPublished = false;
+        existing.status = 'pending_deletion';
+        existing.deletionScheduledAt = sanitizeServerText(req.body?.deletionScheduledAt, 80) || new Date().toISOString();
+        existing.deletionExecuteAt = Number(req.body?.deletionExecuteAt || 0) || undefined;
+        existing.updatedAt = new Date().toISOString();
+      }
+      persistPageDirectoryToDisk();
+    }
+    return res.json({ ok: true, pageId, action });
+  } catch (error: any) {
+    console.error('Page lifecycle endpoint error:', error);
+    return res.status(500).json({ ok: false, error: 'Failed to update page lifecycle.' });
+  }
+});
+
+app.get('/api/pages/directory', async (req, res) => {
+  await hydrateDirectoryFromFirestoreWithToken(req.headers.authorization);
+  const verified = await verifyFirebaseBearerToken(req.headers.authorization).catch(() => null);
+  const callerUid = verified?.uid || '';
+  const now = Date.now();
+  const pages = Array.from(serverPageDirectoryMap.values())
+    .filter((p) => {
+      if (p.status === 'pending_deletion' && p.deletionExecuteAt && now >= p.deletionExecuteAt) {
+        return false;
+      }
+      const isOwner = Boolean(callerUid && p.ownerUid && p.ownerUid === callerUid);
+      if (isOwner) return true;
+      return p.isPublished !== false && p.status === 'active';
+    })
+    .sort((a, b) => b.updatedAtMillis - a.updatedAtMillis)
+    .slice(0, 500)
+    .map((p) => ({
+      ...p,
+      isOwner: Boolean(callerUid && p.ownerUid && p.ownerUid === callerUid),
+    }));
+  return res.json({ pages });
 });
 
 // ==========================================

@@ -105,9 +105,11 @@ import {
   checkPost,
 } from '../../lib/halalFilter';
 import {
+  auth,
   syncPageToFirestore,
   fetchPageByIdFromFirestore,
   fetchOwnedPagesFromFirestore,
+  fetchDirectoryPagesFromServer,
   searchPagesFromFirestore,
   isTargetFollowedLocally,
   setTargetFollowedLocally,
@@ -484,6 +486,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   const updateCreatorPref = (patch: Partial<PeaceSettingsPrefs>) => {
     setCreatorPrefs((prev) => savePeaceSettings({ ...prev, ...patch }));
   };
+  const hasExplicitPageMutationRef = useRef(false);
+
   // Load ONLY user-created pages (zero extra/demo pages) and preserve empty cover/avatar
   const [pages, setPages] = useState<PageItem[]>(() => {
     try {
@@ -511,22 +515,36 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   });
 
   useEffect(() => {
-    try {
-      localStorage.setItem('qalby_fb_pages', JSON.stringify(pages));
-    } catch {}
+    if (pages.length > 0 || hasExplicitPageMutationRef.current) {
+      try {
+        localStorage.setItem('qalby_fb_pages', JSON.stringify(pages));
+      } catch {}
+    }
+    const effectiveOwnerUid =
+      (userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '') ||
+      auth.currentUser?.uid ||
+      '';
+    if (!effectiveOwnerUid) return;
     pages.forEach((p) => {
       if (p?.isOwner) {
-        void syncPageToFirestore(p, userProfile?.id);
+        const pageOwnerUid = p.ownerUid && p.ownerUid !== 'user-me' ? p.ownerUid : effectiveOwnerUid;
+        void syncPageToFirestore(p, pageOwnerUid);
       }
     });
   }, [pages, userProfile?.id]);
 
-  // Hydrate owned pages from Firestore & cross-tab sync so page logos/covers survive updates
+  // Hydrate owned pages from Firestore & server directory so Page logos/covers survive updates
   useEffect(() => {
     const mergeRemotePages = async () => {
-      if (!userProfile?.id || userProfile.id === 'user-me') return;
-      const remotePages = await fetchOwnedPagesFromFirestore(userProfile.id);
+      const effectiveUid =
+        (userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '') ||
+        auth.currentUser?.uid ||
+        '';
+      const effectiveEmail = userProfile?.email || auth.currentUser?.email || undefined;
+      if (!effectiveUid && !effectiveEmail) return;
+      const remotePages = await fetchOwnedPagesFromFirestore(effectiveUid, effectiveEmail);
       if (remotePages.length === 0) return;
+      hasExplicitPageMutationRef.current = true;
       setPages((prev) => {
         const byId = new Map<string, PageItem>();
         remotePages.forEach((rp) => {
@@ -541,6 +559,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             byId.set(lp.id, {
               ...rp,
               ...lp,
+              ownerUid: lp.ownerUid || rp.ownerUid || effectiveUid || undefined,
+              ownerEmail: lp.ownerEmail || rp.ownerEmail || effectiveEmail,
               avatar: (lp.avatar && !lp.avatar.startsWith('blob:') ? lp.avatar : '') || rp.avatar || '',
               cover: (lp.cover && !lp.cover.startsWith('blob:') ? lp.cover : '') || rp.cover || '',
               bio: lp.bio || rp.bio || '',
@@ -571,19 +591,23 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         if (!raw) return;
         const parsed: PageItem[] = JSON.parse(raw);
         if (Array.isArray(parsed) && parsed.length > 0) {
-          setPages(parsed.filter((p) => Boolean(p?.isOwner) && !DEMO_PAGE_IDS.includes(p.id)));
+          hasExplicitPageMutationRef.current = true;
+          const filtered = parsed.filter((p) => Boolean(p?.isOwner) && !DEMO_PAGE_IDS.includes(p.id));
+          setPages(filtered);
         }
       } catch {}
     };
     window.addEventListener('peaceverse:pages-hydrated', onHydrated);
     return () => window.removeEventListener('peaceverse:pages-hydrated', onHydrated);
-  }, [userProfile?.id]);
+  }, [userProfile?.id, userProfile?.email]);
 
   // Hub sub-views (main Pages view, Invites, Followed Pages) & header search toggle
   const [hubSection, setHubSection] = useState<'home' | 'invites' | 'followed'>('home');
   const [showHubSearch, setShowHubSearch] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [remoteHubPages, setRemoteHubPages] = useState<PageItem[]>([]);
+  const [communityPages, setCommunityPages] = useState<PageItem[]>([]);
+  const [isLoadingCommunityPages, setIsLoadingCommunityPages] = useState<boolean>(true);
   const [followedSuggestedIds, setFollowedSuggestedIds] = useState<string[]>(() => {
     try {
       const saved = localStorage.getItem('peace_followed_suggested_pages');
@@ -629,6 +653,32 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       window.clearTimeout(timer);
     };
   }, [searchQuery]);
+
+  // Load real community pages created by friends and other users so they are always visible in Pages Hub
+  useEffect(() => {
+    let active = true;
+    const loadDirectoryPages = async () => {
+      try {
+        const list = await fetchDirectoryPagesFromServer();
+        if (!active) return;
+        if (Array.isArray(list)) {
+          setCommunityPages(list.filter((p) => p?.id && !DEMO_PAGE_IDS.includes(p.id)));
+        }
+      } catch {
+      } finally {
+        if (active) setIsLoadingCommunityPages(false);
+      }
+    };
+    void loadDirectoryPages();
+    const onRefresh = () => {
+      void loadDirectoryPages();
+    };
+    window.addEventListener('peaceverse:pages-hydrated', onRefresh);
+    return () => {
+      active = false;
+      window.removeEventListener('peaceverse:pages-hydrated', onRefresh);
+    };
+  }, [userProfile?.id]);
 
   useEffect(() => {
     try {
@@ -1230,6 +1280,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
   };
 
   const persistUpdatedPage = (updated: PageItem) => {
+    hasExplicitPageMutationRef.current = true;
     const cleanUpdated: PageItem = {
       ...updated,
       bio: sanitizePageBioValue(updated.bio),
@@ -1252,7 +1303,12 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(cleanUpdated));
     } catch {}
     syncUpdatedPageToSwitchedStorage(cleanUpdated);
-    void syncPageToFirestore(cleanUpdated, userProfile?.id);
+    const effectiveOwnerUid =
+      (cleanUpdated.ownerUid && cleanUpdated.ownerUid !== 'user-me' ? cleanUpdated.ownerUid : '') ||
+      (userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '') ||
+      auth.currentUser?.uid;
+    void syncPageToFirestore(cleanUpdated, effectiveOwnerUid);
+    window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
   };
 
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -1267,7 +1323,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     const targetPage =
       (selectedPage && selectedPage.id === pageId ? selectedPage : null) ||
       pages.find((p) => p.id === pageId) ||
-      remoteHubPages.find((p) => p.id === pageId);
+      remoteHubPages.find((p) => p.id === pageId) ||
+      communityPages.find((p) => p.id === pageId);
 
     const targetName = targetPage?.name || 'Page';
     const targetAvatar = targetPage?.avatar || '';
@@ -1281,8 +1338,16 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       targetAvatar
     );
 
-    setPages((prev) =>
-      prev.map((p) => {
+    setFollowedSuggestedIds((prev) =>
+      nextLiked
+        ? prev.includes(pageId)
+          ? prev
+          : [...prev, pageId]
+        : prev.filter((id) => id !== pageId)
+    );
+
+    const updateList = (list: PageItem[]) =>
+      list.map((p) => {
         if (p.id === pageId) {
           const nextFollowers = nextLiked
             ? p.followersCount + (p.isLiked ? 0 : 1)
@@ -1291,12 +1356,14 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             ...p,
             isLiked: nextLiked,
             followersCount: nextFollowers,
-            likes: `${(nextFollowers / 1000).toFixed(1)}K লাইক`,
+            likes: `${nextFollowers.toLocaleString()} লাইক`,
           };
         }
         return p;
-      })
-    );
+      });
+
+    setPages(updateList);
+    setCommunityPages(updateList);
 
     if (selectedPage && selectedPage.id === pageId) {
       const nextFollowers = nextLiked
@@ -1324,8 +1391,18 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       return;
     }
 
+    hasExplicitPageMutationRef.current = true;
     const safeName = sanitizeInput(newName.trim());
     const safeBio = sanitizeInput(newBio.trim());
+    const effectiveOwnerUid =
+      (userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '') ||
+      auth.currentUser?.uid ||
+      undefined;
+    const effectiveOwnerEmail = userProfile?.email || auth.currentUser?.email || undefined;
+    const effectiveOwnerName =
+      (userProfile?.name && userProfile.name !== 'Member' ? userProfile.name : '') ||
+      auth.currentUser?.displayName ||
+      undefined;
     const createdPage: PageItem = {
       id: `page-${Date.now()}`,
       name: safeName,
@@ -1348,9 +1425,21 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       location: newLocation.trim() || 'Dhaka, Bangladesh',
       rating: '5.0 ★ (New)',
       createdAt: 'এখনই',
+      ownerUid: effectiveOwnerUid,
+      ownerEmail: effectiveOwnerEmail,
+      ownerName: effectiveOwnerName,
     };
 
-    setPages((prev) => [createdPage, ...prev]);
+    setPages((prev) => {
+      const next = [createdPage, ...prev.filter((p) => p.id !== createdPage.id)];
+      try {
+        localStorage.setItem('qalby_fb_pages', JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    void syncPageToFirestore(createdPage, effectiveOwnerUid);
+    window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
+    window.dispatchEvent(new Event('peaceverse:switched-page-updated'));
     setShowCreateModal(false);
     // Reset form
     setNewName('');
@@ -1681,28 +1770,38 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     showToast(cleanBio ? '💾 পেজের বায়ো সেভ করা হয়েছে!' : 'পেজের বায়ো সরানো হয়েছে');
   };
 
-  // Filtered user-managed pages & Islamic suggested pages
+  // Filtered user-managed pages & real community pages
   const normalizedHubQuery = searchQuery.trim().toLowerCase();
   const managedPages = pages.filter((p) => Boolean(p.isOwner));
+  const managedIdSet = new Set(managedPages.map((p) => p.id));
   const filteredManagedPages = managedPages.filter(
     (p) =>
       !normalizedHubQuery ||
       p.name.toLowerCase().includes(normalizedHubQuery) ||
       p.category.toLowerCase().includes(normalizedHubQuery)
   );
-  const visibleSuggestedPages = SUGGESTED_ISLAMIC_PAGES.filter(
-    (sp) =>
-      !removedSuggestedIds.includes(sp.id) &&
+  const visibleCommunityPages = communityPages.filter(
+    (cp) =>
+      !managedIdSet.has(cp.id) &&
+      !DEMO_PAGE_IDS.includes(cp.id) &&
+      !removedSuggestedIds.includes(cp.id) &&
+      cp.status !== 'deactivated' &&
+      cp.status !== 'pending_deletion' &&
+      cp.isPublished !== false &&
       (!normalizedHubQuery ||
-        sp.name.toLowerCase().includes(normalizedHubQuery) ||
-        sp.category.toLowerCase().includes(normalizedHubQuery))
+        cp.name.toLowerCase().includes(normalizedHubQuery) ||
+        (cp.category || '').toLowerCase().includes(normalizedHubQuery))
   );
-  const followedSuggestedPages = SUGGESTED_ISLAMIC_PAGES.filter(
-    (sp) =>
-      followedSuggestedIds.includes(sp.id) &&
+  const followedCommunityPages = communityPages.filter(
+    (cp) =>
+      !DEMO_PAGE_IDS.includes(cp.id) &&
+      cp.status !== 'deactivated' &&
+      cp.status !== 'pending_deletion' &&
+      cp.isPublished !== false &&
+      (isTargetFollowedLocally(cp.id, cp.name) || followedSuggestedIds.includes(cp.id)) &&
       (!normalizedHubQuery ||
-        sp.name.toLowerCase().includes(normalizedHubQuery) ||
-        sp.category.toLowerCase().includes(normalizedHubQuery))
+        cp.name.toLowerCase().includes(normalizedHubQuery) ||
+        (cp.category || '').toLowerCase().includes(normalizedHubQuery))
   );
 
   // -------------------------------------------------------------
@@ -1717,14 +1816,16 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
           onClearInitialCreatePageName?.();
         }}
         onPageCreated={(newPage) => {
-          setPages((prev) => [newPage, ...prev]);
+          hasExplicitPageMutationRef.current = true;
+          setPages((prev) => [newPage, ...prev.filter((p) => p.id !== newPage.id)]);
           setShowCreatePageLanding(false);
           onClearInitialCreatePageName?.();
           setSelectedPage(newPage);
           showToast(`🎉 "${newPage.name}" পেজটি সফলভাবে তৈরি ও সংরক্ষিত হয়েছে!`);
         }}
         onCreateFirstPost={(newPage) => {
-          setPages((prev) => [newPage, ...prev]);
+          hasExplicitPageMutationRef.current = true;
+          setPages((prev) => [newPage, ...prev.filter((p) => p.id !== newPage.id)]);
           setShowCreatePageLanding(false);
           onClearInitialCreatePageName?.();
           setSelectedPage(newPage);
@@ -6268,6 +6369,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                   ? actionBtnValueDraft.trim()
                                   : selectedPage.website,
                             };
+                            hasExplicitPageMutationRef.current = true;
                             setSelectedPage(updatedPage);
                             setPages((prev) => prev.map((p) => (p.id === updatedPage.id ? updatedPage : p)));
                             updatePageSettings(selectedPage.id, {
@@ -6877,6 +6979,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                             imo: connImo.trim() || undefined,
                             viber: connViber.trim() || undefined,
                           };
+                          hasExplicitPageMutationRef.current = true;
                           setSelectedPage(updatedPage);
                           setPages((prev) => prev.map((p) => (p.id === updatedPage.id ? updatedPage : p)));
                           syncUpdatedPageToSwitchedStorage(updatedPage);
@@ -7409,6 +7512,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                   setPageLifecycleBusy(true);
                                   try {
                                     await permanentlyDeletePageFromFirestore(delId);
+                                    hasExplicitPageMutationRef.current = true;
                                     setConfirmDeletePage(false);
                                     setShowPageSettings(false);
                                     setActiveSettingKey(null);
@@ -7420,7 +7524,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                       } catch {}
                                       return next;
                                     });
+                                    setCommunityPages((prev) => prev.filter((p) => p.id !== delId));
                                     syncUpdatedPageToSwitchedStorage(null, delId);
+                                    window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
                                     showToast(`"${delName}" পেজটি চিরতরে মুছে ফেলা হয়েছে`);
                                   } finally {
                                     setPageLifecycleBusy(false);
@@ -7498,6 +7604,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                     if (deletePageMode === 'schedule_14d') {
                                       const { deletionExecuteAt, deletionScheduledAt } =
                                         await schedulePageDeletionInFirestore(delId);
+                                      hasExplicitPageMutationRef.current = true;
                                       updatePageSettings(delId, { isPublished: false });
                                       const updated: PageItem = {
                                         ...selectedPage,
@@ -7513,7 +7620,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                         } catch {}
                                         return next;
                                       });
+                                      setCommunityPages((prev) => prev.filter((p) => p.id !== delId));
                                       syncUpdatedPageToSwitchedStorage(null, delId);
+                                      window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
                                       setConfirmDeletePage(false);
                                       setShowPageSettings(false);
                                       setActiveSettingKey(null);
@@ -7523,6 +7632,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                       );
                                     } else {
                                       await permanentlyDeletePageFromFirestore(delId);
+                                      hasExplicitPageMutationRef.current = true;
                                       setConfirmDeletePage(false);
                                       setShowPageSettings(false);
                                       setActiveSettingKey(null);
@@ -7534,7 +7644,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                         } catch {}
                                         return next;
                                       });
+                                      setCommunityPages((prev) => prev.filter((p) => p.id !== delId));
                                       syncUpdatedPageToSwitchedStorage(null, delId);
+                                      window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
                                       showToast(`"${delName}" পেজটি স্থায়ীভাবে মুছে ফেলা হয়েছে`);
                                     }
                                   } finally {
@@ -8265,7 +8377,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
         <div className="px-4 pt-2 pb-6 space-y-3 bg-white">
           <div className="flex items-center justify-between">
             <h2 className="text-[18px] font-bold text-[#050505]">
-              Followed Pages ({followedSuggestedPages.length})
+              Followed Pages ({followedCommunityPages.length})
             </h2>
             <button
               type="button"
@@ -8276,7 +8388,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             </button>
           </div>
 
-          {followedSuggestedPages.length === 0 ? (
+          {followedCommunityPages.length === 0 ? (
             <div className="py-10 text-center space-y-2">
               <ThumbsUp className="w-10 h-10 text-[#65676B] mx-auto opacity-60" />
               <p className="text-[15px] font-semibold text-[#050505]">No followed Pages yet</p>
@@ -8286,26 +8398,40 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             </div>
           ) : (
             <div className="divide-y divide-[#E4E6EB]">
-              {followedSuggestedPages.map((sp) => (
-                <div key={sp.id} className="py-3 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-3 min-w-0">
-                    <img
-                      src={sp.avatar}
-                      alt={sp.name}
-                      className="w-[52px] h-[52px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
-                    />
-                    <div className="min-w-0">
-                      <p className="text-[15px] font-bold text-[#050505] truncate">{sp.name}</p>
-                      <p className="text-[13px] text-[#65676B] truncate">
-                        {(sp.followers + 1).toLocaleString()} people follow this
-                      </p>
-                    </div>
-                  </div>
+              {followedCommunityPages.map((cp) => (
+                <div key={cp.id} className="py-3 flex items-center justify-between gap-3">
                   <button
                     type="button"
                     onClick={() => {
-                      setFollowedSuggestedIds((prev) => prev.filter((id) => id !== sp.id));
-                      showToast(`Unfollowed ${sp.name}`);
+                      try {
+                        localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(cp));
+                      } catch {}
+                      setSelectedPage({ ...cp, isLiked: true });
+                    }}
+                    className="flex items-center gap-3 min-w-0 flex-1 text-left cursor-pointer"
+                  >
+                    {cp.avatar ? (
+                      <img
+                        src={cp.avatar}
+                        alt={cp.name}
+                        className="w-[52px] h-[52px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
+                      />
+                    ) : (
+                      <div className="w-[52px] h-[52px] rounded-full shrink-0 bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-bold text-lg">
+                        {cp.name.trim().charAt(0).toUpperCase() || 'P'}
+                      </div>
+                    )}
+                    <div className="min-w-0">
+                      <p className="text-[15px] font-bold text-[#050505] truncate">{cp.name}</p>
+                      <p className="text-[13px] text-[#65676B] truncate">
+                        {cp.category || 'Community'} · {(cp.followersCount || 1).toLocaleString()} followers
+                      </p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      void handleToggleLike(cp.id);
                     }}
                     className="px-3.5 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[13px] font-semibold shrink-0 cursor-pointer"
                   >
@@ -8379,6 +8505,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                 onClick={async (e) => {
                                   e.stopPropagation();
                                   await cancelPageDeletionInFirestore(page.id);
+                                  hasExplicitPageMutationRef.current = true;
                                   updatePageSettings(page.id, { isPublished: true });
                                   const restored: PageItem = {
                                     ...page,
@@ -8394,6 +8521,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                                     } catch {}
                                     return next;
                                   });
+                                  window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
                                   showToast(`"${page.name}" পেজের ডিলিট বাতিল হয়েছে!`);
                                 }}
                                 className="px-2 py-0.5 rounded bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold cursor-pointer"
@@ -8500,51 +8628,75 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
           <div className="h-[1px] bg-[#E4E6EB] mx-4" />
 
-          {/* SECTION 2: Suggested Pages */}
+          {/* SECTION 2: Discover Community Pages */}
           <section className="px-4 pt-4 pb-6">
             <h2 className="text-[18px] font-bold text-[#050505] mb-3">
               Suggested Pages
             </h2>
 
-            {visibleSuggestedPages.length === 0 ? (
+            {isLoadingCommunityPages && visibleCommunityPages.length === 0 ? (
               <p className="text-[14px] text-[#65676B] py-4">
-                No suggested Pages available right now.
+                কমিউনিটি পেজগুলো লোড হচ্ছে...
+              </p>
+            ) : visibleCommunityPages.length === 0 ? (
+              <p className="text-[14px] text-[#65676B] py-4">
+                এই মুহূর্তে আর কোনো কমিউনিটি পেজ পাওয়া যায়নি।
               </p>
             ) : (
               <div className="space-y-4">
-                {visibleSuggestedPages.map((sp) => {
-                  const isFollowed = followedSuggestedIds.includes(sp.id);
-                  const displayFollowers = isFollowed ? sp.followers + 1 : sp.followers;
+                {visibleCommunityPages.map((cp) => {
+                  const isFollowed =
+                    isTargetFollowedLocally(cp.id, cp.name) || followedSuggestedIds.includes(cp.id);
+                  const displayFollowers = cp.followersCount || 1;
                   return (
-                    <div key={sp.id} className="flex items-start gap-3">
-                      <img
-                        src={sp.avatar}
-                        alt={sp.name}
-                        className="w-[60px] h-[60px] rounded-full object-cover shrink-0 bg-[#E4E6EB]"
-                      />
+                    <div key={cp.id} className="flex items-start gap-3">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          try {
+                            localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(cp));
+                          } catch {}
+                          setSelectedPage({ ...cp, isLiked: isFollowed });
+                        }}
+                        className="shrink-0 cursor-pointer"
+                      >
+                        {cp.avatar ? (
+                          <img
+                            src={cp.avatar}
+                            alt={cp.name}
+                            className="w-[60px] h-[60px] rounded-full object-cover bg-[#E4E6EB] border border-[#E4E6EB]"
+                          />
+                        ) : (
+                          <div className="w-[60px] h-[60px] rounded-full bg-[#E7F3FF] text-[#0866FF] flex items-center justify-center font-bold text-xl border border-[#E4E6EB]">
+                            {cp.name.trim().charAt(0).toUpperCase() || 'P'}
+                          </div>
+                        )}
+                      </button>
 
                       <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-bold text-[#050505] leading-snug truncate">
-                          {sp.name}
-                        </p>
-                        <p className="text-[13px] text-[#65676B] mt-0.5">
-                          {displayFollowers.toLocaleString()} people follow this
-                        </p>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            try {
+                              localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(cp));
+                            } catch {}
+                            setSelectedPage({ ...cp, isLiked: isFollowed });
+                          }}
+                          className="text-left w-full cursor-pointer"
+                        >
+                          <p className="text-[15px] font-bold text-[#050505] leading-snug truncate">
+                            {cp.name}
+                          </p>
+                          <p className="text-[13px] text-[#65676B] mt-0.5 truncate">
+                            {cp.category || 'Community'} · {displayFollowers.toLocaleString()} followers
+                          </p>
+                        </button>
 
                         <div className="flex items-center gap-2 mt-2.5">
                           <button
                             type="button"
                             onClick={() => {
-                              const nextFollowed = !isFollowed;
-                              setTargetFollowedLocally(nextFollowed, sp.id, sp.name);
-                              setFollowedSuggestedIds((prev) =>
-                                prev.includes(sp.id)
-                                  ? prev.filter((id) => id !== sp.id)
-                                  : [...prev, sp.id]
-                              );
-                              showToast(
-                                isFollowed ? `Unfollowed ${sp.name}` : `Following ${sp.name}`
-                              );
+                              void handleToggleLike(cp.id);
                             }}
                             className={`flex-1 py-2 px-3 rounded-lg text-[14px] font-semibold flex items-center justify-center gap-1.5 transition-colors cursor-pointer ${
                               isFollowed
@@ -8568,7 +8720,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                           <button
                             type="button"
                             onClick={() => {
-                              setRemovedSuggestedIds((prev) => [...prev, sp.id]);
+                              setRemovedSuggestedIds((prev) =>
+                                prev.includes(cp.id) ? prev : [...prev, cp.id]
+                              );
                             }}
                             className="flex-1 py-2 px-3 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-semibold flex items-center justify-center transition-colors cursor-pointer"
                           >

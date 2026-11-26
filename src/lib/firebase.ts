@@ -3102,6 +3102,48 @@ export async function searchUsersFromFirestore(
 let cachedDirectoryPages: { pages: PageItem[]; fetchedAt: number } | null = null;
 const PAGE_DIRECTORY_CACHE_TTL_MS = 20 * 1000;
 
+export function invalidatePageDirectoryCache(): void {
+  cachedDirectoryPages = null;
+}
+
+async function syncPageToServerDirectory(payload: Record<string, any>): Promise<void> {
+  if (typeof window === 'undefined' || !payload?.id || !payload?.name) return;
+  try {
+    const authHeaders = await getCurrentAuthHeaders();
+    if (!authHeaders.Authorization) return;
+    await fetch('/api/pages/sync', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    // Non-fatal fallback
+  }
+}
+
+async function notifyServerPageLifecycle(
+  pageId: string,
+  action: 'deactivate' | 'activate' | 'schedule_delete' | 'cancel_delete' | 'delete_now',
+  extra?: { deletionScheduledAt?: string; deletionExecuteAt?: number }
+): Promise<void> {
+  if (typeof window === 'undefined' || !pageId) return;
+  try {
+    const authHeaders = await getCurrentAuthHeaders();
+    if (!authHeaders.Authorization) return;
+    await fetch('/api/pages/lifecycle', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...authHeaders,
+      },
+      body: JSON.stringify({ pageId, action, ...(extra || {}) }),
+    });
+  } catch {}
+}
+
 function trimOversizedImageForFirestore(url?: string): string {
   const clean = (url || '').trim();
   if (!clean || clean.startsWith('blob:')) return '';
@@ -3122,11 +3164,71 @@ export function sanitizePageBioValue(raw?: string): string {
   return text;
 }
 
+function mapDocDataToPageItem(
+  docId: string,
+  data: Record<string, any>,
+  forceOwner = false
+): PageItem {
+  const name = String(data.name || 'Page').trim();
+  const statusRaw = String(data.status || 'active');
+  const currentUid = auth.currentUser?.uid || '';
+  const currentEmail = (auth.currentUser?.email || '').trim().toLowerCase();
+  const docOwnerUid = data.ownerUid ? String(data.ownerUid).trim() : '';
+  const docOwnerEmail = data.ownerEmail ? String(data.ownerEmail).trim().toLowerCase() : '';
+  const isOwner =
+    forceOwner ||
+    Boolean(currentUid && docOwnerUid && docOwnerUid === currentUid) ||
+    Boolean(currentEmail && docOwnerEmail && docOwnerEmail === currentEmail);
+
+  return {
+    id: docId,
+    name,
+    category: String(data.category || 'Community'),
+    likes: String(data.likes || `${data.followersCount || 0} লাইক`),
+    followersCount: Number(data.followersCount ?? 0),
+    followingCount: Number(data.followingCount ?? 0),
+    avatar: String(data.avatar || ''),
+    cover: String(data.cover || ''),
+    role: isOwner ? 'Admin' : undefined,
+    isOwner,
+    isLiked: isTargetFollowedLocally(docId, name),
+    description: sanitizePageBioValue(data.description ? String(data.description) : ''),
+    bio: sanitizePageBioValue(data.bio ? String(data.bio) : ''),
+    phone: data.phone ? String(data.phone) : undefined,
+    whatsapp: data.whatsapp ? String(data.whatsapp) : undefined,
+    imo: data.imo ? String(data.imo) : undefined,
+    viber: data.viber ? String(data.viber) : undefined,
+    website: data.website ? String(data.website) : undefined,
+    email: data.email ? String(data.email) : undefined,
+    location: data.location ? String(data.location) : undefined,
+    rating: data.rating ? String(data.rating) : undefined,
+    createdAt: data.createdAt ? String(data.createdAt) : undefined,
+    isPublished: data.isPublished !== false,
+    status:
+      statusRaw === 'deactivated' || statusRaw === 'pending_deletion'
+        ? (statusRaw as 'deactivated' | 'pending_deletion')
+        : 'active',
+    deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
+    deletionExecuteAt:
+      typeof data.deletionExecuteAt === 'number' && data.deletionExecuteAt > 0
+        ? data.deletionExecuteAt
+        : undefined,
+    ownerUid: docOwnerUid && docOwnerUid !== 'user-me' ? docOwnerUid : undefined,
+    ownerEmail: docOwnerEmail || undefined,
+    ownerName: data.ownerName ? String(data.ownerName) : undefined,
+  };
+}
+
 export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Promise<void> {
   if (!page?.id || !page?.name?.trim()) return;
   try {
     const cleanName = page.name.trim();
-    const resolvedOwnerUid = ownerUid || auth.currentUser?.uid || '';
+    const safePassedUid = ownerUid && ownerUid !== 'user-me' ? ownerUid : '';
+    const safePageUid = page.ownerUid && page.ownerUid !== 'user-me' ? page.ownerUid : '';
+    const resolvedOwnerUid = auth.currentUser?.uid || safePassedUid || safePageUid || '';
+    const resolvedOwnerEmail = (auth.currentUser?.email || page.ownerEmail || '').trim().toLowerCase();
+    const resolvedOwnerEmailHash = resolvedOwnerEmail ? await sha256Hex(resolvedOwnerEmail) : '';
+    const resolvedOwnerName = (auth.currentUser?.displayName || page.ownerName || '').trim();
     const cleanBio = sanitizePageBioValue(page.bio);
     const cleanDesc = sanitizePageBioValue(page.description);
     const [safeAvatar, safeCover] = await Promise.all([
@@ -3163,7 +3265,19 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
     if (resolvedOwnerUid) {
       payload.ownerUid = resolvedOwnerUid;
     }
-    await setDoc(doc(db, 'pages', page.id), payload, { merge: true });
+    if (resolvedOwnerEmail) {
+      payload.ownerEmail = resolvedOwnerEmail;
+    }
+    if (resolvedOwnerEmailHash) {
+      payload.ownerEmailHash = resolvedOwnerEmailHash;
+    }
+    if (resolvedOwnerName) {
+      payload.ownerName = resolvedOwnerName;
+    }
+    await Promise.allSettled([
+      setDoc(doc(db, 'pages', page.id), payload, { merge: true }),
+      syncPageToServerDirectory(payload),
+    ]);
     cachedDirectoryPages = null;
   } catch (err: any) {
     if (!isOfflineOrUnavailableError(err) && err?.code !== 'permission-denied') {
@@ -3172,57 +3286,85 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
   }
 }
 
-export async function fetchOwnedPagesFromFirestore(ownerUid: string): Promise<PageItem[]> {
+export async function fetchOwnedPagesFromFirestore(
+  ownerUid: string,
+  ownerEmail?: string
+): Promise<PageItem[]> {
   if (!ownerUid || ownerUid === 'user-me') return [];
   try {
-    const q = query(collection(db, 'pages'), where('ownerUid', '==', ownerUid), limit(100));
-    const snap = await getDocs(q);
-    if (snap.empty) return [];
-    const results: PageItem[] = [];
+    const resolvedEmail = (ownerEmail || auth.currentUser?.email || '').trim().toLowerCase();
+    const emailHash = resolvedEmail ? await sha256Hex(resolvedEmail) : '';
+    const authHeaders = await getCurrentAuthHeaders();
+
+    const [byUidSnap, byEmailSnap, byHashSnap, serverPagesRes] = await Promise.all([
+      getDocs(query(collection(db, 'pages'), where('ownerUid', '==', ownerUid), limit(100))).catch(() => null),
+      resolvedEmail
+        ? getDocs(query(collection(db, 'pages'), where('ownerEmail', '==', resolvedEmail), limit(100))).catch(() => null)
+        : Promise.resolve(null),
+      emailHash
+        ? getDocs(query(collection(db, 'pages'), where('ownerEmailHash', '==', emailHash), limit(100))).catch(() => null)
+        : Promise.resolve(null),
+      fetch('/api/pages/directory', { headers: authHeaders })
+        .then((r) => (r.ok ? r.json() : null))
+        .catch(() => null),
+    ]);
+
+    const byId = new Map<string, PageItem>();
     const now = Date.now();
-    for (const docSnap of snap.docs) {
+
+    const ingestFirestoreDoc = (docSnap: any, matchedByEmail = false) => {
       const data = docSnap.data();
       const statusRaw = String(data.status || 'active');
       const deleteAt = typeof data.deletionExecuteAt === 'number' ? data.deletionExecuteAt : 0;
       if (statusRaw === 'pending_deletion' && deleteAt > 0 && now >= deleteAt) {
         void deleteDoc(docSnap.ref).catch(() => {});
-        continue;
+        return;
       }
-      if (statusRaw === 'deleted') continue;
-      const name = String(data.name || 'Page').trim();
-      results.push({
-        id: docSnap.id,
-        name,
-        category: String(data.category || 'Community'),
-        likes: String(data.likes || `${data.followersCount || 0} লাইক`),
-        followersCount: Number(data.followersCount || 0),
-        followingCount: Number(data.followingCount || 0),
-        avatar: String(data.avatar || ''),
-        cover: String(data.cover || ''),
-        role: 'Admin',
-        isOwner: true,
-        isLiked: isTargetFollowedLocally(docSnap.id, name),
-        description: sanitizePageBioValue(data.description ? String(data.description) : ''),
-        bio: sanitizePageBioValue(data.bio ? String(data.bio) : ''),
-        phone: data.phone ? String(data.phone) : undefined,
-        whatsapp: data.whatsapp ? String(data.whatsapp) : undefined,
-        imo: data.imo ? String(data.imo) : undefined,
-        viber: data.viber ? String(data.viber) : undefined,
-        website: data.website ? String(data.website) : undefined,
-        email: data.email ? String(data.email) : undefined,
-        location: data.location ? String(data.location) : undefined,
-        rating: data.rating ? String(data.rating) : undefined,
-        createdAt: data.createdAt ? String(data.createdAt) : undefined,
-        isPublished: data.isPublished !== false,
-        status:
-          statusRaw === 'deactivated' || statusRaw === 'pending_deletion'
-            ? (statusRaw as 'deactivated' | 'pending_deletion')
-            : 'active',
-        deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
-        deletionExecuteAt: deleteAt || undefined,
+      if (statusRaw === 'deleted') return;
+      const mapped = mapDocDataToPageItem(docSnap.id, data, true);
+      mapped.ownerUid = mapped.ownerUid || ownerUid;
+      if (resolvedEmail && !mapped.ownerEmail) mapped.ownerEmail = resolvedEmail;
+      byId.set(docSnap.id, mapped);
+
+      // Re-link older Pages matched via email onto the active UID so future queries find them directly
+      if (matchedByEmail && data.ownerUid !== ownerUid) {
+        void setDoc(
+          doc(db, 'pages', docSnap.id),
+          {
+            ownerUid,
+            ...(resolvedEmail ? { ownerEmail: resolvedEmail } : {}),
+            ...(emailHash ? { ownerEmailHash: emailHash } : {}),
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        ).catch(() => {});
+      }
+    };
+
+    (byUidSnap?.docs || []).forEach((d) => ingestFirestoreDoc(d, false));
+    (byEmailSnap?.docs || []).forEach((d) => {
+      if (!byId.has(d.id)) ingestFirestoreDoc(d, true);
+    });
+    (byHashSnap?.docs || []).forEach((d) => {
+      if (!byId.has(d.id)) ingestFirestoreDoc(d, true);
+    });
+
+    if (serverPagesRes && Array.isArray(serverPagesRes.pages)) {
+      serverPagesRes.pages.forEach((sp: any) => {
+        if (!sp?.id || !sp?.name) return;
+        const matchesOwner =
+          sp.isOwner === true ||
+          (sp.ownerUid && sp.ownerUid === ownerUid) ||
+          (emailHash && sp.ownerEmailHash && sp.ownerEmailHash === emailHash);
+        if (!matchesOwner) return;
+        if (sp.status === 'deleted') return;
+        if (!byId.has(sp.id)) {
+          byId.set(sp.id, mapDocDataToPageItem(sp.id, sp, true));
+        }
       });
     }
-    return results;
+
+    return Array.from(byId.values());
   } catch {
     return [];
   }
@@ -3234,53 +3376,22 @@ export async function fetchPageByIdFromFirestore(pageId: string): Promise<PageIt
     const snap = await getDocSafe(doc(db, 'pages', pageId));
     if (!snap || !snap.exists()) return null;
     const data = snap.data();
-    const currentUid = auth.currentUser?.uid || '';
-    const isOwner = Boolean(currentUid && data.ownerUid && data.ownerUid === currentUid);
+    const mapped = mapDocDataToPageItem(snap.id, data, false);
     const statusRaw = String(data.status || 'active');
     if (statusRaw === 'deleted') return null;
-    if (!isOwner && (statusRaw === 'deactivated' || statusRaw === 'pending_deletion' || data.isPublished === false)) {
+    if (!mapped.isOwner && (statusRaw === 'deactivated' || statusRaw === 'pending_deletion' || data.isPublished === false)) {
       return null;
     }
-    const name = String(data.name || 'Page').trim();
-    return {
-      id: snap.id,
-      name,
-      category: String(data.category || 'Community'),
-      likes: String(data.likes || `${data.followersCount || 0} লাইক`),
-      followersCount: Number(data.followersCount || 0),
-      followingCount: Number(data.followingCount || 0),
-      avatar: String(data.avatar || ''),
-      cover: String(data.cover || ''),
-      role: isOwner ? 'Admin' : undefined,
-      isOwner,
-      isLiked: isTargetFollowedLocally(snap.id, name),
-      description: sanitizePageBioValue(data.description ? String(data.description) : ''),
-      bio: sanitizePageBioValue(data.bio ? String(data.bio) : ''),
-      phone: data.phone ? String(data.phone) : undefined,
-      whatsapp: data.whatsapp ? String(data.whatsapp) : undefined,
-      imo: data.imo ? String(data.imo) : undefined,
-      viber: data.viber ? String(data.viber) : undefined,
-      website: data.website ? String(data.website) : undefined,
-      email: data.email ? String(data.email) : undefined,
-      location: data.location ? String(data.location) : undefined,
-      rating: data.rating ? String(data.rating) : undefined,
-      createdAt: data.createdAt ? String(data.createdAt) : undefined,
-      isPublished: data.isPublished !== false,
-      status:
-        statusRaw === 'deactivated' || statusRaw === 'pending_deletion'
-          ? (statusRaw as 'deactivated' | 'pending_deletion')
-          : 'active',
-      deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
-      deletionExecuteAt: typeof data.deletionExecuteAt === 'number' ? data.deletionExecuteAt : undefined,
-    };
+    return mapped;
   } catch {
     return null;
   }
 }
 
-async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
+export async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
   const byId = new Map<string, PageItem>();
   const currentUid = auth.currentUser?.uid || '';
+  const currentEmail = (auth.currentUser?.email || '').trim().toLowerCase();
 
   // 1. Local user-created pages (instant availability even before server round-trip completes)
   try {
@@ -3308,8 +3419,36 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
     }
   } catch {}
 
-  // 2. Firestore 'pages' collection (all public active pages created across users)
-  const pagesSnap = await getDocs(query(collection(db, 'pages'), limit(500))).catch(() => null);
+  const authHeaders = await getCurrentAuthHeaders();
+  const [serverRes, pagesSnap, postsSnap] = await Promise.all([
+    fetch('/api/pages/directory', { headers: authHeaders })
+      .then((r) => (r.ok ? r.json() : null))
+      .catch(() => null),
+    getDocs(query(collection(db, 'pages'), limit(500))).catch(() => null),
+    getDocs(query(collection(db, 'posts'), limit(250))).catch(() => null),
+  ]);
+
+  // 2. Server-hydrated / persisted page directory
+  if (serverRes && Array.isArray(serverRes.pages)) {
+    serverRes.pages.forEach((sp: any) => {
+      if (!sp?.id || !sp?.name) return;
+      if (sp.status === 'deactivated' || sp.status === 'pending_deletion' || sp.status === 'deleted' || sp.isPublished === false) {
+        return;
+      }
+      const existing = byId.get(sp.id);
+      const mapped = mapDocDataToPageItem(sp.id, sp, Boolean(existing?.isOwner || sp.isOwner));
+      byId.set(sp.id, {
+        ...mapped,
+        avatar: existing?.avatar || mapped.avatar,
+        cover: existing?.cover || mapped.cover,
+        bio: sanitizePageBioValue(existing?.bio) || mapped.bio,
+        description: sanitizePageBioValue(existing?.description) || mapped.description,
+        isLiked: isTargetFollowedLocally(sp.id, mapped.name) || Boolean(existing?.isLiked),
+      });
+    });
+  }
+
+  // 3. Firestore 'pages' collection (all public active pages created across users)
   (pagesSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
     const statusRaw = String(data.status || 'active');
@@ -3325,8 +3464,11 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
     const name = String(data.name || '').trim();
     if (!name) return;
     const existing = byId.get(docSnap.id);
+    const docOwnerEmail = data.ownerEmail ? String(data.ownerEmail).trim().toLowerCase() : '';
     const isOwner = Boolean(
-      existing?.isOwner || (currentUid && data.ownerUid && data.ownerUid === currentUid)
+      existing?.isOwner ||
+        (currentUid && data.ownerUid && data.ownerUid === currentUid) ||
+        (currentEmail && docOwnerEmail && docOwnerEmail === currentEmail)
     );
     byId.set(docSnap.id, {
       id: docSnap.id,
@@ -3355,11 +3497,13 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
       location: data.location ? String(data.location) : existing?.location,
       rating: data.rating ? String(data.rating) : existing?.rating,
       createdAt: data.createdAt ? String(data.createdAt) : existing?.createdAt,
+      ownerUid: data.ownerUid ? String(data.ownerUid) : existing?.ownerUid,
+      ownerEmail: docOwnerEmail || existing?.ownerEmail,
+      ownerName: data.ownerName ? String(data.ownerName) : existing?.ownerName,
     });
   });
 
-  // 3. Fallback: index any Page-authored posts from 'posts' collection (e.g. page-* IDs)
-  const postsSnap = await getDocs(query(collection(db, 'posts'), limit(200))).catch(() => null);
+  // 4. Fallback: index any Page-authored posts from 'posts' collection (e.g. page-* IDs)
   (postsSnap?.docs || []).forEach((pDoc) => {
     const pData = pDoc.data();
     const aId = String(pData?.authorId || '').trim();
@@ -3380,7 +3524,7 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
       cover: '',
       isOwner: false,
       isLiked: isTargetFollowedLocally(aId, aName),
-      description: String(pData?.author?.subtitle || 'Peaceverse Page'),
+      description: String(pData?.author?.subtitle || ''),
       bio: '',
     });
   });
@@ -4378,16 +4522,19 @@ export async function deactivatePageInFirestore(
 ): Promise<void> {
   if (!pageId) return;
   try {
-    await setDoc(
-      doc(db, 'pages', pageId),
-      {
-        isPublished,
-        status: isPublished ? 'active' : 'deactivated',
-        deactivatedAt: isPublished ? deleteField() : new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    await Promise.allSettled([
+      setDoc(
+        doc(db, 'pages', pageId),
+        {
+          isPublished,
+          status: isPublished ? 'active' : 'deactivated',
+          deactivatedAt: isPublished ? deleteField() : new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ),
+      notifyServerPageLifecycle(pageId, isPublished ? 'activate' : 'deactivate'),
+    ]);
     cachedDirectoryPages = null;
   } catch (err) {
     console.warn('Notice toggling page publish status:', err);
@@ -4402,17 +4549,23 @@ export async function schedulePageDeletionInFirestore(
   const deletionExecuteAt = now + PAGE_DELETION_GRACE_DAYS * 24 * 60 * 60 * 1000;
   if (pageId) {
     try {
-      await setDoc(
-        doc(db, 'pages', pageId),
-        {
-          isPublished: false,
-          status: 'pending_deletion',
+      await Promise.allSettled([
+        setDoc(
+          doc(db, 'pages', pageId),
+          {
+            isPublished: false,
+            status: 'pending_deletion',
+            deletionScheduledAt,
+            deletionExecuteAt,
+            updatedAt: deletionScheduledAt,
+          },
+          { merge: true }
+        ),
+        notifyServerPageLifecycle(pageId, 'schedule_delete', {
           deletionScheduledAt,
           deletionExecuteAt,
-          updatedAt: deletionScheduledAt,
-        },
-        { merge: true }
-      );
+        }),
+      ]);
       cachedDirectoryPages = null;
     } catch (err) {
       console.warn('Notice scheduling page deletion:', err);
@@ -4424,17 +4577,20 @@ export async function schedulePageDeletionInFirestore(
 export async function cancelPageDeletionInFirestore(pageId: string): Promise<void> {
   if (!pageId) return;
   try {
-    await setDoc(
-      doc(db, 'pages', pageId),
-      {
-        isPublished: true,
-        status: 'active',
-        deletionScheduledAt: deleteField(),
-        deletionExecuteAt: deleteField(),
-        updatedAt: new Date().toISOString(),
-      },
-      { merge: true }
-    );
+    await Promise.allSettled([
+      setDoc(
+        doc(db, 'pages', pageId),
+        {
+          isPublished: true,
+          status: 'active',
+          deletionScheduledAt: deleteField(),
+          deletionExecuteAt: deleteField(),
+          updatedAt: new Date().toISOString(),
+        },
+        { merge: true }
+      ),
+      notifyServerPageLifecycle(pageId, 'cancel_delete'),
+    ]);
     cachedDirectoryPages = null;
   } catch (err) {
     console.warn('Notice cancelling page deletion:', err);
@@ -4444,6 +4600,7 @@ export async function cancelPageDeletionInFirestore(pageId: string): Promise<voi
 export async function permanentlyDeletePageFromFirestore(pageId: string): Promise<void> {
   if (!pageId) return;
   try {
+    await notifyServerPageLifecycle(pageId, 'delete_now');
     const pagePostsSnap = await getDocs(
       query(collection(db, 'posts'), where('authorId', '==', pageId), limit(200))
     ).catch(() => null);

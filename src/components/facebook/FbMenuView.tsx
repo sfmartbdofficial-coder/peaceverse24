@@ -289,7 +289,13 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
           const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-halal-bites', 'page-angel-mahi', 'page-noor-academy'];
-          return parsed.filter((p: PageItem) => p.isOwner && !demoIds.includes(p.id));
+          const currentUid = userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '';
+          return parsed.filter(
+            (p: PageItem) =>
+              p.isOwner &&
+              !demoIds.includes(p.id) &&
+              (!currentUid || !p.ownerUid || p.ownerUid === currentUid)
+          );
         }
       }
     } catch {}
@@ -300,15 +306,18 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
 
   useEffect(() => {
     const syncPages = () => setMenuPages(loadStoredOwnerPages());
+    syncPages();
+    window.addEventListener('peaceverse:pages-hydrated', syncPages);
     window.addEventListener('peaceverse:switched-page-updated', syncPages);
     window.addEventListener('storage', syncPages);
     window.addEventListener('focus', syncPages);
     return () => {
+      window.removeEventListener('peaceverse:pages-hydrated', syncPages);
       window.removeEventListener('peaceverse:switched-page-updated', syncPages);
       window.removeEventListener('storage', syncPages);
       window.removeEventListener('focus', syncPages);
     };
-  }, []);
+  }, [userProfile?.id]);
 
   const handleMessengerClick = () => {
     if (onOpenMessenger) {

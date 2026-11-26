@@ -109,8 +109,11 @@ import {
   fetchUserProfileByNameFromFirestore,
   syncUserDirectoryProfile,
   invalidateUserDirectoryCache,
+  fetchCommunityDirectoryUsers,
   syncPageToFirestore,
   fetchOwnedPagesFromFirestore,
+  invalidatePageDirectoryCache,
+  fetchDirectoryPagesFromServer,
   isDefaultGeneratedAvatar,
   searchUsersFromFirestore,
   searchPagesFromFirestore,
@@ -762,12 +765,19 @@ export default function App() {
       if (cancelled) return;
       latestObservedUser = usr;
       invalidateUserDirectoryCache();
+      invalidatePageDirectoryCache();
       setFirebaseUser(usr);
       if (usr || authReady) {
         setIsAuthChecking(false);
       }
       if (usr) {
         recordSessionStartIfMissing();
+        void fetchCommunityDirectoryUsers(true)
+          .then(() => window.dispatchEvent(new Event('peaceverse:directory-hydrated')))
+          .catch(() => {});
+        void fetchDirectoryPagesFromServer()
+          .then(() => window.dispatchEvent(new Event('peaceverse:pages-hydrated')))
+          .catch(() => {});
         const savedName = localStorage.getItem('peaceverse_registered_name');
         const emailFallback = usr.email ? usr.email.split('@')[0] : 'Member';
         const resolvedName =
@@ -824,29 +834,52 @@ export default function App() {
           };
         });
 
-        // Merge local + Firestore owned pages so Page logos/covers survive updates & logins
+        // Merge local + Firestore/server owned pages so Page logos/covers survive updates & logins
         void (async () => {
           try {
             const localRaw = localStorage.getItem('qalby_fb_pages');
             const localPages: PageItem[] = localRaw ? JSON.parse(localRaw) : [];
+            const usrEmailLower = usr.email ? usr.email.trim().toLowerCase() : '';
             const ownedLocal = Array.isArray(localPages)
-              ? localPages.filter((p) => p?.isOwner)
+              ? localPages.filter(
+                  (p) =>
+                    p?.isOwner &&
+                    (!p.ownerUid ||
+                      p.ownerUid === usr.uid ||
+                      (usrEmailLower && p.ownerEmail?.trim().toLowerCase() === usrEmailLower))
+                )
               : [];
-            const remotePages = await fetchOwnedPagesFromFirestore(usr.uid);
+            const remotePages = await fetchOwnedPagesFromFirestore(usr.uid, usr.email || undefined);
             const byId = new Map<string, PageItem>();
             remotePages.forEach((rp) => {
-              if (rp?.id) byId.set(rp.id, rp);
+              if (rp?.id) {
+                byId.set(rp.id, {
+                  ...rp,
+                  ownerUid: rp.ownerUid || usr.uid,
+                  ownerEmail: rp.ownerEmail || usr.email || undefined,
+                  ownerName: rp.ownerName || resolvedName,
+                });
+              }
             });
             ownedLocal.forEach((lp) => {
               if (!lp?.id) return;
               const rp = byId.get(lp.id);
               if (!rp) {
-                byId.set(lp.id, lp);
-                void syncPageToFirestore(lp, usr.uid);
+                const enriched: PageItem = {
+                  ...lp,
+                  ownerUid: usr.uid,
+                  ownerEmail: usr.email || lp.ownerEmail,
+                  ownerName: resolvedName || lp.ownerName,
+                };
+                byId.set(lp.id, enriched);
+                void syncPageToFirestore(enriched, usr.uid);
               } else {
                 const merged: PageItem = {
                   ...rp,
                   ...lp,
+                  ownerUid: usr.uid,
+                  ownerEmail: usr.email || lp.ownerEmail || rp.ownerEmail,
+                  ownerName: resolvedName || lp.ownerName || rp.ownerName,
                   avatar:
                     (lp.avatar && !lp.avatar.startsWith('blob:') ? lp.avatar : '') ||
                     rp.avatar ||
@@ -859,7 +892,12 @@ export default function App() {
                   description: lp.description || rp.description || '',
                 };
                 byId.set(lp.id, merged);
-                if ((!rp.avatar && merged.avatar) || (!rp.cover && merged.cover)) {
+                if (
+                  (!rp.avatar && merged.avatar) ||
+                  (!rp.cover && merged.cover) ||
+                  rp.ownerUid !== usr.uid ||
+                  (!rp.ownerEmail && merged.ownerEmail)
+                ) {
                   void syncPageToFirestore(merged, usr.uid);
                 }
               }
@@ -868,6 +906,7 @@ export default function App() {
             if (mergedList.length > 0) {
               localStorage.setItem('qalby_fb_pages', JSON.stringify(mergedList));
               window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
+              window.dispatchEvent(new Event('peaceverse:switched-page-updated'));
               setActiveSwitchedPage((cur) => {
                 if (!cur) return cur;
                 const found = mergedList.find((p) => p.id === cur.id);

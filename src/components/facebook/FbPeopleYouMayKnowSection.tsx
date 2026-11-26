@@ -50,26 +50,35 @@ export const FbPeopleYouMayKnowSection: React.FC<FbPeopleYouMayKnowSectionProps>
 
   useEffect(() => {
     let active = true;
-    fetchCommunityDirectoryUsers(false)
-      .then((users) => {
-        if (!active || !Array.isArray(users)) return;
-        const realUsers: SuggestionPersonCard[] = users
-          .filter((u) => !LEGACY_DUMMY_USER_IDS.has(u.id) && u.allowFriendRequests !== false)
-          .map((u) => ({
-            id: u.id,
-            name: u.displayName,
-            avatar: u.avatar,
-            mutualText: u.location ? u.location : 'Peaceverse24 member',
-            isOnline: true,
-            bio: u.bio,
-            location: u.location,
-            verified: u.verified,
-          }));
-        setDirectoryPeople(realUsers);
-      })
-      .catch(() => {});
+    const loadDirectory = (force = false) => {
+      fetchCommunityDirectoryUsers(force)
+        .then((users) => {
+          if (!active || !Array.isArray(users)) return;
+          const realUsers: SuggestionPersonCard[] = users
+            .filter((u) => !LEGACY_DUMMY_USER_IDS.has(u.id) && u.allowFriendRequests !== false)
+            .map((u) => ({
+              id: u.id,
+              name: u.displayName,
+              avatar: u.avatar,
+              mutualText: u.location ? u.location : 'Peaceverse24 member',
+              isOnline: true,
+              bio: u.bio,
+              location: u.location,
+              verified: u.verified,
+            }));
+          setDirectoryPeople(realUsers);
+        })
+        .catch(() => {});
+    };
+
+    const hasRealUid = Boolean(currentUserId && currentUserId !== 'user-me');
+    loadDirectory(hasRealUid);
+
+    const onHydrated = () => loadDirectory(true);
+    window.addEventListener('peaceverse:directory-hydrated', onHydrated);
     return () => {
       active = false;
+      window.removeEventListener('peaceverse:directory-hydrated', onHydrated);
     };
   }, [currentUserId]);
 

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Check,
   Plus,
@@ -47,14 +47,20 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
   const [showAccountsCenter, setShowAccountsCenter] = useState<boolean>(false);
 
   // Dynamic extra profiles (e.g. pages created by user, excluding demo mock IDs)
-  const [extraProfiles] = useState<ExtraProfileItem[]>(() => {
+  const readOwnedExtraProfiles = (): ExtraProfileItem[] => {
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
           const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-halal-bites', 'page-angel-mahi', 'page-noor-academy'];
-          const userPages = parsed.filter((p: any) => p.isOwner && !demoIds.includes(p.id));
+          const currentUid = userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '';
+          const userPages = parsed.filter(
+            (p: any) =>
+              p.isOwner &&
+              !demoIds.includes(p.id) &&
+              (!currentUid || !p.ownerUid || p.ownerUid === currentUid)
+          );
           if (userPages.length > 0) {
             return userPages.map((p: any) => ({
               id: p.id,
@@ -70,7 +76,24 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
       return [];
     }
     return [];
-  });
+  };
+
+  const [extraProfiles, setExtraProfiles] = useState<ExtraProfileItem[]>(() =>
+    readOwnedExtraProfiles()
+  );
+
+  useEffect(() => {
+    const syncProfiles = () => setExtraProfiles(readOwnedExtraProfiles());
+    syncProfiles();
+    window.addEventListener('peaceverse:pages-hydrated', syncProfiles);
+    window.addEventListener('peaceverse:switched-page-updated', syncProfiles);
+    window.addEventListener('storage', syncProfiles);
+    return () => {
+      window.removeEventListener('peaceverse:pages-hydrated', syncProfiles);
+      window.removeEventListener('peaceverse:switched-page-updated', syncProfiles);
+      window.removeEventListener('storage', syncProfiles);
+    };
+  }, [userProfile?.id]);
 
   // Dynamic other profiles (e.g. connected Instagram or WhatsApp)
   const [otherProfiles] = useState<OtherProfileItem[]>(() => {

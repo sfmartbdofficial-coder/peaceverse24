@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Menu,
   Edit2,
@@ -199,20 +199,20 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   const [showSettingsSheet, setShowSettingsSheet] = useState(false);
   const [showProfileSwitcher, setShowProfileSwitcher] = useState(false);
   const [activeProfileId, setActiveProfileId] = useState<string>('main');
-  const [extraProfiles, setExtraProfiles] = useState<Array<{
-    id: string;
-    name: string;
-    avatar: string;
-    type: 'page' | 'profile';
-    notifications?: number;
-  }>>(() => {
+  const readOwnedPageProfiles = () => {
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       if (stored) {
         const parsed = JSON.parse(stored);
         if (Array.isArray(parsed)) {
           const demoIds = ['page-sf-mart', 'page-sharif-story', 'page-halal-bites', 'page-angel-mahi', 'page-noor-academy'];
-          const userPages = parsed.filter((p: any) => p.isOwner && !demoIds.includes(p.id));
+          const currentUid = userProfile?.id && userProfile.id !== 'user-me' ? userProfile.id : '';
+          const userPages = parsed.filter(
+            (p: any) =>
+              p.isOwner &&
+              !demoIds.includes(p.id) &&
+              (!currentUid || !p.ownerUid || p.ownerUid === currentUid)
+          );
           if (userPages.length > 0) {
             return userPages.map((p: any) => ({
               id: p.id,
@@ -226,7 +226,28 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       }
     } catch {}
     return [];
-  });
+  };
+
+  const [extraProfiles, setExtraProfiles] = useState<Array<{
+    id: string;
+    name: string;
+    avatar: string;
+    type: 'page' | 'profile';
+    notifications?: number;
+  }>>(() => readOwnedPageProfiles());
+
+  useEffect(() => {
+    const syncProfiles = () => setExtraProfiles(readOwnedPageProfiles());
+    syncProfiles();
+    window.addEventListener('peaceverse:pages-hydrated', syncProfiles);
+    window.addEventListener('peaceverse:switched-page-updated', syncProfiles);
+    window.addEventListener('storage', syncProfiles);
+    return () => {
+      window.removeEventListener('peaceverse:pages-hydrated', syncProfiles);
+      window.removeEventListener('peaceverse:switched-page-updated', syncProfiles);
+      window.removeEventListener('storage', syncProfiles);
+    };
+  }, [userProfile?.id]);
 
   const [otherProfiles, setOtherProfiles] = useState<Array<{
     id: string;
