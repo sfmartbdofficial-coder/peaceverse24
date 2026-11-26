@@ -47,68 +47,7 @@ interface FbFeedsViewProps {
 
 const FEED_TABS: FeedsFilterTab[] = ['All', 'Favorites', 'Friends', 'Groups', 'Pages'];
 
-const SAMPLE_HALAL_FEEDS: FeedPostEntry[] = [
-  {
-    id: 'feed-halal-ad-1',
-    authorName: 'Peace Mart Halal Business',
-    authorAvatar: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=160&q=80',
-    isAd: true,
-    contentText:
-      'একটি সম্পূর্ণ হালাল ব্যবসা ও কমার্স সমাধান, যা সেইসব উদ্যোক্তাদের জন্য তৈরি করা হয়েছে যারা তাদের হালাল পণ্য ও সেবা বিশ্বজুড়ে সম্প্রসারণ করতে চান। Peace Mart আপনাকে দেয় নিরাপদ ও বিশ্বস্ত প্ল্যাটফর্ম।',
-    image: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=1000&q=80',
-    adHeadline: 'আপনার হালাল প্রতিষ্ঠান, যা বড় পরিসরে সম্প্রসারণের জন্য প্রস্তুত',
-    adCtaText: 'Learn more',
-    likesCount: 217,
-    commentsCount: 64,
-    sharesCount: 1,
-    sourceType: 'Pages',
-    commentsList: [
-      { id: 'c-1', author: 'Tariqul Islam', text: 'MashaAllah, great initiative!', time: '12m' },
-    ],
-  },
-  {
-    id: 'feed-ummah-1',
-    authorName: 'Deen & Ummah Circle',
-    authorAvatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-    subLabel: 'Anthony James',
-    timeText: 'Just now',
-    contentText:
-      'আসসালামু আলাইকুম। আজকের সকালটা শুরু হোক আল্লাহর শোকরিয়া ও কুরআন তিলাওয়াতের মাধ্যমে। আল্লাহ আমাদের সবার দিনটি বরকতময় করুন।',
-    image: 'https://images.unsplash.com/photo-1584281722572-8815151591f8?auto=format&fit=crop&w=1000&q=80',
-    likesCount: 148,
-    commentsCount: 29,
-    sharesCount: 14,
-    sourceType: 'Groups',
-    commentsList: [],
-  },
-  {
-    id: 'feed-fav-1',
-    authorName: 'Al-Quran Daily',
-    authorAvatar: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=160&q=80',
-    timeText: '2h',
-    contentText:
-      'সূরা আশ-শারহ (৯৪:৫-৬): নিশ্চয়ই কষ্টের সাথেই স্বস্তি রয়েছে। প্রতিটি পরীক্ষার পরই আল্লাহর পক্ষ থেকে সহজতা আসে।',
-    image: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=1000&q=80',
-    likesCount: 392,
-    commentsCount: 41,
-    sharesCount: 83,
-    sourceType: 'Favorites',
-    commentsList: [],
-  },
-  {
-    id: 'feed-friend-1',
-    authorName: 'Md Mahfuzur Rahman',
-    authorAvatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80',
-    timeText: '1h',
-    contentText:
-      'জুম্মার নামাজের প্রস্তুতি। সবাই পরিবারের জন্য এবং মুসলিম উম্মাহর শান্তির জন্য দোয়া করবেন।',
-    likesCount: 85,
-    commentsCount: 18,
-    sharesCount: 3,
-    sourceType: 'Friends',
-    commentsList: [],
-  },
-];
+const SAMPLE_HALAL_FEEDS: FeedPostEntry[] = [];
 
 export const FbFeedsView: React.FC<FbFeedsViewProps> = ({
   posts,
@@ -174,7 +113,7 @@ export const FbFeedsView: React.FC<FbFeedsViewProps> = ({
         };
       });
 
-    return [SAMPLE_HALAL_FEEDS[0], ...mappedRealPosts, ...SAMPLE_HALAL_FEEDS.slice(1)];
+    return mappedRealPosts;
   }, [posts]);
 
   const filteredEntries = useMemo(() => {

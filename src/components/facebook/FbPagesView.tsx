@@ -164,36 +164,7 @@ interface SuggestedIslamicPage {
   avatar: string;
 }
 
-const SUGGESTED_ISLAMIC_PAGES: SuggestedIslamicPage[] = [
-  {
-    id: 'sug-alquran-daily',
-    name: 'Al-Quran Daily',
-    category: 'Education & Quran Academy',
-    followers: 4651,
-    avatar: 'https://images.unsplash.com/photo-1584281722572-8815151591f8?auto=format&fit=crop&w=240&q=80',
-  },
-  {
-    id: 'sug-deen-time',
-    name: 'Deen Time',
-    category: 'Media & Islamic Reminders',
-    followers: 12840,
-    avatar: 'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=240&q=80',
-  },
-  {
-    id: 'sug-islamic-vibes',
-    name: 'Islamic Vibes 1014',
-    category: 'Digital Creator',
-    followers: 8215,
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-  },
-  {
-    id: 'sug-ummah-reflections',
-    name: 'Ummah Reflections',
-    category: 'Mosque & Community',
-    followers: 19320,
-    avatar: 'https://images.unsplash.com/photo-1518495973542-4542c06a5843?auto=format&fit=crop&w=240&q=80',
-  },
-];
+const SUGGESTED_ISLAMIC_PAGES: SuggestedIslamicPage[] = [];
 
 const INITIAL_PAGE_INVITES: Array<{
   id: string;
@@ -202,16 +173,7 @@ const INITIAL_PAGE_INVITES: Array<{
   category: string;
   avatar: string;
   time: string;
-}> = [
-  {
-    id: 'inv-sunnah-circle',
-    pageName: 'Sunnah Study Circle',
-    invitedBy: 'Abdullah Al Mamun invited you to like this Page',
-    category: 'Education',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-    time: '2h',
-  },
-];
+}> = [];
 
 const WhatsAppBrandIcon: React.FC<{ className?: string }> = ({ className = 'w-4 h-4' }) => (
   <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden="true">
@@ -483,16 +445,7 @@ const DEFAULT_PAGE_SETTINGS: PageSettingsData = {
   activityLog: [],
 };
 
-const INVITABLE_CONTACTS = [
-  'Abul Baser',
-  'Hassan Abdullah',
-  'MD Oli Ullah',
-  'Abdullah Al Mamun',
-  'Muhammad Tariq',
-  'Fatema Akter',
-  'Yusuf Islam',
-  'Nusrat Jahan',
-];
+const INVITABLE_CONTACTS: string[] = [];
 
 // Helper to convert File to permanent Base64 data URL so localStorage never breaks on reload
 const fileToBase64 = (file: File): Promise<string> => {
@@ -547,7 +500,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               avatar: p.avatar && !p.avatar.startsWith('blob:') ? p.avatar : '',
               cover: p.cover && !p.cover.startsWith('blob:') ? p.cover : '',
               followingCount: p.followingCount ?? 0,
-              followedBy: p.followedBy || ['Abul Baser', 'Hassan Abdullah', 'MD Oli Ullah'],
+              followedBy: Array.isArray(p.followedBy) ? p.followedBy : [],
             }));
         }
       }
@@ -8392,8 +8345,7 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
               </div>
             ) : (
               <div className="space-y-3">
-                {filteredManagedPages.map((page, index) => {
-                  const unreadNewCount = index === 0 ? 50 : 1;
+                {filteredManagedPages.map((page) => {
                   return (
                     <div
                       key={page.id}
@@ -8454,9 +8406,8 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
                               <span>Deactivated (Hidden)</span>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-1.5 text-[13px] font-semibold text-[#1877F2] mt-0.5">
-                              <span className="w-2 h-2 rounded-full bg-[#1877F2] inline-block shrink-0" />
-                              <span>{unreadNewCount} new</span>
+                            <div className="text-[12px] text-[#65676B] mt-0.5 truncate">
+                              {page.category || 'Page'} · {(page.followersCount || 0).toLocaleString()} followers
                             </div>
                           )}
                         </div>

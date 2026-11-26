@@ -95,10 +95,12 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
     try {
       const stored = localStorage.getItem('qalby_fb_marketplace');
       const parsed: MarketplaceItem[] = stored ? JSON.parse(stored) : INITIAL_MARKETPLACE;
-      return parsed.map((it) => ({
-        ...it,
-        sellerName: it.sellerName.replace(/SF MART(\s*BD)?/gi, 'Peace Mart Global'),
-      }));
+      return (Array.isArray(parsed) ? parsed : [])
+        .filter((it) => it && typeof it.id === 'string' && !it.id.startsWith('pm-global-') && !it.id.startsWith('market-'))
+        .map((it) => ({
+          ...it,
+          sellerName: it.sellerName.replace(/SF MART(\s*BD)?/gi, 'Peace Mart Global'),
+        }));
     } catch {
       return INITIAL_MARKETPLACE;
     }
@@ -302,6 +304,15 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
       </div>
 
       {/* Grid */}
+      {filtered.length === 0 ? (
+        <div className="bg-white border border-[#E4E6EB] rounded-2xl p-8 text-center space-y-2">
+          <ShoppingBag className="w-8 h-8 text-[#65676B] mx-auto" />
+          <p className="text-sm font-bold text-black">এখনো কোনো পণ্য লিস্ট করা হয়নি</p>
+          <p className="text-xs text-[#65676B]">
+            আপনি প্রথম হালাল পণ্য যোগ করতে চাইলে &quot;Sell Globally&quot; বাটনে চাপুন।
+          </p>
+        </div>
+      ) : (
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {filtered.map((item) => {
           const displayPrice = convertPriceString(item.price, currency);
@@ -353,6 +364,7 @@ export const FbMarketplaceView: React.FC<FbMarketplaceViewProps> = ({
           );
         })}
       </div>
+      )}
 
       {/* PRODUCT DETAILS & GLOBAL CHECKOUT MODAL */}
       {selectedProduct && (

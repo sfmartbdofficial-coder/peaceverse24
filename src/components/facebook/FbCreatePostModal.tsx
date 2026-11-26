@@ -43,6 +43,7 @@ import {
   uploadDataUrlIfOversized,
   uploadMediaFile,
 } from '../../lib/mediaStorage';
+import { readLocalFriendsStore } from '../../lib/firebase';
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
@@ -54,14 +55,14 @@ interface FbCreatePostModalProps {
   onOpenLive?: () => void;
 }
 
-const AVAILABLE_FRIENDS = [
-  { id: 'f1', name: 'Sujon Ahme', avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=120&q=80' },
-  { id: 'f2', name: 'Hassan Abdullah', avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=120&q=80' },
-  { id: 'f3', name: 'M Mo Ali Khan', avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=120&q=80' },
-  { id: 'f4', name: 'Robel Mahmud', avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80' },
-  { id: 'f5', name: 'Tanzil Ahmed', avatar: 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=120&q=80' },
-  { id: 'f6', name: 'Sohel Rana', avatar: 'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=120&q=80' },
-];
+const getTaggingFriendsList = () =>
+  readLocalFriendsStore().map((f) => ({
+    id: f.id,
+    name: f.name,
+    avatar:
+      f.avatar ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(f.name)}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+  }));
 
 const ISLAMIC_FEELINGS = [
   { label: 'feeling grateful', emoji: '😇', bn: 'কৃতজ্ঞ অনুভব করছি' },
@@ -534,13 +535,13 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         aiLabeled: aiLabeled || undefined,
         sharedGroups: selectedGroups.length > 0 ? selectedGroups : undefined,
         reactions: {
-          total: 1,
-          likeCount: 1,
+          total: 0,
+          likeCount: 0,
           loveCount: 0,
           subhanallahCount: 0,
           mashaallahCount: 0,
         },
-        userReaction: 'like',
+        userReaction: null,
         comments: [],
         sharesCount: 0,
         isSaved: false,
@@ -1331,25 +1332,31 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               </button>
             </div>
             <div className="space-y-1 max-h-36 overflow-y-auto no-scrollbar">
-              {AVAILABLE_FRIENDS.map((f) => {
-                const isTagged = taggedFriends.includes(f.name);
-                return (
-                  <button
-                    key={f.id}
-                    type="button"
-                    onClick={() => toggleFriendTag(f.name)}
-                    className={`w-full p-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
-                      isTagged ? 'bg-[#E7F3FF] text-[#0866FF] font-semibold' : 'hover:bg-[#E4E6EB] text-[#050505]'
-                    }`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <img src={f.avatar} alt={f.name} className="w-6 h-6 rounded-full object-cover" />
-                      <span>{f.name}</span>
-                    </div>
-                    {isTagged && <Check className="w-3.5 h-3.5 text-[#0866FF]" />}
-                  </button>
-                );
-              })}
+              {getTaggingFriendsList().length === 0 ? (
+                <p className="text-xs text-[#65676B] py-2 text-center">
+                  এখনো কোনো বন্ধু যুক্ত নেই
+                </p>
+              ) : (
+                getTaggingFriendsList().map((f) => {
+                  const isTagged = taggedFriends.includes(f.name);
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => toggleFriendTag(f.name)}
+                      className={`w-full p-2 rounded-lg flex items-center justify-between text-xs cursor-pointer ${
+                        isTagged ? 'bg-[#E7F3FF] text-[#0866FF] font-semibold' : 'hover:bg-[#E4E6EB] text-[#050505]'
+                      }`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <img src={f.avatar} alt={f.name} className="w-6 h-6 rounded-full object-cover" />
+                        <span>{f.name}</span>
+                      </div>
+                      {isTagged && <Check className="w-3.5 h-3.5 text-[#0866FF]" />}
+                    </button>
+                  );
+                })
+              )}
             </div>
           </div>
         )}

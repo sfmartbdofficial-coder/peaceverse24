@@ -1159,10 +1159,10 @@ export const PeaceEditsModal: React.FC<PeaceEditsModalProps> = ({
     const newReel: PostItem = {
       id: `reel-edits-${Date.now()}`,
       author: {
-        name: userProfile?.name || 'Sharif Hasan',
+        name: userProfile?.name || 'Member',
         avatar:
           userProfile?.avatar ||
-          'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
+          'https://api.dicebear.com/7.x/initials/svg?seed=Peaceverse&backgroundColor=1877f2,0ea5e9,3b82f6',
         verified: true,
         subtitle: 'Peace Edits Reel • 🌐',
       },
@@ -1178,13 +1178,13 @@ export const PeaceEditsModal: React.FC<PeaceEditsModalProps> = ({
       duration: formatTime(totalDuration),
       category: 'Nasheed',
       reactions: {
-        total: 1,
-        likeCount: 1,
+        total: 0,
+        likeCount: 0,
         loveCount: 0,
         subhanallahCount: 0,
         mashaallahCount: 0,
       },
-      userReaction: 'like',
+      userReaction: null,
       comments: [],
       sharesCount: 0,
       isSaved: false,

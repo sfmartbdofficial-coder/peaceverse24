@@ -21,49 +21,11 @@ export const FbPokesModal: React.FC<FbPokesModalProps> = ({
   onClose,
   onPokeTriggered,
 }) => {
-  const [pokes, setPokes] = useState<PokeItem[]>([
-    {
-      id: 'p-1',
-      name: 'সোহাগ রানা (Sohag Rana)',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '২ ঘণ্টা আগে',
-      pokesCount: 7,
-      hasPokedBack: false,
-    },
-    {
-      id: 'p-2',
-      name: 'মাহমুদুল হাসান',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80',
-      timeAgo: 'গতকাল',
-      pokesCount: 3,
-      hasPokedBack: false,
-    },
-    {
-      id: 'p-3',
-      name: 'আরিফ বিল্লাহ',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-      timeAgo: '৩ দিন আগে',
-      pokesCount: 12,
-      hasPokedBack: true,
-    },
-  ]);
+  const [pokes, setPokes] = useState<PokeItem[]>([]);
 
-  const [suggestedFriends, setSuggestedFriends] = useState([
-    {
-      id: 'sf-1',
-      name: 'আশরাফুল ইসলাম',
-      avatar: 'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=160&q=80',
-      relation: '১০ জন মিউচুয়াল ফ্রেন্ড',
-      poked: false,
-    },
-    {
-      id: 'sf-2',
-      name: 'ফারহান সাদিক',
-      avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=160&q=80',
-      relation: 'সখীপুর, টাঙ্গাইল',
-      poked: false,
-    },
-  ]);
+  const [suggestedFriends, setSuggestedFriends] = useState<
+    Array<{ id: string; name: string; avatar: string; relation: string; poked: boolean }>
+  >([]);
 
   if (!isOpen) return null;
 

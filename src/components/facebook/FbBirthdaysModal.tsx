@@ -31,47 +31,9 @@ const MessengerGlyph: React.FC<{ className?: string }> = ({ className = 'w-5 h-5
   </svg>
 );
 
-const RECENT_BIRTHDAYS: RecentBirthdayPerson[] = [
-  {
-    id: 'rec-1',
-    name: 'Shohid Shikdae',
-    avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=180&q=80',
-    dateLabel: '3 days ago, November 11',
-  },
-  {
-    id: 'rec-2',
-    name: 'Hm Mobaruk',
-    avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=180&q=80',
-    dateLabel: '3 days ago, November 11',
-  },
-];
+const RECENT_BIRTHDAYS: RecentBirthdayPerson[] = [];
 
-const UPCOMING_BIRTHDAYS: UpcomingBirthdayPerson[] = [
-  {
-    id: 'up-1',
-    name: 'Alve Mia',
-    avatar: 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=180&q=80',
-    dateLabel: 'Tomorrow, November 15',
-  },
-  {
-    id: 'up-2',
-    name: 'মেঘলা আকাশ',
-    avatar: 'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=180&q=80',
-    dateLabel: 'Monday, November 16',
-  },
-  {
-    id: 'up-3',
-    name: 'Smart Agrotech',
-    avatar: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=180&q=80',
-    dateLabel: 'Monday, November 16',
-  },
-  {
-    id: 'up-4',
-    name: 'Times Fulbaria',
-    avatar: 'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=180&q=80',
-    dateLabel: 'Wednesday, November 25',
-  },
-];
+const UPCOMING_BIRTHDAYS: UpcomingBirthdayPerson[] = [];
 
 const BIRTHDAY_CARD_PRESETS = [
   { id: 'c1', title: 'Happy Birthday!', bg: 'bg-[#E7F3FF] text-[#1877F2]' },

@@ -426,7 +426,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             )
           ) : (
             <div className="w-10 h-10 rounded-full bg-[#0866FF] text-white font-bold text-base flex items-center justify-center shadow-xs shrink-0">
-              SI
+              {(userProfile.name || 'M').trim().charAt(0).toUpperCase()}
             </div>
           )}
           <div className="min-w-0">
@@ -435,7 +435,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 ? activeSwitchedPage.name
                 : userProfile.name && userProfile.name !== 'New Member'
                 ? userProfile.name
-                : 'Sharif Hasan'}
+                : 'Member'}
             </h2>
             {activeSwitchedPage && (
               <p className="text-[11px] text-[#0866FF] font-semibold mt-0.5">
@@ -445,7 +445,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
           </div>
         </div>
 
-        {/* Right side: switch account icon (circular arrow) and dropdown arrow with 9+ red badge matching Screenshot 1 */}
+        {/* Right side: switch account icon and dropdown arrow */}
         <div className="flex items-center gap-2" onClick={(e) => e.stopPropagation()}>
           <button
             onClick={() => setShowProfileSwitcher(true)}
@@ -461,10 +461,6 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
             title="Accounts"
           >
             <ChevronDown className="w-4 h-4" />
-            {/* Red 9+ Badge from Screenshot 1 */}
-            <span className="absolute -top-1 -right-1 min-w-[18px] h-[18px] bg-[#E41E3F] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ring-white shadow-xs">
-              9+
-            </span>
           </button>
         </div>
       </div>
@@ -507,7 +503,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 {resolvedUserAvatar ? (
                   <img src={resolvedUserAvatar} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
-                  <span>SI</span>
+                  <span>{(userProfile.name || 'M').trim().charAt(0).toUpperCase()}</span>
                 )}
                 <div className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-emerald-500 border-2 border-white flex items-center justify-center shadow-xs">
                   <RefreshCw className="w-3 h-3 text-white" />

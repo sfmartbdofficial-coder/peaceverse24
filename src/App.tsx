@@ -5,7 +5,11 @@ import {
   INITIAL_NOTIFICATIONS,
   USER_PROFILE
 } from './data/islamicPosts';
-import { findDummyCommunityUser } from './data/dummyCommunity';
+import {
+  findDummyCommunityUser,
+  LEGACY_DUMMY_POST_IDS,
+  LEGACY_DUMMY_USER_IDS,
+} from './data/dummyCommunity';
 import {
   PostItem,
   StoryItem,
@@ -1225,12 +1229,26 @@ export default function App() {
   // Stories (100% empty by default per Part 1 cleanup - genuine stories load from Supabase / uploads)
   const [stories, setStories] = useState<StoryItem[]>([]);
 
-  // Common "All Posts" Global Feed (merges shared localStorage store with 20 community users' global posts)
+  // Common "All Posts" Global Feed (100% genuine posts only - legacy dummy/seeded IDs stripped)
+  const isGenuineFeedPost = React.useCallback((p?: PostItem | null): p is PostItem => {
+    if (!p || !p.id) return false;
+    if (LEGACY_DUMMY_POST_IDS.has(p.id)) return false;
+    if (p.authorId && LEGACY_DUMMY_USER_IDS.has(p.authorId)) return false;
+    return true;
+  }, []);
+
   const [posts, setPosts] = useState<PostItem[]>(() => {
     const mergeUniquePosts = (primary: PostItem[], fallback: PostItem[]): PostItem[] => {
       const byId = new Map<string, PostItem>();
-      fallback.forEach((p) => byId.set(p.id, p));
+      fallback.forEach((p) => {
+        if (p && p.id && !LEGACY_DUMMY_POST_IDS.has(p.id) && !(p.authorId && LEGACY_DUMMY_USER_IDS.has(p.authorId))) {
+          byId.set(p.id, p);
+        }
+      });
       primary.forEach((p) => {
+        if (!p || !p.id || LEGACY_DUMMY_POST_IDS.has(p.id) || (p.authorId && LEGACY_DUMMY_USER_IDS.has(p.authorId))) {
+          return;
+        }
         const base = byId.get(p.id);
         byId.set(
           p.id,
@@ -1333,10 +1351,11 @@ export default function App() {
 
     // 1. Fetch genuine posts from Supabase "posts" table (ORDER BY created_at DESC)
     fetchSupabasePosts(0, 20).then((spPosts) => {
-      if (spPosts.length > 0) {
+      const genuineSpPosts = spPosts.filter(isGenuineFeedPost);
+      if (genuineSpPosts.length > 0) {
         setPosts((prev) => {
           const ids = new Set(prev.map((p) => p.id));
-          const additions = spPosts.filter((p) => !ids.has(p.id));
+          const additions = genuineSpPosts.filter((p) => !ids.has(p.id));
           return [...prev, ...additions];
         });
       }
@@ -1351,10 +1370,11 @@ export default function App() {
 
     // 3. Sync real-time Firestore posts into the shared "All Posts" global feed
     const unsubPosts = subscribeToRealtimePosts((livePosts) => {
+      const genuineLivePosts = livePosts.filter(isGenuineFeedPost);
       setPosts((prev) => {
         const map = new Map<string, PostItem>();
-        prev.forEach((p) => map.set(p.id, p));
-        livePosts.forEach((p) => {
+        prev.filter(isGenuineFeedPost).forEach((p) => map.set(p.id, p));
+        genuineLivePosts.forEach((p) => {
           const existing = map.get(p.id);
           if (existing) {
             // Merge comments cleanly by id so local/remote comments never overwrite each other
@@ -1758,7 +1778,7 @@ export default function App() {
       avatar: commentAuthorAvatar,
       text: safeText,
       timeAgo: 'Just now',
-      likes: 1,
+      likes: 0,
     };
 
     const existingPost = posts.find((p) => p.id === postId);

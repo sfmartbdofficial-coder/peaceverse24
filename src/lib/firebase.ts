@@ -42,7 +42,7 @@ import {
   User as FirebaseUser,
 } from 'firebase/auth';
 import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem, ChatMessage } from '../types';
-import { DUMMY_COMMUNITY_USERS, DUMMY_GLOBAL_POSTS } from '../data/dummyCommunity';
+import { LEGACY_DUMMY_POST_IDS, LEGACY_DUMMY_USER_IDS } from '../data/dummyCommunity';
 import { syncSupabaseProfile, fetchSupabaseProfiles } from './supabase';
 import {
   getEnvApiKey,
@@ -362,13 +362,19 @@ export function subscribeToRealtimePosts(
       onUpdate(list);
     };
 
+    const isLegacyDummyDoc = (id: string, data: Record<string, any>) =>
+      LEGACY_DUMMY_POST_IDS.has(id) ||
+      Boolean(data?.authorId && LEGACY_DUMMY_USER_IDS.has(String(data.authorId)));
+
     // One-time legacy fallback fetch so older posts without createdAtMillis still load alongside latest 150
     getDocs(query(postsRef, limit(100)))
       .then((snap) => {
         let added = false;
         snap.forEach((docSnap) => {
+          const d = docSnap.data();
+          if (isLegacyDummyDoc(docSnap.id, d)) return;
           if (!mergedById.has(docSnap.id)) {
-            mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, docSnap.data()));
+            mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, d));
             added = true;
           }
         });
@@ -381,7 +387,9 @@ export function subscribeToRealtimePosts(
       orderedQuery,
       (snapshot) => {
         snapshot.forEach((docSnap) => {
-          mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, docSnap.data()));
+          const d = docSnap.data();
+          if (isLegacyDummyDoc(docSnap.id, d)) return;
+          mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, d));
         });
         emitMerged();
       },
@@ -392,7 +400,9 @@ export function subscribeToRealtimePosts(
             query(postsRef, limit(150)),
             (snap) => {
               snap.forEach((docSnap) => {
-                mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, docSnap.data()));
+                const d = docSnap.data();
+                if (isLegacyDummyDoc(docSnap.id, d)) return;
+                mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, d));
               });
               emitMerged();
             },
@@ -552,7 +562,7 @@ export async function addRealtimeComment(
     let existingComments: PostComment[] = [];
     let postAuthorId: string | undefined = postFallback?.authorId;
     if (!postSnap || !postSnap.exists()) {
-      const fallback = postFallback || DUMMY_GLOBAL_POSTS.find((dp) => dp.id === postId);
+      const fallback = postFallback;
       if (!fallback) return false;
       postAuthorId = fallback.authorId;
       existingComments = (fallback.comments || []).filter((c) => c.id !== safeComment.id);
@@ -628,10 +638,9 @@ export async function toggleRealtimeReaction(
   try {
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDocSafe(postRef);
-    const dummyPost = !postSnap || !postSnap.exists() ? DUMMY_GLOBAL_POSTS.find((dp) => dp.id === postId) : null;
 
-    if ((!postSnap || !postSnap.exists()) && !dummyPost) return false;
-    const data = postSnap && postSnap.exists() ? postSnap.data() : (dummyPost as any);
+    if (!postSnap || !postSnap.exists()) return false;
+    const data = postSnap.data();
 
     const isSame = currentReaction === reaction;
     const nextReaction = isSame ? null : reaction;
@@ -669,21 +678,11 @@ export async function toggleRealtimeReaction(
       updatedReactions[nextKey] = (updatedReactions[nextKey] || 0) + 1;
     }
 
-    if (dummyPost) {
-      await setDoc(postRef, {
-        ...stripUndefinedFields(dummyPost),
-        reactions: updatedReactions,
-        userReaction: nextReaction,
-        createdAt: new Date(dummyPost.createdAtMillis || Date.now()).toISOString(),
-        updatedAt: new Date().toISOString(),
-      });
-    } else {
-      await updateDoc(postRef, {
-        reactions: updatedReactions,
-        userReaction: nextReaction,
-        updatedAt: new Date().toISOString(),
-      });
-    }
+    await updateDoc(postRef, {
+      reactions: updatedReactions,
+      userReaction: nextReaction,
+      updatedAt: new Date().toISOString(),
+    });
 
     if (!isSame) {
       const postAuthorId = data.authorId ? String(data.authorId) : undefined;
@@ -1173,35 +1172,11 @@ const FRIENDS_LIST_STORAGE_KEY = 'peace_friends_list';
 const SENT_FRIEND_REQUESTS_STORAGE_KEY = 'peaceverse_sent_friend_requests_v1';
 const REMOVED_SUGGESTIONS_STORAGE_KEY = 'peaceverse_removed_suggestions_v1';
 
-const DEFAULT_FRIEND_IDENTITIES: Array<{ id: string; name: string }> = [
-  { id: 'on-1', name: 'নিস্তব্ধ হৃদয়' },
-  { id: 'on-2', name: 'সুনামগঞ্জ রাজনৈতিক' },
-  { id: 'on-3', name: 'Sujon Ahmed' },
-  { id: 'user-fatima-zahra', name: 'Fatima Zahra' },
-  { id: 'user-nusrat-jahan', name: 'Nusrat Jahan' },
-];
+const DEFAULT_FRIEND_IDENTITIES: Array<{ id: string; name: string }> = [];
 
-const FOLLOW_ONLY_DUMMY_IDS = new Set<string>([
-  'user-sheikh-makkah',
-  'user-ayesha-rahman',
-  'user-bilal-ahmed',
-  'user-zayd-hasan',
-  'user-hafsa-noor',
-  'user-yusuf-ali',
-  'user-hamza-chowdhury',
-  'user-maryam-siddiqua',
-]);
+const FOLLOW_ONLY_DUMMY_IDS = new Set<string>();
 
-const FOLLOW_ONLY_DUMMY_NAMES = new Set<string>([
-  'sheikh tariq al-harbi',
-  'ayesha rahman',
-  'bilal ahmed',
-  'zayd hasan',
-  'hafsa noor',
-  'yusuf ali',
-  'hamza chowdhury',
-  'maryam siddiqua',
-]);
+const FOLLOW_ONLY_DUMMY_NAMES = new Set<string>();
 
 export function isTargetFriendLocally(targetId?: string, targetName?: string): boolean {
   const cleanId = (targetId || '').trim();
@@ -2875,12 +2850,13 @@ async function fetchDirectoryUsersFromServer(): Promise<DirectoryUserRecord[]> {
     upsertCandidate(sp, false);
   });
 
-  // 5. Fallback: active creators from Firestore posts
+  // 5. Fallback: active genuine creators from Firestore posts
   (postsSnap?.docs || []).forEach((pDoc) => {
+    if (LEGACY_DUMMY_POST_IDS.has(pDoc.id)) return;
     const pData = pDoc.data();
     const aName = String(pData?.author?.name || '').trim();
     const aId = String(pData?.authorId || (aName ? `author-${aName}` : '')).trim();
-    if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
+    if (!aName || !aId || aId.startsWith('page-') || LEGACY_DUMMY_USER_IDS.has(aId) || byId.has(aId)) return;
     upsertCandidate({
       id: aId,
       uid: aId,
@@ -2895,16 +2871,17 @@ async function fetchDirectoryUsersFromServer(): Promise<DirectoryUserRecord[]> {
     });
   });
 
-  // 6. Local posts store authors
+  // 6. Local posts store genuine authors
   try {
     const localPostsRaw = localStorage.getItem('peaceverse_posts');
     if (localPostsRaw) {
       const localPosts: PostItem[] = JSON.parse(localPostsRaw);
       if (Array.isArray(localPosts)) {
         localPosts.forEach((lp) => {
+          if (!lp || LEGACY_DUMMY_POST_IDS.has(lp.id)) return;
           const aName = String(lp?.author?.name || '').trim();
           const aId = String(lp?.authorId || (aName ? `author-${aName}` : '')).trim();
-          if (!aName || !aId || aId.startsWith('page-') || byId.has(aId)) return;
+          if (!aName || !aId || aId.startsWith('page-') || LEGACY_DUMMY_USER_IDS.has(aId) || byId.has(aId)) return;
           upsertCandidate({
             id: aId,
             uid: aId,
@@ -2922,14 +2899,7 @@ async function fetchDirectoryUsersFromServer(): Promise<DirectoryUserRecord[]> {
     }
   } catch {}
 
-  // 7. Built-in global community members (added last so real accounts always keep priority)
-  DUMMY_COMMUNITY_USERS.forEach((du) => {
-    if (!byId.has(du.id)) {
-      byId.set(du.id, du);
-    }
-  });
-
-  return Array.from(byId.values());
+  return Array.from(byId.values()).filter((u) => !LEGACY_DUMMY_USER_IDS.has(u.id));
 }
 
 export async function fetchCommunityDirectoryUsers(forceRefresh = false): Promise<SearchedUserProfile[]> {
@@ -3050,8 +3020,8 @@ export async function searchUsersFromFirestore(
       });
     }
 
-    // If cached search returned 0 non-dummy results, refresh directory from server once so newly created accounts are found right away
-    const hasRealMatch = matched.some((m) => !DUMMY_COMMUNITY_USERS.some((du) => du.id === m.id));
+    // If cached search returned 0 results, refresh directory from server once so newly created accounts are found right away
+    const hasRealMatch = matched.length > 0;
     if (!hasRealMatch && !forceRefresh) {
       directoryUsers = await fetchDirectoryUsersFromServer();
       cachedDirectoryUsers = { users: directoryUsers, fetchedAt: Date.now() };
@@ -3095,8 +3065,7 @@ export async function searchUsersFromFirestore(
       }
     } catch {}
 
-    // Prioritize exact and prefix matches (and real Firebase/server accounts over dummy items on ties)
-    const dummyIds = new Set(DUMMY_COMMUNITY_USERS.map((du) => du.id));
+    // Prioritize exact and prefix matches
     matched.sort((a, b) => {
       const aName = a.displayName.toLowerCase();
       const bName = b.displayName.toLowerCase();
@@ -3111,10 +3080,6 @@ export async function searchUsersFromFirestore(
       const aStarts = aName.startsWith(q) || aT.startsWith(qTranslit) ? 0 : 1;
       const bStarts = bName.startsWith(q) || bT.startsWith(qTranslit) ? 0 : 1;
       if (aStarts !== bStarts) return aStarts - bStarts;
-
-      const aIsDummy = dummyIds.has(a.id) ? 1 : 0;
-      const bIsDummy = dummyIds.has(b.id) ? 1 : 0;
-      if (aIsDummy !== bIsDummy) return aIsDummy - bIsDummy;
 
       return aName.localeCompare(bName);
     });

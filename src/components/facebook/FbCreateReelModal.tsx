@@ -55,62 +55,14 @@ interface PreviewReelMedia {
   file?: File;
 }
 
-const REEL_PRESETS = [
-  {
-    id: 'reel-1',
-    title: 'মক্কা মুকাররমার হৃদয়স্পর্শী লাইভ রিলস',
-    duration: '0:45',
-    thumbnail:
-      'https://images.unsplash.com/photo-1564769625905-50e93615e769?auto=format&fit=crop&w=600&q=80',
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    arabic: 'لَبَّيْكَ اللَّهُمَّ لَبَّيْكَ',
-  },
-  {
-    id: 'reel-2',
-    title: 'পবিত্র কুরআনের অত্যন্ত মনমুগ্ধকর তিলাওয়াত',
-    duration: '1:02',
-    thumbnail:
-      'https://images.unsplash.com/photo-1542816417-0983c9c9ad53?auto=format&fit=crop&w=600&q=80',
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    arabic: 'الرَّحْمَٰنُ • عَلَّمَ الْقُرْآنَ',
-  },
-  {
-    id: 'reel-3',
-    title: 'মসজিদে নববীর সবুজ গম্বুজের দৃশ্য',
-    duration: '0:30',
-    thumbnail:
-      'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=600&q=80',
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    arabic: 'الصَّلَاةُ وَالسَّلَامُ عَلَيْكَ يَا رَسُولَ اللَّهِ',
-  },
-  {
-    id: 'reel-4',
-    title: 'বৃষ্টির মধ্যে রবের শুকরিয়া ও তাওহীদের আহ্বান',
-    duration: '0:58',
-    thumbnail:
-      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=600&q=80',
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    arabic: 'وَجَعَلْنَا مِنَ الْمَاءِ كُلَّ شَيْءٍ حَيٍّ',
-  },
-  {
-    id: 'reel-5',
-    title: 'জুমুআর দিনে দরূদ পাঠের বরকত ও ফজিলত',
-    duration: '1:15',
-    thumbnail:
-      'https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=600&q=80',
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    arabic: 'إِنَّ اللَّهَ وَمَلَائِكَتَهُ يُصَلُّونَ عَلَى النَّبِيِّ',
-  },
-  {
-    id: 'reel-6',
-    title: 'হালাল জীবিকা ও উত্তম আখলাকের গুরুত্ব',
-    duration: '0:40',
-    thumbnail:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=600&q=80',
-    videoUrl: 'https://www.w3schools.com/html/mov_bbb.mp4',
-    arabic: 'طَلَبُ الْحَلَالِ فَرِيضَةٌ',
-  },
-];
+const REEL_PRESETS: Array<{
+  id: string;
+  title: string;
+  duration: string;
+  thumbnail: string;
+  videoUrl: string;
+  arabic?: string;
+}> = [];
 
 const REEL_MUSIC_TRACKS = [
   'সালাতুস সালাম — মধুর নাশিদ',

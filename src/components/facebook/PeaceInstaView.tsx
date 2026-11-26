@@ -38,7 +38,7 @@ export const PeaceInstaView: React.FC<PeaceInstaViewProps> = ({
       authorName: p.author.name,
       caption: p.contentBangla || 'আলহামদুলিল্লাহ • Peace Insta',
       imageUrl: p.mediaUrl || '',
-      likes: p.reactions.likeCount || 12,
+      likes: p.reactions?.total || 0,
       timeAgo: p.timeAgo,
     }));
 
@@ -63,12 +63,12 @@ export const PeaceInstaView: React.FC<PeaceInstaViewProps> = ({
     const newItem: PeaceInstaItem = {
       id: `insta-${Date.now()}`,
       authorName: sanitizeInput(
-        userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan'
+        userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Member'
       ),
       caption: sanitizeInput(captionDraft.trim()) || 'হালাল ভিজ্যুয়াল স্টোরি • Peace Insta',
       imageUrl: selectedFileUrl,
-      likes: 1,
-      isLiked: true,
+      likes: 0,
+      isLiked: false,
       timeAgo: 'এইমাত্র',
     };
     setItems((prev) => [newItem, ...prev]);

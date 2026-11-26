@@ -65,159 +65,21 @@ const PRESET_GROUP_COVERS = [
   'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=800&q=80',
 ];
 
-const STARTER_YOUR_GROUPS: GroupItemExtended[] = [
-  {
-    id: 'grp-abul',
-    name: 'Abul',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=300&q=80',
-    coverImage:
-      'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=900&q=80',
-    membersCount: '1 member',
-    description: 'ইসলামিক আলোচনা, পারিবারিক ও সামাজিক যোগাযোগ গ্রুপ।',
-    postsPerDay: '0 new posts',
-    newPostsCount: 0,
-    isJoined: true,
-    isPinned: false,
-    visits: 12,
-    category: 'Islamic Group',
-    privacy: 'public',
-  },
-];
+const LEGACY_DUMMY_GROUP_IDS = new Set([
+  'grp-abul',
+  'grp-deen-dawat',
+  'grp-quran-tafsir',
+  'grp-halal-biz',
+  'grp-deen-circle',
+]);
 
-const SUGGESTED_DISCOVER_GROUPS: GroupItemExtended[] = [
-  {
-    id: 'grp-deen-dawat',
-    name: 'Deen & Dawat',
-    avatar:
-      'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=400&q=80',
-    coverImage:
-      'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=800&q=80',
-    membersCount: '105K members',
-    description: 'প্রতিদিনের কুরআন, হাদিস ও দ্বীনি দাওয়াতের নির্ভরযোগ্য কমিউনিটি।',
-    postsPerDay: '25+ new posts',
-    newPostsCount: 25,
-    isJoined: false,
-    isPinned: false,
-    visits: 5,
-    category: 'Islamic Community',
-    privacy: 'public',
-    memberHint: 'Biplob Hosen is a member',
-  },
-  {
-    id: 'grp-quran-tafsir',
-    name: 'Quran Tafsir Daily',
-    avatar:
-      'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=400&q=80',
-    coverImage:
-      'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=800&q=80',
-    membersCount: '256K members',
-    description: 'সহজ বাংলা ও ইংরেজিতে প্রতিদিনের কুরআন তাফসীর ও তাদাব্বুর।',
-    postsPerDay: '25+ new posts',
-    newPostsCount: 25,
-    isJoined: false,
-    isPinned: false,
-    visits: 4,
-    category: 'Quran & Tafsir',
-    privacy: 'public',
-    memberHint: 'Abul Baser is a member',
-  },
-  {
-    id: 'grp-halal-biz',
-    name: 'Halal Business Bangladesh',
-    avatar:
-      'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=400&q=80',
-    coverImage:
-      'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=800&q=80',
-    membersCount: '16K members',
-    description: 'হালাল ব্যবসা, উদ্যোক্তা পরামর্শ এবং সুদমুক্ত বিনিয়োগ নেটওয়ার্ক।',
-    postsPerDay: '12 new posts',
-    newPostsCount: 12,
-    isJoined: false,
-    isPinned: false,
-    visits: 3,
-    category: 'Halal Business',
-    privacy: 'public',
-    memberHint: 'Hassan Abdullah is a member',
-  },
-  {
-    id: 'grp-deen-circle',
-    name: 'Deen Circle - Islamic Group',
-    avatar:
-      'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=400&q=80',
-    coverImage:
-      'https://images.unsplash.com/photo-1507692049790-de58290a4334?auto=format&fit=crop&w=800&q=80',
-    membersCount: '84K members',
-    description: 'সুন্নাহ ভিত্তিক জীবনযাপন, জুমার বয়ান ও মাসনূন দোয়া চর্চা।',
-    postsPerDay: '25+ new posts',
-    newPostsCount: 25,
-    isJoined: false,
-    isPinned: false,
-    visits: 2,
-    category: 'Islamic Group',
-    privacy: 'public',
-    memberHint: 'MD Oli Ullah is a member',
-  },
-];
+const STARTER_YOUR_GROUPS: GroupItemExtended[] = [];
 
-const INITIAL_RECOMMENDED_POSTS: RecommendedFeedPost[] = [
-  {
-    id: 'rec-post-1',
-    groupId: 'grp-deen-dawat',
-    groupName: 'Deen & Dawat · Islamic Group',
-    groupAvatar:
-      'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=200&q=80',
-    authorName: 'Bilkis Akter',
-    authorAvatar:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=200&q=80',
-    timeAgo: '3h',
-    text: 'আসসালামু আলাইকুম জুম্মা মোবারক। আল্লাহ তাআলা আমাদের সবার নেক দোয়া কবুল করুন এবং পরিবারে শান্তি দান করুন। 🕌🤲',
-    images: [
-      'https://images.unsplash.com/photo-1564507592333-c60657eea523?auto=format&fit=crop&w=700&q=80',
-      'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=700&q=80',
-    ],
-    likes: 142,
-    comments: 18,
-  },
-  {
-    id: 'rec-post-2',
-    groupId: 'grp-quran-tafsir',
-    groupName: 'Quran Tafsir Daily',
-    groupAvatar:
-      'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=200&q=80',
-    authorName: 'Hassan Abdullah',
-    authorAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=200&q=80',
-    timeAgo: '5h',
-    text: 'সূরা আল-ইনশিরাহ (৯৪:৫-৬): "নিশ্চয়ই কষ্টের সাথেই রয়েছে স্বস্তি।" — কঠিন সময়ে ধৈর্য ধরে আল্লাহর ওপর ভরসা রাখুন।',
-    images: [
-      'https://images.unsplash.com/photo-1609599006353-e629aaabfeae?auto=format&fit=crop&w=800&q=80',
-    ],
-    likes: 289,
-    comments: 34,
-  },
-];
+const SUGGESTED_DISCOVER_GROUPS: GroupItemExtended[] = [];
 
-const INITIAL_ACTIVITY_CARDS: ActivityCardItem[] = [
-  {
-    id: 'act-1',
-    groupId: 'grp-sf-mart',
-    groupName: 'SF Mart BD Family',
-    image:
-      'https://images.unsplash.com/photo-1556742049-0a67c5574f73?auto=format&fit=crop&w=700&q=80',
-    snippet: 'বড় ঘোষণা! আমাদের অফিসিয়াল Peaceverse24 গ্রুপ চালু হয়েছে ❤️',
-    countLabel: '0/2',
-  },
-  {
-    id: 'act-2',
-    groupId: 'grp-abul',
-    groupName: 'Abul',
-    image:
-      'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=700&q=80',
-    snippet: 'Peaceverse24.com এ আপনার নতুন গ্রুপ তৈরি করা হয়েছে — প্রথম পোস্ট লিখুন।',
-    countLabel: '0/0',
-  },
-];
+const INITIAL_RECOMMENDED_POSTS: RecommendedFeedPost[] = [];
+
+const INITIAL_ACTIVITY_CARDS: ActivityCardItem[] = [];
 
 export const FbGroupsView: React.FC<FbGroupsViewProps> = ({
   onBack,
@@ -229,18 +91,14 @@ export const FbGroupsView: React.FC<FbGroupsViewProps> = ({
       const stored = localStorage.getItem('qalby_fb_groups');
       if (stored) {
         const parsed: GroupItemExtended[] = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          // Ensure Abul exists and suggested discover items stay available if missing
-          const map = new Map<string, GroupItemExtended>();
-          [...STARTER_YOUR_GROUPS, ...SUGGESTED_DISCOVER_GROUPS].forEach((g) => map.set(g.id, g));
-          parsed.forEach((g) => map.set(g.id, g));
-          return Array.from(map.values());
+        if (Array.isArray(parsed)) {
+          return parsed.filter((g) => g && g.id && !LEGACY_DUMMY_GROUP_IDS.has(g.id));
         }
       }
     } catch {
       // ignore
     }
-    return [...STARTER_YOUR_GROUPS, ...SUGGESTED_DISCOVER_GROUPS];
+    return [];
   });
 
   useEffect(() => {
@@ -372,13 +230,13 @@ export const FbGroupsView: React.FC<FbGroupsViewProps> = ({
     const text = newPostText.trim();
     const post = {
       id: `gp-${Date.now()}`,
-      author: userProfile?.name || 'Sharif Hasan',
+      author: userProfile?.name || 'Member',
       avatar:
         userProfile?.avatar ||
-        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
+        `https://api.dicebear.com/9.x/initials/svg?seed=${encodeURIComponent(userProfile?.name || 'Member')}`,
       text,
       time: 'Just now',
-      likes: 1,
+      likes: 0,
     };
 
     setGroupPosts((prev) => ({

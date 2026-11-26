@@ -60,107 +60,25 @@ interface PeaceBusinessSuiteViewProps {
   onPublishFeedPost?: (post: PostItem) => void;
 }
 
-const INITIAL_ORDERS: BusinessOrder[] = [
-  {
-    id: 'ord-101',
-    orderNo: 'Order #101',
-    shopName: 'Peace Mart Global',
-    customerName: 'তানভীর আহমেদ',
-    itemsSummary: 'প্রিমিয়াম তুর্কি জায়নামাজ + উদ আতর (১২ মি.লি.)',
-    amount: 1200,
-    status: 'Pending Halal Check',
-    timeAgo: '১০ মিনিট আগে',
-  },
-  {
-    id: 'ord-102',
-    orderNo: 'Order #102',
-    shopName: 'Peace Mart Global',
-    customerName: 'মাহমুদুল হাসান',
-    itemsSummary: 'সুন্দরবনের খাঁটি মধু (১ কেজি)',
-    amount: 950,
-    status: 'Halal Verified',
-    timeAgo: '১ ঘণ্টা আগে',
-  },
-  {
-    id: 'ord-103',
-    orderNo: 'Order #103',
-    shopName: 'হালাল ফুড কিচেন',
-    customerName: 'ফারিহা তাসনিম',
-    itemsSummary: 'হালাল বিফ বিরিয়ানি ও বোরহানি কম্বো',
-    amount: 780,
-    status: 'Delivered',
-    timeAgo: '৩ ঘণ্টা আগে',
-  },
-  {
-    id: 'ord-104',
-    orderNo: 'Order #104',
-    shopName: 'নূর কুরআন একাডেমি',
-    customerName: 'রাশেদুল ইসলাম',
-    itemsSummary: 'তাজবীদসহ রঙিন কুরআন শরিফ (হার্ডকভার)',
-    amount: 1450,
-    status: 'Pending Halal Check',
-    timeAgo: '৫ ঘণ্টা আগে',
-  },
-];
+const INITIAL_ORDERS: BusinessOrder[] = [];
 
-const INITIAL_INBOX: UnifiedInboxItem[] = [
-  {
-    id: 'inb-1',
-    channel: 'page',
-    senderName: 'সাঈদ আনোয়ার',
-    pageName: 'Peace Mart Global • Page Message',
-    preview: 'আসসালামু আলাইকুম ভাই, Order #101 এর জায়নামাজ কি আজ ডেলিভারি হবে?',
-    timeAgo: '৫ মিনিট আগে',
-    unread: true,
-    replies: [],
-  },
-  {
-    id: 'inb-2',
-    channel: 'whatsapp',
-    senderName: '+880 1711-234567',
-    pageName: 'Peace Mart Global • WhatsApp Business',
-    preview: 'সুগন্ধি আতরের হোলসেল প্রাইসটা একটু জানাবেন প্লিজ।',
-    timeAgo: '২২ মিনিট আগে',
-    unread: true,
-    replies: [],
-  },
-  {
-    id: 'inb-3',
-    channel: 'comment',
-    senderName: 'নাজমুল হুদা',
-    pageName: "Sharif's Life Story • Post Comment",
-    preview: 'মাশাআল্লাহ! আপনাদের হালাল পণ্যের কোয়ালিটি খুবই চমৎকার।',
-    timeAgo: '১ ঘণ্টা আগে',
-    unread: false,
-    replies: [],
-  },
-  {
-    id: 'inb-4',
-    channel: 'whatsapp',
-    senderName: '+880 1822-987654',
-    pageName: 'নূর কুরআন একাডেমি • WhatsApp',
-    preview: 'অনলাইন হিফজ ব্যাচের নতুন সিডিউল কবে শুরু হবে?',
-    timeAgo: '২ ঘণ্টা আগে',
-    unread: false,
-    replies: [],
-  },
-];
+const INITIAL_INBOX: UnifiedInboxItem[] = [];
 
 const WEEKLY_VIEWS_DATA = [
   { day: 'শনি', views: 0 },
   { day: 'রবি', views: 0 },
-  { day: 'সোম', views: 1 },
+  { day: 'সোম', views: 0 },
   { day: 'মঙ্গল', views: 0 },
   { day: 'বুধ', views: 0 },
-  { day: 'বৃহঃ', views: 1 },
+  { day: 'বৃহঃ', views: 0 },
   { day: 'শুক্র', views: 0 },
 ];
 
 const FOLLOWER_GROWTH_DATA = [
-  { label: 'W1', count: 1420 },
-  { label: 'W2', count: 1650 },
-  { label: 'W3', count: 1890 },
-  { label: 'W4', count: 2100 },
+  { label: 'W1', count: 0 },
+  { label: 'W2', count: 0 },
+  { label: 'W3', count: 0 },
+  { label: 'W4', count: 0 },
 ];
 
 export const PeaceBusinessSuiteView: React.FC<PeaceBusinessSuiteViewProps> = ({
@@ -240,21 +158,21 @@ export const PeaceBusinessSuiteView: React.FC<PeaceBusinessSuiteViewProps> = ({
                 Peace Business Suite
               </h1>
               <p className="text-[11px] text-[#b0b3b8] truncate">
-                পেজ, অর্ডার, ইনবক্স ও ইনসাইটস • {userProfile.name || 'Sharif Hasan'}
+                পেজ, অর্ডার, ইনবক্স ও ইনসাইটস • {userProfile.name || 'Member'}
               </p>
             </div>
           </div>
         </div>
 
-        {/* Top Stats Bar: Total Pages: 5, Total Orders: 12, 100% Halal Verified */}
+        {/* Top Stats Bar */}
         <div className="max-w-[740px] mx-auto pb-3 grid grid-cols-3 gap-2">
           <div className="bg-[#202430] border border-white/10 rounded-xl px-3 py-2">
-            <p className="text-[10px] text-[#b0b3b8] font-semibold">Total Pages</p>
-            <p className="text-sm sm:text-base font-extrabold text-white tabular-nums">5</p>
+            <p className="text-[10px] text-[#b0b3b8] font-semibold">Total Inbox</p>
+            <p className="text-sm sm:text-base font-extrabold text-white tabular-nums">{inboxItems.length}</p>
           </div>
           <div className="bg-[#202430] border border-white/10 rounded-xl px-3 py-2">
             <p className="text-[10px] text-[#b0b3b8] font-semibold">Total Orders</p>
-            <p className="text-sm sm:text-base font-extrabold text-amber-400 tabular-nums">12</p>
+            <p className="text-sm sm:text-base font-extrabold text-amber-400 tabular-nums">{orders.length}</p>
           </div>
           <div className="bg-[#202430] border border-emerald-500/30 rounded-xl px-3 py-2 flex items-center justify-between gap-1.5">
             <div className="min-w-0">

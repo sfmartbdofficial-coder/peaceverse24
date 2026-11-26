@@ -28,64 +28,7 @@ export interface BlogArticle {
   likes: number;
 }
 
-const INITIAL_BLOG_ARTICLES: BlogArticle[] = [
-  {
-    id: 'blog-peaceverse24-welcome',
-    title: 'PeaceVerse24 - শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি',
-    excerpt:
-      'PeaceVerse24 হলো শান্তি আর ভালোবাসার কমিউনিটি। জানুন কেন নিরাপদ ও পজিটিভ সোশ্যাল নেটওয়ার্ক আজ সবার জন্য প্রয়োজন।',
-    content: [
-      'আজকের ডিজিটাল দুনিয়ায় নেতিবাচকতা, গুজব এবং অপ্রয়োজনীয় কোলাহল থেকে দূরে থেকে একটি পরিচ্ছন্ন ও শান্তিময় জায়গার প্রয়োজনীয়তা আমরা সবাই অনুভব করি। সেই চিন্তা থেকেই জন্ম হয়েছে PeaceVerse24 (peaceverse24.com)-এর।',
-      'PeaceVerse24 হলো এমন একটি প্ল্যাটফর্ম যেখানে আপনি নির্ভয়ে আপনার মনের ভালো কথা শেয়ার করতে পারবেন, ভালো মানুষের সাথে নতুন বন্ধুত্ব গড়ে তুলতে পারবেন এবং প্রতিদিন পজিটিভ ও অনুপ্রেরণামূলক কনটেন্ট দেখতে পারবেন।',
-      'আমাদের লক্ষ্য হলো বিশ্বের প্রতিটি প্রান্তের মানুষ যেন পরিবার ও বন্ধুদের সাথে নিরাপদ, সম্মানজনক এবং ভালোবাসাপূর্ণ পরিবেশে যুক্ত থাকতে পারেন। আসুন, একসাথে গড়ে তুলি একটি শান্তির পৃথিবী।',
-    ],
-    category: 'কমিউনিটি',
-    author: 'PeaceVerse24 Editorial',
-    publishedAt: '২০ নভেম্বর, ২০২৬',
-    readTime: '৩ মিনিট পড়া',
-    coverImage:
-      'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=1000&q=80',
-    likes: 128,
-  },
-  {
-    id: 'blog-positive-mindset',
-    title: 'প্রতিদিন পজিটিভ থাকার ও মানসিক শান্তি বজায় রাখার ৫টি সহজ অভ্যাস',
-    excerpt:
-      'ছোট ছোট ইতিবাচক পরিবর্তন কীভাবে আমাদের দৈনন্দিন জীবনকে আরও প্রশান্তিময় ও সুন্দর করে তোলে তা জানুন।',
-    content: [
-      '১. কৃতজ্ঞতা প্রকাশ করা: প্রতিদিন সকালে ঘুম থেকে উঠে এবং রাতে ঘুমানোর আগে অন্তত তিনটি বিষয়ের জন্য শুকরিয়া আদায় করুন। এতে মনে গভীর প্রশান্তি আসে।',
-      '২. ভালো কথা বলা ও লেখা: সোশ্যাল মিডিয়ায় বা বাস্তব জীবনে এমন কিছু শেয়ার করুন যা অন্যের মুখে হাসি ফোটায় বা কাউকে সাহস দেয়।',
-      '৩. ইতিবাচক বন্ধুদের সাথে সময় কাটানো: ভালো সঙ্গ আপনার চিন্তাধারাকে সুন্দর করে। PeaceVerse24-এ এমন সব গ্রুপ ও মানুষের সাথে যুক্ত হোন যারা ভালো কাজে উৎসাহ দেয়।',
-      '৪. নিয়মিত বিরতি ও নামাজ/ধ্যান: কাজের ফাঁকে মনকে শান্ত করতে নিয়মিত প্রার্থনা ও নিজেকে একটু নীরব সময় দিন।',
-      '৫. ক্ষমা ও ভালোবাসা: ছোটখাটো ভুল ভুলে গিয়ে মানুষের প্রতি সহানুভূতিশীল থাকলে নিজের মনই সবচেয়ে বেশি হালকা থাকে।',
-    ],
-    category: 'মানসিক শান্তি',
-    author: 'সাদিয়া ইসলাম',
-    publishedAt: '১৮ নভেম্বর, ২০২৬',
-    readTime: '৪ মিনিট পড়া',
-    coverImage:
-      'https://images.unsplash.com/photo-1506744038136-46273834b3fb?auto=format&fit=crop&w=1000&q=80',
-    likes: 94,
-  },
-  {
-    id: 'blog-meaningful-friendship',
-    title: 'অনলাইনে সুস্থ ও অর্থপূর্ণ বন্ধুত্ব গড়ার উপায়',
-    excerpt:
-      'নতুন বন্ধু বানানো এবং অনলাইনে পারস্পরিক শ্রদ্ধা ও আস্থার সম্পর্ক তৈরি করার কার্যকর পরামর্শ।',
-    content: [
-      'সত্যিকারের বন্ধুত্ব দূরত্ব মানে না। সঠিক কমিউনিটিতে থাকলে পৃথিবীর যেকোনো প্রান্ত থেকেই চমৎকার বন্ধু পাওয়া সম্ভব যারা আপনার ভালো সময়ে পাশে থাকবে এবং বিপদে সাহস জোগাবে।',
-      'শালীনতা, সততা এবং একে অপরের মতামতের প্রতি সম্মান—এই তিনটি বিষয় মেনে চললেই প্রতিটি ডিজিটাল সম্পর্ক সুন্দর ও দীর্ঘস্থায়ী হয়।',
-      'PeaceVerse24-এ আজই আপনার পছন্দের কমিউনিটি ও গ্রুপগুলোতে যুক্ত হোন এবং সুস্থ চিন্তার মানুষের সাথে পরিচিত হোন।',
-    ],
-    category: 'বন্ধুত্ব',
-    author: 'তারেক রহমান',
-    publishedAt: '১৫ নভেম্বর, ২০২৬',
-    readTime: '৩ মিনিট পড়া',
-    coverImage:
-      'https://images.unsplash.com/photo-1529156069898-49953e39b3ac?auto=format&fit=crop&w=1000&q=80',
-    likes: 76,
-  },
-];
+const INITIAL_BLOG_ARTICLES: BlogArticle[] = [];
 
 interface FbBlogViewProps {
   onBack: () => void;
@@ -93,6 +36,12 @@ interface FbBlogViewProps {
 }
 
 const BLOG_STORAGE_KEY = 'peaceverse_blog_articles_v1';
+
+const LEGACY_DUMMY_BLOG_IDS = new Set([
+  'blog-peaceverse24-welcome',
+  'blog-positive-mindset',
+  'blog-meaningful-friendship',
+]);
 
 export const FbBlogView: React.FC<FbBlogViewProps> = ({
   onBack,
@@ -103,7 +52,9 @@ export const FbBlogView: React.FC<FbBlogViewProps> = ({
       const saved = localStorage.getItem(BLOG_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((a) => a && !LEGACY_DUMMY_BLOG_IDS.has(a.id));
+        }
       }
     } catch {}
     return INITIAL_BLOG_ARTICLES;
@@ -180,7 +131,7 @@ export const FbBlogView: React.FC<FbBlogViewProps> = ({
       readTime: '২ মিনিট পড়া',
       coverImage:
         'https://images.unsplash.com/photo-1499209974431-9dddcece7f88?auto=format&fit=crop&w=1000&q=80',
-      likes: 1,
+      likes: 0,
     };
 
     setArticles((prev) => [created, ...prev]);

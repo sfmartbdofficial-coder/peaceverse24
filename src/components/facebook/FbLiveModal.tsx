@@ -44,24 +44,15 @@ export const FbLiveModal: React.FC<FbLiveModalProps> = ({
         isLive: true,
         category: 'Live',
         reactions: {
-          total: 5,
-          likeCount: 3,
-          loveCount: 1,
-          subhanallahCount: 1,
+          total: 0,
+          likeCount: 0,
+          loveCount: 0,
+          subhanallahCount: 0,
           mashaallahCount: 0,
         },
-        userReaction: 'like',
-        comments: [
-          {
-            id: 'c-live-1',
-            author: 'Hassan Abdullah',
-            avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80',
-            text: 'মাশাআল্লাহ ভাই! লাইভ দেখতে পাচ্ছি 🌸',
-            timeAgo: 'Just now',
-            likes: 1,
-          }
-        ],
-        sharesCount: 1,
+        userReaction: null,
+        comments: [],
+        sharesCount: 0,
       };
       onLiveCreated(newLivePost);
       onClose();

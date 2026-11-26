@@ -86,58 +86,13 @@ const QURAN_PRESETS = [
   },
 ];
 
-const INITIAL_THREADS: PeaceThreadItem[] = [
-  {
-    id: 'thread-sharif-1',
-    authorName: 'Sharif Hasan',
-    authorHandle: '@sharifhasan',
-    verified: true,
-    timeAgo: '১২ মিনিট আগে',
-    content:
-      'প্রতিটি কাজের শুরুতে আমাদের নিয়ত পরিশুদ্ধ করা খুব জরুরি। দুনিয়ার ব্যস্ততার মাঝেও যদি নিয়ত আল্লাহর সন্তুষ্টির জন্য হয়, তবে সাধারণ কাজও ইবাদতে পরিণত হয়। আসুন আজ থেকেই খাঁটি নিয়তে সব ভালো কাজ শুরু করি।',
-    hadithRef: 'সহীহ বুখারী, হাদিস নং: ১ • কিতাবুল ওহী',
-    hadithArabic: 'إِنَّمَا الأَعْمَالُ بِالنِّيَّاتِ، وَإِنَّمَا لِكُلِّ امْرِئٍ مَا نَوَى',
-    likes: 48,
-    reposts: 14,
-    replies: [
-      {
-        id: 'rep-1',
-        authorName: 'Abdullah Al Mamun',
-        authorHandle: '@mamun_bd',
-        text: 'সুবহানাল্লাহ, অত্যন্ত সুন্দর ও সময়োপযোগী স্মরণ করিয়ে দেওয়া।',
-        timeAgo: '৬ মিনিট আগে',
-      },
-    ],
-  },
-  {
-    id: 'thread-ummah-2',
-    authorName: 'Umar Faruq',
-    authorHandle: '@umar_dawah',
-    verified: true,
-    timeAgo: '৪৫ মিনিট আগে',
-    content:
-      'কঠিন সময়ে হতাশ না হয়ে আল্লাহর ওপর তাওয়াক্কুল রাখা মুমিনের অন্যতম বড় শক্তি। প্রতিটি পরীক্ষার পেছনেই আল্লাহর অপার হিকমত ও কল্যাণ লুকিয়ে থাকে।',
-    quranRef: 'সূরা আল-ইনশিরাহ (৯৪:৬)',
-    quranArabic: 'إِنَّ مَعَ الْعُسْرِ يُسْرًا',
-    likes: 72,
-    reposts: 21,
-    replies: [],
-  },
-  {
-    id: 'thread-ummah-3',
-    authorName: 'Fatema Tuz Zohra',
-    authorHandle: '@fatema_notes',
-    verified: false,
-    timeAgo: '২ ঘণ্টা আগে',
-    content:
-      'সোশ্যাল মিডিয়ায় আমরা যে শব্দগুলো লিখি তাও আমাদের আমলনামায় লিপিবদ্ধ হচ্ছে। তাই আসুন কটূক্তি বা গিবত নয়—সত্য, সুন্দর ও কল্যাণকর কথা দিয়ে অনলাইন অঙ্গনকে আলোকিত করি।',
-    hadithRef: 'সহীহ বুখারী, হাদিস: ৬৪৭৫',
-    hadithArabic: 'مَنْ كَانَ يُؤْمِنُ بِاللَّهِ وَالْيَوْمِ الآخِرِ فَلْيَقُلْ خَيْرًا أَوْ لِيَصْمُتْ',
-    likes: 39,
-    reposts: 9,
-    replies: [],
-  },
-];
+const INITIAL_THREADS: PeaceThreadItem[] = [];
+
+const LEGACY_DUMMY_THREAD_IDS = new Set([
+  'thread-sharif-1',
+  'thread-ummah-2',
+  'thread-ummah-3',
+]);
 
 export const PeaceThreadsView: React.FC<PeaceThreadsViewProps> = ({ userProfile, onBack }) => {
   const [threads, setThreads] = useState<PeaceThreadItem[]>(() => {
@@ -145,7 +100,9 @@ export const PeaceThreadsView: React.FC<PeaceThreadsViewProps> = ({ userProfile,
       const saved = localStorage.getItem(THREADS_STORAGE_KEY);
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((t) => t && !LEGACY_DUMMY_THREAD_IDS.has(t.id));
+        }
       }
     } catch {
       // Fallback to initial threads
@@ -202,8 +159,8 @@ export const PeaceThreadsView: React.FC<PeaceThreadsViewProps> = ({ userProfile,
     }
 
     const authorName =
-      userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan';
-    const handleSlug = authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'sharifhasan';
+      userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Member';
+    const handleSlug = authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'member';
 
     const newThread: PeaceThreadItem = {
       id: `thread-${Date.now()}`,
@@ -217,8 +174,8 @@ export const PeaceThreadsView: React.FC<PeaceThreadsViewProps> = ({ userProfile,
       hadithArabic: hadithArabic.trim() || undefined,
       quranRef: quranRef.trim() || undefined,
       quranArabic: quranArabic.trim() || undefined,
-      likes: 1,
-      isLiked: true,
+      likes: 0,
+      isLiked: false,
       reposts: 0,
       replies: [],
     };
@@ -272,8 +229,8 @@ export const PeaceThreadsView: React.FC<PeaceThreadsViewProps> = ({ userProfile,
     const text = (replyDrafts[threadId] || '').trim();
     if (!text) return;
     const authorName =
-      userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan';
-    const handleSlug = authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'sharifhasan';
+      userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Member';
+    const handleSlug = authorName.toLowerCase().replace(/[^a-z0-9]/g, '') || 'member';
 
     setThreads((prev) =>
       prev.map((t) =>
@@ -304,7 +261,7 @@ export const PeaceThreadsView: React.FC<PeaceThreadsViewProps> = ({ userProfile,
   });
 
   const displayName =
-    userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Sharif Hasan';
+    userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Member';
   const charCount = content.length;
 
   return (

@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { UserPlus, Check, Users } from 'lucide-react';
-import { DUMMY_COMMUNITY_USERS } from '../../data/dummyCommunity';
+import { LEGACY_DUMMY_USER_IDS } from '../../data/dummyCommunity';
 import { SearchedUserProfile } from '../../types';
 import {
   isSameOwnerIdentity,
@@ -22,37 +22,6 @@ export interface SuggestionPersonCard {
   location?: string;
   verified?: boolean;
 }
-
-const BASE_SUGGESTION_PEOPLE: SuggestionPersonCard[] = [
-  {
-    id: 'sug-1',
-    name: 'Biplob Hosen',
-    avatar:
-      'https://images.unsplash.com/photo-1522075469751-3a6694fb2f61?auto=format&fit=crop&w=240&q=80',
-    mutualText: '5 mutual friends',
-    isOnline: true,
-    location: 'Dhaka, Bangladesh',
-  },
-  {
-    id: 'sug-2',
-    name: 'Naimur Rahman',
-    avatar:
-      'https://images.unsplash.com/photo-1504257432389-52343af06ae3?auto=format&fit=crop&w=240&q=80',
-    mutualText: '3 mutual friends',
-    isOnline: false,
-    location: 'Sylhet, Bangladesh',
-  },
-  ...DUMMY_COMMUNITY_USERS.filter((u) => u.allowFriendRequests !== false).map((u, idx) => ({
-    id: u.id,
-    name: u.displayName,
-    avatar: u.avatar,
-    mutualText: `${(idx % 6) + 1} mutual friend${idx % 6 === 0 ? '' : 's'}`,
-    isOnline: idx % 2 === 0,
-    bio: u.bio,
-    location: u.location,
-    verified: u.verified,
-  })),
-];
 
 interface FbPeopleYouMayKnowSectionProps {
   variant?: 'feed' | 'list';
@@ -84,9 +53,8 @@ export const FbPeopleYouMayKnowSection: React.FC<FbPeopleYouMayKnowSectionProps>
     fetchCommunityDirectoryUsers(false)
       .then((users) => {
         if (!active || !Array.isArray(users)) return;
-        const dummyIds = new Set(DUMMY_COMMUNITY_USERS.map((d) => d.id));
         const realUsers: SuggestionPersonCard[] = users
-          .filter((u) => !dummyIds.has(u.id) && u.allowFriendRequests !== false)
+          .filter((u) => !LEGACY_DUMMY_USER_IDS.has(u.id) && u.allowFriendRequests !== false)
           .map((u) => ({
             id: u.id,
             name: u.displayName,
@@ -126,11 +94,11 @@ export const FbPeopleYouMayKnowSection: React.FC<FbPeopleYouMayKnowSectionProps>
     void syncTick;
     const q = searchQuery.trim().toLowerCase();
     const seenIds = new Set<string>();
-    const combined = [...directoryPeople, ...BASE_SUGGESTION_PEOPLE];
-    return combined.filter((person) => {
+    return directoryPeople.filter((person) => {
       if (seenIds.has(person.id)) return false;
       seenIds.add(person.id);
 
+      if (LEGACY_DUMMY_USER_IDS.has(person.id)) return false;
       if (removedMap[person.id]) return false;
       if (isSameOwnerIdentity(person.id, person.name, currentUserId, currentUserName)) {
         return false;

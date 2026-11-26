@@ -245,22 +245,7 @@ export const FbSettingsPrivacyModals: React.FC<FbSettingsPrivacyModalsProps> = (
   const [accountActionFeedback, setAccountActionFeedback] = useState<string | null>(null);
   const [modQueue, setModQueue] = useState<
     Array<{ id: string; author: string; text: string; reason: string; status: 'pending' | 'approved' | 'removed' }>
-  >([
-    {
-      id: 'mq-1',
-      author: 'Tariqul Islam',
-      text: 'সকাল ও সন্ধ্যার যিকির আমাদের অন্তরকে প্রশান্ত করে।',
-      reason: 'স্বয়ংক্রিয় যাচাই সম্পন্ন',
-      status: 'pending',
-    },
-    {
-      id: 'mq-2',
-      author: 'Guest User',
-      text: 'অযাচিত প্রমোশনাল লিংক শেয়ার করা হয়েছে।',
-      reason: 'বাহ্যিক লিংক শনাক্ত',
-      status: 'pending',
-    },
-  ]);
+  >([]);
 
   const checkMobileCenterStatus = async () => {
     setMobileChecking(true);

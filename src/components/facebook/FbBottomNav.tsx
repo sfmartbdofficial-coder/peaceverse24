@@ -82,7 +82,7 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
           />
         </button>
 
-        {/* 3. Friends (👥) with badge 2 */}
+        {/* 3. Friends (👥) */}
         <button
           onClick={() => {
             onTabChange('friends');
@@ -99,13 +99,15 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
         >
           <div className="relative">
             <Users className="w-6 h-6 stroke-[2]" />
-            <span
-              className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ${
-                isReelsDark ? 'ring-[#18191A]' : 'ring-white'
-              }`}
-            >
-              {friendRequestsCount || 2}
-            </span>
+            {friendRequestsCount > 0 && (
+              <span
+                className={`absolute -top-1.5 -right-2 min-w-[16px] h-4 bg-[#e41e3f] text-white text-[10px] font-black rounded-full flex items-center justify-center px-1 ring-2 ${
+                  isReelsDark ? 'ring-[#18191A]' : 'ring-white'
+                }`}
+              >
+                {friendRequestsCount}
+              </span>
+            )}
           </div>
         </button>
 

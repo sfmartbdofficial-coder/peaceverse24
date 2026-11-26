@@ -21,47 +21,7 @@ interface FbEventsModalProps {
 }
 
 export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose }) => {
-  const [events, setEvents] = useState<EventItem[]>([
-    {
-      id: 'ev-1',
-      title: 'সখীপুর কেন্দ্রীয় জামে মসজিদে আন্তর্জাতিক কিরাত ও তিলাওয়াত সম্মেলন ২০২৬',
-      dateStr: 'শুক্রবার, ৭ নভেম্বর ২০২৬',
-      timeStr: 'বাদ মাগরিব - রাত ১০:৩০',
-      location: 'সখীপুর কেন্দ্রীয় জামে মসজিদ, টাঙ্গাইল',
-      banner: 'https://images.unsplash.com/photo-1542838132-92c53300491e?auto=format&fit=crop&w=600&q=80',
-      host: 'কুরআন রিসার্চ ফাউন্ডেশন',
-      goingCount: 420,
-      interestedCount: 890,
-      category: 'Islamic Gathering',
-      userRsvp: 'going',
-    },
-    {
-      id: 'ev-2',
-      title: 'দরিদ্র ও এতিম শিশুদের মাঝে শীতবস্ত্র ও খাদ্য সামগ্রী বিতরণ কর্মসূচি',
-      dateStr: 'রবিবার, ৯ নভেম্বর ২০২৬',
-      timeStr: 'সকাল ৯:০০ - দুপুর ২:০০',
-      location: 'বায়তুল মোকাররম দক্ষিণ গেট, ঢাকা',
-      banner: 'https://images.unsplash.com/photo-1488521787991-ed7bbaae773c?auto=format&fit=crop&w=600&q=80',
-      host: 'Peaceverse24.com চ্যারিটি ফান্ড',
-      goingCount: 154,
-      interestedCount: 310,
-      category: 'Charity Drive',
-      userRsvp: null,
-    },
-    {
-      id: 'ev-3',
-      title: 'অনলাইন আন্তর্জাতিক ইসলামিক ওয়েবিনার: তথ্যপ্রযুক্তিতে হালাল ক্যারিয়ার ও ফ্রিল্যান্সিং',
-      dateStr: 'বুধবার, ১২ নভেম্বর ২০২৬',
-      timeStr: 'রাত ৮:৩০ - রাত ১০:০০',
-      location: 'Peaceverse24.com Live Stream',
-      banner: 'https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?auto=format&fit=crop&w=600&q=80',
-      host: 'Islamic IT Network',
-      goingCount: 890,
-      interestedCount: 2450,
-      category: 'Tech & Career',
-      userRsvp: 'interested',
-    },
-  ]);
+  const [events, setEvents] = useState<EventItem[]>([]);
 
   const [activeTab, setActiveTab] = useState<'all' | 'going' | 'create'>('all');
   const [newEventTitle, setNewEventTitle] = useState('');
@@ -106,9 +66,9 @@ export const FbEventsModal: React.FC<FbEventsModalProps> = ({ isOpen, onClose })
       timeStr: 'সন্ধ্যা ৭:০০',
       location: newEventLocation || 'সখীপুর, টাঙ্গাইল',
       banner: 'https://images.unsplash.com/photo-1519817650390-64a93db51149?auto=format&fit=crop&w=600&q=80',
-      host: 'Sharif Hasan',
+      host: 'Member',
       goingCount: 1,
-      interestedCount: 3,
+      interestedCount: 0,
       category: 'Community',
       userRsvp: 'going',
     };

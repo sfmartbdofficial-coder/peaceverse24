@@ -44,7 +44,6 @@ export const FbLeftSidebar: React.FC<FbLeftSidebarProps> = ({
       id: 'friends',
       label: 'ফ্রেন্ডস ও উম্মাহ (Friends)',
       icon: <Users className="w-5 h-5 text-blue-400" />,
-      badge: '6',
     },
     {
       id: 'groups',

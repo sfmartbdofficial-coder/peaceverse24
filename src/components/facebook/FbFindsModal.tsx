@@ -12,40 +12,16 @@ export const FbFindsModal: React.FC<FbFindsModalProps> = ({ isOpen, onClose }) =
 
   if (!isOpen) return null;
 
-  const trendingTopics = [
-    { tag: '#কুরআন_তিলাওয়াত', posts: '45.2K পোস্ট', category: 'কুরআন' },
-    { tag: '#জুম্মা_মুবারক', posts: '128K পোস্ট', category: 'দ্বীন' },
-    { tag: '#হালাল_ব্যবসা', posts: '18.9K পোস্ট', category: 'উদ্যোক্তা' },
-    { tag: '#সখীপুর_মাহফিল', posts: '9.4K পোস্ট', category: 'স্থানীয়' },
-    { tag: '#ফিলিস্তিনের_জন্য_দোয়া', posts: '210K পোস্ট', category: 'উম্মাহ' },
-  ];
+  const trendingTopics: Array<{ tag: string; posts: string; category: string }> = [];
 
-  const suggestedCreators = [
-    {
-      id: 'cr-1',
-      name: 'কারী মিজানুর রহমান আজহারী',
-      handle: '@mizanur_azhari',
-      avatar: 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=160&q=80',
-      followers: '1.2M ফলোয়ার',
-      tag: 'ইসলামিক স্কলার',
-    },
-    {
-      id: 'cr-2',
-      name: 'শায়েখ আহমাদুল্লাহ',
-      handle: '@ahmadullah_official',
-      avatar: 'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=160&q=80',
-      followers: '980K ফলোয়ার',
-      tag: 'আস-সুন্নাহ ট্রাস্ট',
-    },
-    {
-      id: 'cr-3',
-      name: 'কুরআন হৃদয়ের নূর',
-      handle: '@quran_nur',
-      avatar: 'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=160&q=80',
-      followers: '450K ফলোয়ার',
-      tag: 'হিফজ ও তিলাওয়াত',
-    },
-  ];
+  const suggestedCreators: Array<{
+    id: string;
+    name: string;
+    handle: string;
+    avatar: string;
+    followers: string;
+    tag: string;
+  }> = [];
 
   const handleFollow = (id: string) => {
     setFollowed((prev) => ({ ...prev, [id]: !prev[id] }));

@@ -20,9 +20,6 @@ export const FbSwitchToPageSheet: React.FC<FbSwitchToPageSheetProps> = ({
 }) => {
   if (!isOpen || !page) return null;
 
-  const isSharifPage =
-    page.id === 'page-sharif-story' || page.name.toLowerCase().includes("sharif's life story");
-
   return (
     <div
       className="fixed inset-0 z-[150] bg-black/50 backdrop-blur-[1px] flex items-end justify-center p-0 animate-in fade-in"
@@ -56,7 +53,7 @@ export const FbSwitchToPageSheet: React.FC<FbSwitchToPageSheetProps> = ({
           </h2>
         </div>
 
-        {/* Middle Row: Page Avatar + Page Name + "50 notifications" + Blue [Switch] button */}
+        {/* Middle Row: Page Avatar + Page Name + Category/Followers + Blue [Switch] button */}
         <div className="flex items-center justify-between gap-3 py-3 px-1 border-t border-[#E4E6EB]">
           <div className="flex items-center gap-3 min-w-0">
             <div className="relative w-12 h-12 rounded-full overflow-hidden shrink-0 border border-[#E4E6EB] bg-[#E4E6EB] flex items-center justify-center">
@@ -78,7 +75,7 @@ export const FbSwitchToPageSheet: React.FC<FbSwitchToPageSheetProps> = ({
                 {page.name}
               </h3>
               <p className="text-[13px] text-[#65676B] font-medium mt-0.5 tabular-nums">
-                50 notifications
+                {page.category || 'Page'} · {(page.followersCount || 0).toLocaleString()} followers
               </p>
             </div>
           </div>
