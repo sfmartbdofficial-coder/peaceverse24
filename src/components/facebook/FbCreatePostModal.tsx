@@ -565,9 +565,13 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           .catch(() => {});
       }
     } catch (err: any) {
+      const rawMsg = String(err?.message || '');
+      const isNetworkOrFetchErr = /failed to fetch|networkerror|load failed/i.test(rawMsg);
       setModerationError({
         status: 'error',
-        reason: err?.message || 'পোস্ট প্রকাশ করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।',
+        reason: isNetworkOrFetchErr
+          ? 'ছবি বা ভিডিও আপলোড করতে সাময়িক সংযোগ সমস্যা হয়েছে। অনুগ্রহ করে আবার Post চাপুন।'
+          : rawMsg || 'পোস্ট প্রকাশ করা যায়নি। অনুগ্রহ করে আবার চেষ্টা করুন।',
       });
     } finally {
       setIsVerifyingHalal(false);

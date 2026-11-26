@@ -11,6 +11,7 @@ import {
 import { getDownloadURL, getStorage, ref, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { useEffect, useState } from 'react';
 import { auth, db } from './firebase';
+import { compressDataUrlUnderLimit } from '../utils/imageCompress';
 
 const FIRESTORE_CHUNK_RAW_BYTES = 420 * 1024; // ~560 KB base64 per doc (well under Firestore 1 MB limit)
 const MAX_FIRESTORE_REPLICATED_BYTES = 18 * 1024 * 1024; // Replicate up to 18 MB cross-container via Firestore
@@ -369,7 +370,26 @@ export async function uploadMediaFile(
 }
 
 export async function dataUrlToBlob(dataUrl: string): Promise<Blob> {
-  const resp = await fetch(dataUrl);
+  const clean = (dataUrl || '').trim();
+  const commaIdx = clean.indexOf(',');
+  if (clean.startsWith('data:') && commaIdx !== -1) {
+    const header = clean.slice(5, commaIdx);
+    const body = clean.slice(commaIdx + 1);
+    const mimeMatch = header.match(/^([^;]+)/);
+    const mimeType = mimeMatch ? mimeMatch[1] : 'application/octet-stream';
+    const isBase64 = /;base64/i.test(header);
+    if (isBase64) {
+      const byteStr = atob(body.replace(/\s+/g, ''));
+      const bytes = new Uint8Array(byteStr.length);
+      for (let i = 0; i < byteStr.length; i++) {
+        bytes[i] = byteStr.charCodeAt(i);
+      }
+      return new Blob([bytes], { type: mimeType });
+    }
+    const decoded = decodeURIComponent(body);
+    return new Blob([decoded], { type: mimeType });
+  }
+  const resp = await fetch(clean);
   return resp.blob();
 }
 
@@ -386,10 +406,20 @@ export async function uploadDataUrlIfOversized(
   if (!forceUpload && kind === 'image' && clean.length <= MAX_DATA_URL_INLINE_BYTES) {
     return clean;
   }
-  const blob = await dataUrlToBlob(clean);
-  const mimeType =
-    blob.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg');
-  return uploadMediaFile(blob, { mimeType });
+  try {
+    const blob = await dataUrlToBlob(clean);
+    const mimeType =
+      blob.type || (kind === 'video' ? 'video/mp4' : 'image/jpeg');
+    const uploaded = await uploadMediaFile(blob, { mimeType });
+    if (uploaded) return uploaded;
+  } catch (err) {
+    if (kind !== 'image') throw err;
+  }
+  // Safe fallback for images: re-compress under inline Firestore limit so valid posts never fail
+  if (kind === 'image') {
+    return compressDataUrlUnderLimit(clean, MAX_DATA_URL_INLINE_BYTES, 900);
+  }
+  return clean;
 }
 
 async function fetchBlobUrlFromFirestoreChunks(mediaId: string): Promise<string> {
