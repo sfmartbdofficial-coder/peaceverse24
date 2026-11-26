@@ -12,7 +12,7 @@ import {
   checkMediaFilenamesSafe,
   checkMediaVisualSafety,
 } from '../../lib/halalFilter';
-import { registerPendingBlobFile } from '../../lib/mediaStorage';
+import { registerPendingBlobFile, useResolvedMediaUrl } from '../../lib/mediaStorage';
 
 interface FbCreatePostBoxProps {
   userProfile: UserProfile;
@@ -29,6 +29,9 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const resolvedAvatar = useResolvedMediaUrl(
+    activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar
+  );
 
   const handlePhotoSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
@@ -123,9 +126,9 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
           className="w-10 h-10 rounded-full overflow-hidden border border-[#E4E6EB] flex-shrink-0 bg-neutral-100 hover:ring-2 hover:ring-[#0866FF] active:scale-95 transition-all cursor-pointer relative flex items-center justify-center"
           title={activeSwitchedPage ? `${activeSwitchedPage.name} পেজ প্রোফাইল` : 'আপনার প্রোফাইল দেখুন (View Profile)'}
         >
-          {(activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar) ? (
+          {resolvedAvatar ? (
             <img
-              src={activeSwitchedPage ? activeSwitchedPage.avatar : userProfile.avatar}
+              src={resolvedAvatar}
               alt={activeSwitchedPage ? activeSwitchedPage.name : userProfile.name}
               className="w-full h-full object-cover rounded-full"
               style={{ width: '40px', height: '40px', borderRadius: '50%' }}

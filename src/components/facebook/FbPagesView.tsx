@@ -107,6 +107,7 @@ import {
 import {
   syncPageToFirestore,
   fetchPageByIdFromFirestore,
+  fetchOwnedPagesFromFirestore,
   searchPagesFromFirestore,
   isTargetFollowedLocally,
   setTargetFollowedLocally,
@@ -115,6 +116,8 @@ import {
   isSameOwnerIdentity,
   sanitizePageBioValue,
 } from '../../lib/firebase';
+import { compressImageForFirestore } from '../../utils/imageCompress';
+import { uploadDataUrlIfOversized, useResolvedMediaUrl } from '../../lib/mediaStorage';
 
 interface FbPagesViewProps {
   onBack: () => void;
@@ -560,6 +563,64 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     });
   }, [pages, userProfile?.id]);
 
+  // Hydrate owned pages from Firestore & cross-tab sync so page logos/covers survive updates
+  useEffect(() => {
+    const mergeRemotePages = async () => {
+      if (!userProfile?.id || userProfile.id === 'user-me') return;
+      const remotePages = await fetchOwnedPagesFromFirestore(userProfile.id);
+      if (remotePages.length === 0) return;
+      setPages((prev) => {
+        const byId = new Map<string, PageItem>();
+        remotePages.forEach((rp) => {
+          if (rp?.id) byId.set(rp.id, rp);
+        });
+        prev.forEach((lp) => {
+          if (!lp?.id) return;
+          const rp = byId.get(lp.id);
+          if (!rp) {
+            byId.set(lp.id, lp);
+          } else {
+            byId.set(lp.id, {
+              ...rp,
+              ...lp,
+              avatar: (lp.avatar && !lp.avatar.startsWith('blob:') ? lp.avatar : '') || rp.avatar || '',
+              cover: (lp.cover && !lp.cover.startsWith('blob:') ? lp.cover : '') || rp.cover || '',
+              bio: lp.bio || rp.bio || '',
+              description: lp.description || rp.description || '',
+            });
+          }
+        });
+        return Array.from(byId.values());
+      });
+      setSelectedPage((cur) => {
+        if (!cur) return cur;
+        const rp = remotePages.find((p) => p.id === cur.id);
+        if (!rp) return cur;
+        return {
+          ...rp,
+          ...cur,
+          avatar: (cur.avatar && !cur.avatar.startsWith('blob:') ? cur.avatar : '') || rp.avatar || '',
+          cover: (cur.cover && !cur.cover.startsWith('blob:') ? cur.cover : '') || rp.cover || '',
+          bio: cur.bio || rp.bio || '',
+          description: cur.description || rp.description || '',
+        };
+      });
+    };
+    void mergeRemotePages();
+    const onHydrated = () => {
+      try {
+        const raw = localStorage.getItem('qalby_fb_pages');
+        if (!raw) return;
+        const parsed: PageItem[] = JSON.parse(raw);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setPages(parsed.filter((p) => Boolean(p?.isOwner) && !DEMO_PAGE_IDS.includes(p.id)));
+        }
+      } catch {}
+    };
+    window.addEventListener('peaceverse:pages-hydrated', onHydrated);
+    return () => window.removeEventListener('peaceverse:pages-hydrated', onHydrated);
+  }, [userProfile?.id]);
+
   // Hub sub-views (main Pages view, Invites, Followed Pages) & header search toggle
   const [hubSection, setHubSection] = useState<'home' | 'invites' | 'followed'>('home');
   const [showHubSearch, setShowHubSearch] = useState(false);
@@ -641,6 +702,9 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
       return null;
     }
   });
+
+  const resolvedSelectedPageCover = useResolvedMediaUrl(selectedPage?.cover);
+  const resolvedSelectedPageAvatar = useResolvedMediaUrl(selectedPage?.avatar);
 
   useEffect(() => {
     try {
@@ -1516,19 +1580,42 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     setShowPagePostBoostPrompt(true);
   };
 
-  // Custom photo upload handlers with permanent Base64 conversion & 5MB image-only validation
+  // Custom photo upload handlers with Firestore-safe compression + cloud persistence
+  const processAndPersistPagePhoto = async (
+    file: File,
+    kind: 'avatar' | 'cover'
+  ): Promise<string | null> => {
+    const check = validateMediaUpload(file, ['image']);
+    if (!check.valid) {
+      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
+      return null;
+    }
+    const nameCheck = checkMediaFilenamesSafe([file]);
+    if (!nameCheck.safe) {
+      showToast(nameCheck.reason || ADULT_BLOCK_MESSAGE);
+      return null;
+    }
+    const compressed = await compressImageForFirestore(file, kind);
+    const visual = await checkMediaVisualSafety({
+      mediaDataUrls: [compressed],
+      fileNames: [file.name],
+    });
+    if (!visual.safe) {
+      showToast(visual.reason || ADULT_BLOCK_MESSAGE);
+      return null;
+    }
+    const persisted = await uploadDataUrlIfOversized(compressed, 'image', false);
+    return persisted || compressed;
+  };
+
   const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    const check = validateMediaUpload(file, ['image']);
-    if (!check.valid) {
-      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
-      return;
-    }
     try {
-      const base64 = await fileToBase64(file);
-      setNewAvatar(base64);
+      const url = await processAndPersistPagePhoto(file, 'avatar');
+      if (!url) return;
+      setNewAvatar(url);
       showToast('প্রোফাইল ছবি সফলভাবে যুক্ত হয়েছে!');
     } catch {
       showToast('ছবি রূপান্তর করতে সমস্যা হয়েছে');
@@ -1539,14 +1626,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file) return;
-    const check = validateMediaUpload(file, ['image']);
-    if (!check.valid) {
-      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
-      return;
-    }
     try {
-      const base64 = await fileToBase64(file);
-      setNewCover(base64);
+      const url = await processAndPersistPagePhoto(file, 'cover');
+      if (!url) return;
+      setNewCover(url);
       showToast('কভার ছবি সফলভাবে যুক্ত হয়েছে!');
     } catch {
       showToast('কভার রূপান্তর করতে সমস্যা হয়েছে');
@@ -1558,17 +1641,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !selectedPage) return;
-    const check = validateMediaUpload(file, ['image']);
-    if (!check.valid) {
-      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
-      return;
-    }
     try {
-      const base64 = await fileToBase64(file);
-      const updated = { ...selectedPage, avatar: base64 };
-      setSelectedPage(updated);
-      setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
-      syncUpdatedPageToSwitchedStorage(updated);
+      const url = await processAndPersistPagePhoto(file, 'avatar');
+      if (!url) return;
+      const updated = { ...selectedPage, avatar: url };
+      persistUpdatedPage(updated);
       showToast('পেজের লোগো / প্রোফাইল ছবি আপডেট করা হয়েছে!');
     } catch {
       showToast('ছবি আপলোড করতে সমস্যা হয়েছে');
@@ -1580,17 +1657,11 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
     const file = e.target.files?.[0];
     e.target.value = '';
     if (!file || !selectedPage) return;
-    const check = validateMediaUpload(file, ['image']);
-    if (!check.valid) {
-      showToast(check.error || 'অবৈধ ছবি ফাইল (সর্বোচ্চ ৫ মেগাবাইট)।');
-      return;
-    }
     try {
-      const base64 = await fileToBase64(file);
-      const updated = { ...selectedPage, cover: base64 };
-      setSelectedPage(updated);
-      setPages((prev) => prev.map((p) => (p.id === selectedPage.id ? updated : p)));
-      syncUpdatedPageToSwitchedStorage(updated);
+      const url = await processAndPersistPagePhoto(file, 'cover');
+      if (!url) return;
+      const updated = { ...selectedPage, cover: url };
+      persistUpdatedPage(updated);
       showToast('পেজের কভার ফটো আপডেট করা হয়েছে!');
     } catch {
       showToast('কভার ফটো আপলোড করতে সমস্যা হয়েছে');
@@ -1767,10 +1838,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
 
         {/* 1. Cover Photo with Overlay Top Controls (Back, Edit Pencil, Search, Circle More) & Bottom-Right Camera */}
         <div className="relative w-full h-56 sm:h-64 bg-[#E4E6EB] overflow-hidden flex items-center justify-center">
-          {selectedPage.cover ? (
+          {resolvedSelectedPageCover ? (
             <>
               <img
-                src={selectedPage.cover}
+                src={resolvedSelectedPageCover}
                 alt={selectedPage.name}
                 className="w-full h-full object-cover"
               />
@@ -1948,10 +2019,10 @@ export const FbPagesView: React.FC<FbPagesViewProps> = ({
             ) : null}
 
             <div className="relative -mt-1">
-              {selectedPage.avatar ? (
+              {resolvedSelectedPageAvatar ? (
                 <div className="w-32 h-32 rounded-full border-4 border-white shadow-[0_2px_12px_rgba(0,0,0,0.16)] bg-[#E4E6EB] overflow-hidden relative">
                   <img
-                    src={selectedPage.avatar}
+                    src={resolvedSelectedPageAvatar}
                     alt={selectedPage.name}
                     className="w-full h-full object-cover"
                   />

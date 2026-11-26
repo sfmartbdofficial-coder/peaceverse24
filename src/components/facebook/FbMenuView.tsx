@@ -76,6 +76,7 @@ import {
 import { broadcastCreatorNotification } from '../../lib/fcm';
 import { getActivePrayerPauseStatus } from '../../lib/globalPrayer';
 import { saveUserSettingsToFirestore, fetchUserSettingsFromFirestore } from '../../lib/firebase';
+import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 
 // Import interactive sub-modals
 import { FbAvatarsModal } from './FbAvatarsModal';
@@ -152,6 +153,8 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
 }) => {
   const { currentLang, setLanguage, setShowLanguageModal } = useLanguage();
   const { themeMode, resolvedTheme, setThemeMode } = useTheme();
+  const resolvedUserAvatar = useResolvedMediaUrl(userProfile.avatar);
+  const resolvedSwitchedPageAvatar = useResolvedMediaUrl(activeSwitchedPage?.avatar);
 
   // Accordion toggles: Settings and privacy & Upgrades OPEN BY DEFAULT
   const [showSettingsAccordion, setShowSettingsAccordion] = useState(true);
@@ -501,8 +504,8 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
               title="ব্যক্তিগত প্রোফাইলে ফিরুন"
             >
               <div className="relative w-[68px] h-[68px] rounded-[20px] bg-[#0866FF] text-white flex items-center justify-center font-bold text-lg shadow-sm border border-neutral-200 group-hover:scale-105 transition-transform overflow-hidden">
-                {userProfile.avatar ? (
-                  <img src={userProfile.avatar} alt="Profile" className="w-full h-full object-cover" />
+                {resolvedUserAvatar ? (
+                  <img src={resolvedUserAvatar} alt="Profile" className="w-full h-full object-cover" />
                 ) : (
                   <span>SI</span>
                 )}
@@ -1598,7 +1601,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
       <FbBirthdaysModal
         isOpen={showBirthdaysModal}
         onClose={() => setShowBirthdaysModal(false)}
-        userAvatar={activeSwitchedPage?.avatar || userProfile.avatar}
+        userAvatar={resolvedSwitchedPageAvatar || resolvedUserAvatar || userProfile.avatar}
         userName={activeSwitchedPage?.name || userProfile.name}
         onOpenMessenger={onOpenMessenger}
         onOpenProfile={onOpenProfile}

@@ -106,6 +106,8 @@ import {
   syncUserDirectoryProfile,
   invalidateUserDirectoryCache,
   syncPageToFirestore,
+  fetchOwnedPagesFromFirestore,
+  isDefaultGeneratedAvatar,
   searchUsersFromFirestore,
   searchPagesFromFirestore,
   toggleFollowUser,
@@ -739,42 +741,108 @@ export default function App() {
           updateProfile(usr, { displayName: resolvedName }).catch(() => {});
         }
 
+        const isDefaultCover = (url?: string) => !url || url === USER_PROFILE.coverPhoto;
         const resolvedAvatar =
           usr.photoURL ||
           `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(resolvedName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
 
-        setUserProfile((prev) => ({
-          ...prev,
-          id: usr.uid,
-          name: resolvedName,
-          email: usr.email || prev.email,
-          avatar: resolvedAvatar,
-          friendsCount:
-            prev.id === usr.uid
-              ? prev.friendsCount === 330 || prev.friendsCount === 331
-                ? 0
-                : prev.friendsCount || 0
-              : 0,
-          location: prev.location || '',
-          hometown: prev.hometown || '',
-          birthDate: prev.birthDate || '',
-          relationship: prev.relationship || '',
-        }));
+        let initialPreservedAvatar = '';
+        setUserProfile((prev) => {
+          const sameAccount = prev.id === usr.uid;
+          const nextAvatar =
+            sameAccount && !isDefaultGeneratedAvatar(prev.avatar) ? prev.avatar : resolvedAvatar;
+          initialPreservedAvatar = !isDefaultGeneratedAvatar(nextAvatar) ? nextAvatar : '';
+          return {
+            ...prev,
+            id: usr.uid,
+            name: resolvedName,
+            email: usr.email || prev.email,
+            avatar: nextAvatar,
+            coverPhoto:
+              sameAccount && !isDefaultCover(prev.coverPhoto)
+                ? prev.coverPhoto
+                : USER_PROFILE.coverPhoto,
+            friendsCount:
+              sameAccount
+                ? prev.friendsCount === 330 || prev.friendsCount === 331
+                  ? 0
+                  : prev.friendsCount || 0
+                : 0,
+            bio: sameAccount ? prev.bio || '' : '',
+            profileCategory: sameAccount ? prev.profileCategory || '' : '',
+            location: sameAccount ? prev.location || '' : '',
+            hometown: sameAccount ? prev.hometown || '' : '',
+            work: sameAccount ? prev.work || '' : '',
+            education: sameAccount ? prev.education || '' : '',
+            birthDate: sameAccount ? prev.birthDate || '' : '',
+            relationship: sameAccount ? prev.relationship || '' : '',
+            website: sameAccount ? prev.website || '' : '',
+            thoughtBubble: sameAccount ? prev.thoughtBubble || 'Drop a thought...' : 'Drop a thought...',
+            whatsapp: sameAccount ? prev.whatsapp || '' : '',
+            imo: sameAccount ? prev.imo || '' : '',
+            viber: sameAccount ? prev.viber || '' : '',
+            messengerLink: sameAccount ? prev.messengerLink || '' : '',
+            hobbies: sameAccount ? prev.hobbies || [] : [],
+          };
+        });
 
-        syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar);
-        try {
-          const savedPagesRaw = localStorage.getItem('qalby_fb_pages');
-          if (savedPagesRaw) {
-            const parsedPages: PageItem[] = JSON.parse(savedPagesRaw);
-            if (Array.isArray(parsedPages)) {
-              parsedPages.forEach((pg) => {
-                if (pg?.isOwner) {
-                  void syncPageToFirestore(pg, usr.uid);
+        // Merge local + Firestore owned pages so Page logos/covers survive updates & logins
+        void (async () => {
+          try {
+            const localRaw = localStorage.getItem('qalby_fb_pages');
+            const localPages: PageItem[] = localRaw ? JSON.parse(localRaw) : [];
+            const ownedLocal = Array.isArray(localPages)
+              ? localPages.filter((p) => p?.isOwner)
+              : [];
+            const remotePages = await fetchOwnedPagesFromFirestore(usr.uid);
+            const byId = new Map<string, PageItem>();
+            remotePages.forEach((rp) => {
+              if (rp?.id) byId.set(rp.id, rp);
+            });
+            ownedLocal.forEach((lp) => {
+              if (!lp?.id) return;
+              const rp = byId.get(lp.id);
+              if (!rp) {
+                byId.set(lp.id, lp);
+                void syncPageToFirestore(lp, usr.uid);
+              } else {
+                const merged: PageItem = {
+                  ...rp,
+                  ...lp,
+                  avatar:
+                    (lp.avatar && !lp.avatar.startsWith('blob:') ? lp.avatar : '') ||
+                    rp.avatar ||
+                    '',
+                  cover:
+                    (lp.cover && !lp.cover.startsWith('blob:') ? lp.cover : '') ||
+                    rp.cover ||
+                    '',
+                  bio: lp.bio || rp.bio || '',
+                  description: lp.description || rp.description || '',
+                };
+                byId.set(lp.id, merged);
+                if ((!rp.avatar && merged.avatar) || (!rp.cover && merged.cover)) {
+                  void syncPageToFirestore(merged, usr.uid);
                 }
+              }
+            });
+            const mergedList = Array.from(byId.values());
+            if (mergedList.length > 0) {
+              localStorage.setItem('qalby_fb_pages', JSON.stringify(mergedList));
+              window.dispatchEvent(new Event('peaceverse:pages-hydrated'));
+              setActiveSwitchedPage((cur) => {
+                if (!cur) return cur;
+                const found = mergedList.find((p) => p.id === cur.id);
+                if (!found) return cur;
+                try {
+                  localStorage.setItem('qalby_switched_page', JSON.stringify(found));
+                } catch {}
+                return found;
               });
             }
-          }
-        } catch {}
+          } catch {}
+        })();
+
         fetchUserFriendsFromFirestore(usr.uid).then(({ count, friends }) => {
           syncLocalFriendsStore(friends);
           setUserProfile((prev) =>
@@ -805,12 +873,19 @@ export default function App() {
         fetchUserProfileFromFirestore(usr.uid).then((remote) => {
           if (!remote) {
             void markCurrentUserEmailOtpVerified();
+            void syncUserDirectoryProfile(
+              usr.uid,
+              resolvedName,
+              usr.email || '',
+              initialPreservedAvatar || resolvedAvatar
+            );
             return;
           }
           if (!remote.emailOtpVerified) {
             void markCurrentUserEmailOtpVerified();
           }
           setUserProfile((prev) => {
+            const sameAccount = prev.id === usr.uid;
             const emailPrefix = usr.email ? usr.email.split('@')[0].toLowerCase() : '';
             const prevIsPlaceholder =
               !prev.name ||
@@ -823,39 +898,83 @@ export default function App() {
                 : '';
             const nextName =
               prevIsPlaceholder && resolvedRemoteName ? resolvedRemoteName : prev.name;
-            const nextAvatar = prev.avatar || remote.avatar || '';
+
+            const remoteHasAvatar = Boolean(
+              remote.avatar && !isDefaultGeneratedAvatar(remote.avatar)
+            );
+            const localHasAvatar = sameAccount && !isDefaultGeneratedAvatar(prev.avatar);
+            const nextAvatar =
+              localHasAvatar && !remoteHasAvatar
+                ? prev.avatar
+                : remoteHasAvatar
+                ? remote.avatar!
+                : prev.avatar || resolvedAvatar;
+
+            const remoteHasCover = !isDefaultCover(remote.coverPhoto);
+            const localHasCover = sameAccount && !isDefaultCover(prev.coverPhoto);
+            const nextCoverPhoto =
+              localHasCover && !remoteHasCover
+                ? prev.coverPhoto
+                : remoteHasCover
+                ? remote.coverPhoto!
+                : prev.coverPhoto || USER_PROFILE.coverPhoto;
+
             const nextBio = prev.bio || remote.bio || '';
             const nextLocation = prev.location || remote.location || '';
             const nextUsername = prev.username || remote.username || '';
 
-            void syncUserDirectoryProfile(
-              usr.uid,
-              nextName,
-              usr.email || '',
-              nextAvatar,
-              {
-                bio: nextBio,
-                location: nextLocation,
-                username: nextUsername,
-                allowFriendRequests: remote.isCreator !== true,
-              }
-            );
-
-            return {
+            const mergedProfile: UserProfile = {
               ...prev,
+              id: usr.uid,
               name: nextName,
               username: nextUsername,
               avatar: nextAvatar,
+              coverPhoto: nextCoverPhoto,
+              profileCategory: prev.profileCategory || remote.profileCategory || '',
               whatsapp: prev.whatsapp || remote.whatsapp || '',
               imo: prev.imo || remote.imo || '',
               viber: prev.viber || remote.viber || '',
               messengerLink: prev.messengerLink || remote.messengerLink || '',
               contactPrivacy: prev.contactPrivacy || remote.contactPrivacy || 'public',
               bio: nextBio,
+              location: nextLocation,
+              hometown: prev.hometown || remote.hometown || '',
               work: prev.work || remote.work || '',
               education: prev.education || remote.education || '',
+              relationship: prev.relationship || remote.relationship || '',
               website: prev.website || remote.website || '',
+              thoughtBubble:
+                prev.thoughtBubble && prev.thoughtBubble !== 'Drop a thought...'
+                  ? prev.thoughtBubble
+                  : remote.thoughtBubble || prev.thoughtBubble || 'Drop a thought...',
+              hobbies:
+                prev.hobbies && prev.hobbies.length > 0
+                  ? prev.hobbies
+                  : remote.hobbies || [],
+              friendsCount:
+                typeof remote.friendsCount === 'number'
+                  ? Math.max(prev.friendsCount || 0, remote.friendsCount)
+                  : prev.friendsCount,
             };
+
+            if ((localHasAvatar && !remoteHasAvatar) || (localHasCover && !remoteHasCover)) {
+              void saveUserProfileToFirestore(mergedProfile);
+            } else {
+              void syncUserDirectoryProfile(
+                usr.uid,
+                nextName,
+                usr.email || '',
+                nextAvatar,
+                {
+                  bio: nextBio,
+                  location: nextLocation,
+                  username: nextUsername,
+                  allowFriendRequests: remote.isCreator !== true,
+                }
+              );
+            }
+
+            return mergedProfile;
           });
         });
         // Rule: If user IS logged in (Firebase Auth), auto redirect to "/home" when visiting root "/" (unless opening Admin Panel)

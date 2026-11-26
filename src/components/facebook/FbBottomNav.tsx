@@ -1,6 +1,7 @@
 import React from 'react';
 import { Home, Clapperboard, Users, Store, Bell } from 'lucide-react';
 import { FacebookMainTab, UserProfile, PageItem } from '../../types';
+import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 
 interface FbBottomNavProps {
   currentTab: FacebookMainTab;
@@ -32,6 +33,8 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
   const isProfileActive =
     currentTab === 'profile' || Boolean(activeSwitchedPage && currentTab === 'pages');
   const initials = getInitials(userProfile.name);
+  const resolvedUserAvatar = useResolvedMediaUrl(userProfile.avatar);
+  const resolvedPageAvatar = useResolvedMediaUrl(activeSwitchedPage?.avatar);
 
   return (
     <nav
@@ -171,9 +174,9 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
         >
           {activeSwitchedPage ? (
             <div className="relative">
-              {activeSwitchedPage.avatar ? (
+              {resolvedPageAvatar ? (
                 <img
-                  src={activeSwitchedPage.avatar}
+                  src={resolvedPageAvatar}
                   alt={activeSwitchedPage.name}
                   className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
                     isProfileActive
@@ -202,9 +205,9 @@ export const FbBottomNav: React.FC<FbBottomNavProps> = ({
                 }`}
               />
             </div>
-          ) : userProfile.avatar ? (
+          ) : resolvedUserAvatar ? (
             <img
-              src={userProfile.avatar}
+              src={resolvedUserAvatar}
               alt={userProfile.name}
               className={`w-7 h-7 rounded-full object-cover border-2 shadow-xs ${
                 isProfileActive

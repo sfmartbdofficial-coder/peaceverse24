@@ -1290,12 +1290,19 @@ function sanitizeServerText(val: unknown, maxLen: number): string {
 
 function sanitizeServerAvatarUrl(val: unknown): string {
   if (typeof val !== 'string') return '';
-  const clean = val.trim().slice(0, 1000);
+  const clean = val.trim();
   if (!clean || /^(javascript|vbscript|data\s*:\s*text\/html):/i.test(clean)) return '';
-  if (clean.startsWith('data:image/') || clean.startsWith('https://') || clean.startsWith('http://') || clean.startsWith('/')) {
-    return clean;
+  if (clean.startsWith('data:image/')) {
+    return clean.length <= 220_000 ? clean : '';
+  }
+  if (clean.startsWith('https://') || clean.startsWith('http://') || clean.startsWith('/') || clean.startsWith('pv-media://')) {
+    return clean.slice(0, 1000);
   }
   return '';
+}
+
+function isServerDefaultAvatar(val: string): boolean {
+  return !val || val.includes('api.dicebear.com/');
 }
 
 function serverBnToEn(input: string): string {
@@ -1474,11 +1481,15 @@ async function hydrateDirectoryFromFirestoreWithToken(bearerHeader?: string): Pr
         .replace(/[^a-z0-9._-]/g, '') ||
       existing?.username ||
       transliteratedName.replace(/[^a-z0-9]+/g, '').slice(0, 40);
+    const incomingAvatar = sanitizeServerAvatarUrl(
+      parseFirestoreStringField(fields.avatar) || parseFirestoreStringField(fields.photoURL)
+    );
+    const existingAvatar = existing?.avatar || '';
     const avatar =
-      sanitizeServerAvatarUrl(
-        parseFirestoreStringField(fields.avatar) || parseFirestoreStringField(fields.photoURL)
-      ) ||
-      existing?.avatar ||
+      (!isServerDefaultAvatar(incomingAvatar) ? incomingAvatar : '') ||
+      (!isServerDefaultAvatar(existingAvatar) ? existingAvatar : '') ||
+      incomingAvatar ||
+      existingAvatar ||
       `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
         displayName
       )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
@@ -1542,9 +1553,13 @@ app.post('/api/users/sync', async (req, res) => {
       rawUsername ||
       existing?.username ||
       transliteratedName.replace(/[^a-z0-9]+/g, '').slice(0, 40);
+    const incomingAvatar = sanitizeServerAvatarUrl(body.avatar);
+    const existingAvatar = existing?.avatar || '';
     const avatar =
-      sanitizeServerAvatarUrl(body.avatar) ||
-      existing?.avatar ||
+      (!isServerDefaultAvatar(incomingAvatar) ? incomingAvatar : '') ||
+      (!isServerDefaultAvatar(existingAvatar) ? existingAvatar : '') ||
+      incomingAvatar ||
+      existingAvatar ||
       `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(finalName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
     const bio = sanitizeServerText(body.bio, 300) || existing?.bio || '';
     const location = sanitizeServerText(body.location, 120) || existing?.location || '';

@@ -33,7 +33,9 @@ import {
   checkMediaVisualSafety,
   checkPost,
 } from '../../lib/halalFilter';
-import { compressImageFileToDataUrl } from '../../utils/imageCompress';
+import { compressImageForFirestore } from '../../utils/imageCompress';
+import { uploadDataUrlIfOversized } from '../../lib/mediaStorage';
+import { syncPageToFirestore } from '../../lib/firebase';
 
 interface FbCreatePageLandingViewProps {
   onBack: () => void;
@@ -267,10 +269,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
 
     setValidationError(null);
     try {
-      const compressed = await compressImageFileToDataUrl(file, {
-        maxDimension: target === 'cover' ? 1080 : 720,
-        quality: 0.76,
-      });
+      const compressed = await compressImageForFirestore(file, target);
       const visual = await checkMediaVisualSafety({
         mediaDataUrls: [compressed],
         fileNames: [file.name],
@@ -279,8 +278,9 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
         setValidationError(visual.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      if (target === 'avatar') setSelectedAvatar(compressed);
-      else setSelectedCover(compressed);
+      const persistedUrl = await uploadDataUrlIfOversized(compressed, 'image', false);
+      if (target === 'avatar') setSelectedAvatar(persistedUrl || compressed);
+      else setSelectedCover(persistedUrl || compressed);
     } catch {
       setValidationError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
     }
@@ -339,7 +339,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
       createdAt: 'এখনই',
     };
 
-    // Save to local storage
+    // Save to local storage + Firestore immediately
     try {
       const stored = localStorage.getItem('qalby_fb_pages');
       const existing: PageItem[] = stored ? JSON.parse(stored) : [];
@@ -348,6 +348,7 @@ export const FbCreatePageLandingView: React.FC<FbCreatePageLandingViewProps> = (
     } catch (err) {
       console.error('Failed to save page to storage', err);
     }
+    void syncPageToFirestore(newPage);
 
     setTimeout(() => {
       setIsSubmitting(false);

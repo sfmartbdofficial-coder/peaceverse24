@@ -25,7 +25,8 @@ import {
   checkMediaFilenamesSafe,
   checkMediaVisualSafety,
 } from '../../lib/halalFilter';
-import { compressImageFileToDataUrl } from '../../utils/imageCompress';
+import { compressImageForFirestore } from '../../utils/imageCompress';
+import { uploadDataUrlIfOversized, useResolvedMediaUrl } from '../../lib/mediaStorage';
 
 interface FbEditProfileModalProps {
   userProfile: UserProfile;
@@ -107,6 +108,10 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const coverInputRef = useRef<HTMLInputElement>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
+  const [uploadingImage, setUploadingImage] = useState<'avatar' | 'cover' | null>(null);
+
+  const resolvedAvatarPreview = useResolvedMediaUrl(avatar);
+  const resolvedCoverPreview = useResolvedMediaUrl(coverPhoto);
 
   const handleAvatarFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -123,8 +128,9 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
       return;
     }
     setUploadError(null);
+    setUploadingImage('avatar');
     try {
-      const compressed = await compressImageFileToDataUrl(file, { maxDimension: 720, quality: 0.78 });
+      const compressed = await compressImageForFirestore(file, 'avatar');
       const visual = await checkMediaVisualSafety({
         mediaDataUrls: [compressed],
         fileNames: [file.name],
@@ -133,10 +139,13 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
         setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      setAvatar(compressed);
+      const persistedUrl = await uploadDataUrlIfOversized(compressed, 'image', false);
+      setAvatar(persistedUrl || compressed);
       setShowAvatarPicker(false);
     } catch {
       setUploadError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setUploadingImage(null);
     }
   };
 
@@ -155,8 +164,9 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
       return;
     }
     setUploadError(null);
+    setUploadingImage('cover');
     try {
-      const compressed = await compressImageFileToDataUrl(file, { maxDimension: 1080, quality: 0.76 });
+      const compressed = await compressImageForFirestore(file, 'cover');
       const visual = await checkMediaVisualSafety({
         mediaDataUrls: [compressed],
         fileNames: [file.name],
@@ -165,10 +175,13 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
         setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
         return;
       }
-      setCoverPhoto(compressed);
+      const persistedUrl = await uploadDataUrlIfOversized(compressed, 'image', false);
+      setCoverPhoto(persistedUrl || compressed);
       setShowCoverPicker(false);
     } catch {
       setUploadError('ছবিটি প্রসেস করা যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setUploadingImage(null);
     }
   };
 
@@ -249,9 +262,10 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
           <button
             type="button"
             onClick={handleSave}
-            className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.98] text-white font-bold text-xs sm:text-[13px] transition-all cursor-pointer"
+            disabled={uploadingImage !== null}
+            className="px-4 py-1.5 rounded-lg bg-[#0866FF] hover:bg-[#1877F2] disabled:opacity-60 active:scale-[0.98] text-white font-bold text-xs sm:text-[13px] transition-all cursor-pointer"
           >
-            Save (সংরক্ষণ)
+            {uploadingImage ? 'Saving photo...' : 'Save (সংরক্ষণ)'}
           </button>
         </div>
 
@@ -327,7 +341,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
                 onClick={() => avatarInputRef.current?.click()}
               >
                 <img
-                  src={avatar}
+                  src={resolvedAvatarPreview || avatar}
                   alt="Avatar"
                   className="w-24 h-24 sm:w-28 sm:h-28 rounded-full object-cover border-4 border-white ring-1 ring-[#E4E6EB] shadow-md"
                 />
@@ -408,7 +422,7 @@ export const FbEditProfileModal: React.FC<FbEditProfileModalProps> = ({
               className="relative h-28 sm:h-36 w-full rounded-xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5] group cursor-pointer"
               onClick={() => coverInputRef.current?.click()}
             >
-              <img src={coverPhoto} alt="Cover" className="w-full h-full object-cover" />
+              <img src={resolvedCoverPreview || coverPhoto} alt="Cover" className="w-full h-full object-cover" />
               <button
                 type="button"
                 onClick={(e) => {

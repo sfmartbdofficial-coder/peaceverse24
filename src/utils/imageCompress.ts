@@ -89,6 +89,84 @@ export async function compressPostImagesBatch(
   return results;
 }
 
+/**
+ * Re-compresses a JPEG/PNG data URL through an offscreen canvas until its length
+ * fits comfortably inside a Firestore document (default <= 240 KB base64).
+ */
+export async function compressDataUrlUnderLimit(
+  dataUrl: string,
+  maxChars = 240_000,
+  initialMaxDim = 960
+): Promise<string> {
+  const clean = (dataUrl || '').trim();
+  if (!clean || !clean.startsWith('data:image/') || clean.length <= maxChars) {
+    return clean;
+  }
+  if (typeof document === 'undefined') return clean;
+
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      try {
+        const origW = img.naturalWidth || img.width;
+        const origH = img.naturalHeight || img.height;
+        if (!origW || !origH) {
+          resolve(clean);
+          return;
+        }
+
+        const attempts = [
+          { maxDim: initialMaxDim, quality: 0.72 },
+          { maxDim: Math.min(initialMaxDim, 820), quality: 0.62 },
+          { maxDim: Math.min(initialMaxDim, 640), quality: 0.54 },
+          { maxDim: 480, quality: 0.48 },
+        ];
+
+        let best = clean;
+        for (const step of attempts) {
+          const scale = Math.min(1, step.maxDim / Math.max(origW, origH));
+          const targetW = Math.max(1, Math.round(origW * scale));
+          const targetH = Math.max(1, Math.round(origH * scale));
+          const canvas = document.createElement('canvas');
+          canvas.width = targetW;
+          canvas.height = targetH;
+          const ctx = canvas.getContext('2d');
+          if (!ctx) break;
+          ctx.fillStyle = '#FFFFFF';
+          ctx.fillRect(0, 0, targetW, targetH);
+          ctx.drawImage(img, 0, 0, targetW, targetH);
+          const candidate = canvas.toDataURL('image/jpeg', step.quality);
+          if (candidate.length < best.length) {
+            best = candidate;
+          }
+          if (best.length <= maxChars) {
+            break;
+          }
+        }
+        resolve(best);
+      } catch {
+        resolve(clean);
+      }
+    };
+    img.onerror = () => resolve(clean);
+    img.src = clean;
+  });
+}
+
+export async function compressImageForFirestore(
+  file: File,
+  kind: 'avatar' | 'cover'
+): Promise<string> {
+  const initialMaxDim = kind === 'cover' ? 1080 : 512;
+  const initialQuality = kind === 'cover' ? 0.74 : 0.78;
+  const targetMaxChars = kind === 'cover' ? 240_000 : 180_000;
+  const firstPass = await compressImageFileToDataUrl(file, {
+    maxDimension: initialMaxDim,
+    quality: initialQuality,
+  });
+  return compressDataUrlUnderLimit(firstPass, targetMaxChars, initialMaxDim);
+}
+
 export const SHORT_REEL_MIN_SECONDS = 10;
 export const SHORT_REEL_MAX_SECONDS = 180; // 3 minutes
 

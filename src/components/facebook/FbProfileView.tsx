@@ -44,6 +44,7 @@ import { CreatorMonetizationModal } from '../monetization/CreatorMonetizationMod
 import { FbProfileSwitcherModal } from './FbProfileSwitcherModal';
 import { loadDeedsLog, saveDeedsLog, DeedLogItem } from '../../utils/privacyMask';
 import { useHistoryBack } from '../../utils/backNavigation';
+import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 import {
   getWhatsAppUrl,
   getImoDeepLink,
@@ -110,6 +111,8 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   onMessageUser,
 }) => {
   const activeProfile = viewedProfile || userProfile;
+  const resolvedCoverPhoto = useResolvedMediaUrl(activeProfile.coverPhoto);
+  const resolvedAvatar = useResolvedMediaUrl(activeProfile.avatar);
   const isOwnProfile =
     !viewedProfile ||
     isSameOwnerIdentity(viewedProfile.id, viewedProfile.name, userProfile.id, userProfile.name);
@@ -357,9 +360,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
       
       {/* 1 & 2. Cover Photo with Transparent Facebook-Style Overlay Top Bar (≡, ✏️, 🔍, •••) */}
       <div className="relative h-[210px] w-full bg-[#E4E6EB] rounded-none overflow-hidden">
-        {activeProfile.coverPhoto ? (
+        {resolvedCoverPhoto ? (
           <img
-            src={activeProfile.coverPhoto}
+            src={resolvedCoverPhoto}
             alt="Cover"
             className="w-full h-full object-cover"
           />
@@ -473,9 +476,9 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               onClick={() => isOwnProfile && setShowEditModal(true)}
               className="w-[152px] h-[152px] min-w-[152px] min-h-[152px] rounded-full border-4 border-white ring-2 ring-[#E4E6EB] overflow-hidden bg-[#0866FF] text-white flex items-center justify-center font-black text-4xl shadow-xl cursor-pointer"
             >
-              {activeProfile.avatar ? (
+              {resolvedAvatar ? (
                 <img
-                  src={activeProfile.avatar}
+                  src={resolvedAvatar}
                   alt={activeProfile.name}
                   className="w-full h-full object-cover"
                 />

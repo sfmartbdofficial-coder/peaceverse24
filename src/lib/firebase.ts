@@ -1827,6 +1827,42 @@ export async function markCurrentUserEmailOtpVerified(): Promise<void> {
 // USER PROFILE & SOCIAL CONTACT PERSISTENCE
 // ==========================================
 
+export function isDefaultGeneratedAvatar(url?: string): boolean {
+  const clean = (url || '').trim();
+  if (!clean) return true;
+  return clean.includes('api.dicebear.com/');
+}
+
+async function preparePersistableImageForFirestore(
+  url?: string,
+  maxDim = 960
+): Promise<string> {
+  const clean = (url || '').trim();
+  if (!clean || clean.startsWith('blob:')) return '';
+  if (!clean.startsWith('data:')) {
+    return clean;
+  }
+  const targetMaxChars = maxDim <= 600 ? 200_000 : 280_000;
+  if (clean.length <= targetMaxChars) {
+    return clean;
+  }
+  try {
+    const { uploadDataUrlIfOversized } = await import('./mediaStorage');
+    const uploaded = await uploadDataUrlIfOversized(clean, 'image', true);
+    if (uploaded && (!uploaded.startsWith('data:') || uploaded.length <= targetMaxChars)) {
+      return uploaded;
+    }
+  } catch {}
+  try {
+    const { compressDataUrlUnderLimit } = await import('../utils/imageCompress');
+    const compressed = await compressDataUrlUnderLimit(clean, targetMaxChars, maxDim);
+    if (compressed && compressed.length <= 420_000) {
+      return compressed;
+    }
+  } catch {}
+  return clean.length <= 420_000 ? clean : '';
+}
+
 export async function saveUserProfileToFirestore(profile: UserProfile): Promise<boolean> {
   const targetId = auth.currentUser?.uid;
   if (!targetId) return false;
@@ -1845,8 +1881,12 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
     }
     const resolvedEmail = (profile.email || auth.currentUser?.email || '').trim();
     const emailHash = resolvedEmail ? await sha256Hex(resolvedEmail.toLowerCase()) : '';
-    const safeAvatarForDoc = trimOversizedImageForFirestore(profile.avatar);
-    const safeCoverForDoc = trimOversizedImageForFirestore(profile.coverPhoto);
+    const [rawSafeAvatar, safeCoverForDoc] = await Promise.all([
+      preparePersistableImageForFirestore(profile.avatar, 512),
+      preparePersistableImageForFirestore(profile.coverPhoto, 1080),
+    ]);
+    const safeAvatarForDoc =
+      rawSafeAvatar && !isDefaultGeneratedAvatar(rawSafeAvatar) ? rawSafeAvatar : '';
     await setDoc(
       userRef,
       {
@@ -1906,7 +1946,7 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
           uid: targetId,
           displayName: cleanName,
           username: resolvedUsername,
-          avatar: safeAvatarForDoc,
+          avatar: safeAvatarForDoc || undefined,
           bio: sanitizeInput(profile.bio || '', 300),
           location: sanitizeInput(profile.location || '', 120),
           email: resolvedEmail,
@@ -1916,7 +1956,7 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
           id: targetId,
           displayName: cleanName,
           username: resolvedUsername,
-          avatar: safeAvatarForDoc,
+          avatar: safeAvatarForDoc || undefined,
           bio: sanitizeInput(profile.bio || '', 300),
           location: sanitizeInput(profile.location || '', 120),
         }),
@@ -1935,7 +1975,7 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
 
 export async function fetchUserProfileFromFirestore(
   uid: string
-): Promise<(Partial<UserProfile> & { emailOtpVerified?: boolean }) | null> {
+): Promise<(Partial<UserProfile> & { emailOtpVerified?: boolean; updatedAtMillis?: number }) | null> {
   if (!uid) return null;
   try {
     const userRef = doc(db, 'users', uid);
@@ -1945,6 +1985,7 @@ export async function fetchUserProfileFromFirestore(
     return {
       id: snap.id,
       name: data.name || data.displayName,
+      username: data.username,
       email: data.email,
       avatar: data.avatar,
       coverPhoto: data.coverPhoto,
@@ -1964,7 +2005,9 @@ export async function fetchUserProfileFromFirestore(
       contactPrivacy: data.contactPrivacy || 'public',
       friendsCount: typeof data.friendsCount === 'number' ? data.friendsCount : 0,
       hobbies: Array.isArray(data.hobbies) ? data.hobbies : undefined,
+      isCreator: data.isCreator === true,
       emailOtpVerified: data.emailOtpVerified === true,
+      updatedAtMillis: typeof data.updatedAtMillis === 'number' ? data.updatedAtMillis : undefined,
     };
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
@@ -2542,8 +2585,15 @@ export async function syncUserDirectoryProfile(
     existingUsername ||
     transliterated.replace(/[^a-z0-9]+/g, '') ||
     (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '');
-  const resolvedAvatar = existingData?.avatar || existingData?.photoURL || avatar;
-  const safeAvatar = trimOversizedImageForFirestore(resolvedAvatar);
+  const existingRawAvatar = !isDefaultGeneratedAvatar(existingData?.avatar)
+    ? String(existingData?.avatar || '')
+    : !isDefaultGeneratedAvatar(existingData?.photoURL)
+    ? String(existingData?.photoURL || '')
+    : '';
+  const resolvedAvatar = existingRawAvatar || (!isDefaultGeneratedAvatar(avatar) ? avatar : '');
+  const safeAvatar = resolvedAvatar
+    ? await preparePersistableImageForFirestore(resolvedAvatar, 512)
+    : '';
   const resolvedBio = extra?.bio !== undefined ? extra.bio : String(existingData?.bio || '');
   const resolvedLocation =
     extra?.location !== undefined ? extra.location : String(existingData?.location || '');
@@ -3065,6 +3115,10 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
     const resolvedOwnerUid = ownerUid || auth.currentUser?.uid || '';
     const cleanBio = sanitizePageBioValue(page.bio);
     const cleanDesc = sanitizePageBioValue(page.description);
+    const [safeAvatar, safeCover] = await Promise.all([
+      preparePersistableImageForFirestore(page.avatar, 512),
+      preparePersistableImageForFirestore(page.cover, 1080),
+    ]);
     const payload: Record<string, any> = {
       id: page.id,
       name: cleanName,
@@ -3073,8 +3127,8 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
       likes: page.likes || '0 লাইক',
       followersCount: typeof page.followersCount === 'number' ? page.followersCount : 1,
       followingCount: typeof page.followingCount === 'number' ? page.followingCount : 0,
-      avatar: trimOversizedImageForFirestore(page.avatar),
-      cover: trimOversizedImageForFirestore(page.cover),
+      ...(safeAvatar ? { avatar: safeAvatar } : {}),
+      ...(safeCover ? { cover: safeCover } : {}),
       description: cleanDesc,
       bio: cleanBio,
       location: page.location || '',
@@ -3097,6 +3151,45 @@ export async function syncPageToFirestore(page: PageItem, ownerUid?: string): Pr
     if (!isOfflineOrUnavailableError(err) && err?.code !== 'permission-denied') {
       console.warn('Notice syncing page to Firestore:', err);
     }
+  }
+}
+
+export async function fetchOwnedPagesFromFirestore(ownerUid: string): Promise<PageItem[]> {
+  if (!ownerUid || ownerUid === 'user-me') return [];
+  try {
+    const q = query(collection(db, 'pages'), where('ownerUid', '==', ownerUid), limit(100));
+    const snap = await getDocs(q);
+    if (snap.empty) return [];
+    return snap.docs.map((docSnap) => {
+      const data = docSnap.data();
+      const name = String(data.name || 'Page').trim();
+      return {
+        id: docSnap.id,
+        name,
+        category: String(data.category || 'Community'),
+        likes: String(data.likes || `${data.followersCount || 0} লাইক`),
+        followersCount: Number(data.followersCount || 0),
+        followingCount: Number(data.followingCount || 0),
+        avatar: String(data.avatar || ''),
+        cover: String(data.cover || ''),
+        role: 'Admin',
+        isOwner: true,
+        isLiked: isTargetFollowedLocally(docSnap.id, name),
+        description: sanitizePageBioValue(data.description ? String(data.description) : ''),
+        bio: sanitizePageBioValue(data.bio ? String(data.bio) : ''),
+        phone: data.phone ? String(data.phone) : undefined,
+        whatsapp: data.whatsapp ? String(data.whatsapp) : undefined,
+        imo: data.imo ? String(data.imo) : undefined,
+        viber: data.viber ? String(data.viber) : undefined,
+        website: data.website ? String(data.website) : undefined,
+        email: data.email ? String(data.email) : undefined,
+        location: data.location ? String(data.location) : undefined,
+        rating: data.rating ? String(data.rating) : undefined,
+        createdAt: data.createdAt ? String(data.createdAt) : undefined,
+      };
+    });
+  } catch {
+    return [];
   }
 }
 
