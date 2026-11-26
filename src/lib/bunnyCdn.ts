@@ -1,8 +1,8 @@
 // Bunny.net CDN Token Authentication, Security Headers, and Media Upload Firewall
-// Enforce: 5MB max image, 50MB max video, block .exe .php and dangerous extensions
+// Enforce: 5MB max image, 2GB max video (unlimited duration), block .exe .php and dangerous extensions
 
 export const BUNNY_IMAGE_MAX_BYTES = 5 * 1024 * 1024; // 5MB max for images
-export const BUNNY_VIDEO_MAX_BYTES = 50 * 1024 * 1024; // 50MB max for videos
+export const BUNNY_VIDEO_MAX_BYTES = 2 * 1024 * 1024 * 1024; // 2GB max for long videos
 export const BUNNY_AUDIO_MAX_BYTES = 5 * 1024 * 1024; // 5MB max for audio
 
 export const BLOCKED_UPLOAD_EXTENSIONS = [
@@ -97,7 +97,16 @@ export function validateBunnyUpload(
     };
   }
 
-  const mime = (file.type || '').toLowerCase();
+  const rawMime = (file.type || '').toLowerCase();
+  const mime =
+    rawMime ||
+    (/\.(mp4|mov|webm|m4v|3gp|mkv|ogg)$/i.test(lowerName)
+      ? 'video/mp4'
+      : /\.(jpg|jpeg|png|webp|gif)$/i.test(lowerName)
+      ? 'image/jpeg'
+      : /\.(mp3|m4a|wav|aac)$/i.test(lowerName)
+      ? 'audio/mpeg'
+      : '');
   const isBlockedMime =
     mime.includes('x-msdownload') ||
     mime.includes('x-httpd-php') ||
@@ -130,10 +139,10 @@ export function validateBunnyUpload(
   }
 
   if (mime.startsWith('video/') && file.size > BUNNY_VIDEO_MAX_BYTES) {
-    const sizeMb = (file.size / (1024 * 1024)).toFixed(2);
+    const sizeGb = (file.size / (1024 * 1024 * 1024)).toFixed(2);
     return {
       valid: false,
-      error: `Video too large (${sizeMb} MB). Maximum allowed size for videos is 50 MB.`,
+      error: `Video too large (${sizeGb} GB). Maximum allowed size per upload is 2 GB.`,
     };
   }
 

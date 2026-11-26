@@ -89,69 +89,176 @@ export async function compressPostImagesBatch(
   return results;
 }
 
-/**
- * Extracts a single lightweight JPEG frame from a local video File so visual
- * explicit/adult-content safety checks can inspect video uploads cleanly.
- */
-export function extractVideoFrameDataUrl(file: File): Promise<string | null> {
-  if (typeof document === 'undefined' || !file.type.startsWith('video/')) {
-    return Promise.resolve(null);
+export const SHORT_REEL_MIN_SECONDS = 10;
+export const SHORT_REEL_MAX_SECONDS = 180; // 3 minutes
+
+export function formatVideoDuration(seconds: number): string {
+  if (!Number.isFinite(seconds) || seconds <= 0) return '0:30';
+  const totalSec = Math.round(seconds);
+  const hours = Math.floor(totalSec / 3600);
+  const mins = Math.floor((totalSec % 3600) / 60);
+  const secs = totalSec % 60;
+  if (hours > 0) {
+    return `${hours}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
   }
+  return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+}
+
+export function classifyVideoDuration(seconds: number): {
+  kind: 'reel' | 'long';
+  labelBn: string;
+  badgeText: string;
+  isShortClipUnderMin: boolean;
+} {
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return {
+      kind: 'reel',
+      labelBn: 'শর্ট ভিডিও / রিলস',
+      badgeText: 'শর্ট ভিডিও / রিলস',
+      isShortClipUnderMin: false,
+    };
+  }
+  if (seconds > SHORT_REEL_MAX_SECONDS) {
+    return {
+      kind: 'long',
+      labelBn: 'লং ভিডিও (৩মি+)',
+      badgeText: `লং ভিডিও (${formatVideoDuration(seconds)}) • আনলিমিটেড`,
+      isShortClipUnderMin: false,
+    };
+  }
+  if (seconds < SHORT_REEL_MIN_SECONDS) {
+    return {
+      kind: 'reel',
+      labelBn: 'শর্ট ক্লিপ / রিলস',
+      badgeText: `শর্ট ভিডিও (${formatVideoDuration(seconds)})`,
+      isShortClipUnderMin: true,
+    };
+  }
+  return {
+    kind: 'reel',
+    labelBn: 'শর্ট ভিডিও / রিলস',
+    badgeText: `রিলস / শর্ট ভিডিও (${formatVideoDuration(seconds)})`,
+    isShortClipUnderMin: false,
+  };
+}
+
+export interface VideoMetadataAndFrames {
+  durationSeconds: number;
+  durationText: string;
+  frames: string[];
+}
+
+/**
+ * Extracts real duration and up to 4 representative JPEG frames across the video timeline
+ * (start, early-mid, late-mid, end) for XXX / explicit adult-content visual safety inspection.
+ */
+export function extractVideoMetadataAndFrames(
+  file: File,
+  maxFrames = 4
+): Promise<VideoMetadataAndFrames> {
+  if (typeof document === 'undefined' || (!file.type.startsWith('video/') && !/\.(mp4|mov|webm|m4v|3gp|mkv|ogg)$/i.test(file.name || ''))) {
+    return Promise.resolve({ durationSeconds: 0, durationText: '0:30', frames: [] });
+  }
+
   return new Promise((resolve) => {
     const url = URL.createObjectURL(file);
     const video = document.createElement('video');
     let settled = false;
+    const capturedFrames: string[] = [];
+    let detectedDuration = 0;
 
-    const finish = (result: string | null) => {
+    const finish = () => {
       if (settled) return;
       settled = true;
+      window.clearTimeout(hardTimer);
+      try {
+        video.removeAttribute('src');
+        video.load();
+      } catch {}
       URL.revokeObjectURL(url);
-      resolve(result);
+      resolve({
+        durationSeconds: detectedDuration,
+        durationText: formatVideoDuration(detectedDuration),
+        frames: capturedFrames,
+      });
     };
 
-    const timer = window.setTimeout(() => finish(null), 2500);
+    const hardTimer = window.setTimeout(finish, 7500);
 
     video.muted = true;
     video.playsInline = true;
     video.preload = 'metadata';
 
-    video.onloadeddata = () => {
-      try {
-        video.currentTime = Math.min(1, (video.duration || 1) / 3);
-      } catch {
-        window.clearTimeout(timer);
-        finish(null);
-      }
-    };
+    let seekTargets: number[] = [];
+    let seekCursor = 0;
 
-    video.onseeked = () => {
-      window.clearTimeout(timer);
+    const captureCurrentFrame = () => {
       try {
-        const canvas = document.createElement('canvas');
         const w = Math.min(480, video.videoWidth || 320);
         const h = Math.max(
           1,
           Math.round(((video.videoHeight || 240) / (video.videoWidth || 320)) * w)
         );
+        const canvas = document.createElement('canvas');
         canvas.width = w;
         canvas.height = h;
         const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          finish(null);
-          return;
+        if (ctx) {
+          ctx.drawImage(video, 0, 0, w, h);
+          capturedFrames.push(canvas.toDataURL('image/jpeg', 0.62));
         }
-        ctx.drawImage(video, 0, 0, w, h);
-        finish(canvas.toDataURL('image/jpeg', 0.65));
+      } catch {}
+    };
+
+    const seekNext = () => {
+      if (seekCursor >= seekTargets.length) {
+        finish();
+        return;
+      }
+      const nextTime = seekTargets[seekCursor++];
+      try {
+        video.currentTime = nextTime;
       } catch {
-        finish(null);
+        finish();
       }
     };
 
-    video.onerror = () => {
-      window.clearTimeout(timer);
-      finish(null);
+    video.onloadedmetadata = () => {
+      detectedDuration = Number.isFinite(video.duration) && video.duration > 0 ? video.duration : 0;
+      const safeDur = detectedDuration > 0 ? detectedDuration : 3;
+      const ratios =
+        maxFrames <= 1
+          ? [0.33]
+          : maxFrames === 2
+          ? [0.15, 0.7]
+          : maxFrames === 3
+          ? [0.1, 0.5, 0.85]
+          : [0.08, 0.34, 0.62, 0.88];
+      seekTargets = ratios.map((r) => Math.max(0.1, Math.min(Math.max(0.2, safeDur - 0.2), safeDur * r)));
     };
 
+    video.onloadeddata = () => {
+      if (seekTargets.length === 0) {
+        seekTargets = [0.3];
+      }
+      seekNext();
+    };
+
+    video.onseeked = () => {
+      captureCurrentFrame();
+      seekNext();
+    };
+
+    video.onerror = finish;
     video.src = url;
   });
+}
+
+/**
+ * Extracts a single lightweight JPEG frame from a local video File so visual
+ * explicit/adult-content safety checks can inspect video uploads cleanly.
+ */
+export async function extractVideoFrameDataUrl(file: File): Promise<string | null> {
+  const { frames } = await extractVideoMetadataAndFrames(file, 1);
+  return frames[0] || null;
 }

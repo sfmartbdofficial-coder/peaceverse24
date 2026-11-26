@@ -3640,8 +3640,15 @@ export default function App() {
         <FbCreatePostModal
           userProfile={effectiveProfile}
           isPageAccount={Boolean(activeSwitchedPage)}
-          initialPhoto={initialPostPhotos[0]?.startsWith('data:video/') ? initialPostPhotos[0] : null}
-          initialPhotos={initialPostPhotos.filter((item) => !item.startsWith('data:video/'))}
+          initialPhoto={
+            initialPostPhotos[0]?.startsWith('data:video/') ||
+            initialPostPhotos[0]?.startsWith('blob:')
+              ? initialPostPhotos[0]
+              : null
+          }
+          initialPhotos={initialPostPhotos.filter(
+            (item) => !item.startsWith('data:video/') && !item.startsWith('blob:')
+          )}
           onClose={() => {
             setShowCreatePost(false);
             setInitialPostPhotos([]);

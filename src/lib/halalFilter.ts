@@ -39,6 +39,20 @@ export const BLOCK_WORDS = [
   'naked video',
   'hentai',
   'nsfw',
+  '18+ video',
+  '18+ xxx',
+  'deshi xxx',
+  'bangla xxx',
+  'bengali xxx',
+  'choti golpo',
+  'nangta',
+  'nangto',
+  'পর্ণ',
+  'পর্ণোগ্রাফি',
+  'ন্যাংটা',
+  'ন্যাংটু',
+  'নেংটা',
+  'কামুক ভিডিও',
 ];
 
 const ADULT_EXPLICIT_PATTERNS: RegExp[] = [
@@ -47,8 +61,9 @@ const ADULT_EXPLICIT_PATTERNS: RegExp[] = [
   /\bxvideos\b/i,
   /\bxhamster\b/i,
   /\bporn(?:o|ography|hub|star)?\b/i,
-  /\bsex[\s._-]*(?:video|clip|movie|tape|chat|cam)\b/i,
-  /\bnude(?:s)?\b/i,
+  /\bsex[\s._-]*(?:video|clip|movie|tape|chat|cam|mms)\b/i,
+  /\b(?:bangla|desi|hindi|indian)[\s._-]*(?:sex|xxx|porn|mms|nude)\b/i,
+  /\bnude(?:s|ity)?\b/i,
   /\bnaked\b/i,
   /\bhentai\b/i,
   /\berotic(?:a)?\b/i,
@@ -59,6 +74,7 @@ const ADULT_EXPLICIT_PATTERNS: RegExp[] = [
   /\bgangbang\b/i,
   /\bmilf\b/i,
   /\bmasturbat(?:e|ion)\b/i,
+  /\bchoda(?:chudi)?\b/i,
 ];
 
 export const ALLOW_ALWAYS = [
@@ -168,7 +184,7 @@ export async function checkMediaVisualSafety(params: {
 
   const samples = (params.mediaDataUrls || [])
     .filter((u) => typeof u === 'string' && u.startsWith('data:image/'))
-    .slice(0, 3);
+    .slice(0, 4);
 
   if (samples.length === 0) {
     return { safe: true };
@@ -176,7 +192,7 @@ export async function checkMediaVisualSafety(params: {
 
   try {
     const controller = new AbortController();
-    const timer = window.setTimeout(() => controller.abort(), 4500);
+    const timer = window.setTimeout(() => controller.abort(), 9000);
     const res = await fetch('/api/ai/moderate-media', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },

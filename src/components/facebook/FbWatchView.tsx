@@ -138,11 +138,24 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
     );
   }, [posts]);
 
+  const isLongVideoPost = (p: PostItem): boolean => {
+    if (p.videoKind === 'long') return true;
+    if (typeof p.durationSeconds === 'number' && p.durationSeconds > 180) return true;
+    if (p.duration && p.duration.split(':').length === 3) return true;
+    if (p.duration && p.duration.split(':').length === 2) {
+      const [m, s] = p.duration.split(':').map((n) => Number(n) || 0);
+      if (m * 60 + s > 180) return true;
+    }
+    return false;
+  };
+
   const filteredVideos = useMemo(() => {
     const q = searchTerm.trim().toLowerCase();
     return videoPosts.filter((p) => {
       const text = `${p.contentBangla} ${p.author.name} ${p.author.subtitle || ''} ${p.musicTitle || ''}`.toLowerCase();
       if (q && !text.includes(q)) return false;
+      if (filter === 'reels') return !isLongVideoPost(p);
+      if (filter === 'long') return isLongVideoPost(p);
       if (filter === 'live') return Boolean(p.isLive);
       if (filter === 'makkah') return text.includes('makkah') || text.includes('মক্কা');
       if (filter === 'madinah') return text.includes('madinah') || text.includes('মদিনা');
@@ -1067,7 +1080,9 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                 </div>
                 <div className="flex flex-wrap gap-1.5">
                   {[
-                    { id: 'all', label: 'সব রিলস' },
+                    { id: 'all', label: 'সব ভিডিও' },
+                    { id: 'reels', label: 'রিলস / শর্টস (১০সে–৩মি)' },
+                    { id: 'long', label: 'লং ভিডিও (৩মি+)' },
                     { id: 'live', label: 'লাইভ' },
                     { id: 'quran', label: 'কুরআন তিলাওয়াত' },
                     { id: 'makkah', label: 'মক্কা' },

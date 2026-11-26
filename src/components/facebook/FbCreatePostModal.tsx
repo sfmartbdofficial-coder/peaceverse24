@@ -33,11 +33,16 @@ import {
 } from '../../lib/halalFilter';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
 import {
+  classifyVideoDuration,
   compressPostImagesBatch,
-  extractVideoFrameDataUrl,
+  extractVideoMetadataAndFrames,
   MAX_POST_PHOTOS,
 } from '../../utils/imageCompress';
-import { uploadDataUrlIfOversized, uploadMediaFile } from '../../lib/mediaStorage';
+import {
+  getPendingBlobMetadata,
+  uploadDataUrlIfOversized,
+  uploadMediaFile,
+} from '../../lib/mediaStorage';
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
@@ -151,15 +156,28 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     return [];
   });
   const [selectedVideo, setSelectedVideo] = useState<string | null>(() => {
-    if (initialPhoto && initialPhoto.startsWith('data:video/')) {
+    if (initialPhoto && (initialPhoto.startsWith('data:video/') || initialPhoto.startsWith('blob:'))) {
       return initialPhoto;
     }
     return null;
   });
-  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(() =>
+    initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto)?.file || null : null
+  );
+  const [videoDurationSeconds, setVideoDurationSeconds] = useState<number>(() =>
+    initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto)?.durationSeconds || 0 : 0
+  );
+  const [videoDurationText, setVideoDurationText] = useState<string>(() =>
+    initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto)?.durationText || '' : ''
+  );
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
-  const [pendingVideoFrame, setPendingVideoFrame] = useState<string | null>(null);
-  const [pendingFileNames, setPendingFileNames] = useState<string[]>([]);
+  const [pendingVideoFrames, setPendingVideoFrames] = useState<string[]>(() =>
+    initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto)?.frames || [] : []
+  );
+  const [pendingFileNames, setPendingFileNames] = useState<string[]>(() => {
+    const meta = initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto) : null;
+    return meta?.file?.name ? [meta.file.name] : [];
+  });
 
   // Quran Verse / Hadith
   const [showAyahBox, setShowAyahBox] = useState(false);
@@ -192,18 +210,32 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     if (Array.isArray(initialPhotos) && initialPhotos.length > 0) {
       setSelectedPhotos(initialPhotos.slice(0, MAX_POST_PHOTOS));
       setSelectedVideo(null);
+      setSelectedVideoFile(null);
+      setVideoDurationSeconds(0);
+      setVideoDurationText('');
+      setPendingVideoFrames([]);
     } else if (initialPhoto) {
-      if (initialPhoto.startsWith('data:video/')) {
+      if (initialPhoto.startsWith('data:video/') || initialPhoto.startsWith('blob:')) {
+        const meta = initialPhoto.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto) : null;
         setSelectedVideo(initialPhoto);
+        setSelectedVideoFile(meta?.file || null);
+        setVideoDurationSeconds(meta?.durationSeconds || 0);
+        setVideoDurationText(meta?.durationText || '');
+        setPendingVideoFrames(meta?.frames || []);
+        setPendingFileNames(meta?.file?.name ? [meta.file.name] : []);
         setSelectedPhotos([]);
       } else {
         setSelectedPhotos([initialPhoto]);
         setSelectedVideo(null);
+        setSelectedVideoFile(null);
+        setVideoDurationSeconds(0);
+        setVideoDurationText('');
+        setPendingVideoFrames([]);
       }
     }
   }, [initialPhoto, initialPhotos]);
 
-  // Real device gallery selection handler (up to 10 compressed photos or 1 video up to 50MB)
+  // Real device gallery selection handler (up to 10 compressed photos or 1 video of ANY length)
   const handleDeviceUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
     e.target.value = '';
@@ -220,21 +252,25 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       return;
     }
 
-    const videoFile = files.find((f) => f.type.startsWith('video/'));
+    const videoFile = files.find(
+      (f) =>
+        f.type.startsWith('video/') ||
+        /\.(mp4|mov|webm|m4v|3gp|mkv|ogg)$/i.test(f.name || '')
+    );
     if (videoFile) {
       const check = validateMediaUpload(videoFile, ['video']);
       if (!check.valid) {
         setModerationError({
           status: 'blocked',
-          reason: check.error || 'সর্বোচ্চ ৫০ MB সাইজের ভিডিও আপলোড করা যাবে।',
+          reason: check.error || 'সর্বোচ্চ ২ GB সাইজের ভিডিও আপলোড করা যাবে।',
         });
         return;
       }
       setIsProcessingMedia(true);
       try {
-        const frame = await extractVideoFrameDataUrl(videoFile);
+        const meta = await extractVideoMetadataAndFrames(videoFile, 4);
         const visualCheck = await checkMediaVisualSafety({
-          mediaDataUrls: frame ? [frame] : [],
+          mediaDataUrls: meta.frames,
           caption: content,
           fileNames: [videoFile.name],
         });
@@ -255,7 +291,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           return previewBlobUrl;
         });
         setSelectedVideoFile(videoFile);
-        setPendingVideoFrame(frame);
+        setVideoDurationSeconds(meta.durationSeconds);
+        setVideoDurationText(meta.durationText);
+        setPendingVideoFrames(meta.frames);
         setPendingFileNames([videoFile.name]);
         setSelectedPhotos([]);
       } catch {
@@ -324,7 +362,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         return null;
       });
       setSelectedVideoFile(null);
-      setPendingVideoFrame(null);
+      setVideoDurationSeconds(0);
+      setVideoDurationText('');
+      setPendingVideoFrames([]);
       setPendingFileNames((prev) => [...prev, ...acceptedFiles.map((f) => f.name)].slice(0, MAX_POST_PHOTOS));
       setSelectedPhotos((prev) => [...prev, ...compressedUrls].slice(0, MAX_POST_PHOTOS));
       if (imageFiles.length > remainingSlots) {
@@ -384,9 +424,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       }
 
       const samplesToCheck = selectedVideo
-        ? pendingVideoFrame
-          ? [pendingVideoFrame]
-          : []
+        ? pendingVideoFrames
         : selectedPhotos.slice(0, 3);
 
       const visualResult = await checkMediaVisualSafety({
@@ -453,6 +491,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       const hasQuranVerse = filterResult.isQuranVerse || !!arabicText.trim();
       const finalArabic = arabicText.trim() || (filterResult.isQuranVerse ? content.trim() : undefined);
 
+      const videoClass = finalVideoUrl ? classifyVideoDuration(videoDurationSeconds) : null;
       const nowMillis = Date.now();
       const newPost: PostItem = {
         id: `post-${nowMillis}`,
@@ -481,6 +520,12 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           : 'none',
         mediaUrl: finalVideoUrl || finalPhotoUrls[0] || undefined,
         mediaUrls: finalPhotoUrls.length > 0 ? finalPhotoUrls : undefined,
+        duration: finalVideoUrl ? videoDurationText || undefined : undefined,
+        durationSeconds:
+          finalVideoUrl && videoDurationSeconds > 0
+            ? Math.round(videoDurationSeconds)
+            : undefined,
+        videoKind: videoClass ? videoClass.kind : undefined,
         category: hasQuranVerse ? 'Quran' : 'Community',
         location: selectedLocation || undefined,
         feeling: selectedFeeling || undefined,
@@ -578,6 +623,14 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             {selectedVideo ? (
               <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
                 <video src={selectedVideo} controls className="w-full h-auto max-h-[420px] object-contain mx-auto" />
+                {videoDurationSeconds > 0 && (
+                  <div className="px-3 py-1.5 bg-white border-t border-[#E4E6EB] flex items-center justify-between text-[11px] font-bold">
+                    <span className={classifyVideoDuration(videoDurationSeconds).kind === 'long' ? 'text-emerald-700' : 'text-[#0866FF]'}>
+                      {classifyVideoDuration(videoDurationSeconds).badgeText}
+                    </span>
+                    <span className="text-[#65676B]">XXX/অশ্লীলতা নিষিদ্ধ</span>
+                  </div>
+                )}
               </div>
             ) : selectedPhotos.length === 1 ? (
               <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
@@ -1373,6 +1426,14 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         {selectedVideo && (
           <div className="relative rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5] group animate-in fade-in">
             <video src={selectedVideo} controls className="w-full h-auto max-h-[420px] object-contain mx-auto" />
+            {videoDurationSeconds > 0 && (
+              <div className="px-3 py-1.5 bg-white border-t border-[#E4E6EB] flex items-center justify-between gap-2 text-[11px] font-bold">
+                <span className={classifyVideoDuration(videoDurationSeconds).kind === 'long' ? 'text-emerald-700' : 'text-[#0866FF]'}>
+                  {classifyVideoDuration(videoDurationSeconds).badgeText}
+                </span>
+                <span className="text-[#65676B] shrink-0">যেকোনো দৈর্ঘ্য চলবে</span>
+              </div>
+            )}
             <div className="absolute top-2 right-2 flex items-center gap-1.5">
               <button
                 type="button"
@@ -1394,6 +1455,9 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
                     return null;
                   });
                   setSelectedVideoFile(null);
+                  setVideoDurationSeconds(0);
+                  setVideoDurationText('');
+                  setPendingVideoFrames([]);
                 }}
                 className="p-1.5 rounded-full bg-white/95 hover:bg-white text-[#050505] shadow-md border border-[#E4E6EB] cursor-pointer"
                 title="মুছে ফেলুন"

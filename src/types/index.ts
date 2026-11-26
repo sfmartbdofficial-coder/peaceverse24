@@ -49,6 +49,8 @@ export interface PostItem {
   mediaUrls?: string[];
   youtubeId?: string;
   duration?: string;
+  durationSeconds?: number;
+  videoKind?: 'reel' | 'long';
   isLive?: boolean;
   category: 'Quran' | 'Hadith' | 'Dua' | 'Lecture' | 'Nasheed' | 'Community' | 'Live' | 'Global Ummah';
   reactions: {

@@ -4,15 +4,15 @@ import { UserProfile, PageItem } from '../../types';
 import { validateMediaUpload } from '../../utils/security';
 import {
   compressPostImagesBatch,
-  extractVideoFrameDataUrl,
+  extractVideoMetadataAndFrames,
   MAX_POST_PHOTOS,
-  readFileAsDataUrl,
 } from '../../utils/imageCompress';
 import {
   ADULT_BLOCK_MESSAGE,
   checkMediaFilenamesSafe,
   checkMediaVisualSafety,
 } from '../../lib/halalFilter';
+import { registerPendingBlobFile } from '../../lib/mediaStorage';
 
 interface FbCreatePostBoxProps {
   userProfile: UserProfile;
@@ -43,25 +43,35 @@ export const FbCreatePostBox: React.FC<FbCreatePostBoxProps> = ({
       return;
     }
 
-    const videoFile = files.find((f) => f.type.startsWith('video/'));
+    const videoFile = files.find(
+      (f) =>
+        f.type.startsWith('video/') ||
+        /\.(mp4|mov|webm|m4v|3gp|mkv|ogg)$/i.test(f.name || '')
+    );
     if (videoFile) {
       const check = validateMediaUpload(videoFile, ['video']);
       if (!check.valid) {
-        setUploadError(check.error || 'Max 50MB video allowed.');
+        setUploadError(check.error || 'সর্বোচ্চ ২ GB সাইজের ভিডিও আপলোড করা যাবে।');
         return;
       }
       try {
-        const frame = await extractVideoFrameDataUrl(videoFile);
+        const meta = await extractVideoMetadataAndFrames(videoFile, 4);
         const visual = await checkMediaVisualSafety({
-          mediaDataUrls: frame ? [frame] : [],
+          mediaDataUrls: meta.frames,
           fileNames: [videoFile.name],
         });
         if (!visual.safe) {
           setUploadError(visual.reason || ADULT_BLOCK_MESSAGE);
           return;
         }
-        const videoUrl = await readFileAsDataUrl(videoFile);
-        onOpenCreateModal(videoUrl);
+        const previewBlobUrl = URL.createObjectURL(videoFile);
+        registerPendingBlobFile(previewBlobUrl, {
+          file: videoFile,
+          durationSeconds: meta.durationSeconds,
+          durationText: meta.durationText,
+          frames: meta.frames,
+        });
+        onOpenCreateModal(previewBlobUrl);
       } catch {
         setUploadError('ভিডিওটি পড়া যায়নি। আবার চেষ্টা করুন।');
       }

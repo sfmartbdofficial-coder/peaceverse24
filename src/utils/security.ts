@@ -5,7 +5,7 @@ import DOMPurify from 'dompurify';
 import { validateBunnyUpload } from '../lib/bunnyCdn';
 
 export const MAX_MEDIA_UPLOAD_BYTES = 5 * 1024 * 1024; // 5MB images/audio
-export const MAX_VIDEO_UPLOAD_BYTES = 50 * 1024 * 1024; // 50MB videos
+export const MAX_VIDEO_UPLOAD_BYTES = 2 * 1024 * 1024 * 1024; // 2GB videos (long & short)
 export const ALLOWED_MEDIA_PREFIXES = ['image/', 'video/', 'audio/'] as const;
 export const RATE_LIMIT_MAX_REQUESTS = 10;
 export const RATE_LIMIT_WINDOW_MS = 60 * 1000; // 1 minute

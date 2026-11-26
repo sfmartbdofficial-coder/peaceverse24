@@ -287,6 +287,8 @@ function mapFirestoreDocToPostItem(id: string, data: Record<string, any>): PostI
     mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls : undefined,
     youtubeId: data.youtubeId,
     duration: data.duration,
+    durationSeconds: typeof data.durationSeconds === 'number' ? data.durationSeconds : undefined,
+    videoKind: data.videoKind === 'reel' || data.videoKind === 'long' ? data.videoKind : undefined,
     isLive: data.isLive,
     category: data.category || 'Community',
     reactions: data.reactions || {

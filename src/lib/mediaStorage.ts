@@ -8,16 +8,37 @@ import {
   query,
   setDoc,
 } from 'firebase/firestore';
-import { getDownloadURL, getStorage, ref, uploadBytes } from 'firebase/storage';
+import { getDownloadURL, getStorage, ref, uploadBytes, uploadBytesResumable } from 'firebase/storage';
 import { useEffect, useState } from 'react';
 import { auth, db } from './firebase';
 
 const FIRESTORE_CHUNK_RAW_BYTES = 420 * 1024; // ~560 KB base64 per doc (well under Firestore 1 MB limit)
 const MAX_FIRESTORE_REPLICATED_BYTES = 18 * 1024 * 1024; // Replicate up to 18 MB cross-container via Firestore
+const MAX_SINGLE_SERVER_UPLOAD_BYTES = 45 * 1024 * 1024; // Single POST /api/media/upload threshold
+const EXPRESS_STREAM_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB chunks for long videos up to 2 GB
 const MAX_DATA_URL_INLINE_BYTES = 240 * 1024;
 
 const resolvedMediaCache = new Map<string, string>();
 const pendingResolutionMap = new Map<string, Promise<string>>();
+
+export interface PendingBlobMeta {
+  file: File;
+  durationSeconds?: number;
+  durationText?: string;
+  frames?: string[];
+}
+
+const pendingBlobRegistry = new Map<string, PendingBlobMeta>();
+
+export function registerPendingBlobFile(blobUrl: string, meta: PendingBlobMeta): void {
+  if (!blobUrl) return;
+  pendingBlobRegistry.set(blobUrl, meta);
+}
+
+export function getPendingBlobMetadata(blobUrl?: string | null): PendingBlobMeta | null {
+  if (!blobUrl) return null;
+  return pendingBlobRegistry.get(blobUrl) || null;
+}
 
 function bytesToBase64(bytes: Uint8Array): string {
   let binary = '';
@@ -79,21 +100,66 @@ async function tryUploadToFirebaseStorage(
   mediaId: string,
   ext: string,
   mimeType: string,
-  uid: string
+  uid: string,
+  onProgress?: (pct: number) => void
 ): Promise<string | null> {
   try {
     const storage = getStorage(db.app);
     const storageRef = ref(storage, `users/${uid}/media/${mediaId}.${ext}`);
-    const uploadPromise = uploadBytes(storageRef, blob, {
-      contentType: mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg'),
-    }).then((snap) => getDownloadURL(snap.ref));
+    const contentType = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
 
-    const timeoutPromise = new Promise<null>((resolve) => {
-      window.setTimeout(() => resolve(null), 5000);
+    if (blob.size <= 12 * 1024 * 1024) {
+      const uploadPromise = uploadBytes(storageRef, blob, { contentType }).then((snap) =>
+        getDownloadURL(snap.ref)
+      );
+      const timeoutPromise = new Promise<null>((resolve) => {
+        window.setTimeout(() => resolve(null), 5000);
+      });
+      const url = await Promise.race([uploadPromise, timeoutPromise]);
+      return typeof url === 'string' && url.startsWith('https://') ? url : null;
+    }
+
+    // For large long videos (>12MB), use resumable upload with stall detection
+    return await new Promise<string | null>((resolve) => {
+      const task = uploadBytesResumable(storageRef, blob, { contentType });
+      let lastMovedAt = Date.now();
+      let settled = false;
+
+      const finish = (res: string | null) => {
+        if (settled) return;
+        settled = true;
+        window.clearInterval(stallTimer);
+        resolve(res);
+      };
+
+      const stallTimer = window.setInterval(() => {
+        if (Date.now() - lastMovedAt > 6000) {
+          try {
+            task.cancel();
+          } catch {}
+          finish(null);
+        }
+      }, 2000);
+
+      task.on(
+        'state_changed',
+        (snap) => {
+          lastMovedAt = Date.now();
+          if (snap.totalBytes > 0 && onProgress) {
+            onProgress(Math.min(98, Math.round((snap.bytesTransferred / snap.totalBytes) * 90) + 5));
+          }
+        },
+        () => finish(null),
+        async () => {
+          try {
+            const dlUrl = await getDownloadURL(task.snapshot.ref);
+            finish(typeof dlUrl === 'string' && dlUrl.startsWith('https://') ? dlUrl : null);
+          } catch {
+            finish(null);
+          }
+        }
+      );
     });
-
-    const url = await Promise.race([uploadPromise, timeoutPromise]);
-    return typeof url === 'string' && url.startsWith('https://') ? url : null;
   } catch {
     return null;
   }
@@ -104,22 +170,69 @@ async function tryUploadToExpressServer(
   mediaId: string,
   ext: string,
   mimeType: string,
-  idToken: string
+  idToken: string,
+  onProgress?: (pct: number) => void
 ): Promise<string | null> {
   try {
-    const resp = await fetch('/api/media/upload', {
-      method: 'POST',
-      headers: {
-        Authorization: `Bearer ${idToken}`,
-        'Content-Type': mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg'),
-        'X-Media-Id': mediaId,
-        'X-Media-Ext': ext,
-      },
-      body: blob,
-    });
-    if (!resp.ok) return null;
-    const data = await resp.json().catch(() => null);
-    return typeof data?.url === 'string' && data.url ? data.url : null;
+    if (blob.size <= MAX_SINGLE_SERVER_UPLOAD_BYTES) {
+      const resp = await fetch('/api/media/upload', {
+        method: 'POST',
+        headers: {
+          Authorization: `Bearer ${idToken}`,
+          'Content-Type': mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg'),
+          'X-Media-Id': mediaId,
+          'X-Media-Ext': ext,
+        },
+        body: blob,
+      });
+      if (!resp.ok) return null;
+      const data = await resp.json().catch(() => null);
+      return typeof data?.url === 'string' && data.url ? data.url : null;
+    }
+
+    // Chunked streaming upload for long videos (45MB -> 2GB)
+    const totalChunks = Math.max(1, Math.ceil(blob.size / EXPRESS_STREAM_CHUNK_BYTES));
+    let finalUrl: string | null = null;
+    for (let idx = 0; idx < totalChunks; idx++) {
+      const start = idx * EXPRESS_STREAM_CHUNK_BYTES;
+      const end = Math.min(start + EXPRESS_STREAM_CHUNK_BYTES, blob.size);
+      const chunk = blob.slice(start, end);
+
+      let chunkData: any = null;
+      for (let attempt = 0; attempt < 2; attempt++) {
+        const freshToken =
+          attempt > 0 && auth.currentUser
+            ? await auth.currentUser.getIdToken().catch(() => idToken)
+            : idToken;
+        const resp = await fetch('/api/media/upload-chunk', {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${freshToken}`,
+            'Content-Type': mimeType || 'video/mp4',
+            'X-Media-Id': mediaId,
+            'X-Media-Ext': ext,
+            'X-Chunk-Index': String(idx),
+            'X-Total-Chunks': String(totalChunks),
+          },
+          body: chunk,
+        });
+        if (resp.ok) {
+          chunkData = await resp.json().catch(() => null);
+          break;
+        }
+        if (resp.status >= 400 && resp.status < 429) {
+          return null;
+        }
+      }
+      if (!chunkData?.ok) return null;
+      if (onProgress) {
+        onProgress(Math.min(98, Math.round(((idx + 1) / totalChunks) * 88) + 10));
+      }
+      if (typeof chunkData.url === 'string' && chunkData.url) {
+        finalUrl = chunkData.url;
+      }
+    }
+    return finalUrl;
   } catch {
     return null;
   }
@@ -200,7 +313,8 @@ export async function uploadMediaFile(
       mediaId,
       ext,
       mimeType,
-      user.uid
+      user.uid,
+      options?.onProgress
     );
     if (storageUrl) {
       options?.onProgress?.(100);
@@ -210,14 +324,21 @@ export async function uploadMediaFile(
     const idToken = await user.getIdToken().catch(() => '');
     const [serverUrl, firestoreOk] = await Promise.all([
       idToken
-        ? tryUploadToExpressServer(fileOrBlob, mediaId, ext, mimeType, idToken)
+        ? tryUploadToExpressServer(
+            fileOrBlob,
+            mediaId,
+            ext,
+            mimeType,
+            idToken,
+            options?.onProgress
+          )
         : Promise.resolve(null),
       tryReplicateToFirestoreChunks(
         fileOrBlob,
         mediaId,
         mimeType,
         user.uid,
-        options?.onProgress
+        fileOrBlob.size <= MAX_SINGLE_SERVER_UPLOAD_BYTES ? options?.onProgress : undefined
       ),
     ]);
 

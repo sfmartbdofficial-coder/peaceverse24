@@ -6,6 +6,8 @@ interface FbVideoPlayerProps {
   src: string;
   poster?: string;
   title?: string;
+  duration?: string;
+  videoKind?: 'reel' | 'long';
   onOpenFullscreen?: () => void;
 }
 
@@ -13,6 +15,8 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
   src,
   poster,
   title,
+  duration,
+  videoKind,
   onOpenFullscreen,
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
@@ -147,6 +151,16 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
         className="w-full h-auto max-h-[640px] object-contain mx-auto"
         title={title || 'Peaceverse Video'}
       />
+
+      {/* Top-Left Subtle Duration & Type Tag (Reels vs Long Video) */}
+      {(duration || videoKind) && (
+        <div className="pointer-events-none absolute top-3 left-3 z-20 flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-black/70 backdrop-blur-md border border-white/15 text-[11px] font-bold text-white shadow">
+          <span className={videoKind === 'long' ? 'text-emerald-300' : 'text-sky-300'}>
+            {videoKind === 'long' ? 'লং ভিডিও' : 'রিলস'}
+          </span>
+          {duration && <span className="text-white/85 tabular-nums">• {duration}</span>}
+        </div>
+      )}
 
       {/* Top-Right Floating TikTok / Reels Pill Button */}
       {onOpenFullscreen && (

@@ -87,11 +87,22 @@ app.get('/sitemap.xml', (_req, res) => {
   res.sendFile(path.resolve(__dirname, 'public', 'sitemap.xml'));
 });
 
-// Server-side Rate Limiter for /api/* (Max 60 requests per minute per client IP/user; OTP endpoints enforce tighter per-email limits)
+// Server-side Rate Limiter for /api/* (Max 60 requests per minute; chunked long-video uploads get a dedicated 600/5m window)
 const apiRateMap = new Map<string, number[]>();
+const chunkRateMap = new Map<string, number[]>();
 app.use('/api', (req, res, next) => {
   const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
+  if (req.path === '/media/upload-chunk') {
+    const chunkWindowMs = 5 * 60 * 1000;
+    const recentChunks = (chunkRateMap.get(clientIp) || []).filter((ts) => now - ts < chunkWindowMs);
+    if (recentChunks.length >= 600) {
+      return res.status(429).json({ error: 'Chunk upload rate limit exceeded. Please pause briefly.' });
+    }
+    recentChunks.push(now);
+    chunkRateMap.set(clientIp, recentChunks);
+    return next();
+  }
   const windowMs = 60 * 1000;
   const maxReq = 60;
   const recent = (apiRateMap.get(clientIp) || []).filter((ts) => now - ts < windowMs);
@@ -675,6 +686,20 @@ const BLOCK_WORDS = [
   'naked video',
   'hentai',
   'nsfw',
+  '18+ video',
+  '18+ xxx',
+  'deshi xxx',
+  'bangla xxx',
+  'bengali xxx',
+  'choti golpo',
+  'nangta',
+  'nangto',
+  'পর্ণ',
+  'পর্ণোগ্রাফি',
+  'ন্যাংটা',
+  'ন্যাংটু',
+  'নেংটা',
+  'কামুক ভিডিও',
 ];
 
 const ADULT_EXPLICIT_REGEXES = [
@@ -683,13 +708,15 @@ const ADULT_EXPLICIT_REGEXES = [
   /\bxvideos\b/i,
   /\bxhamster\b/i,
   /\bporn(?:o|ography|hub|star)?\b/i,
-  /\bsex[\s._-]*(?:video|clip|movie|tape|chat|cam)\b/i,
-  /\bnude(?:s)?\b/i,
+  /\bsex[\s._-]*(?:video|clip|movie|tape|chat|cam|mms)\b/i,
+  /\b(?:bangla|desi|hindi|indian)[\s._-]*(?:sex|xxx|porn|mms|nude)\b/i,
+  /\bnude(?:s|ity)?\b/i,
   /\bnaked\b/i,
   /\bhentai\b/i,
   /\berotic(?:a)?\b/i,
   /\bbdsm\b/i,
   /\bonlyfans\b/i,
+  /\bchoda(?:chudi)?\b/i,
 ];
 
 const ADULT_BLOCK_MSG =
@@ -740,7 +767,7 @@ app.post('/api/ai/moderate-media', async (req, res) => {
     }
 
     const imageList = Array.isArray(images)
-      ? images.filter((u) => typeof u === 'string' && u.startsWith('data:image/')).slice(0, 3)
+      ? images.filter((u) => typeof u === 'string' && u.startsWith('data:image/')).slice(0, 4)
       : [];
 
     const hasServerKey = Boolean(
@@ -755,7 +782,7 @@ app.post('/api/ai/moderate-media', async (req, res) => {
         text:
           'You are a strict explicit-adult-content-only safety classifier. ' +
           'ONLY flag explicit pornography, XXX sexual acts, exposed genitalia, or explicit nudity. ' +
-          'Allow ALL normal photos/videos including selfies, portraits, sports, music, comedy, food, nature, news, business, and family photos. ' +
+          'Allow ALL normal photos/videos including selfies, portraits, sports, music, comedy, food, nature, news, business, lectures, and family photos. ' +
           'Respond strictly in JSON: {"isExplicitAdult": boolean}',
       },
     ];
@@ -780,7 +807,7 @@ app.post('/api/ai/moderate-media', async (req, res) => {
     }
 
     const response = await getAiClient().models.generateContent({
-      model: 'gemini-3.8-flash',
+      model: 'gemini-4-hydrogen',
       contents: [{ role: 'user', parts }],
       config: {
         responseMimeType: 'application/json',
@@ -1713,6 +1740,143 @@ app.post(
     } catch (error: any) {
       console.error('Media upload error:', error);
       return res.status(500).json({ ok: false, error: 'Failed to store uploaded media.' });
+    }
+  }
+);
+
+const MAX_CHUNKED_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB max for long videos
+const chunkUploadSessions = new Map<
+  string,
+  {
+    ownerUid: string;
+    ext: string;
+    totalChunks: number;
+    expectedIndex: number;
+    totalBytes: number;
+    updatedAt: number;
+  }
+>();
+
+app.post(
+  '/api/media/upload-chunk',
+  express.raw({
+    type: ['video/*', 'image/*', 'audio/*', 'application/octet-stream'],
+    limit: '10mb',
+  }),
+  async (req, res) => {
+    try {
+      const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+      if (!verified) {
+        return res.status(401).json({ ok: false, error: 'Authentication required to upload media.' });
+      }
+
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ ok: false, error: 'Empty chunk payload.' });
+      }
+
+      const rawId = String(req.headers['x-media-id'] || '').trim();
+      if (!/^[a-zA-Z0-9_-]{8,64}$/.test(rawId)) {
+        return res.status(400).json({ ok: false, error: 'Invalid media ID.' });
+      }
+
+      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const requestedExt = String(req.headers['x-media-ext'] || '').replace(/[^a-z0-9]/gi, '');
+      const ext = resolveMediaExtFromMime(contentType, requestedExt);
+      if (!ext) {
+        return res.status(415).json({ ok: false, error: 'Unsupported or blocked media type.' });
+      }
+
+      const chunkIndex = Number(req.headers['x-chunk-index']);
+      const totalChunks = Number(req.headers['x-total-chunks']);
+      if (
+        !Number.isInteger(chunkIndex) ||
+        !Number.isInteger(totalChunks) ||
+        totalChunks < 1 ||
+        totalChunks > 512 ||
+        chunkIndex < 0 ||
+        chunkIndex >= totalChunks
+      ) {
+        return res.status(400).json({ ok: false, error: 'Invalid chunk index metadata.' });
+      }
+
+      if (!fs.existsSync(MEDIA_STORAGE_DIR)) {
+        fs.mkdirSync(MEDIA_STORAGE_DIR, { recursive: true });
+      }
+
+      const partFilename = `${rawId}.${ext}.part`;
+      const finalFilename = `${rawId}.${ext}`;
+      const partPath = path.resolve(MEDIA_STORAGE_DIR, partFilename);
+      const finalPath = path.resolve(MEDIA_STORAGE_DIR, finalFilename);
+      if (
+        !partPath.startsWith(MEDIA_STORAGE_DIR + path.sep) ||
+        !finalPath.startsWith(MEDIA_STORAGE_DIR + path.sep)
+      ) {
+        return res.status(400).json({ ok: false, error: 'Invalid media file path.' });
+      }
+
+      if (chunkIndex === 0) {
+        const existingSession = chunkUploadSessions.get(rawId);
+        if (existingSession && existingSession.ownerUid !== verified.uid) {
+          return res.status(403).json({ ok: false, error: 'Media ID belongs to another user.' });
+        }
+        chunkUploadSessions.set(rawId, {
+          ownerUid: verified.uid,
+          ext,
+          totalChunks,
+          expectedIndex: 1,
+          totalBytes: req.body.length,
+          updatedAt: Date.now(),
+        });
+        fs.writeFileSync(partPath, req.body);
+      } else {
+        const session = chunkUploadSessions.get(rawId);
+        if (!session || session.ownerUid !== verified.uid || session.ext !== ext || session.totalChunks !== totalChunks) {
+          return res.status(403).json({ ok: false, error: 'Invalid or unauthorized upload session.' });
+        }
+        if (chunkIndex < session.expectedIndex) {
+          return res.json({ ok: true, mediaId: rawId, chunkIndex, completed: false });
+        }
+        if (chunkIndex !== session.expectedIndex) {
+          return res.status(409).json({ ok: false, error: 'Out-of-order chunk sequence.' });
+        }
+        const nextSize = session.totalBytes + req.body.length;
+        if (nextSize > MAX_CHUNKED_VIDEO_BYTES) {
+          chunkUploadSessions.delete(rawId);
+          try {
+            if (fs.existsSync(partPath)) fs.unlinkSync(partPath);
+          } catch {}
+          return res.status(413).json({ ok: false, error: 'Video exceeds maximum 2GB size limit.' });
+        }
+        fs.appendFileSync(partPath, req.body);
+        session.expectedIndex = chunkIndex + 1;
+        session.totalBytes = nextSize;
+        session.updatedAt = Date.now();
+      }
+
+      if (chunkIndex === totalChunks - 1) {
+        const session = chunkUploadSessions.get(rawId);
+        const totalSize = session?.totalBytes || req.body.length;
+        chunkUploadSessions.delete(rawId);
+        fs.renameSync(partPath, finalPath);
+        return res.json({
+          ok: true,
+          completed: true,
+          mediaId: rawId,
+          filename: finalFilename,
+          url: `/api/media/${finalFilename}`,
+          size: totalSize,
+        });
+      }
+
+      return res.json({
+        ok: true,
+        completed: false,
+        mediaId: rawId,
+        chunkIndex,
+      });
+    } catch (error: any) {
+      console.error('Chunked media upload error:', error);
+      return res.status(500).json({ ok: false, error: 'Failed to store uploaded chunk.' });
     }
   }
 );

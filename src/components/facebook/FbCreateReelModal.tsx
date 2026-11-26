@@ -26,7 +26,11 @@ import {
   checkMediaVisualSafety,
   checkPost,
 } from '../../lib/halalFilter';
-import { extractVideoFrameDataUrl, readFileAsDataUrl } from '../../utils/imageCompress';
+import {
+  classifyVideoDuration,
+  extractVideoMetadataAndFrames,
+  readFileAsDataUrl,
+} from '../../utils/imageCompress';
 import { uploadDataUrlIfOversized, uploadMediaFile } from '../../lib/mediaStorage';
 import { FbBoostPostModal } from './FbBoostPostModal';
 
@@ -42,7 +46,10 @@ interface PreviewReelMedia {
   url: string;
   mediaType: 'video' | 'image';
   duration: string;
+  durationSeconds?: number;
+  videoKind?: 'reel' | 'long';
   thumbnail?: string;
+  frames?: string[];
   arabicSnippet?: string;
   suggestedTitle?: string;
   file?: File;
@@ -150,7 +157,16 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
   const [selectedDuration, setSelectedDuration] = useState<'0:30' | '0:45' | '1:00' | '1:15'>('0:45');
   const [selectedCategory, setSelectedCategory] = useState<string>('Makkah Live');
   const [uploadedVideos, setUploadedVideos] = useState<
-    Array<{ url: string; mediaType: 'video' | 'image'; thumbnail?: string; duration: string; file?: File }>
+    Array<{
+      url: string;
+      mediaType: 'video' | 'image';
+      thumbnail?: string;
+      frames?: string[];
+      duration: string;
+      durationSeconds?: number;
+      videoKind?: 'reel' | 'long';
+      file?: File;
+    }>
   >([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isCheckingMedia, setIsCheckingMedia] = useState(false);
@@ -172,7 +188,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
     const check = validateMediaUpload(file, ['video', 'image']);
     if (!check.valid) {
-      setUploadError(check.error || 'Max 50MB video or 5MB image file allowed.');
+      setUploadError(check.error || 'সর্বোচ্চ ২ GB ভিডিও বা ৫ MB ছবি আপলোড করা যাবে।');
       return;
     }
 
@@ -185,16 +201,25 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
     setUploadError(null);
     setIsCheckingMedia(true);
     try {
-      let frameOrImage: string | null = null;
       const isImageFile = file.type.startsWith('image/');
-      if (file.type.startsWith('video/')) {
-        frameOrImage = await extractVideoFrameDataUrl(file);
-      } else if (isImageFile) {
-        frameOrImage = await readFileAsDataUrl(file);
+      let frames: string[] = [];
+      let detectedDurationSeconds = 0;
+      let detectedDurationText: string = selectedDuration;
+
+      if (isImageFile) {
+        const imgData = await readFileAsDataUrl(file);
+        if (imgData) frames = [imgData];
+      } else {
+        const meta = await extractVideoMetadataAndFrames(file, 4);
+        frames = meta.frames;
+        detectedDurationSeconds = meta.durationSeconds;
+        if (meta.durationSeconds > 0) {
+          detectedDurationText = meta.durationText;
+        }
       }
 
       const visual = await checkMediaVisualSafety({
-        mediaDataUrls: frameOrImage ? [frameOrImage] : [],
+        mediaDataUrls: frames,
         caption,
         fileNames: [file.name],
       });
@@ -204,8 +229,11 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       }
 
       const url = URL.createObjectURL(file);
-
       const mediaType: 'video' | 'image' = isImageFile ? 'image' : 'video';
+      const classification = isImageFile
+        ? { kind: 'reel' as const }
+        : classifyVideoDuration(detectedDurationSeconds);
+      const frameOrImage = frames[0];
 
       // NEVER use file.name (like 1000048591) as Title or Caption!
       setUploadedVideos((prev) => [
@@ -213,7 +241,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           url,
           mediaType,
           thumbnail: frameOrImage || undefined,
-          duration: selectedDuration,
+          frames,
+          duration: detectedDurationText,
+          durationSeconds: detectedDurationSeconds || undefined,
+          videoKind: classification.kind,
           file,
         },
         ...prev,
@@ -222,8 +253,11 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       setPreviewMedia({
         url,
         mediaType,
-        duration: selectedDuration,
+        duration: detectedDurationText,
+        durationSeconds: detectedDurationSeconds || undefined,
+        videoKind: classification.kind,
         thumbnail: frameOrImage || undefined,
+        frames,
         file,
       });
       setStep('preview');
@@ -241,6 +275,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       url: item.videoUrl,
       mediaType: 'video',
       duration: item.duration,
+      videoKind: 'reel',
       thumbnail: item.thumbnail,
       arabicSnippet: item.arabic,
       suggestedTitle: item.title,
@@ -252,7 +287,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
     url: string;
     mediaType: 'video' | 'image';
     thumbnail?: string;
+    frames?: string[];
     duration: string;
+    durationSeconds?: number;
+    videoKind?: 'reel' | 'long';
     file?: File;
   }) => {
     setUploadError(null);
@@ -260,7 +298,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       url: vid.url,
       mediaType: vid.mediaType,
       duration: vid.duration,
+      durationSeconds: vid.durationSeconds,
+      videoKind: vid.videoKind,
       thumbnail: vid.thumbnail,
+      frames: vid.frames,
       file: vid.file,
     });
     setStep('preview');
@@ -281,10 +322,17 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       return null;
     }
 
-    if (previewMedia.thumbnail && previewMedia.thumbnail.startsWith('data:image/')) {
+    const samplesToCheck =
+      previewMedia.frames && previewMedia.frames.length > 0
+        ? previewMedia.frames
+        : previewMedia.thumbnail && previewMedia.thumbnail.startsWith('data:image/')
+        ? [previewMedia.thumbnail]
+        : [];
+    if (samplesToCheck.length > 0 || combinedTextCheck) {
       const visualCheck = await checkMediaVisualSafety({
-        mediaDataUrls: [previewMedia.thumbnail],
+        mediaDataUrls: samplesToCheck,
         caption: combinedTextCheck,
+        fileNames: previewMedia.file?.name ? [previewMedia.file.name] : [],
       });
       if (!visualCheck.safe) {
         setUploadError(visualCheck.reason || ADULT_BLOCK_MESSAGE);
@@ -322,6 +370,9 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
     const resolvedAuthorId = isPageAccount
       ? pageId || userProfile.id
       : userProfile.id || userProfile.name;
+    const computedKind =
+      previewMedia.videoKind ||
+      (previewMedia.durationSeconds ? classifyVideoDuration(previewMedia.durationSeconds).kind : 'reel');
 
     return {
       id: `reel-${nowMs}`,
@@ -330,7 +381,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         name: userProfile.name,
         avatar: userProfile.avatar,
         verified: true,
-        subtitle: `Reels • ${selectedCategory}`,
+        subtitle:
+          computedKind === 'long'
+            ? `Long Video • ${selectedCategory}`
+            : `Reels • ${selectedCategory}`,
       },
       timeAgo: 'Just now',
       isPublic: true,
@@ -342,6 +396,10 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       mediaType: previewMedia.mediaType,
       mediaUrl: persistentMediaUrl,
       duration: previewMedia.duration || selectedDuration,
+      durationSeconds: previewMedia.durationSeconds
+        ? Math.round(previewMedia.durationSeconds)
+        : undefined,
+      videoKind: previewMedia.mediaType === 'video' ? computedKind : 'reel',
       musicTitle: selectedMusic.trim() ? sanitizeInput(selectedMusic.trim(), 80) : undefined,
       category: (selectedCategory === 'Quran Tilawat' ? 'Quran' : 'Lecture') as PostItem['category'],
       reactions: {
@@ -472,6 +530,17 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
                   alt="Reel Preview"
                   className="w-full max-h-[340px] object-contain bg-black mx-auto"
                 />
+              )}
+
+              {previewMedia.mediaType === 'video' && (
+                <div className="px-3 py-1.5 bg-neutral-900 text-white text-[11px] font-bold flex items-center justify-between gap-2 border-t border-white/10">
+                  <span className={previewMedia.videoKind === 'long' ? 'text-emerald-400' : 'text-sky-400'}>
+                    {previewMedia.durationSeconds
+                      ? classifyVideoDuration(previewMedia.durationSeconds).badgeText
+                      : `রিলস (${previewMedia.duration})`}
+                  </span>
+                  <span className="text-white/70 shrink-0">ভালো ভিডিও চলবে</span>
+                </div>
               )}
 
               {selectedMusic && (
@@ -816,21 +885,21 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           </div>
 
           {/* Prominent Device Video Banner */}
-          <div className="p-3 bg-white border-b border-[#E4E6EB] flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center">
+          <div className="p-3 bg-white border-b border-[#E4E6EB] flex items-center justify-between gap-2">
+            <div className="flex items-center gap-2.5 min-w-0">
+              <div className="w-9 h-9 rounded-xl bg-purple-100 text-purple-700 flex items-center justify-center shrink-0">
                 <Film className="w-5 h-5" />
               </div>
-              <div>
-                <p className="text-xs font-bold text-black">আপনার মোবাইল বা পিসির ভিডিও</p>
-                <p className="text-[10px] text-[#65676B]">
-                  ভিডিও বাছলে আগে Preview পেজ খুলবে — সরাসরি পোস্ট হবে না
+              <div className="min-w-0">
+                <p className="text-xs font-bold text-black">ফোনের ভিডিও (রিলস ও লং ভিডিও)</p>
+                <p className="text-[10px] text-[#65676B] leading-snug">
+                  ১০ সেকেন্ড – ৩ মিনিট = রিলস • ৩ মিনিটের বেশি = আনলিমিটেড লং ভিডিও (শুধু XXX নিষিদ্ধ)
                 </p>
               </div>
             </div>
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="px-3 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-black border border-[#CCD0D5] cursor-pointer"
+              className="px-3 py-1.5 rounded-xl bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-black border border-[#CCD0D5] cursor-pointer shrink-0"
             >
               ভিডিও বাছুন
             </button>

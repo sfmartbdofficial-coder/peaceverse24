@@ -941,6 +941,8 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           <FbVideoPlayer
             src={signBunnyCdnUrl(post.mediaUrl)}
             title={post.contentBangla}
+            duration={post.duration}
+            videoKind={post.videoKind}
             onOpenFullscreen={() => {
               if (onOpenReel) {
                 onOpenReel(post);
