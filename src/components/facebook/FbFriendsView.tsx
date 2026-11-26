@@ -12,6 +12,12 @@ import {
   toggleLocalFriendRequestAndSync,
   isTargetFollowedLocally,
   toggleFollowUser,
+  subscribeToIncomingFriendRequests,
+  subscribeToUserFriendsFromFirestore,
+  acceptFriendRequestInFirestore,
+  declineFriendRequestInFirestore,
+  readLocalFriendsStore,
+  IncomingFriendRequestItem,
 } from '../../lib/firebase';
 
 interface FbFriendsViewProps {
@@ -21,6 +27,7 @@ interface FbFriendsViewProps {
   onCreatePageWithName?: (name: string) => void;
   onOpenProfile?: () => void;
   onOpenUserProfile?: (user: SearchedUserProfile) => void;
+  onMessageFriend?: (friend: { id: string; name: string; avatar: string }) => void;
   currentUserId?: string;
   currentUserName?: string;
   currentUserAvatar?: string;
@@ -28,6 +35,7 @@ interface FbFriendsViewProps {
 
 interface FriendRequestCardItem {
   id: string;
+  senderId: string;
   name: string;
   avatar: string;
   timeAgo: string;
@@ -44,117 +52,18 @@ interface FriendItem {
   isOnline: boolean;
 }
 
-const INITIAL_REQUESTS: FriendRequestCardItem[] = [
-  {
-    id: 'req-ujjol',
-    name: 'Md Ujjol',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-    timeAgo: '5d',
-    mutualText: '1 mutual friend · 2w',
-    mutualAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80',
-    isOnline: true,
-  },
-  {
-    id: 'req-abul-baser',
-    name: 'Abul Baser',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-    timeAgo: '2w',
-    mutualText: '3 mutual friends · 2w',
-    mutualAvatar:
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=80&q=80',
-    isOnline: true,
-  },
-  {
-    id: 'req-hassan',
-    name: 'Hassan Abdullah',
-    avatar:
-      'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=240&q=80',
-    timeAgo: '1h',
-    mutualText: '2 mutual friends · 1h',
-    mutualAvatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=80&q=80',
-    isOnline: true,
-  },
-  {
-    id: 'req-oli-ullah',
-    name: 'MD Oli Ullah',
-    avatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=240&q=80',
-    timeAgo: '45m',
-    mutualText: '1 mutual friend · 45m',
-    mutualAvatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=80&q=80',
-    isOnline: true,
-  },
-  {
-    id: 'req-tariqul',
-    name: 'Tariqul Islam',
-    avatar:
-      'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
-    timeAgo: '5w',
-    mutualText: '4 mutual friends · 5w',
-    mutualAvatar:
-      'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=80&q=80',
-    isOnline: false,
-  },
-  {
-    id: 'req-sabbir',
-    name: 'Sabbir Ahmed',
-    avatar:
-      'https://images.unsplash.com/photo-1506794778202-cad84cf45f1d?auto=format&fit=crop&w=240&q=80',
-    timeAgo: '2d',
-    mutualText: '1 mutual friend · 2d',
-    mutualAvatar:
-      'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?auto=format&fit=crop&w=80&q=80',
-    isOnline: true,
-  },
-];
-
-const INITIAL_ONLINE_FRIENDS: FriendItem[] = [
-  {
-    id: 'on-1',
-    name: 'নিস্তব্ধ হৃদয়',
-    avatar:
-      'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&w=240&q=80',
-    mutualCount: 8,
-    isOnline: true,
-  },
-  {
-    id: 'on-2',
-    name: 'সুনামগঞ্জ রাজনৈতিক',
-    avatar:
-      'https://images.unsplash.com/photo-1500648767791-00dcc994a43e?auto=format&fit=crop&w=240&q=80',
-    mutualCount: 5,
-    isOnline: true,
-  },
-  {
-    id: 'on-3',
-    name: 'Sujon Ahmed',
-    avatar:
-      'https://images.unsplash.com/photo-1519085360753-af0119f7cbe7?auto=format&fit=crop&w=240&q=80',
-    mutualCount: 12,
-    isOnline: true,
-  },
-  {
-    id: 'user-fatima-zahra',
-    name: 'Fatima Zahra',
-    avatar:
-      'https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=300&q=80',
-    mutualCount: 6,
-    isOnline: true,
-  },
-  {
-    id: 'user-nusrat-jahan',
-    name: 'Nusrat Jahan',
-    avatar:
-      'https://images.unsplash.com/photo-1544005313-94ddf0286df2?auto=format&fit=crop&w=300&q=80',
-    mutualCount: 4,
-    isOnline: false,
-  },
-];
+function formatRequestTimeAgo(createdAtMillis?: number): string {
+  if (!createdAtMillis) return 'Just now';
+  const diffSec = Math.max(0, Math.floor((Date.now() - createdAtMillis) / 1000));
+  if (diffSec < 60) return 'Just now';
+  const mins = Math.floor(diffSec / 60);
+  if (mins < 60) return `${mins}m`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h`;
+  const days = Math.floor(hrs / 24);
+  if (days < 7) return `${days}d`;
+  return `${Math.floor(days / 7)}w`;
+}
 
 export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   onBack,
@@ -163,6 +72,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   onCreatePageWithName,
   onOpenProfile,
   onOpenUserProfile,
+  onMessageFriend,
   currentUserId = 'user-me',
   currentUserName = 'Member',
   currentUserAvatar = 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
@@ -170,9 +80,9 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   const [activeTab, setActiveTab] = useState<'requests' | 'online' | 'suggestions' | 'friends'>('requests');
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [showNotifBar, setShowNotifBar] = useState(true);
   const [directoryResults, setDirectoryResults] = useState<SearchedUserProfile[]>([]);
   const [isSearchingDirectory, setIsSearchingDirectory] = useState(false);
+  const [incomingRequests, setIncomingRequests] = useState<IncomingFriendRequestItem[]>([]);
   const [, setSyncTick] = useState(0);
   const searchSeqRef = useRef(0);
 
@@ -211,16 +121,17 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
   }, [deleted]);
 
   const [friendsList, setFriendsList] = useState<FriendItem[]>(() => {
-    try {
-      const saved = localStorage.getItem('peace_friends_list');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch {
-      // ignore
-    }
-    return INITIAL_ONLINE_FRIENDS;
+    return readLocalFriendsStore().map((f) => ({
+      id: f.id,
+      name: f.name,
+      avatar:
+        f.avatar ||
+        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+          f.name
+        )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+      mutualCount: f.mutualCount || 1,
+      isOnline: f.isOnline ?? true,
+    }));
   });
 
   useEffect(() => {
@@ -231,18 +142,56 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
     }
   }, [friendsList]);
 
-  const handleConfirm = (req: FriendRequestCardItem) => {
-    setConfirmed((prev) => ({ ...prev, [req.id]: true }));
+  useEffect(() => {
+    if (!currentUserId || currentUserId === 'user-me') {
+      setIncomingRequests([]);
+      return;
+    }
+    const unsubReqs = subscribeToIncomingFriendRequests(currentUserId, (reqs) => {
+      setIncomingRequests(reqs);
+    });
+    const unsubFriends = subscribeToUserFriendsFromFirestore(currentUserId, ({ friends }) => {
+      setFriendsList((prev) => {
+        const byId = new Map<string, FriendItem>();
+        friends.forEach((f) => {
+          byId.set(f.id, {
+            id: f.id,
+            name: f.name,
+            avatar:
+              f.avatar ||
+              `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                f.name
+              )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+            mutualCount: 1,
+            isOnline: true,
+          });
+        });
+        prev.forEach((p) => {
+          if (confirmed[p.id] && !byId.has(p.id)) {
+            byId.set(p.id, p);
+          }
+        });
+        return Array.from(byId.values());
+      });
+    });
+    return () => {
+      unsubReqs();
+      unsubFriends();
+    };
+  }, [currentUserId, confirmed]);
+
+  const handleConfirm = async (req: FriendRequestCardItem) => {
+    setConfirmed((prev) => ({ ...prev, [req.id]: true, [req.senderId]: true }));
     addLocalFriend({
-      id: req.id,
+      id: req.senderId,
       name: req.name,
       avatar: req.avatar,
     });
     setFriendsList((prev) => {
-      if (prev.some((f) => f.id === req.id)) return prev;
+      if (prev.some((f) => f.id === req.senderId)) return prev;
       return [
         {
-          id: req.id,
+          id: req.senderId,
           name: req.name,
           avatar: req.avatar,
           mutualCount: 1,
@@ -251,16 +200,54 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
         ...prev,
       ];
     });
+    await acceptFriendRequestInFirestore(
+      {
+        id: currentUserId,
+        name: currentUserName,
+        avatar: currentUserAvatar,
+      },
+      {
+        id: req.senderId,
+        name: req.name,
+        avatar: req.avatar,
+      },
+      req.id
+    );
     if (onConfirmRequest) onConfirmRequest(req.id);
   };
 
-  const handleDelete = (id: string) => {
-    setDeleted((prev) => ({ ...prev, [id]: true }));
-    if (onDeleteRequest) onDeleteRequest(id);
+  const handleDelete = async (req: FriendRequestCardItem) => {
+    setDeleted((prev) => ({ ...prev, [req.id]: true, [req.senderId]: true }));
+    await declineFriendRequestInFirestore(currentUserId, req.senderId, req.id);
+    if (onDeleteRequest) onDeleteRequest(req.id);
   };
 
   useEffect(() => {
-    const bump = () => setSyncTick((t) => t + 1);
+    const bump = () => {
+      setSyncTick((t) => t + 1);
+      const localFriends = readLocalFriendsStore();
+      if (localFriends.length > 0) {
+        setFriendsList((prev) => {
+          const map = new Map(prev.map((p) => [p.id, p]));
+          localFriends.forEach((f) => {
+            if (!map.has(f.id)) {
+              map.set(f.id, {
+                id: f.id,
+                name: f.name,
+                avatar:
+                  f.avatar ||
+                  `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+                    f.name
+                  )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+                mutualCount: f.mutualCount || 1,
+                isOnline: f.isOnline ?? true,
+              });
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    };
     window.addEventListener('peaceverse:friends-updated', bump);
     window.addEventListener('peaceverse:friend-requests-updated', bump);
     window.addEventListener('peaceverse:follows-updated', bump);
@@ -301,8 +288,18 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
     return () => window.clearTimeout(timer);
   }, [searchQuery]);
 
-  const pendingRequests = INITIAL_REQUESTS.filter((r) => !deleted[r.id] && !confirmed[r.id]);
-  const onlineCount = Math.max(34, friendsList.filter((f) => f.isOnline).length + 31);
+  const pendingRequests: FriendRequestCardItem[] = incomingRequests
+    .filter((r) => !deleted[r.id] && !deleted[r.senderId] && !confirmed[r.id] && !confirmed[r.senderId])
+    .map((r) => ({
+      id: r.id,
+      senderId: r.senderId,
+      name: r.senderName,
+      avatar: r.senderAvatar,
+      timeAgo: formatRequestTimeAgo(r.createdAtMillis),
+      mutualText: 'Peaceverse24 member',
+      isOnline: true,
+    }));
+  const onlineCount = friendsList.filter((f) => f.isOnline).length;
 
   const q = searchQuery.trim().toLowerCase();
   const visibleRequests = q
@@ -606,37 +603,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
         </div>
       )}
 
-      {/* NOTIFICATION BAR */}
-      {showNotifBar && activeTab === 'requests' && (
-        <div className="mx-3.5 mt-3 p-3 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between gap-2.5 shadow-2xs">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="flex items-center shrink-0">
-              <img
-                src={INITIAL_ONLINE_FRIENDS[0].avatar}
-                alt="নিস্তব্ধ হৃদয়"
-                className="w-8 h-8 rounded-full object-cover border-2 border-white"
-              />
-              <img
-                src={INITIAL_ONLINE_FRIENDS[1].avatar}
-                alt="সুনামগঞ্জ রাজনৈতিক"
-                className="w-8 h-8 rounded-full object-cover border-2 border-white -ml-2"
-              />
-            </div>
-            <p className="text-[13px] text-[#050505] leading-snug">
-              <span className="font-bold">নিস্তব্ধ হৃদয়</span> and{' '}
-              <span className="font-bold">সুনামগঞ্জ রাজনৈতিক</span> accepted your friend requests.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={() => setShowNotifBar(false)}
-            className="p-1 rounded-full hover:bg-[#F0F2F5] text-[#65676B] shrink-0 cursor-pointer"
-            title="Dismiss"
-          >
-            <X className="w-4 h-4" />
-          </button>
-        </div>
-      )}
+
 
       {/* ======================================================== */}
       {/* TAB 1: FRIEND REQUESTS (DEFAULT FB LANDING)              */}
@@ -685,7 +652,19 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                   className="bg-white rounded-xl py-2 flex items-center gap-3.5"
                 >
                   {/* Left: Circular Profile Pic with Green Online Dot bottom-right */}
-                  <div className="relative shrink-0">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenUserProfile?.({
+                        id: req.senderId,
+                        uid: req.senderId,
+                        displayName: req.name,
+                        avatar: req.avatar,
+                        allowFriendRequests: true,
+                      })
+                    }
+                    className="relative shrink-0 cursor-pointer"
+                  >
                     <img
                       src={req.avatar}
                       alt={req.name}
@@ -694,14 +673,26 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                     {req.isOnline && (
                       <span className="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-[#31A24C] border-2 border-white" />
                     )}
-                  </div>
+                  </button>
 
                   {/* Right: Name, Time, Mutual friend, Confirm / Delete */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-2">
-                      <p className="font-bold text-[16px] text-[#050505] truncate">
+                      <button
+                        type="button"
+                        onClick={() =>
+                          onOpenUserProfile?.({
+                            id: req.senderId,
+                            uid: req.senderId,
+                            displayName: req.name,
+                            avatar: req.avatar,
+                            allowFriendRequests: true,
+                          })
+                        }
+                        className="font-bold text-[16px] text-[#050505] truncate hover:underline text-left cursor-pointer"
+                      >
                         {req.name}
-                      </p>
+                      </button>
                       <span className="text-xs text-[#65676B] shrink-0">
                         {req.timeAgo}
                       </span>
@@ -730,7 +721,7 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                       </button>
                       <button
                         type="button"
-                        onClick={() => handleDelete(req.id)}
+                        onClick={() => handleDelete(req)}
                         className="flex-1 py-2 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-[#050505] text-[14px] font-bold transition-colors cursor-pointer"
                       >
                         Delete
@@ -782,6 +773,18 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
 
           {q && visibleOnline.length === 0 && noDirectoryMatches ? (
             <FbSearchEmptyState query={searchQuery} onCreatePageWithName={onCreatePageWithName} />
+          ) : visibleOnline.length === 0 ? (
+            <div className="bg-white rounded-xl border border-[#E4E6EB] p-8 text-center space-y-2 shadow-2xs my-2">
+              <div className="w-14 h-14 rounded-full bg-[#E7F3FF] flex items-center justify-center text-[#1877F2] mx-auto">
+                <Users className="w-7 h-7" />
+              </div>
+              <h3 className="text-base font-bold text-[#050505]">
+                কোনো অ্যাক্টিভ বন্ধু নেই (0 online)
+              </h3>
+              <p className="text-xs text-[#65676B] max-w-sm mx-auto">
+                ফ্রেন্ড রিকোয়েস্ট পাঠান বা গ্রহণ করুন, তখন আপনার বন্ধুরা এখানে অ্যাক্টিভ দেখাবে।
+              </p>
+            </div>
           ) : (
             <div className="space-y-2.5">
               {visibleOnline.map((friend) => (
@@ -789,7 +792,19 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                   key={friend.id}
                   className="p-2.5 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenUserProfile?.({
+                        id: friend.id,
+                        uid: friend.id,
+                        displayName: friend.name,
+                        avatar: friend.avatar,
+                        allowFriendRequests: true,
+                      })
+                    }
+                    className="flex items-center gap-3 text-left cursor-pointer group"
+                  >
                     <div className="relative">
                       <img
                         src={friend.avatar}
@@ -799,12 +814,19 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                       <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full bg-[#31A24C] border-2 border-white" />
                     </div>
                     <div>
-                      <p className="font-bold text-sm text-[#050505]">{friend.name}</p>
+                      <p className="font-bold text-sm text-[#050505] group-hover:underline">{friend.name}</p>
                       <p className="text-xs text-[#31A24C] font-semibold">Active now</p>
                     </div>
-                  </div>
+                  </button>
                   <button
                     type="button"
+                    onClick={() =>
+                      onMessageFriend?.({
+                        id: friend.id,
+                        name: friend.name,
+                        avatar: friend.avatar,
+                      })
+                    }
                     className="px-3.5 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-[#050505] cursor-pointer"
                   >
                     Message
@@ -874,7 +896,19 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                   key={friend.id}
                   className="p-2.5 rounded-xl bg-white border border-[#E4E6EB] flex items-center justify-between"
                 >
-                  <div className="flex items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={() =>
+                      onOpenUserProfile?.({
+                        id: friend.id,
+                        uid: friend.id,
+                        displayName: friend.name,
+                        avatar: friend.avatar,
+                        allowFriendRequests: true,
+                      })
+                    }
+                    className="flex items-center gap-3 text-left cursor-pointer group"
+                  >
                     <div className="relative">
                       <img
                         src={friend.avatar}
@@ -886,15 +920,22 @@ export const FbFriendsView: React.FC<FbFriendsViewProps> = ({
                       )}
                     </div>
                     <div>
-                      <p className="font-bold text-sm text-[#050505]">{friend.name}</p>
+                      <p className="font-bold text-sm text-[#050505] group-hover:underline">{friend.name}</p>
                       <p className="text-xs text-[#65676B]">
-                        {friend.mutualCount} mutual friends
+                        Peaceverse24 friend
                       </p>
                     </div>
-                  </div>
+                  </button>
 
                   <button
                     type="button"
+                    onClick={() =>
+                      onMessageFriend?.({
+                        id: friend.id,
+                        name: friend.name,
+                        avatar: friend.avatar,
+                      })
+                    }
                     className="px-3.5 py-1.5 rounded-lg bg-[#E4E6EB] hover:bg-[#D8DADF] text-xs font-bold text-[#050505] transition-colors cursor-pointer"
                   >
                     Message

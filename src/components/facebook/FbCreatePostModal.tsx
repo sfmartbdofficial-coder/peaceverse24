@@ -36,8 +36,8 @@ import {
   compressPostImagesBatch,
   extractVideoFrameDataUrl,
   MAX_POST_PHOTOS,
-  readFileAsDataUrl,
 } from '../../utils/imageCompress';
+import { uploadDataUrlIfOversized, uploadMediaFile } from '../../lib/mediaStorage';
 
 interface FbCreatePostModalProps {
   userProfile: UserProfile;
@@ -156,6 +156,8 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     }
     return null;
   });
+  const [selectedVideoFile, setSelectedVideoFile] = useState<File | null>(null);
+  const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
   const [pendingVideoFrame, setPendingVideoFrame] = useState<string | null>(null);
   const [pendingFileNames, setPendingFileNames] = useState<string[]>([]);
 
@@ -243,8 +245,16 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           });
           return;
         }
-        const videoUrl = await readFileAsDataUrl(videoFile);
-        setSelectedVideo(videoUrl);
+        const previewBlobUrl = URL.createObjectURL(videoFile);
+        setSelectedVideo((prev) => {
+          if (prev && prev.startsWith('blob:')) {
+            try {
+              URL.revokeObjectURL(prev);
+            } catch {}
+          }
+          return previewBlobUrl;
+        });
+        setSelectedVideoFile(videoFile);
         setPendingVideoFrame(frame);
         setPendingFileNames([videoFile.name]);
         setSelectedPhotos([]);
@@ -305,7 +315,15 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         });
         return;
       }
-      setSelectedVideo(null);
+      setSelectedVideo((prev) => {
+        if (prev && prev.startsWith('blob:')) {
+          try {
+            URL.revokeObjectURL(prev);
+          } catch {}
+        }
+        return null;
+      });
+      setSelectedVideoFile(null);
       setPendingVideoFrame(null);
       setPendingFileNames((prev) => [...prev, ...acceptedFiles.map((f) => f.name)].slice(0, MAX_POST_PHOTOS));
       setSelectedPhotos((prev) => [...prev, ...compressedUrls].slice(0, MAX_POST_PHOTOS));
@@ -389,6 +407,43 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
 
       setIsSubmitting(true);
 
+      let finalVideoUrl: string | undefined = undefined;
+      let finalPhotoUrls: string[] = [];
+
+      if (selectedVideoFile) {
+        setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+        finalVideoUrl = await uploadMediaFile(selectedVideoFile, {
+          mimeType: selectedVideoFile.type || 'video/mp4',
+          fileName: selectedVideoFile.name,
+          onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+        });
+      } else if (selectedVideo) {
+        if (selectedVideo.startsWith('blob:')) {
+          setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+          const blobResp = await fetch(selectedVideo);
+          const blob = await blobResp.blob();
+          finalVideoUrl = await uploadMediaFile(blob, {
+            mimeType: blob.type || 'video/mp4',
+            onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+          });
+        } else if (selectedVideo.startsWith('data:')) {
+          setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+          finalVideoUrl = await uploadDataUrlIfOversized(selectedVideo, 'video', true);
+        } else {
+          finalVideoUrl = selectedVideo;
+        }
+      } else if (selectedPhotos.length > 0) {
+        setUploadProgressText('ছবি আপলোড হচ্ছে...');
+        const forceCloudUpload = selectedPhotos.length > 2;
+        finalPhotoUrls = (
+          await Promise.all(
+            selectedPhotos.map((photoSrc) =>
+              uploadDataUrlIfOversized(photoSrc, 'image', forceCloudUpload)
+            )
+          )
+        ).filter(Boolean);
+      }
+
       const privacyIcons: Record<'public' | 'friends' | 'private', string> = {
         public: '🌐',
         friends: '👥',
@@ -417,15 +472,15 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         contentBangla: sanitizeInput(content.trim()),
         arabicVerse: finalArabic ? sanitizeInput(finalArabic) : undefined,
         translation: translationText.trim() ? sanitizeInput(translationText.trim()) : undefined,
-        mediaType: selectedVideo
+        mediaType: finalVideoUrl
           ? 'video'
-          : selectedPhotos.length > 0
+          : finalPhotoUrls.length > 0
           ? 'image'
           : hasQuranVerse
           ? 'verseCard'
           : 'none',
-        mediaUrl: selectedVideo || selectedPhotos[0] || undefined,
-        mediaUrls: selectedPhotos.length > 0 ? selectedPhotos : undefined,
+        mediaUrl: finalVideoUrl || finalPhotoUrls[0] || undefined,
+        mediaUrls: finalPhotoUrls.length > 0 ? finalPhotoUrls : undefined,
         category: hasQuranVerse ? 'Quran' : 'Community',
         location: selectedLocation || undefined,
         feeling: selectedFeeling || undefined,
@@ -471,6 +526,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     } finally {
       setIsVerifyingHalal(false);
       setIsSubmitting(false);
+      setUploadProgressText(null);
     }
   };
 
@@ -873,7 +929,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             {isVerifyingHalal || isSubmitting ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span>Posting...</span>
+                <span>{uploadProgressText || 'Posting...'}</span>
               </>
             ) : (
               <span>Post</span>
@@ -1328,7 +1384,17 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
               </button>
               <button
                 type="button"
-                onClick={() => setSelectedVideo(null)}
+                onClick={() => {
+                  setSelectedVideo((prev) => {
+                    if (prev && prev.startsWith('blob:')) {
+                      try {
+                        URL.revokeObjectURL(prev);
+                      } catch {}
+                    }
+                    return null;
+                  });
+                  setSelectedVideoFile(null);
+                }}
                 className="p-1.5 rounded-full bg-white/95 hover:bg-white text-[#050505] shadow-md border border-[#E4E6EB] cursor-pointer"
                 title="মুছে ফেলুন"
               >

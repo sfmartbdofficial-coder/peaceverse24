@@ -43,6 +43,7 @@ import { FbPhotoLightboxModal } from './FbPhotoLightboxModal';
 import { useLanguage } from '../../context/LanguageContext';
 import { detectTextScript, shouldAutoTranslate, translateText } from '../../lib/translate';
 import { signBunnyCdnUrl } from '../../lib/bunnyCdn';
+import { useResolvedMediaUrls } from '../../lib/mediaStorage';
 import {
   FbBoostPostModal,
   getBoostedPostCampaign,
@@ -158,6 +159,19 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   }, [post.id]);
 
   const { currentLang } = useLanguage();
+  const rawPostImages = React.useMemo(
+    () =>
+      post.mediaType === 'image'
+        ? (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
+            ? post.mediaUrls
+            : post.mediaUrl
+            ? [post.mediaUrl]
+            : []
+          ).map((u) => signBunnyCdnUrl(u))
+        : [],
+    [post.mediaType, post.mediaUrls, post.mediaUrl]
+  );
+  const postImages = useResolvedMediaUrls(rawPostImages);
   const authorTargetId = post.authorId || `author-${post.author.name}`;
   const [relSyncTick, setRelSyncTick] = useState(0);
 
@@ -828,16 +842,6 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
 
       {/* 4. Media Section (Single or Multi-Photo Grid up to 10 photos, or Video) */}
       {(() => {
-        const postImages =
-          post.mediaType === 'image'
-            ? (Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
-                ? post.mediaUrls
-                : post.mediaUrl
-                ? [post.mediaUrl]
-                : []
-              ).map((u) => signBunnyCdnUrl(u))
-            : [];
-
         if (postImages.length === 1) {
           return (
             <div
@@ -1432,14 +1436,8 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
           isOpen={showPhotoLightbox}
           onClose={() => setShowPhotoLightbox(false)}
           post={post}
-          photoUrl={post.mediaUrl ? signBunnyCdnUrl(post.mediaUrl) : undefined}
-          photos={
-            Array.isArray(post.mediaUrls) && post.mediaUrls.length > 0
-              ? post.mediaUrls.map((u) => signBunnyCdnUrl(u))
-              : post.mediaUrl
-              ? [signBunnyCdnUrl(post.mediaUrl)]
-              : undefined
-          }
+          photoUrl={postImages[0]}
+          photos={postImages.length > 0 ? postImages : undefined}
           initialIndex={lightboxIndex}
           onToggleReaction={onToggleReaction}
           onAddComment={onAddComment}

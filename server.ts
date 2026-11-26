@@ -1362,6 +1362,133 @@ function toPublicDirectoryUser(u: ServerDirectoryUser) {
   };
 }
 
+const FIRESTORE_DATABASE_ID =
+  process.env.FIREBASE_DATABASE_ID?.trim() ||
+  process.env.VITE_FIREBASE_DATABASE_ID?.trim() ||
+  'ai-studio-peaceverse-d7a086ee-044c-4934-8539-89a03de39673';
+
+function parseFirestoreStringField(field: any): string {
+  if (!field || typeof field !== 'object') return '';
+  if (typeof field.stringValue === 'string') return field.stringValue;
+  return '';
+}
+
+function parseFirestoreBoolField(field: any, fallback = false): boolean {
+  if (!field || typeof field !== 'object') return fallback;
+  if (typeof field.booleanValue === 'boolean') return field.booleanValue;
+  return fallback;
+}
+
+function parseFirestoreNumberField(field: any, fallback = 0): number {
+  if (!field || typeof field !== 'object') return fallback;
+  if (field.integerValue !== undefined) return Number(field.integerValue) || fallback;
+  if (field.doubleValue !== undefined) return Number(field.doubleValue) || fallback;
+  return fallback;
+}
+
+let lastFirestoreDirectoryHydrateAt = 0;
+
+async function hydrateDirectoryFromFirestoreWithToken(bearerHeader?: string): Promise<void> {
+  if (!bearerHeader || !bearerHeader.startsWith('Bearer ')) return;
+  const now = Date.now();
+  if (now - lastFirestoreDirectoryHydrateAt < 10_000) return;
+
+  const verified = await verifyFirebaseBearerToken(bearerHeader);
+  if (!verified) return;
+  lastFirestoreDirectoryHydrateAt = now;
+
+  const rawToken = bearerHeader.slice(7).trim();
+  const baseDocUrl = `https://firestore.googleapis.com/v1/projects/${encodeURIComponent(
+    FIREBASE_PROJECT_ID_FOR_TOKEN
+  )}/databases/${encodeURIComponent(FIRESTORE_DATABASE_ID)}/documents`;
+
+  const fetchCollection = async (colName: string) => {
+    try {
+      const resp = await fetch(`${baseDocUrl}/${colName}?pageSize=300`, {
+        headers: { Authorization: `Bearer ${rawToken}` },
+      });
+      if (!resp.ok) return [];
+      const data: any = await resp.json().catch(() => null);
+      return Array.isArray(data?.documents) ? data.documents : [];
+    } catch {
+      return [];
+    }
+  };
+
+  const [publicDocs, userDocs] = await Promise.all([
+    fetchCollection('public_profiles'),
+    fetchCollection('users'),
+  ]);
+
+  let updatedAny = false;
+  const ingestDoc = (docObj: any) => {
+    const namePath = String(docObj?.name || '');
+    const docId = namePath.split('/').pop() || '';
+    const fields = docObj?.fields || {};
+    const uid = parseFirestoreStringField(fields.uid) || parseFirestoreStringField(fields.id) || docId;
+    const displayName = sanitizeServerText(
+      parseFirestoreStringField(fields.displayName) || parseFirestoreStringField(fields.name),
+      120
+    );
+    if (!uid || !displayName) return;
+
+    const existing = serverUserDirectoryMap.get(uid);
+    const lowerNew = displayName.toLowerCase();
+    const isPlaceholder = ['member', 'user', 'peaceverse user', 'peaceverse creator'].includes(lowerNew);
+    if (existing && isPlaceholder && !['member', 'user', 'peaceverse user', 'peaceverse creator'].includes(existing.displayName.toLowerCase())) {
+      return;
+    }
+
+    const transliteratedName =
+      parseFirestoreStringField(fields.transliteratedName) || serverBnToEn(displayName);
+    const username =
+      sanitizeServerText(parseFirestoreStringField(fields.username), 60)
+        .toLowerCase()
+        .replace(/[^a-z0-9._-]/g, '') ||
+      existing?.username ||
+      transliteratedName.replace(/[^a-z0-9]+/g, '').slice(0, 40);
+    const avatar =
+      sanitizeServerAvatarUrl(
+        parseFirestoreStringField(fields.avatar) || parseFirestoreStringField(fields.photoURL)
+      ) ||
+      existing?.avatar ||
+      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        displayName
+      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+    const bio = sanitizeServerText(parseFirestoreStringField(fields.bio), 300) || existing?.bio || '';
+    const location =
+      sanitizeServerText(parseFirestoreStringField(fields.location), 120) || existing?.location || '';
+    const rawEmail = sanitizeServerText(parseFirestoreStringField(fields.email), 160).toLowerCase();
+    const emailHash =
+      parseFirestoreStringField(fields.emailHash) ||
+      (rawEmail ? crypto.createHash('sha256').update(rawEmail).digest('hex') : existing?.emailHash);
+
+    serverUserDirectoryMap.set(uid, {
+      id: uid,
+      uid,
+      displayName,
+      username,
+      transliteratedName,
+      avatar,
+      bio,
+      location,
+      verified: parseFirestoreBoolField(fields.verified, existing?.verified || false),
+      allowFriendRequests: parseFirestoreBoolField(fields.allowFriendRequests, true),
+      emailHash,
+      updatedAt: parseFirestoreStringField(fields.updatedAt) || new Date().toISOString(),
+      updatedAtMillis: parseFirestoreNumberField(fields.updatedAtMillis, Date.now()),
+    });
+    updatedAny = true;
+  };
+
+  userDocs.forEach(ingestDoc);
+  publicDocs.forEach(ingestDoc);
+
+  if (updatedAny) {
+    persistUserDirectoryToDisk();
+  }
+}
+
 app.post('/api/users/sync', async (req, res) => {
   try {
     const verified = await verifyFirebaseBearerToken(req.headers.authorization);
@@ -1425,7 +1552,8 @@ app.post('/api/users/sync', async (req, res) => {
   }
 });
 
-app.get('/api/users/directory', (_req, res) => {
+app.get('/api/users/directory', async (req, res) => {
+  await hydrateDirectoryFromFirestoreWithToken(req.headers.authorization);
   const users = Array.from(serverUserDirectoryMap.values())
     .sort((a, b) => b.updatedAtMillis - a.updatedAtMillis)
     .slice(0, 1000)
@@ -1433,7 +1561,8 @@ app.get('/api/users/directory', (_req, res) => {
   return res.json({ users });
 });
 
-app.get('/api/users/search', (req, res) => {
+app.get('/api/users/search', async (req, res) => {
+  await hydrateDirectoryFromFirestoreWithToken(req.headers.authorization);
   const rawQ = typeof req.query.q === 'string' ? req.query.q.normalize('NFC').trim() : '';
   if (!rawQ) {
     return res.json({ users: [] });
@@ -1450,6 +1579,7 @@ app.get('/api/users/search', (req, res) => {
 
   const matched = Array.from(serverUserDirectoryMap.values())
     .filter((u) => {
+      if (u.id.toLowerCase() === q || u.uid.toLowerCase() === q) return true;
       if (qEmailHash && u.emailHash === qEmailHash) return true;
       const dn = u.displayName.normalize('NFC').toLowerCase();
       const un = (u.username || '').toLowerCase();
@@ -1477,6 +1607,161 @@ app.get('/api/users/search', (req, res) => {
     .map(toPublicDirectoryUser);
 
   return res.json({ users: matched });
+});
+
+// ==========================================
+// PERSISTENT MEDIA UPLOAD & HTTP RANGE STREAMING
+// ==========================================
+const MEDIA_STORAGE_DIR = path.resolve(USER_DIRECTORY_DATA_DIR, 'media');
+const ALLOWED_MEDIA_EXT_TO_MIME: Record<string, string> = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  ogg: 'video/ogg',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+};
+
+function resolveMediaExtFromMime(mimeType: string, requestedExt?: string): string | null {
+  const cleanMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+  if (
+    cleanMime.includes('svg') ||
+    cleanMime.includes('html') ||
+    cleanMime.includes('javascript') ||
+    cleanMime.includes('php') ||
+    cleanMime.includes('msdownload')
+  ) {
+    return null;
+  }
+  if (cleanMime === 'video/mp4' || cleanMime === 'video/x-m4v') return 'mp4';
+  if (cleanMime === 'video/webm') return 'webm';
+  if (cleanMime === 'video/quicktime') return 'mov';
+  if (cleanMime === 'video/ogg') return 'ogg';
+  if (cleanMime === 'image/jpeg' || cleanMime === 'image/jpg') return 'jpg';
+  if (cleanMime === 'image/png') return 'png';
+  if (cleanMime === 'image/webp') return 'webp';
+  if (cleanMime === 'image/gif') return 'gif';
+  if (cleanMime === 'audio/mpeg') return 'mp3';
+  if (cleanMime === 'audio/mp4') return 'm4a';
+  if (requestedExt && ALLOWED_MEDIA_EXT_TO_MIME[requestedExt.toLowerCase()]) {
+    return requestedExt.toLowerCase();
+  }
+  if (cleanMime.startsWith('video/')) return 'mp4';
+  if (cleanMime.startsWith('image/')) return 'jpg';
+  return null;
+}
+
+app.post(
+  '/api/media/upload',
+  express.raw({
+    type: ['video/*', 'image/*', 'audio/*', 'application/octet-stream'],
+    limit: '55mb',
+  }),
+  async (req, res) => {
+    try {
+      const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+      if (!verified) {
+        return res.status(401).json({ ok: false, error: 'Authentication required to upload media.' });
+      }
+
+      if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
+        return res.status(400).json({ ok: false, error: 'Empty media payload.' });
+      }
+
+      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const requestedExt = String(req.headers['x-media-ext'] || '').replace(/[^a-z0-9]/gi, '');
+      const ext = resolveMediaExtFromMime(contentType, requestedExt);
+      if (!ext) {
+        return res.status(415).json({ ok: false, error: 'Unsupported or blocked media type.' });
+      }
+
+      const isVideo = ['mp4', 'm4v', 'webm', 'mov', 'ogg'].includes(ext);
+      const maxBytes = isVideo ? 55 * 1024 * 1024 : 6 * 1024 * 1024;
+      if (req.body.length > maxBytes) {
+        return res.status(413).json({ ok: false, error: 'Media file exceeds maximum allowed size.' });
+      }
+
+      const rawId = String(req.headers['x-media-id'] || '').trim();
+      const mediaId = /^[a-zA-Z0-9_-]{8,64}$/.test(rawId)
+        ? rawId
+        : `pv_${Date.now()}_${crypto.randomBytes(4).toString('hex')}`;
+      const filename = `${mediaId}.${ext}`;
+
+      if (!fs.existsSync(MEDIA_STORAGE_DIR)) {
+        fs.mkdirSync(MEDIA_STORAGE_DIR, { recursive: true });
+      }
+
+      const resolvedPath = path.resolve(MEDIA_STORAGE_DIR, filename);
+      if (!resolvedPath.startsWith(MEDIA_STORAGE_DIR + path.sep)) {
+        return res.status(400).json({ ok: false, error: 'Invalid media filename.' });
+      }
+
+      fs.writeFileSync(resolvedPath, req.body);
+      return res.json({
+        ok: true,
+        mediaId,
+        filename,
+        url: `/api/media/${filename}`,
+        size: req.body.length,
+      });
+    } catch (error: any) {
+      console.error('Media upload error:', error);
+      return res.status(500).json({ ok: false, error: 'Failed to store uploaded media.' });
+    }
+  }
+);
+
+app.all('/api/media/:filename', (req, res, next) => {
+  if (req.method !== 'GET' && req.method !== 'HEAD') return next();
+
+  const filename = String(req.params.filename || '').trim();
+  const extMatch = filename.match(/^[a-zA-Z0-9_-]{4,80}\.(mp4|m4v|webm|mov|ogg|jpg|jpeg|png|webp|gif|mp3|m4a)$/i);
+  if (!extMatch) {
+    return res.status(400).json({ ok: false, error: 'Invalid media filename.' });
+  }
+
+  const resolvedPath = path.resolve(MEDIA_STORAGE_DIR, filename);
+  if (!resolvedPath.startsWith(MEDIA_STORAGE_DIR + path.sep) || !fs.existsSync(resolvedPath)) {
+    return res.status(404).json({ ok: false, error: 'Media not found on this server.' });
+  }
+
+  const stat = fs.statSync(resolvedPath);
+  const totalSize = stat.size;
+  const ext = extMatch[1].toLowerCase();
+  const mimeType = ALLOWED_MEDIA_EXT_TO_MIME[ext] || 'application/octet-stream';
+
+  res.setHeader('Content-Type', mimeType);
+  res.setHeader('Accept-Ranges', 'bytes');
+  res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+
+  const rangeHeader = req.headers.range;
+  if (rangeHeader && typeof rangeHeader === 'string' && rangeHeader.startsWith('bytes=')) {
+    const parts = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = Math.max(0, parseInt(parts[0], 10) || 0);
+    const end = parts[1] ? Math.min(totalSize - 1, parseInt(parts[1], 10)) : totalSize - 1;
+    if (start >= totalSize || start > end) {
+      res.status(416).setHeader('Content-Range', `bytes */${totalSize}`);
+      return res.end();
+    }
+    const chunkSize = end - start + 1;
+    res.status(206);
+    res.setHeader('Content-Range', `bytes ${start}-${end}/${totalSize}`);
+    res.setHeader('Content-Length', String(chunkSize));
+    if (req.method === 'HEAD') return res.end();
+    return fs.createReadStream(resolvedPath, { start, end }).pipe(res);
+  }
+
+  res.status(200);
+  res.setHeader('Content-Length', String(totalSize));
+  if (req.method === 'HEAD') return res.end();
+  return fs.createReadStream(resolvedPath).pipe(res);
 });
 
 async function startServer() {

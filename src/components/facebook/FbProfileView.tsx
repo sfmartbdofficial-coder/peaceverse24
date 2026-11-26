@@ -84,6 +84,7 @@ interface FbProfileViewProps {
   activeSwitchedPageId?: string | null;
   onSwitchToPage?: (page: PageItem) => void;
   onSwitchToPersonal?: () => void;
+  onMessageUser?: (target: { id: string; name: string; avatar: string }) => void;
 }
 
 export const FbProfileView: React.FC<FbProfileViewProps> = ({
@@ -106,6 +107,7 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
   activeSwitchedPageId = null,
   onSwitchToPage,
   onSwitchToPersonal,
+  onMessageUser,
 }) => {
   const activeProfile = viewedProfile || userProfile;
   const isOwnProfile =
@@ -520,8 +522,8 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
                 {!isOwnProfile
                   ? activeProfile.name
                   : activeProfileId === 'main'
-                  ? (activeProfile.name && activeProfile.name !== 'New Member' ? activeProfile.name : 'Siddik')
-                  : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (activeProfile.name || 'Siddik'))}
+                  ? (activeProfile.name && activeProfile.name !== 'New Member' ? activeProfile.name : 'Member')
+                  : (extraProfiles.find((p) => p.id === activeProfileId)?.name || (activeProfile.name || 'Member'))}
               </h1>
               {(activeProfile.verified || (activeProfile.goldenCoins ?? 0) >= 100) && (
                 <span
@@ -697,14 +699,32 @@ export const FbProfileView: React.FC<FbProfileViewProps> = ({
               </button>
             )}
 
+            {onMessageUser && (
+              <button
+                type="button"
+                onClick={() =>
+                  onMessageUser({
+                    id: targetFollowId,
+                    name: activeProfile.name,
+                    avatar: activeProfile.avatar,
+                  })
+                }
+                className="flex-1 h-[38px] rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-bold text-[14px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+              >
+                <MessageCircle className="w-4 h-4 stroke-[2.25]" />
+                <span>Message</span>
+              </button>
+            )}
+
             {onBackToOwnProfile && (
               <button
                 type="button"
                 onClick={onBackToOwnProfile}
-                className="h-[38px] px-4 rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-semibold text-[13px] flex items-center justify-center gap-1.5 transition-colors cursor-pointer whitespace-nowrap"
+                title="My Profile"
+                className="h-[38px] px-3 rounded-[8px] bg-[#E4E6EB] hover:bg-[#D8DADF] text-black font-semibold text-[13px] flex items-center justify-center gap-1 transition-colors cursor-pointer whitespace-nowrap"
               >
                 <ArrowLeft className="w-4 h-4" />
-                <span>My Profile</span>
+                <span className="hidden sm:inline">My Profile</span>
               </button>
             )}
           </div>

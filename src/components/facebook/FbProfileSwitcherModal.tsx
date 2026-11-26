@@ -92,7 +92,7 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
     }, 600);
   };
 
-  const mainName = userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Siddik';
+  const mainName = userProfile.name && userProfile.name !== 'New Member' ? userProfile.name : 'Member';
 
   return (
     <>

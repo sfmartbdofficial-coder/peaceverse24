@@ -1,5 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Volume2, VolumeX, Play, Pause, Maximize2, Film } from 'lucide-react';
+import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 
 interface FbVideoPlayerProps {
   src: string;
@@ -16,6 +17,7 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
+  const resolvedSrc = useResolvedMediaUrl(src);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -62,7 +64,7 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
     return () => {
       observer.disconnect();
     };
-  }, [isMuted]);
+  }, [isMuted, resolvedSrc]);
 
   // Track progress
   const handleTimeUpdate = () => {
@@ -133,7 +135,7 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
     >
       <video
         ref={videoRef}
-        src={src}
+        src={resolvedSrc || undefined}
         poster={poster}
         playsInline
         muted={isMuted}

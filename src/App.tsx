@@ -3,7 +3,6 @@ import {
   INITIAL_POSTS,
   INITIAL_STORIES,
   INITIAL_NOTIFICATIONS,
-  INITIAL_CHAT_FRIENDS,
   USER_PROFILE
 } from './data/islamicPosts';
 import { findDummyCommunityUser } from './data/dummyCommunity';
@@ -116,6 +115,18 @@ import {
   sendFriendRequestToUser,
   cancelFriendRequestToUser,
   fetchUserFriendsFromFirestore,
+  subscribeToUserFriendsFromFirestore,
+  subscribeToIncomingFriendRequests,
+  subscribeToAcceptedOutgoingFriendRequests,
+  acceptFriendRequestInFirestore,
+  declineFriendRequestInFirestore,
+  syncLocalFriendsStore,
+  subscribeToUserChats,
+  subscribeToChatMessages,
+  markChatThreadRead,
+  sendRealtimeDirectMessage,
+  getChatRoomId,
+  IncomingFriendRequestItem,
   readSentFriendRequestsStore,
   setFriendRequestSentLocally,
   addLocalFriend,
@@ -750,9 +761,7 @@ export default function App() {
           relationship: prev.relationship || '',
         }));
 
-        syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar, {
-          firebaseUser: usr,
-        });
+        syncUserDirectoryProfile(usr.uid, resolvedName, usr.email || '', resolvedAvatar);
         try {
           const savedPagesRaw = localStorage.getItem('qalby_fb_pages');
           if (savedPagesRaw) {
@@ -767,9 +776,7 @@ export default function App() {
           }
         } catch {}
         fetchUserFriendsFromFirestore(usr.uid).then(({ count, friends }) => {
-          friends.forEach((f) => {
-            addLocalFriend({ id: f.id, name: f.name, avatar: f.avatar });
-          });
+          syncLocalFriendsStore(friends);
           setUserProfile((prev) =>
             prev.id === usr.uid ? { ...prev, friendsCount: count } : prev
           );
@@ -831,7 +838,6 @@ export default function App() {
                 location: nextLocation,
                 username: nextUsername,
                 allowFriendRequests: remote.isCreator !== true,
-                firebaseUser: usr,
               }
             );
 
@@ -986,29 +992,36 @@ export default function App() {
     return userProfile;
   }, [userProfile, activeSwitchedPage]);
 
-  // Messenger State
+  // Messenger State (real user threads & real friends)
   const [chatFriends, setChatFriends] = useState<ChatFriend[]>(() => {
     try {
       const stored = localStorage.getItem('qalby_chat_friends');
       if (stored) {
         const parsed = JSON.parse(stored);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.filter((f: ChatFriend) => f && f.id && !String(f.id).startsWith('chat-'));
         }
       }
-      return INITIAL_CHAT_FRIENDS;
+      return [];
     } catch {
-      return INITIAL_CHAT_FRIENDS;
+      return [];
     }
   });
   const [showMessengerModal, setShowMessengerModal] = useState<boolean>(false);
   const [activeChatFriend, setActiveChatFriend] = useState<ChatFriend | null>(null);
+  const [incomingFriendRequests, setIncomingFriendRequests] = useState<IncomingFriendRequestItem[]>([]);
 
   useHistoryBack(showMessengerModal, () => {
     setShowMessengerModal(false);
     setActiveChatFriend(null);
   }, 'messenger-modal');
   useHistoryBack(Boolean(activeChatFriend), () => setActiveChatFriend(null), 'messenger-chat');
+
+  useEffect(() => {
+    try {
+      localStorage.setItem('qalby_chat_friends', JSON.stringify(chatFriends));
+    } catch {}
+  }, [chatFriends]);
 
   // Dynamic unread messages count
   const unreadMessagesCount = useMemo(() => {
@@ -1174,15 +1187,11 @@ export default function App() {
           }
         });
         return Array.from(map.values()).sort((a: any, b: any) => {
-          const tA = new Date(a.createdAt || a.createdAtMillis || 0).getTime();
-          const tB = new Date(b.createdAt || b.createdAtMillis || 0).getTime();
+          const tA = Number(a.createdAtMillis || (a.createdAt ? Date.parse(a.createdAt) : 0)) || 0;
+          const tB = Number(b.createdAtMillis || (b.createdAt ? Date.parse(b.createdAt) : 0)) || 0;
           return tB - tA;
         });
       });
-    });
-
-    const unsubNotifs = subscribeToRealtimeNotifications((liveNotifs) => {
-      setNotifications(liveNotifs);
     });
 
     // 4. Register Firebase FCM / Web Push Service Worker & foreground listener
@@ -1212,13 +1221,146 @@ export default function App() {
 
     return () => {
       unsubPosts();
-      unsubNotifs();
       unsubFcm();
       if ('serviceWorker' in navigator) {
         navigator.serviceWorker.removeEventListener('message', handleSwMessage);
       }
     };
   }, []);
+
+  // Per-user real-time listeners: Notifications, Incoming/Outgoing Friend Requests, Friends list, & Messenger Threads
+  useEffect(() => {
+    const uid = firebaseUser?.uid;
+    if (!uid) {
+      setNotifications([]);
+      setIncomingFriendRequests([]);
+      return;
+    }
+
+    const unsubNotifs = subscribeToRealtimeNotifications(uid, (liveNotifs) => {
+      setNotifications(liveNotifs);
+    });
+
+    const unsubIncomingReqs = subscribeToIncomingFriendRequests(uid, (reqs) => {
+      setIncomingFriendRequests(reqs);
+    });
+
+    const unsubOutgoingReqs = subscribeToAcceptedOutgoingFriendRequests(uid, (syncedFriend) => {
+      setSentFriendRequests((prev) => {
+        if (!prev[syncedFriend.id]) return prev;
+        const next = { ...prev };
+        delete next[syncedFriend.id];
+        return next;
+      });
+    });
+
+    const unsubFriends = subscribeToUserFriendsFromFirestore(uid, ({ count, friends }) => {
+      syncLocalFriendsStore(friends);
+      setUserProfile((prev) => (prev.id === uid ? { ...prev, friendsCount: count } : prev));
+      if (friends.length > 0) {
+        setChatFriends((prev) => {
+          const map = new Map(prev.map((f) => [f.id, f]));
+          friends.forEach((f) => {
+            const existing = map.get(f.id);
+            const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+              f.name
+            )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+            if (!existing) {
+              map.set(f.id, {
+                id: f.id,
+                name: f.name,
+                avatar: f.avatar || fallbackAvatar,
+                online: true,
+                lastSeen: 'Active now',
+                unreadCount: 0,
+                messages: [],
+              });
+            } else if (f.name || f.avatar) {
+              map.set(f.id, {
+                ...existing,
+                name: f.name || existing.name,
+                avatar: f.avatar || existing.avatar,
+              });
+            }
+          });
+          return Array.from(map.values());
+        });
+      }
+    });
+
+    const unsubChats = subscribeToUserChats(uid, (threads) => {
+      setChatFriends((prev) => {
+        const map = new Map(prev.map((f) => [f.id, f]));
+        const ordered: ChatFriend[] = [];
+        threads.forEach((t) => {
+          const existing = map.get(t.partnerId);
+          const previewMsgs =
+            existing && existing.messages.length > 0
+              ? existing.messages
+              : t.lastMessageText
+              ? [
+                  {
+                    id: `preview-${t.roomId}`,
+                    sender: (t.lastSenderId === uid ? 'me' : 'them') as 'me' | 'them',
+                    text: t.lastMessageText,
+                    time: t.updatedAtMillis
+                      ? new Date(t.updatedAtMillis).toLocaleTimeString([], {
+                          hour: '2-digit',
+                          minute: '2-digit',
+                        })
+                      : 'Just now',
+                  },
+                ]
+              : [];
+          ordered.push({
+            id: t.partnerId,
+            name: t.partnerName,
+            avatar: t.partnerAvatar,
+            online: true,
+            lastSeen: 'Active now',
+            unreadCount: t.unreadCount,
+            messages: previewMsgs,
+          });
+          map.delete(t.partnerId);
+        });
+        map.forEach((remaining) => {
+          if (!String(remaining.id).startsWith('chat-')) {
+            ordered.push(remaining);
+          }
+        });
+        return ordered;
+      });
+    });
+
+    return () => {
+      unsubNotifs();
+      unsubIncomingReqs();
+      unsubOutgoingReqs();
+      unsubFriends();
+      unsubChats();
+    };
+  }, [firebaseUser?.uid]);
+
+  // Real-time messages subscription for whichever conversation is open in Messenger
+  useEffect(() => {
+    const uid = firebaseUser?.uid;
+    const partnerId = activeChatFriend?.id;
+    if (!uid || !partnerId || partnerId.startsWith('chat-')) return;
+
+    const roomId = getChatRoomId(uid, partnerId);
+    void markChatThreadRead(roomId, uid);
+
+    const unsubMsgs = subscribeToChatMessages(roomId, uid, (msgs) => {
+      setActiveChatFriend((prev) =>
+        prev && prev.id === partnerId ? { ...prev, messages: msgs, unreadCount: 0 } : prev
+      );
+      setChatFriends((prev) =>
+        prev.map((f) => (f.id === partnerId ? { ...f, messages: msgs, unreadCount: 0 } : f))
+      );
+    });
+
+    return () => unsubMsgs();
+  }, [firebaseUser?.uid, activeChatFriend?.id]);
 
   // Pull-to-refresh & silent background refresh state (no visible button)
   const [isPullRefreshing, setIsPullRefreshing] = useState(false);
@@ -1238,8 +1380,8 @@ export default function App() {
           prev.forEach((p) => map.set(p.id, p));
           spPosts.forEach((p) => map.set(p.id, p));
           return Array.from(map.values()).sort((a: any, b: any) => {
-            const tA = new Date(a.createdAt || a.createdAtMillis || 0).getTime();
-            const tB = new Date(b.createdAt || b.createdAtMillis || 0).getTime();
+            const tA = Number(a.createdAtMillis || (a.createdAt ? Date.parse(a.createdAt) : 0)) || 0;
+            const tB = Number(b.createdAtMillis || (b.createdAt ? Date.parse(b.createdAt) : 0)) || 0;
             return tB - tA;
           });
         });
@@ -1726,18 +1868,28 @@ export default function App() {
   };
 
   // Handle new reel created (triggers Creator Broadcast /api/notify-all when enabled)
-  const handleReelCreated = (newReel: PostItem) => {
+  const handleReelCreated = async (newReel: PostItem) => {
+    const resolvedOwnerUid = firebaseUser?.uid || userProfile.id;
     const taggedReel: PostItem = {
       ...newReel,
-      authorId: activeSwitchedPage ? activeSwitchedPage.id : newReel.authorId,
+      authorId: activeSwitchedPage
+        ? activeSwitchedPage.id
+        : resolvedOwnerUid || newReel.authorId,
       createdAtMillis: newReel.createdAtMillis || Date.now(),
     };
-    setPosts((prev) => [taggedReel, ...prev]);
-    insertSupabasePost(taggedReel);
-    createRealtimePost(taggedReel);
+    setPosts((prev) => [taggedReel, ...prev.filter((p) => p.id !== taggedReel.id)]);
     setShowCreateReel(false);
     navigateToTab('reels');
     logUserActivity(userProfile.id, 'Reel', 'নতুন ভিডিও রিল আপলোড করেছেন');
+
+    try {
+      await Promise.allSettled([
+        insertSupabasePost(taggedReel, resolvedOwnerUid),
+        createRealtimePost(taggedReel),
+      ]);
+    } catch (err) {
+      console.warn('Reel persistence sync notice:', err);
+    }
 
     const prefs = loadPeaceSettings();
     if (prefs.creatorNotifyFollowersOnPost) {
@@ -1797,20 +1949,115 @@ export default function App() {
     deleteRealtimePost(postId);
   };
 
-  // Handle friend confirmation in notifications
-  const handleConfirmRequest = (notifId: string) => {
+  // Handle friend confirmation in notifications & Friends view
+  const handleConfirmRequest = (notifOrFollowId: string) => {
+    const matchedNotif = notifications.find((n) => n.id === notifOrFollowId);
     setNotifications((prev) =>
-      prev.map((n) => (n.id === notifId ? { ...n, isUnread: false } : n))
+      prev.map((n) => (n.id === notifOrFollowId ? { ...n, isUnread: false, read: true } : n))
     );
+
+    if (matchedNotif && firebaseUser?.uid) {
+      const senderIdFromReq = matchedNotif.requestData?.id?.includes('_')
+        ? matchedNotif.requestData.id.split('_')[0]
+        : '';
+      const senderId = String(matchedNotif.from || senderIdFromReq || '').trim();
+      const senderName = String(
+        matchedNotif.requestData?.name ||
+          (matchedNotif.title.includes(' sent you')
+            ? matchedNotif.title.split(' sent you')[0]
+            : 'Friend')
+      ).trim();
+      const senderAvatar = String(
+        matchedNotif.requestData?.avatar || matchedNotif.avatar || ''
+      ).trim();
+
+      if (senderId) {
+        addLocalFriend({ id: senderId, name: senderName, avatar: senderAvatar });
+        void acceptFriendRequestInFirestore(
+          {
+            id: firebaseUser.uid,
+            name: effectiveProfile.name,
+            avatar: effectiveProfile.avatar,
+          },
+          {
+            id: senderId,
+            name: senderName,
+            avatar: senderAvatar,
+          },
+          matchedNotif.requestData?.id,
+          matchedNotif.id
+        );
+      }
+    }
+
     setUserProfile((prev: UserProfile) => ({ ...prev, friendsCount: prev.friendsCount + 1 }));
   };
 
-  // Handle friend delete in notifications
-  const handleDeleteRequest = (notifId: string) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== notifId));
+  // Handle friend delete in notifications & Friends view
+  const handleDeleteRequest = (notifOrFollowId: string) => {
+    const matchedNotif = notifications.find((n) => n.id === notifOrFollowId);
+    setNotifications((prev) => prev.filter((n) => n.id !== notifOrFollowId));
+
+    if (matchedNotif && firebaseUser?.uid) {
+      const senderIdFromReq = matchedNotif.requestData?.id?.includes('_')
+        ? matchedNotif.requestData.id.split('_')[0]
+        : '';
+      const senderId = String(matchedNotif.from || senderIdFromReq || '').trim();
+      if (senderId) {
+        void declineFriendRequestInFirestore(
+          firebaseUser.uid,
+          senderId,
+          matchedNotif.requestData?.id,
+          matchedNotif.id
+        );
+      }
+    }
   };
 
-  // Handle send message (Encrypted with Base64 + Auth checked before showing)
+  const openChatWithUser = React.useCallback(
+    (target: { id: string; name: string; avatar: string }) => {
+      if (!target?.id) return;
+      const fallbackAvatar = `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+        target.name || 'User'
+      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+      const resolvedAvatar = target.avatar || fallbackAvatar;
+
+      let chosen: ChatFriend | null = null;
+      setChatFriends((prev) => {
+        const existing = prev.find((f) => f.id === target.id);
+        if (existing) {
+          chosen = { ...existing, name: target.name || existing.name, avatar: resolvedAvatar, unreadCount: 0 };
+          return prev.map((f) => (f.id === target.id ? chosen! : f));
+        }
+        chosen = {
+          id: target.id,
+          name: target.name || 'Member',
+          avatar: resolvedAvatar,
+          online: true,
+          lastSeen: 'Active now',
+          unreadCount: 0,
+          messages: [],
+        };
+        return [chosen, ...prev];
+      });
+
+      setActiveChatFriend(
+        chosen || {
+          id: target.id,
+          name: target.name || 'Member',
+          avatar: resolvedAvatar,
+          online: true,
+          lastSeen: 'Active now',
+          unreadCount: 0,
+          messages: [],
+        }
+      );
+      setShowMessengerModal(true);
+    },
+    []
+  );
+
+  // Handle send message (Real-time Firestore sync, Base64 encrypted)
   const handleSendMessage = (friendId: string, text: string) => {
     if (!firebaseUser) return;
     const encrypted = encryptMessageBase64(text);
@@ -1821,6 +2068,10 @@ export default function App() {
       text: encrypted,
       time: 'Just now',
     };
+
+    const recipient =
+      (activeChatFriend?.id === friendId ? activeChatFriend : null) ||
+      chatFriends.find((f) => f.id === friendId);
 
     setChatFriends((prev) =>
       prev.map((f) => {
@@ -1835,35 +2086,21 @@ export default function App() {
       prev && prev.id === friendId ? { ...prev, messages: [...prev.messages, newMsg] } : prev
     );
 
-    // Interactive friend reply simulation (stored Base64 encrypted)
-    setTimeout(() => {
-      const replies = [
-        'ওয়ালাইকুম আসসালাম! কেমন আছেন ভাই?',
-        'আলহামদুলিল্লাহ ভাই, মেসেজ পেলাম। Peaceverse-এ আপনার পোস্টটা দারুণ হয়েছে!',
-        'জাযাকাল্লাহ খাইরান ভাই! ইনশাআল্লাহ সবসময় দোয়া রইলো।',
-        'মাশাআল্লাহ ভাই! ধন্যবাদ যোগাযোগের জন্য।',
-      ];
-      const randomReply = replies[Math.floor(Math.random() * replies.length)];
-      const replyMsg = {
-        id: `reply-${Date.now()}`,
-        sender: 'them' as const,
-        text: encryptMessageBase64(randomReply),
-        time: 'Just now',
-      };
-
-      setChatFriends((prev) =>
-        prev.map((f) => {
-          if (f.id === friendId) {
-            return { ...f, messages: [...f.messages, replyMsg] };
-          }
-          return f;
-        })
+    if (firebaseUser.uid && !friendId.startsWith('chat-')) {
+      void sendRealtimeDirectMessage(
+        {
+          id: firebaseUser.uid,
+          name: effectiveProfile.name,
+          avatar: effectiveProfile.avatar,
+        },
+        {
+          id: friendId,
+          name: recipient?.name || 'Member',
+          avatar: recipient?.avatar || '',
+        },
+        encrypted
       );
-
-      setActiveChatFriend((prev) =>
-        prev && prev.id === friendId ? { ...prev, messages: [...prev.messages, replyMsg] } : prev
-      );
-    }, 1000);
+    }
   };
 
   const latestSearchSeqRef = React.useRef(0);
@@ -2110,8 +2347,11 @@ export default function App() {
   }, [posts, userProfile, matchesProfileAuthor]);
 
   const pendingFriendRequestsCount = useMemo(() => {
+    if (incomingFriendRequests.length > 0) {
+      return incomingFriendRequests.length;
+    }
     return notifications.filter((n) => n.type === 'friend_request').length;
-  }, [notifications]);
+  }, [incomingFriendRequests.length, notifications]);
 
   const unreadNotificationsCount = useMemo(() => {
     return notifications.filter((n) => n.isUnread).length;
@@ -2128,6 +2368,10 @@ export default function App() {
     setFirebaseUser(null);
     setActiveSwitchedPage(null);
     setSelectedPageIdToOpen(null);
+    setNotifications([]);
+    setIncomingFriendRequests([]);
+    setChatFriends([]);
+    setSentFriendRequests({});
     setCurrentTab('home');
     setTabHistory(['home']);
     try {
@@ -2137,6 +2381,12 @@ export default function App() {
       localStorage.removeItem('peaceverse_current_tab_v1');
       localStorage.removeItem('peaceverse_selected_page_id_v1');
       localStorage.removeItem('peaceverse_page_subtab_v1');
+      localStorage.removeItem('peace_friends_list');
+      localStorage.removeItem('peace_friends_confirmed');
+      localStorage.removeItem('peace_friends_deleted');
+      localStorage.removeItem('peaceverse_sent_friend_requests_v1');
+      localStorage.removeItem('peaceverse_removed_suggestions_v1');
+      localStorage.removeItem('qalby_chat_friends');
     } catch {}
     setUserProfile(USER_PROFILE);
     navigateToPath('/');
@@ -2501,7 +2751,6 @@ export default function App() {
                 }}
                 onOpenUserProfile={openSearchedUserProfile}
                 onRefreshSearch={() => {
-                  invalidateUserDirectoryCache();
                   void runUserSearch(searchQuery, true);
                 }}
                 onClearSearch={() => setSearchQuery('')}
@@ -3132,6 +3381,7 @@ export default function App() {
                 navigateToTab('profile');
               }}
               onOpenUserProfile={openSearchedUserProfile}
+              onMessageFriend={openChatWithUser}
               currentUserId={firebaseUser?.uid || userProfile.id || 'user-me'}
               currentUserName={effectiveProfile.name}
               currentUserAvatar={effectiveProfile.avatar}
@@ -3207,6 +3457,7 @@ export default function App() {
             onDeletePost={handleDeletePost}
             onOpenReel={(p) => setActiveReelPostId(p.id)}
             onOpenGoldenWallet={() => setShowGoldenWallet(true)}
+            onMessageUser={openChatWithUser}
           />
         )}
 
@@ -3380,7 +3631,7 @@ export default function App() {
         }}
         userProfile={userProfile}
         activeSwitchedPage={activeSwitchedPage}
-        friendRequestsCount={pendingFriendRequestsCount || 2}
+        friendRequestsCount={pendingFriendRequestsCount}
         notificationsCount={unreadNotificationsCount}
       />
 

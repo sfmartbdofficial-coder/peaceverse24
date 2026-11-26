@@ -511,7 +511,7 @@ export const FbMenuView: React.FC<FbMenuViewProps> = ({
                 </div>
               </div>
               <p className="text-[12px] font-medium text-neutral-800 text-center truncate w-full group-hover:text-[#0866FF]">
-                {userProfile.name?.split(' ')[0] || 'Siddik'}
+                {userProfile.name?.split(' ')[0] || 'Member'}
               </p>
             </div>
           )}

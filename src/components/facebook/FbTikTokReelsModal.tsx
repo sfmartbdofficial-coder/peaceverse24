@@ -33,6 +33,7 @@ import {
   isTargetFollowedLocally,
   toggleFollowUser,
 } from '../../lib/firebase';
+import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 
 interface FbTikTokReelsModalProps {
@@ -129,12 +130,13 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
   }, [initialPostId, activeList.length]);
 
   const currentPost: PostItem | undefined = activeList[currentIndex] || activeList[0];
+  const resolvedCurrentMediaUrl = useResolvedMediaUrl(currentPost?.mediaUrl);
 
   // Auto-play and reset video on index change
   useEffect(() => {
     if (!isOpen) return;
     const video = videoRef.current;
-    if (!video) return;
+    if (!video || !resolvedCurrentMediaUrl) return;
 
     setProgress(0);
     video.currentTime = 0;
@@ -150,7 +152,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
           video.play().then(() => setIsPlaying(true)).catch(() => {});
         });
     }
-  }, [currentIndex, isOpen]);
+  }, [currentIndex, isOpen, resolvedCurrentMediaUrl]);
 
   const handleTimeUpdate = () => {
     const video = videoRef.current;
@@ -418,7 +420,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
         >
           <video
             ref={videoRef}
-            src={currentPost.mediaUrl}
+            src={resolvedCurrentMediaUrl || undefined}
             playsInline
             muted={isMuted}
             loop
@@ -429,15 +431,16 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
             onPause={() => setIsPlaying(false)}
             className="w-full h-full object-contain sm:object-cover"
           />
-          {activeList[currentIndex + 1]?.mediaUrl && (
-            <video
-              src={activeList[currentIndex + 1].mediaUrl}
-              preload="metadata"
-              muted
-              className="hidden"
-              aria-hidden="true"
-            />
-          )}
+          {activeList[currentIndex + 1]?.mediaUrl &&
+            !activeList[currentIndex + 1].mediaUrl?.startsWith('pv-media://') && (
+              <video
+                src={activeList[currentIndex + 1].mediaUrl}
+                preload="metadata"
+                muted
+                className="hidden"
+                aria-hidden="true"
+              />
+            )}
 
           {showPlayPauseAnim && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/15 z-20">

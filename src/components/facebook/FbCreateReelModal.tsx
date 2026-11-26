@@ -16,6 +16,7 @@ import {
   Hash,
   Megaphone,
   Sparkles,
+  Loader2,
 } from 'lucide-react';
 import { PostItem, UserProfile } from '../../types';
 import { validateMediaUpload, sanitizeInput } from '../../utils/security';
@@ -26,6 +27,7 @@ import {
   checkPost,
 } from '../../lib/halalFilter';
 import { extractVideoFrameDataUrl, readFileAsDataUrl } from '../../utils/imageCompress';
+import { uploadDataUrlIfOversized, uploadMediaFile } from '../../lib/mediaStorage';
 import { FbBoostPostModal } from './FbBoostPostModal';
 
 interface FbCreateReelModalProps {
@@ -43,6 +45,7 @@ interface PreviewReelMedia {
   thumbnail?: string;
   arabicSnippet?: string;
   suggestedTitle?: string;
+  file?: File;
 }
 
 const REEL_PRESETS = [
@@ -147,10 +150,12 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
   const [selectedDuration, setSelectedDuration] = useState<'0:30' | '0:45' | '1:00' | '1:15'>('0:45');
   const [selectedCategory, setSelectedCategory] = useState<string>('Makkah Live');
   const [uploadedVideos, setUploadedVideos] = useState<
-    Array<{ url: string; mediaType: 'video' | 'image'; thumbnail?: string; duration: string }>
+    Array<{ url: string; mediaType: 'video' | 'image'; thumbnail?: string; duration: string; file?: File }>
   >([]);
   const [uploadError, setUploadError] = useState<string | null>(null);
   const [isCheckingMedia, setIsCheckingMedia] = useState(false);
+  const [isPublishingReel, setIsPublishingReel] = useState(false);
+  const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
   const [reelInfoNotice, setReelInfoNotice] = useState<string | null>(null);
 
   // Step 3 (Boost Confirmation & Boost Page)
@@ -198,8 +203,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         return;
       }
 
-      const url =
-        file.size <= 700 * 1024 ? await readFileAsDataUrl(file) : URL.createObjectURL(file);
+      const url = URL.createObjectURL(file);
 
       const mediaType: 'video' | 'image' = isImageFile ? 'image' : 'video';
 
@@ -210,6 +214,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           mediaType,
           thumbnail: frameOrImage || undefined,
           duration: selectedDuration,
+          file,
         },
         ...prev,
       ]);
@@ -219,6 +224,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         mediaType,
         duration: selectedDuration,
         thumbnail: frameOrImage || undefined,
+        file,
       });
       setStep('preview');
       setUploadError(null);
@@ -247,6 +253,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
     mediaType: 'video' | 'image';
     thumbnail?: string;
     duration: string;
+    file?: File;
   }) => {
     setUploadError(null);
     setPreviewMedia({
@@ -254,6 +261,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       mediaType: vid.mediaType,
       duration: vid.duration,
       thumbnail: vid.thumbnail,
+      file: vid.file,
     });
     setStep('preview');
   };
@@ -284,6 +292,32 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       }
     }
 
+    let persistentMediaUrl = previewMedia.url;
+    if (previewMedia.file) {
+      setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+      persistentMediaUrl = await uploadMediaFile(previewMedia.file, {
+        mimeType:
+          previewMedia.file.type || (previewMedia.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+        fileName: previewMedia.file.name,
+        onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+      });
+    } else if (previewMedia.url.startsWith('blob:')) {
+      setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+      const resp = await fetch(previewMedia.url);
+      const blob = await resp.blob();
+      persistentMediaUrl = await uploadMediaFile(blob, {
+        mimeType: blob.type || (previewMedia.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
+        onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+      });
+    } else if (previewMedia.url.startsWith('data:')) {
+      setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+      persistentMediaUrl = await uploadDataUrlIfOversized(
+        previewMedia.url,
+        previewMedia.mediaType,
+        true
+      );
+    }
+
     const nowMs = Date.now();
     const resolvedAuthorId = isPageAccount
       ? pageId || userProfile.id
@@ -306,7 +340,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         ? sanitizeInput(previewMedia.arabicSnippet)
         : undefined,
       mediaType: previewMedia.mediaType,
-      mediaUrl: previewMedia.url,
+      mediaUrl: persistentMediaUrl,
       duration: previewMedia.duration || selectedDuration,
       musicTitle: selectedMusic.trim() ? sanitizeInput(selectedMusic.trim(), 80) : undefined,
       category: (selectedCategory === 'Quran Tilawat' ? 'Quran' : 'Lecture') as PostItem['category'],
@@ -325,13 +359,22 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
     };
   };
 
-  // POST button click -> validate & open Boost Confirmation Popup ("Apni ki eti Boost korte chan?")
+  // POST button click -> validate, upload media persistently & open Boost Confirmation Popup ("Apni ki eti Boost korte chan?")
   const handlePostButtonClick = async () => {
+    if (isPublishingReel) return;
     setUploadError(null);
-    const draft = await buildDraftReelPost();
-    if (!draft) return;
-    setPendingReelForBoost(draft);
-    setShowBoostPrompt(true);
+    setIsPublishingReel(true);
+    try {
+      const draft = await buildDraftReelPost();
+      if (!draft) return;
+      setPendingReelForBoost(draft);
+      setShowBoostPrompt(true);
+    } catch (err: any) {
+      setUploadError(err?.message || 'ভিডিও আপলোড করা যায়নি। আবার চেষ্টা করুন।');
+    } finally {
+      setIsPublishingReel(false);
+      setUploadProgressText(null);
+    }
   };
 
   const handlePublishWithoutBoost = () => {
@@ -605,10 +648,18 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           <div className="shrink-0 p-3.5 bg-white border-t border-[#E4E6EB] shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
             <button
               type="button"
+              disabled={isPublishingReel}
               onClick={handlePostButtonClick}
-              className="w-full h-12 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.99] text-white font-extrabold text-base tracking-wide shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
+              className="w-full h-12 rounded-xl bg-[#0866FF] hover:bg-[#1877F2] active:scale-[0.99] disabled:opacity-70 text-white font-extrabold text-base tracking-wide shadow-md transition-all cursor-pointer flex items-center justify-center gap-2"
             >
-              <span>POST</span>
+              {isPublishingReel ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>{uploadProgressText || 'আপলোড হচ্ছে...'}</span>
+                </>
+              ) : (
+                <span>POST</span>
+              )}
             </button>
           </div>
         </>

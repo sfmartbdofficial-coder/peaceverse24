@@ -32,7 +32,7 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem } from '../types';
+import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem, ChatMessage } from '../types';
 import { DUMMY_COMMUNITY_USERS, DUMMY_GLOBAL_POSTS } from '../data/dummyCommunity';
 import { syncSupabaseProfile, fetchSupabaseProfiles } from './supabase';
 import {
@@ -256,80 +256,126 @@ export async function testFirebaseConnection(): Promise<boolean> {
 // REAL-TIME POSTS LISTENERS & ACTIONS
 // ==========================================
 
+function mapFirestoreDocToPostItem(id: string, data: Record<string, any>): PostItem {
+  const parsedCreatedAt = data.createdAt ? Date.parse(String(data.createdAt)) : 0;
+  const createdAtMillis = Number(
+    data.createdAtMillis || (Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : 0)
+  );
+  return {
+    id,
+    author: data.author || {
+      name: data.authorName || 'Peaceverse24.com User',
+      avatar:
+        data.authorAvatar ||
+        'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
+      verified: data.authorVerified ?? true,
+      subtitle: data.authorSubtitle || 'Just now • 🌐',
+    },
+    timeAgo: data.timeAgo || 'Just now',
+    isPublic: data.privacy ? data.privacy === 'public' : (data.isPublic ?? true),
+    privacy: data.privacy || 'public',
+    status: data.status || 'approved',
+    moderationReason: data.moderationReason,
+    appealStatus: data.appealStatus || 'none',
+    authorId: data.authorId,
+    contentBangla: data.contentBangla || data.content || '',
+    arabicVerse: data.arabicVerse,
+    translation: data.translation,
+    reference: data.reference,
+    mediaType: data.mediaType || 'none',
+    mediaUrl: data.mediaUrl,
+    mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls : undefined,
+    youtubeId: data.youtubeId,
+    duration: data.duration,
+    isLive: data.isLive,
+    category: data.category || 'Community',
+    reactions: data.reactions || {
+      total: data.likesCount || 0,
+      likeCount: data.likesCount || 0,
+      loveCount: 0,
+      subhanallahCount: 0,
+      mashaallahCount: 0,
+    },
+    userReaction: data.userReaction || null,
+    comments: Array.isArray(data.comments) ? data.comments : [],
+    sharesCount: data.sharesCount || 0,
+    isSaved: data.isSaved || false,
+    bgGradient: data.bgGradient,
+    location: data.location,
+    feeling: data.feeling,
+    taggedFriends: data.taggedFriends,
+    typingUsers: data.typingUsers || [],
+    goldenGiftsCount: data.goldenGiftsCount,
+    goldenGiftsAmount: data.goldenGiftsAmount,
+    musicTitle: data.musicTitle,
+    createdAtMillis: Number.isFinite(createdAtMillis) ? createdAtMillis : 0,
+  };
+}
+
 export function subscribeToRealtimePosts(
   onUpdate: (posts: PostItem[]) => void,
   onError?: (error: any) => void
 ) {
   try {
     const postsRef = collection(db, 'posts');
-    const q = query(postsRef, limit(50));
+    const orderedQuery = query(postsRef, orderBy('createdAtMillis', 'desc'), limit(150));
+    const mergedById = new Map<string, PostItem>();
 
-    return onSnapshot(
-      q,
-      (snapshot) => {
-        const livePosts: PostItem[] = [];
-        snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          livePosts.push({
-            id: docSnap.id,
-            author: data.author || {
-              name: data.authorName || 'Peaceverse24.com User',
-              avatar: data.authorAvatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=240&q=80',
-              verified: data.authorVerified ?? true,
-              subtitle: data.authorSubtitle || 'Just now • 🌐',
-            },
-            timeAgo: data.timeAgo || 'Just now',
-            isPublic: data.privacy ? data.privacy === 'public' : (data.isPublic ?? true),
-            privacy: data.privacy || 'public',
-            status: data.status || 'approved',
-            moderationReason: data.moderationReason,
-            appealStatus: data.appealStatus || 'none',
-            authorId: data.authorId,
-            contentBangla: data.contentBangla || data.content || '',
-            arabicVerse: data.arabicVerse,
-            translation: data.translation,
-            reference: data.reference,
-            mediaType: data.mediaType || 'none',
-            mediaUrl: data.mediaUrl,
-            mediaUrls: Array.isArray(data.mediaUrls) ? data.mediaUrls : undefined,
-            youtubeId: data.youtubeId,
-            duration: data.duration,
-            isLive: data.isLive,
-            category: data.category || 'Community',
-            reactions: data.reactions || {
-              total: data.likesCount || 0,
-              likeCount: data.likesCount || 0,
-              loveCount: 0,
-              subhanallahCount: 0,
-              mashaallahCount: 0,
-            },
-            userReaction: data.userReaction || null,
-            comments: Array.isArray(data.comments) ? data.comments : [],
-            sharesCount: data.sharesCount || 0,
-            isSaved: data.isSaved || false,
-            bgGradient: data.bgGradient,
-            location: data.location,
-            feeling: data.feeling,
-            taggedFriends: data.taggedFriends,
-            typingUsers: data.typingUsers || [],
-          });
+    const emitMerged = () => {
+      if (mergedById.size === 0) return;
+      const list = Array.from(mergedById.values()).sort(
+        (a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0)
+      );
+      onUpdate(list);
+    };
+
+    // One-time legacy fallback fetch so older posts without createdAtMillis still load alongside latest 150
+    getDocs(query(postsRef, limit(100)))
+      .then((snap) => {
+        let added = false;
+        snap.forEach((docSnap) => {
+          if (!mergedById.has(docSnap.id)) {
+            mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, docSnap.data()));
+            added = true;
+          }
         });
+        if (added) emitMerged();
+      })
+      .catch(() => {});
 
-        if (livePosts.length > 0) {
-          // Sort newest first
-          livePosts.sort((a, b) => {
-            const timeA = (a as any).createdAtMillis || 0;
-            const timeB = (b as any).createdAtMillis || 0;
-            return timeB - timeA;
-          });
-          onUpdate(livePosts);
-        }
+    let fallbackUnsub: (() => void) | null = null;
+    const mainUnsub = onSnapshot(
+      orderedQuery,
+      (snapshot) => {
+        snapshot.forEach((docSnap) => {
+          mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, docSnap.data()));
+        });
+        emitMerged();
       },
       (error) => {
-        console.warn('Realtime posts subscription notice:', error);
+        console.warn('Realtime ordered posts subscription notice, trying fallback:', error);
+        if (!fallbackUnsub) {
+          fallbackUnsub = onSnapshot(
+            query(postsRef, limit(150)),
+            (snap) => {
+              snap.forEach((docSnap) => {
+                mergedById.set(docSnap.id, mapFirestoreDocToPostItem(docSnap.id, docSnap.data()));
+              });
+              emitMerged();
+            },
+            (err2) => {
+              if (onError) onError(err2);
+            }
+          );
+        }
         if (onError) onError(error);
       }
     );
+
+    return () => {
+      mainUnsub();
+      if (fallbackUnsub) fallbackUnsub();
+    };
   } catch (err) {
     console.warn('Realtime subscription initialization:', err);
     return () => {};
@@ -342,24 +388,14 @@ export async function seedInitialPostsIfEmpty(_initialPosts: PostItem[]) {
   return;
 }
 
-// Force Firebase email, phone, or authenticated email+password verification before creating posts/comments
+// Allow any signed-in non-anonymous Firebase user (Google, Email/Password, Phone) to post
 function isCurrentUserVerifiedForPosting(): boolean {
   const u = auth.currentUser;
-  if (!u) return false;
+  if (!u || u.isAnonymous) return false;
   if (u.emailVerified) return true;
   if (u.email?.endsWith('@phone.peaceverse.app')) return true;
-  if (u.providerData?.some((p) => p.providerId === 'phone' || p.providerId === 'password')) {
-    return true;
-  }
-  try {
-    if (
-      u.uid &&
-      u.email &&
-      localStorage.getItem(`peaceverse_otp_verified_${u.uid}`) === u.email.trim().toLowerCase()
-    ) {
-      return true;
-    }
-  } catch {}
+  if (u.providerData && u.providerData.length > 0) return true;
+  if (u.uid) return true;
   return false;
 }
 
@@ -376,7 +412,7 @@ function stripUndefinedFields<T extends Record<string, any>>(obj: T): Record<str
 // Create a new post in Firestore with Real-time push
 export async function createRealtimePost(post: PostItem): Promise<boolean> {
   if (!isCurrentUserVerifiedForPosting()) {
-    console.warn('Security Block: Email verification required before posting.');
+    console.warn('Security Block: Authentication required before posting.');
     return false;
   }
 
@@ -391,34 +427,58 @@ export async function createRealtimePost(post: PostItem): Promise<boolean> {
     const postRef = doc(db, 'posts', post.id);
     const payload = stripUndefinedFields({
       ...post,
+      authorId: post.authorId || actorId,
       contentBangla: sanitizeInput(post.contentBangla || '', POST_MAX_LENGTH),
       arabicVerse: post.arabicVerse ? sanitizeInput(post.arabicVerse, POST_MAX_LENGTH) : undefined,
       translation: post.translation ? sanitizeInput(post.translation, POST_MAX_LENGTH) : undefined,
       privacy: post.privacy || 'public',
       status: post.status || 'approved',
-      createdAtMillis: Date.now(),
-      createdAt: new Date().toISOString(),
+      createdAtMillis: post.createdAtMillis || Date.now(),
+      createdAt: new Date(post.createdAtMillis || Date.now()).toISOString(),
       updatedAt: new Date().toISOString(),
     });
 
-    // Guard against Firestore's 1 MB document limit (e.g., if a huge video Data URL was attached)
-    const approxBytes = JSON.stringify(payload).length;
-    if (approxBytes > 950_000) {
-      if (Array.isArray(payload.mediaUrls) && payload.mediaUrls.length > 1) {
-        // Keep as many compressed photos as fit comfortably under 900 KB
-        const trimmedUrls: string[] = [];
-        for (const url of payload.mediaUrls) {
-          trimmedUrls.push(url);
-          if (JSON.stringify({ ...payload, mediaUrls: trimmedUrls, mediaUrl: trimmedUrls[0] }).length > 900_000) {
-            trimmedUrls.pop();
-            break;
+    // Never drop persistent URLs (/api/media/, pv-media://, https://).
+    // Only offload/trim raw inline data: payloads if document approaches Firestore's 1 MB limit.
+    let approxBytes = JSON.stringify(payload).length;
+    if (approxBytes > 920_000) {
+      try {
+        const { uploadDataUrlIfOversized } = await import('./mediaStorage');
+        if (typeof payload.mediaUrl === 'string' && payload.mediaUrl.startsWith('data:')) {
+          const kind = payload.mediaType === 'video' ? 'video' : 'image';
+          payload.mediaUrl = await uploadDataUrlIfOversized(payload.mediaUrl, kind, true);
+        }
+        if (Array.isArray(payload.mediaUrls)) {
+          payload.mediaUrls = await Promise.all(
+            payload.mediaUrls.map((u: string) =>
+              typeof u === 'string' && u.startsWith('data:')
+                ? uploadDataUrlIfOversized(u, 'image', true)
+                : Promise.resolve(u)
+            )
+          );
+          if (payload.mediaUrls[0]) {
+            payload.mediaUrl = payload.mediaUrls[0];
           }
         }
-        payload.mediaUrls = trimmedUrls.length > 0 ? trimmedUrls : undefined;
-        payload.mediaUrl = trimmedUrls[0] || undefined;
-      } else if (typeof payload.mediaUrl === 'string' && payload.mediaUrl.startsWith('data:')) {
-        delete payload.mediaUrl;
-        payload.mediaType = 'none';
+      } catch {}
+
+      approxBytes = JSON.stringify(payload).length;
+      if (approxBytes > 950_000) {
+        if (Array.isArray(payload.mediaUrls) && payload.mediaUrls.length > 1) {
+          const trimmedUrls: string[] = [];
+          for (const url of payload.mediaUrls) {
+            trimmedUrls.push(url);
+            if (JSON.stringify({ ...payload, mediaUrls: trimmedUrls, mediaUrl: trimmedUrls[0] }).length > 900_000) {
+              trimmedUrls.pop();
+              break;
+            }
+          }
+          payload.mediaUrls = trimmedUrls.length > 0 ? trimmedUrls : undefined;
+          payload.mediaUrl = trimmedUrls[0] || undefined;
+        } else if (typeof payload.mediaUrl === 'string' && payload.mediaUrl.startsWith('data:')) {
+          delete payload.mediaUrl;
+          payload.mediaType = 'none';
+        }
       }
     }
 
@@ -457,9 +517,11 @@ export async function addRealtimeComment(
     const postRef = doc(db, 'posts', postId);
     const postSnap = await getDocSafe(postRef);
     let existingComments: PostComment[] = [];
+    let postAuthorId: string | undefined = postFallback?.authorId;
     if (!postSnap || !postSnap.exists()) {
       const fallback = postFallback || DUMMY_GLOBAL_POSTS.find((dp) => dp.id === postId);
       if (!fallback) return false;
+      postAuthorId = fallback.authorId;
       existingComments = (fallback.comments || []).filter((c) => c.id !== safeComment.id);
       await setDoc(postRef, {
         ...stripUndefinedFields(fallback),
@@ -468,7 +530,9 @@ export async function addRealtimeComment(
         updatedAt: new Date().toISOString(),
       });
     } else {
-      existingComments = (postSnap.data().comments || []).filter((c: PostComment) => c.id !== safeComment.id);
+      const snapData = postSnap.data();
+      postAuthorId = snapData.authorId || postFallback?.authorId;
+      existingComments = (snapData.comments || []).filter((c: PostComment) => c.id !== safeComment.id);
       const updatedComments = [safeComment, ...existingComments];
 
       await updateDoc(postRef, {
@@ -484,18 +548,23 @@ export async function addRealtimeComment(
       createdAt: new Date().toISOString(),
     });
 
-    // Trigger instant notification to author
-    await sendRealtimeNotification({
-      id: `notif-${Date.now()}`,
-      type: 'comment',
-      avatar: safeComment.avatar,
-      title: `${safeComment.author} আপনার পোস্টে মন্তব্য করেছেন`,
-      subtitle: `"${safeComment.text.length > 35 ? safeComment.text.slice(0, 35) + '...' : safeComment.text}"`,
-      timeAgo: 'Just now',
-      isUnread: true,
-      badgeType: 'comment',
-      postId,
-    });
+    // Trigger instant notification targeted to post author (skip notifying self)
+    const senderUid = auth.currentUser?.uid || comment.author;
+    if (!postAuthorId || !senderUid || postAuthorId !== senderUid) {
+      await sendRealtimeNotification({
+        id: `notif-${Date.now()}`,
+        type: 'comment',
+        from: senderUid,
+        to: postAuthorId || 'all',
+        avatar: safeComment.avatar,
+        title: `${safeComment.author} আপনার পোস্টে মন্তব্য করেছেন`,
+        subtitle: `"${safeComment.text.length > 35 ? safeComment.text.slice(0, 35) + '...' : safeComment.text}"`,
+        timeAgo: 'Just now',
+        isUnread: true,
+        badgeType: 'comment',
+        postId,
+      });
+    }
 
     return true;
   } catch (err: any) {
@@ -584,27 +653,32 @@ export async function toggleRealtimeReaction(
     }
 
     if (!isSame) {
-      // Send realtime notification
-      const reactionBangla: Record<ReactionType, string> = {
-        like: '🤲 Dua দিয়েছেন',
-        love: '❤️ MashaAllah দিয়েছেন',
-        subhanallah: '🕋 SubhanAllah বলেছেন',
-        mashaallah: '🙏 Alhamdulillah বলেছেন',
-        care: '🤝 InshaAllah দিয়েছেন',
-        sad: '😢 Astagfirullah বলেছেন',
-      };
+      const postAuthorId = data.authorId ? String(data.authorId) : undefined;
+      const senderUid = auth.currentUser?.uid || userName;
+      if (!postAuthorId || !senderUid || postAuthorId !== senderUid) {
+        const reactionBangla: Record<ReactionType, string> = {
+          like: '🤲 Dua দিয়েছেন',
+          love: '❤️ MashaAllah দিয়েছেন',
+          subhanallah: '🕋 SubhanAllah বলেছেন',
+          mashaallah: '🙏 Alhamdulillah বলেছেন',
+          care: '🤝 InshaAllah দিয়েছেন',
+          sad: '😢 Astagfirullah বলেছেন',
+        };
 
-      await sendRealtimeNotification({
-        id: `notif-${Date.now()}`,
-        type: 'like',
-        avatar: userAvatar,
-        title: `${userName} আপনার পোস্টে ${reactionBangla[reaction] || 'রিয়েক্ট দিয়েছেন'}`,
-        subtitle: 'আপনার পোস্টের সাথে যুক্ত থাকুন',
-        timeAgo: 'Just now',
-        isUnread: true,
-        badgeType: 'like',
-        postId,
-      });
+        await sendRealtimeNotification({
+          id: `notif-${Date.now()}`,
+          type: 'like',
+          from: senderUid,
+          to: postAuthorId || 'all',
+          avatar: userAvatar,
+          title: `${userName} আপনার পোস্টে ${reactionBangla[reaction] || 'রিয়েক্ট দিয়েছেন'}`,
+          subtitle: 'আপনার পোস্টের সাথে যুক্ত থাকুন',
+          timeAgo: 'Just now',
+          isUnread: true,
+          badgeType: 'like',
+          postId,
+        });
+      }
     }
 
     return true;
@@ -775,24 +849,64 @@ export async function submitRealtimeAppeal(
 // ==========================================
 
 export function subscribeToRealtimeNotifications(
+  currentUserId: string | undefined,
   onUpdate: (notifications: NotificationItem[]) => void,
   onError?: (error: any) => void
 ) {
   try {
     const notifsRef = collection(db, 'notifications');
-    const q = query(notifsRef, limit(40));
+    const q = query(notifsRef, limit(80));
 
     return onSnapshot(
       q,
       (snapshot) => {
-        const liveNotifs: NotificationItem[] = [];
+        const ownedPageIds = new Set<string>();
+        try {
+          const pagesRaw = localStorage.getItem('qalby_fb_pages');
+          if (pagesRaw) {
+            const parsed = JSON.parse(pagesRaw);
+            if (Array.isArray(parsed)) {
+              parsed.forEach((pg: { id?: string; isOwner?: boolean }) => {
+                if (pg?.id && pg.isOwner !== false) ownedPageIds.add(String(pg.id).trim());
+              });
+            }
+          }
+        } catch {}
+
+        const liveNotifs: (NotificationItem & { createdAtMillis?: number })[] = [];
         snapshot.forEach((docSnap) => {
           const data = docSnap.data();
+          const recipient = String(data.to || data.recipientId || '').trim();
+          const sender = String(data.from || data.senderId || '').trim();
+
+          // Filter user-targeted notifications so Account A never sees Account B's private alerts
+          if (recipient && recipient !== 'all') {
+            const matchesMe = Boolean(
+              currentUserId && (recipient === currentUserId || ownedPageIds.has(recipient))
+            );
+            if (!matchesMe) return;
+          }
+
+          // Never show user's own outgoing action back to themselves as an incoming alert
+          if (
+            currentUserId &&
+            sender &&
+            (sender === currentUserId || ownedPageIds.has(sender)) &&
+            (data.type === 'friend_request' || data.type === 'like' || data.type === 'comment')
+          ) {
+            return;
+          }
+
+          const parsedCreatedAt = data.createdAt ? Date.parse(String(data.createdAt)) : 0;
+          const createdAtMillis = Number(
+            data.createdAtMillis || (Number.isFinite(parsedCreatedAt) ? parsedCreatedAt : 0)
+          );
+
           liveNotifs.push({
             id: docSnap.id,
             type: data.type || 'general',
             from: data.from,
-            to: data.to,
+            to: data.to || data.recipientId,
             read: data.read ?? !data.isUnread,
             avatar: data.avatar || 'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?auto=format&fit=crop&w=120&q=80',
             title: data.title || '',
@@ -803,17 +917,13 @@ export function subscribeToRealtimeNotifications(
             isUnread: data.isUnread ?? !(data.read ?? false),
             badgeType: data.badgeType || 'bell',
             postId: data.postId,
+            requestData: data.requestData,
+            createdAtMillis: Number.isFinite(createdAtMillis) ? createdAtMillis : 0,
           });
         });
 
-        if (liveNotifs.length > 0) {
-          liveNotifs.sort((a, b) => {
-            const timeA = (a as any).createdAtMillis || 0;
-            const timeB = (b as any).createdAtMillis || 0;
-            return timeB - timeA;
-          });
-          onUpdate(liveNotifs);
-        }
+        liveNotifs.sort((a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0));
+        onUpdate(liveNotifs);
       },
       (error) => {
         console.warn('Realtime notifications notice:', error);
@@ -1097,17 +1207,45 @@ export function isTargetFriendLocally(targetId?: string, targetName?: string): b
   return false;
 }
 
-export function addLocalFriend(friend: { id: string; name: string; avatar: string }): void {
+export function readLocalFriendsStore(): Array<{
+  id: string;
+  name: string;
+  avatar: string;
+  mutualCount?: number;
+  isOnline?: boolean;
+}> {
   try {
     const raw = localStorage.getItem(FRIENDS_LIST_STORAGE_KEY);
-    const list: Array<{
-      id: string;
-      name: string;
-      avatar: string;
-      mutualCount?: number;
-      isOnline?: boolean;
-    }> = raw ? JSON.parse(raw) : [];
-    const safeList = Array.isArray(list) ? list : [];
+    if (!raw) return [];
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+export function syncLocalFriendsStore(
+  friends: Array<{ id: string; name: string; avatar: string }>
+): void {
+  try {
+    const normalized = friends
+      .filter((f) => f && f.id && f.name)
+      .map((f) => ({
+        id: String(f.id),
+        name: String(f.name),
+        avatar: String(f.avatar || ''),
+        mutualCount: 1,
+        isOnline: true,
+      }));
+    localStorage.setItem(FRIENDS_LIST_STORAGE_KEY, JSON.stringify(normalized));
+    normalized.forEach((f) => setFriendRequestSentLocally(false, f.id, f.name));
+    window.dispatchEvent(new Event('peaceverse:friends-updated'));
+  } catch {}
+}
+
+export function addLocalFriend(friend: { id: string; name: string; avatar: string }): void {
+  try {
+    const safeList = readLocalFriendsStore();
     const normNew = normalizeFollowName(friend.name);
     const exists = safeList.some(
       (f) => f.id === friend.id || (normNew && normalizeFollowName(f.name) === normNew)
@@ -1497,9 +1635,7 @@ export async function loginWithGoogle(): Promise<FirebaseUser | null> {
       const gAvatar =
         result.user.photoURL ||
         `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(gName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
-      void syncUserDirectoryProfile(result.user.uid, gName, result.user.email || '', gAvatar, {
-        firebaseUser: result.user,
-      });
+      void syncUserDirectoryProfile(result.user.uid, gName, result.user.email || '', gAvatar);
     }
     return result.user;
   } catch (err) {
@@ -1531,9 +1667,7 @@ export async function loginWithEmail(email: string, pass: string): Promise<Fireb
     const eAvatar =
       res.user.photoURL ||
       `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(eName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
-    void syncUserDirectoryProfile(res.user.uid, eName, res.user.email || '', eAvatar, {
-      firebaseUser: res.user,
-    });
+    void syncUserDirectoryProfile(res.user.uid, eName, res.user.email || '', eAvatar);
     void markCurrentUserEmailOtpVerified();
   }
   return res.user;
@@ -1581,6 +1715,10 @@ export async function registerWithEmail(
       res.user.photoURL ||
       `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(cleanName)}&backgroundColor=1877f2,0ea5e9,3b82f6`;
 
+    const normalizedEmail = (res.user.email || email).trim().toLowerCase();
+    const emailHash = await sha256Hex(normalizedEmail);
+    const nowMs = Date.now();
+
     try {
       const userRef = doc(db, 'users', res.user.uid);
       await setDoc(
@@ -1593,11 +1731,14 @@ export async function registerWithEmail(
           username: generatedUsername,
           transliteratedName: transliterateBnToEn(cleanName),
           email: res.user.email,
+          ...(emailHash ? { emailHash } : {}),
           emailOtpVerified: true,
           friendsCount: 0,
-          avatar: resolvedAvatar,
-          createdAt: new Date().toISOString(),
-          createdAtMillis: Date.now(),
+          avatar: trimOversizedImageForFirestore(resolvedAvatar),
+          createdAt: new Date(nowMs).toISOString(),
+          createdAtMillis: nowMs,
+          updatedAt: new Date(nowMs).toISOString(),
+          updatedAtMillis: nowMs,
         },
         { merge: true }
       );
@@ -1608,27 +1749,6 @@ export async function registerWithEmail(
 
     await Promise.allSettled([
       setDoc(
-        doc(db, 'pages', `diruser-${res.user.uid}`),
-        {
-          docType: 'user_directory',
-          id: `diruser-${res.user.uid}`,
-          uid: res.user.uid,
-          ownerUid: res.user.uid,
-          name: cleanName,
-          displayName: cleanName,
-          username: generatedUsername,
-          transliteratedName: transliterateBnToEn(cleanName),
-          category: 'UserDirectory',
-          avatar: trimOversizedImageForFirestore(resolvedAvatar),
-          bio: '',
-          location: '',
-          allowFriendRequests: true,
-          updatedAt: new Date().toISOString(),
-          updatedAtMillis: Date.now(),
-        },
-        { merge: true }
-      ),
-      setDoc(
         doc(db, 'public_profiles', res.user.uid),
         {
           id: res.user.uid,
@@ -1637,10 +1757,11 @@ export async function registerWithEmail(
           displayName: cleanName,
           username: generatedUsername,
           transliteratedName: transliterateBnToEn(cleanName),
-          avatar: resolvedAvatar,
+          ...(emailHash ? { emailHash } : {}),
+          avatar: trimOversizedImageForFirestore(resolvedAvatar),
           allowFriendRequests: true,
-          updatedAt: new Date().toISOString(),
-          updatedAtMillis: Date.now(),
+          updatedAt: new Date(nowMs).toISOString(),
+          updatedAtMillis: nowMs,
         },
         { merge: true }
       ),
@@ -1648,15 +1769,14 @@ export async function registerWithEmail(
         uid: res.user.uid,
         displayName: cleanName,
         username: generatedUsername,
-        avatar: resolvedAvatar,
+        avatar: trimOversizedImageForFirestore(resolvedAvatar),
         email: res.user.email || '',
-        firebaseUser: res.user,
       }),
       syncSupabaseProfile({
         id: res.user.uid,
         displayName: cleanName,
         username: generatedUsername,
-        avatar: resolvedAvatar,
+        avatar: trimOversizedImageForFirestore(resolvedAvatar),
       }),
     ]);
 
@@ -1721,6 +1841,10 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
     if (cleanName && auth.currentUser && auth.currentUser.displayName !== cleanName) {
       updateProfile(auth.currentUser, { displayName: cleanName }).catch(() => {});
     }
+    const resolvedEmail = (profile.email || auth.currentUser?.email || '').trim();
+    const emailHash = resolvedEmail ? await sha256Hex(resolvedEmail.toLowerCase()) : '';
+    const safeAvatarForDoc = trimOversizedImageForFirestore(profile.avatar);
+    const safeCoverForDoc = trimOversizedImageForFirestore(profile.coverPhoto);
     await setDoc(
       userRef,
       {
@@ -1730,9 +1854,10 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
         displayName: cleanName,
         transliteratedName: cleanName ? transliterateBnToEn(cleanName) : '',
         ...(resolvedUsername ? { username: resolvedUsername } : {}),
-        email: profile.email || auth.currentUser?.email || '',
-        avatar: profile.avatar || '',
-        coverPhoto: profile.coverPhoto || '',
+        email: resolvedEmail,
+        ...(emailHash ? { emailHash } : {}),
+        ...(safeAvatarForDoc ? { avatar: safeAvatarForDoc } : {}),
+        ...(safeCoverForDoc ? { coverPhoto: safeCoverForDoc } : {}),
         bio: sanitizeInput(profile.bio || ''),
         profileCategory: sanitizeInput(profile.profileCategory || ''),
         location: sanitizeInput(profile.location || ''),
@@ -1757,27 +1882,6 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
     if (cleanName) {
       void Promise.allSettled([
         setDoc(
-          doc(db, 'pages', `diruser-${targetId}`),
-          {
-            docType: 'user_directory',
-            id: `diruser-${targetId}`,
-            uid: targetId,
-            ownerUid: targetId,
-            name: cleanName,
-            displayName: cleanName,
-            transliteratedName: transliterateBnToEn(cleanName),
-            ...(resolvedUsername ? { username: resolvedUsername } : {}),
-            category: 'UserDirectory',
-            avatar: trimOversizedImageForFirestore(profile.avatar),
-            bio: sanitizeInput(profile.bio || '', 300),
-            location: sanitizeInput(profile.location || '', 120),
-            allowFriendRequests: profile.isCreator !== true,
-            updatedAt: new Date().toISOString(),
-            updatedAtMillis: Date.now(),
-          },
-          { merge: true }
-        ),
-        setDoc(
           doc(db, 'public_profiles', targetId),
           {
             id: targetId,
@@ -1786,7 +1890,8 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
             displayName: cleanName,
             transliteratedName: transliterateBnToEn(cleanName),
             ...(resolvedUsername ? { username: resolvedUsername } : {}),
-            avatar: trimOversizedImageForFirestore(profile.avatar),
+            ...(emailHash ? { emailHash } : {}),
+            ...(safeAvatarForDoc ? { avatar: safeAvatarForDoc } : {}),
             bio: sanitizeInput(profile.bio || '', 300),
             location: sanitizeInput(profile.location || '', 120),
             allowFriendRequests: profile.isCreator !== true,
@@ -1799,18 +1904,17 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
           uid: targetId,
           displayName: cleanName,
           username: resolvedUsername,
-          avatar: trimOversizedImageForFirestore(profile.avatar),
+          avatar: safeAvatarForDoc,
           bio: sanitizeInput(profile.bio || '', 300),
           location: sanitizeInput(profile.location || '', 120),
-          email: profile.email || auth.currentUser?.email || '',
+          email: resolvedEmail,
           allowFriendRequests: profile.isCreator !== true,
-          firebaseUser: auth.currentUser,
         }),
         syncSupabaseProfile({
           id: targetId,
           displayName: cleanName,
           username: resolvedUsername,
-          avatar: trimOversizedImageForFirestore(profile.avatar),
+          avatar: safeAvatarForDoc,
           bio: sanitizeInput(profile.bio || '', 300),
           location: sanitizeInput(profile.location || '', 120),
         }),
@@ -2321,6 +2425,19 @@ function consonantSkeleton(text: string): string {
   return normalized[0] + normalized.slice(1).replace(/[aeiou]/g, '');
 }
 
+async function sha256Hex(value: string): Promise<string> {
+  const clean = value.trim().toLowerCase();
+  if (!clean || typeof window === 'undefined' || !window.crypto?.subtle) return '';
+  try {
+    const buf = await window.crypto.subtle.digest('SHA-256', new TextEncoder().encode(clean));
+    return Array.from(new Uint8Array(buf))
+      .map((b) => b.toString(16).padStart(2, '0'))
+      .join('');
+  } catch {
+    return '';
+  }
+}
+
 function isPlaceholderDisplayName(name?: string, email?: string): boolean {
   const clean = (name || '').trim().toLowerCase();
   if (!clean) return true;
@@ -2336,11 +2453,28 @@ function isPlaceholderDisplayName(name?: string, email?: string): boolean {
 // FACEBOOK-STYLE USER SEARCH & FRIEND REQUESTS
 // ==========================================
 
-let cachedDirectoryUsers: { users: SearchedUserProfile[]; fetchedAt: number } | null = null;
+type DirectoryUserRecord = SearchedUserProfile & {
+  emailHash?: string;
+  phoneDigits?: string;
+};
+
+let cachedDirectoryUsers: { users: DirectoryUserRecord[]; fetchedAt: number } | null = null;
 const USER_DIRECTORY_CACHE_TTL_MS = 15 * 1000;
 
 export function invalidateUserDirectoryCache(): void {
   cachedDirectoryUsers = null;
+}
+
+async function getCurrentAuthHeaders(): Promise<Record<string, string>> {
+  try {
+    const currentUser = auth.currentUser;
+    if (!currentUser) return {};
+    const idToken = await currentUser.getIdToken();
+    if (!idToken) return {};
+    return { Authorization: `Bearer ${idToken}` };
+  } catch {
+    return {};
+  }
 }
 
 async function syncUserToServerDirectory(payload: {
@@ -2353,25 +2487,23 @@ async function syncUserToServerDirectory(payload: {
   email?: string;
   verified?: boolean;
   allowFriendRequests?: boolean;
-  firebaseUser?: FirebaseUser | null;
 }): Promise<void> {
   if (typeof window === 'undefined' || !payload.uid || !payload.displayName.trim()) return;
   try {
-    const activeUser = payload.firebaseUser || auth.currentUser;
-    if (!activeUser || activeUser.uid !== payload.uid) return;
-    const idToken = await activeUser.getIdToken();
+    const currentUser = auth.currentUser;
+    if (!currentUser || currentUser.uid !== payload.uid) return;
+    const idToken = await currentUser.getIdToken();
     if (!idToken) return;
-    const { firebaseUser: _omit, ...bodyPayload } = payload;
     await fetch('/api/users/sync', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
         Authorization: `Bearer ${idToken}`,
       },
-      body: JSON.stringify(bodyPayload),
+      body: JSON.stringify(payload),
     });
   } catch {
-    // Non-fatal fallback if offline or edge static origin doesn't expose /api/users/sync
+    // Non-fatal fallback if offline or serverless edge doesn't expose /api/users/sync
   }
 }
 
@@ -2380,110 +2512,10 @@ export async function syncUserDirectoryProfile(
   displayName: string,
   email: string,
   avatar: string,
-  extra?: {
-    bio?: string;
-    location?: string;
-    username?: string;
-    allowFriendRequests?: boolean;
-    firebaseUser?: FirebaseUser | null;
-  }
+  extra?: { bio?: string; location?: string; username?: string; allowFriendRequests?: boolean }
 ): Promise<void> {
   if (!uid || !displayName.trim()) return;
   const userRef = doc(db, 'users', uid);
-
-  const pushToSharedDirectories = (opts: {
-    name: string;
-    username: string;
-    transliterated: string;
-    avatar: string;
-    bio: string;
-    location: string;
-    allowFriendRequests: boolean;
-  }) => {
-    const trimmedAvatar = trimOversizedImageForFirestore(opts.avatar);
-    const nowIso = new Date().toISOString();
-    const nowMs = Date.now();
-    return Promise.allSettled([
-      setDoc(
-        doc(db, 'pages', `diruser-${uid}`),
-        {
-          docType: 'user_directory',
-          id: `diruser-${uid}`,
-          uid,
-          ownerUid: uid,
-          name: opts.name,
-          displayName: opts.name,
-          transliteratedName: opts.transliterated,
-          username: opts.username,
-          category: 'UserDirectory',
-          avatar: trimmedAvatar,
-          bio: opts.bio,
-          location: opts.location,
-          allowFriendRequests: opts.allowFriendRequests,
-          updatedAt: nowIso,
-          updatedAtMillis: nowMs,
-        },
-        { merge: true }
-      ),
-      setDoc(
-        doc(db, 'public_profiles', uid),
-        {
-          id: uid,
-          uid,
-          displayName: opts.name,
-          name: opts.name,
-          transliteratedName: opts.transliterated,
-          username: opts.username,
-          avatar: trimmedAvatar,
-          bio: opts.bio,
-          location: opts.location,
-          allowFriendRequests: opts.allowFriendRequests,
-          updatedAt: nowIso,
-          updatedAtMillis: nowMs,
-        },
-        { merge: true }
-      ),
-      syncUserToServerDirectory({
-        uid,
-        displayName: opts.name,
-        username: opts.username,
-        avatar: trimmedAvatar,
-        bio: opts.bio,
-        location: opts.location,
-        email,
-        allowFriendRequests: opts.allowFriendRequests,
-        firebaseUser: extra?.firebaseUser,
-      }),
-      syncSupabaseProfile({
-        id: uid,
-        displayName: opts.name,
-        username: opts.username,
-        avatar: trimmedAvatar,
-        bio: opts.bio,
-        location: opts.location,
-      }),
-    ]);
-  };
-
-  const incomingName = displayName.trim();
-  const initialTranslit = transliterateBnToEn(incomingName);
-  const initialUsername =
-    extra?.username?.trim() ||
-    initialTranslit.replace(/[^a-z0-9]+/g, '') ||
-    (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '');
-
-  // Immediately publish non-blocking so cross-device directory never stalls behind private users doc read
-  if (!isPlaceholderDisplayName(incomingName, email)) {
-    void pushToSharedDirectories({
-      name: incomingName,
-      username: initialUsername,
-      transliterated: initialTranslit,
-      avatar,
-      bio: extra?.bio || '',
-      location: extra?.location || '',
-      allowFriendRequests: extra?.allowFriendRequests ?? true,
-    });
-  }
 
   let existingData: Record<string, any> | null = null;
   try {
@@ -2493,6 +2525,7 @@ export async function syncUserDirectoryProfile(
     existingData = null;
   }
 
+  const incomingName = displayName.trim();
   const existingName = String(existingData?.displayName || existingData?.name || '').trim();
   const finalName =
     existingName &&
@@ -2508,11 +2541,12 @@ export async function syncUserDirectoryProfile(
     transliterated.replace(/[^a-z0-9]+/g, '') ||
     (email ? email.split('@')[0].toLowerCase().replace(/[^a-z0-9._-]/g, '') : '');
   const resolvedAvatar = existingData?.avatar || existingData?.photoURL || avatar;
+  const safeAvatar = trimOversizedImageForFirestore(resolvedAvatar);
   const resolvedBio = extra?.bio !== undefined ? extra.bio : String(existingData?.bio || '');
   const resolvedLocation =
     extra?.location !== undefined ? extra.location : String(existingData?.location || '');
-  const resolvedAllowFriendRequests =
-    extra?.allowFriendRequests ?? (existingData?.isCreator !== true);
+  const resolvedEmail = (email || String(existingData?.email || '')).trim();
+  const emailHash = resolvedEmail ? await sha256Hex(resolvedEmail.toLowerCase()) : '';
 
   try {
     await setDoc(
@@ -2524,10 +2558,11 @@ export async function syncUserDirectoryProfile(
         name: finalName,
         transliteratedName: transliterated,
         username: derivedUsername,
-        avatar: resolvedAvatar,
+        ...(safeAvatar ? { avatar: safeAvatar } : {}),
         ...(existingData?.profileCategory ? { profileCategory: existingData.profileCategory } : {}),
         ...(existingData?.friendsCount === undefined ? { friendsCount: 0 } : {}),
-        ...(email && !existingData?.email ? { email } : {}),
+        ...(resolvedEmail && !existingData?.email ? { email: resolvedEmail } : {}),
+        ...(emailHash ? { emailHash } : {}),
         ...(resolvedBio ? { bio: resolvedBio } : {}),
         ...(resolvedLocation ? { location: resolvedLocation } : {}),
         updatedAt: new Date().toISOString(),
@@ -2544,21 +2579,51 @@ export async function syncUserDirectoryProfile(
     }
   }
 
-  await pushToSharedDirectories({
-    name: finalName,
-    username: derivedUsername,
-    transliterated,
-    avatar: resolvedAvatar,
-    bio: resolvedBio,
-    location: resolvedLocation,
-    allowFriendRequests: resolvedAllowFriendRequests,
-  });
+  await Promise.allSettled([
+    setDoc(
+      doc(db, 'public_profiles', uid),
+      {
+        id: uid,
+        uid,
+        displayName: finalName,
+        name: finalName,
+        transliteratedName: transliterated,
+        username: derivedUsername,
+        ...(safeAvatar ? { avatar: safeAvatar } : {}),
+        ...(emailHash ? { emailHash } : {}),
+        bio: resolvedBio,
+        location: resolvedLocation,
+        allowFriendRequests: extra?.allowFriendRequests ?? true,
+        updatedAt: new Date().toISOString(),
+        updatedAtMillis: Date.now(),
+      },
+      { merge: true }
+    ),
+    syncUserToServerDirectory({
+      uid,
+      displayName: finalName,
+      username: derivedUsername,
+      avatar: safeAvatar,
+      bio: resolvedBio,
+      location: resolvedLocation,
+      email: resolvedEmail,
+      allowFriendRequests: extra?.allowFriendRequests ?? true,
+    }),
+    syncSupabaseProfile({
+      id: uid,
+      displayName: finalName,
+      username: derivedUsername,
+      avatar: safeAvatar,
+      bio: resolvedBio,
+      location: resolvedLocation,
+    }),
+  ]);
 }
 
-async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
-  const byId = new Map<string, SearchedUserProfile>();
+async function fetchDirectoryUsersFromServer(): Promise<DirectoryUserRecord[]> {
+  const byId = new Map<string, DirectoryUserRecord>();
 
-  const upsertCandidate = (candidate: SearchedUserProfile, preferOverride = false) => {
+  const upsertCandidate = (candidate: DirectoryUserRecord, preferOverride = false) => {
     if (!candidate.id || !candidate.displayName?.trim()) return;
     const existing = byId.get(candidate.id);
     if (!existing) {
@@ -2577,39 +2642,40 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
         bio: candidate.bio || existing.bio,
         location: candidate.location || existing.location,
         coverPhoto: candidate.coverPhoto || existing.coverPhoto,
+        emailHash: candidate.emailHash || existing.emailHash,
+        phoneDigits: candidate.phoneDigits || existing.phoneDigits,
+      });
+    } else if (!existing.emailHash && candidate.emailHash) {
+      byId.set(candidate.id, {
+        ...existing,
+        emailHash: candidate.emailHash,
+        phoneDigits: existing.phoneDigits || candidate.phoneDigits,
       });
     }
   };
 
-  // Query all cross-device shared directories in parallel
-  const [
-    serverRes,
-    usersSnap,
-    publicProfilesSnap,
-    pagesSnap,
-    supabaseProfiles,
-    postsSnap,
-    followsSnap,
-    notifsSnap,
-  ] = await Promise.all([
-    fetch('/api/users/directory')
-      .then((r) => {
-        const ct = r.headers.get('content-type') || '';
-        return r.ok && ct.includes('application/json') ? r.json() : null;
-      })
+  const authHeaders = await getCurrentAuthHeaders();
+
+  // Query all cross-device shared directories in parallel (newest updated first with fallback)
+  const [serverRes, usersSnap, publicProfilesSnap, supabaseProfiles, postsSnap] = await Promise.all([
+    fetch('/api/users/directory', { headers: authHeaders })
+      .then((r) => (r.ok ? r.json() : null))
       .catch(() => null),
-    getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
-      if (err?.code === 'permission-denied') {
-        handleFirestoreError(err, OperationType.LIST, 'users');
-      }
-      return null;
-    }),
-    getDocs(query(collection(db, 'public_profiles'), limit(1000))).catch(() => null),
-    getDocs(query(collection(db, 'pages'), limit(800))).catch(() => null),
+    getDocs(query(collection(db, 'users'), orderBy('updatedAtMillis', 'desc'), limit(1000))).catch(() =>
+      getDocs(query(collection(db, 'users'), limit(1000))).catch((err) => {
+        if (err?.code === 'permission-denied') {
+          handleFirestoreError(err, OperationType.LIST, 'users');
+        }
+        return null;
+      })
+    ),
+    getDocs(query(collection(db, 'public_profiles'), orderBy('updatedAtMillis', 'desc'), limit(1000))).catch(() =>
+      getDocs(query(collection(db, 'public_profiles'), limit(1000))).catch(() => null)
+    ),
     fetchSupabaseProfiles().catch(() => []),
-    getDocs(query(collection(db, 'posts'), limit(300))).catch(() => null),
-    getDocs(query(collection(db, 'follows'), limit(500))).catch(() => null),
-    getDocs(query(collection(db, 'notifications'), limit(300))).catch(() => null),
+    getDocs(query(collection(db, 'posts'), orderBy('createdAtMillis', 'desc'), limit(250))).catch(() =>
+      getDocs(query(collection(db, 'posts'), limit(250))).catch(() => null)
+    ),
   ]);
 
   // 1. Server shared user directory
@@ -2639,39 +2705,7 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
     });
   }
 
-  // 2. Shared Firestore 'pages/diruser-*' cross-user directory entries
-  (pagesSnap?.docs || []).forEach((docSnap) => {
-    const data = docSnap.data();
-    const isUserDirDoc =
-      data?.docType === 'user_directory' || docSnap.id.startsWith('diruser-');
-    if (!isUserDirDoc) return;
-    const uid = String(data.uid || docSnap.id.replace(/^diruser-/, '')).trim();
-    const displayName = String(data.displayName || data.name || '').trim();
-    if (!uid || !displayName) return;
-    const username = String(data.username || data.handle || '').trim();
-    const avatar =
-      String(data.avatar || data.photoURL || '').trim() ||
-      `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-        displayName
-      )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
-
-    upsertCandidate(
-      {
-        id: uid,
-        uid,
-        displayName,
-        username: username || transliterateBnToEn(displayName).replace(/[^a-z0-9]+/g, ''),
-        avatar,
-        bio: data.bio ? String(data.bio) : undefined,
-        location: data.location ? String(data.location) : undefined,
-        verified: Boolean(data.verified || data.isVerified),
-        allowFriendRequests: data.allowFriendRequests !== false,
-      },
-      true
-    );
-  });
-
-  // 3. Firestore public_profiles collection
+  // 2. Firestore public_profiles collection
   (publicProfilesSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
     const displayName = String(data.displayName || data.name || '').trim();
@@ -2694,16 +2728,21 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
         location: data.location ? String(data.location) : undefined,
         verified: Boolean(data.verified || data.isVerified),
         allowFriendRequests: data.allowFriendRequests !== false,
+        emailHash: data.emailHash ? String(data.emailHash) : undefined,
       },
       true
     );
   });
 
-  // 4. Firestore users collection
+  // 3. Firestore users collection
   (usersSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
     const displayName = String(data.displayName || data.name || 'Peaceverse User').trim();
-    const emailLocal = data.email ? String(data.email).split('@')[0] : '';
+    const rawEmail = data.email ? String(data.email).trim().toLowerCase() : '';
+    const emailLocal = rawEmail ? rawEmail.split('@')[0] : '';
+    const phoneDigits = rawEmail.endsWith('@phone.peaceverse.app')
+      ? emailLocal.replace(/\D/g, '')
+      : '';
     const username = String(data.username || data.handle || emailLocal || '').trim();
     const avatar =
       String(data.avatar || data.photoURL || '').trim() ||
@@ -2723,17 +2762,19 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
         location: data.location ? String(data.location) : undefined,
         verified: Boolean(data.verified || data.isVerified),
         allowFriendRequests: data.isCreator !== true,
+        emailHash: data.emailHash ? String(data.emailHash) : undefined,
+        phoneDigits: phoneDigits || undefined,
       },
       true
     );
   });
 
-  // 5. Supabase profiles table (when configured)
+  // 4. Supabase profiles table (when configured)
   (supabaseProfiles || []).forEach((sp) => {
     upsertCandidate(sp, false);
   });
 
-  // 6. Fallback: active creators from Firestore posts
+  // 5. Fallback: active creators from Firestore posts
   (postsSnap?.docs || []).forEach((pDoc) => {
     const pData = pDoc.data();
     const aName = String(pData?.author?.name || '').trim();
@@ -2753,75 +2794,7 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
     });
   });
 
-  // 7. Fallback: users discovered via follows / friend requests & notifications
-  (followsSnap?.docs || []).forEach((fDoc) => {
-    const fData = fDoc.data();
-    const pairs: Array<{ id: string; name: string; avatar: string }> = [
-      {
-        id: String(fData?.followerId || '').trim(),
-        name: String(fData?.followerName || '').trim(),
-        avatar: String(fData?.followerAvatar || '').trim(),
-      },
-      {
-        id: String(fData?.targetId || '').trim(),
-        name: String(fData?.targetName || '').trim(),
-        avatar: String(fData?.targetAvatar || '').trim(),
-      },
-    ];
-    pairs.forEach((p) => {
-      if (
-        !p.id ||
-        !p.name ||
-        p.id.startsWith('page-') ||
-        p.id.startsWith('user-') ||
-        isPlaceholderDisplayName(p.name) ||
-        byId.has(p.id)
-      ) {
-        return;
-      }
-      upsertCandidate({
-        id: p.id,
-        uid: p.id,
-        displayName: p.name,
-        username: transliterateBnToEn(p.name).replace(/[^a-z0-9]+/g, ''),
-        avatar:
-          p.avatar ||
-          `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-            p.name
-          )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
-      });
-    });
-  });
-
-  (notifsSnap?.docs || []).forEach((nDoc) => {
-    const nData = nDoc.data();
-    const sId = String(nData?.senderId || nData?.from || '').trim();
-    const sName = String(nData?.senderName || nData?.requestData?.name || '').trim();
-    const sAvatar = String(nData?.senderAvatar || nData?.avatar || '').trim();
-    if (
-      !sId ||
-      !sName ||
-      sId.startsWith('page-') ||
-      sId.startsWith('user-') ||
-      isPlaceholderDisplayName(sName) ||
-      byId.has(sId)
-    ) {
-      return;
-    }
-    upsertCandidate({
-      id: sId,
-      uid: sId,
-      displayName: sName,
-      username: transliterateBnToEn(sName).replace(/[^a-z0-9]+/g, ''),
-      avatar:
-        sAvatar ||
-        `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
-          sName
-        )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
-    });
-  });
-
-  // 8. Local posts store authors
+  // 6. Local posts store authors
   try {
     const localPostsRaw = localStorage.getItem('peaceverse_posts');
     if (localPostsRaw) {
@@ -2848,7 +2821,7 @@ async function fetchDirectoryUsersFromServer(): Promise<SearchedUserProfile[]> {
     }
   } catch {}
 
-  // 9. Built-in global community members (added last so real accounts always keep priority)
+  // 7. Built-in global community members (added last so real accounts always keep priority)
   DUMMY_COMMUNITY_USERS.forEach((du) => {
     if (!byId.has(du.id)) {
       byId.set(du.id, du);
@@ -2880,6 +2853,8 @@ export async function searchUsersFromFirestore(
   const q = rawTrimmed.toLowerCase();
   if (!q) return [];
 
+  const qDigits = q.replace(/\D/g, '');
+  const qEmailHash = q.includes('@') ? await sha256Hex(q) : '';
   const qNoEmailDomain = q.includes('@') ? q.split('@')[0].trim() : q;
   const qTranslit = transliterateBnToEn(rawTrimmed);
   const qPhonetic = phoneticNormalize(rawTrimmed);
@@ -2887,7 +2862,11 @@ export async function searchUsersFromFirestore(
   const qTokens = qTranslit.split(/\s+/).filter(Boolean);
   const qPhoneticTokens = qPhonetic.split(/\s+/).filter(Boolean);
 
-  const matchesCandidate = (u: SearchedUserProfile): boolean => {
+  const matchesCandidate = (u: DirectoryUserRecord): boolean => {
+    if (u.id.toLowerCase() === q || u.uid.toLowerCase() === q) return true;
+    if (qEmailHash && u.emailHash && u.emailHash === qEmailHash) return true;
+    if (qDigits.length >= 6 && u.phoneDigits && u.phoneDigits.includes(qDigits)) return true;
+
     const dn = u.displayName.normalize('NFC').toLowerCase();
     const un = (u.username || '').toLowerCase();
     if (dn.includes(q) || un.includes(q)) return true;
@@ -2936,7 +2915,7 @@ export async function searchUsersFromFirestore(
 
   try {
     const now = Date.now();
-    let directoryUsers: SearchedUserProfile[] = [];
+    let directoryUsers: DirectoryUserRecord[] = [];
 
     if (
       !forceRefresh &&
@@ -2949,16 +2928,16 @@ export async function searchUsersFromFirestore(
       cachedDirectoryUsers = { users: directoryUsers, fetchedAt: now };
     }
 
-    let matched = directoryUsers.filter(matchesCandidate);
+    let matched: DirectoryUserRecord[] = directoryUsers.filter(matchesCandidate);
 
-    // Query backend /api/users/search directly as well (supports server emailHash match & instant fresh results)
-    const serverMatched = await fetch(`/api/users/search?q=${encodeURIComponent(rawTrimmed)}`)
-      .then((r) => {
-        const ct = r.headers.get('content-type') || '';
-        return r.ok && ct.includes('application/json') ? r.json() : null;
-      })
-      .then((data) => (data && Array.isArray(data.users) ? (data.users as SearchedUserProfile[]) : []))
-      .catch(() => [] as SearchedUserProfile[]);
+    const authHeaders = await getCurrentAuthHeaders();
+    // Query backend /api/users/search directly with Firebase token (hydrates cross-container & matches emailHash/uid)
+    const serverMatched = await fetch(`/api/users/search?q=${encodeURIComponent(rawTrimmed)}`, {
+      headers: authHeaders,
+    })
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data) => (data && Array.isArray(data.users) ? (data.users as DirectoryUserRecord[]) : []))
+      .catch(() => [] as DirectoryUserRecord[]);
 
     if (serverMatched.length > 0) {
       const seenIds = new Set(matched.map((m) => m.id));
@@ -2993,7 +2972,10 @@ export async function searchUsersFromFirestore(
       if (currentAuth) {
         const localName = (currentAuth.displayName || savedName || '').trim();
         if (localName && !matched.some((m) => m.id === currentAuth.uid)) {
-          const selfCandidate: SearchedUserProfile = {
+          const selfEmailHash = currentAuth.email
+            ? await sha256Hex(currentAuth.email.toLowerCase())
+            : '';
+          const selfCandidate: DirectoryUserRecord = {
             id: currentAuth.uid,
             uid: currentAuth.uid,
             displayName: localName,
@@ -3003,6 +2985,7 @@ export async function searchUsersFromFirestore(
               `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
                 localName
               )}&backgroundColor=1877f2,0ea5e9,3b82f6`,
+            emailHash: selfEmailHash || undefined,
           };
           if (matchesCandidate(selfCandidate)) {
             matched.unshift(selfCandidate);
@@ -3035,7 +3018,7 @@ export async function searchUsersFromFirestore(
       return aName.localeCompare(bName);
     });
 
-    return matched;
+    return matched.map(({ emailHash: _eh, phoneDigits: _pd, ...publicFields }) => publicFields);
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
       handleFirestoreError(err, OperationType.LIST, 'users');
@@ -3121,7 +3104,6 @@ export async function fetchPageByIdFromFirestore(pageId: string): Promise<PageIt
     const snap = await getDocSafe(doc(db, 'pages', pageId));
     if (!snap || !snap.exists()) return null;
     const data = snap.data();
-    if (data?.docType === 'user_directory' || snap.id.startsWith('diruser-')) return null;
     const currentUid = auth.currentUser?.uid || '';
     const isOwner = Boolean(currentUid && data.ownerUid && data.ownerUid === currentUid);
     const name = String(data.name || 'Page').trim();
@@ -3179,10 +3161,9 @@ async function fetchDirectoryPagesFromServer(): Promise<PageItem[]> {
   } catch {}
 
   // 2. Firestore 'pages' collection (all public pages created across users)
-  const pagesSnap = await getDocs(query(collection(db, 'pages'), limit(800))).catch(() => null);
+  const pagesSnap = await getDocs(query(collection(db, 'pages'), limit(500))).catch(() => null);
   (pagesSnap?.docs || []).forEach((docSnap) => {
     const data = docSnap.data();
-    if (data?.docType === 'user_directory' || docSnap.id.startsWith('diruser-')) return;
     const name = String(data.name || '').trim();
     if (!name) return;
     const existing = byId.get(docSnap.id);
@@ -3627,5 +3608,431 @@ export async function fetchAdminPlatformData(): Promise<AdminPlatformStats> {
     return empty;
   }
 }
+
+// ==========================================
+// REAL-TIME FRIEND REQUESTS & MUTUAL SYNC
+// ==========================================
+
+export interface IncomingFriendRequestItem {
+  id: string;
+  senderId: string;
+  senderName: string;
+  senderAvatar: string;
+  timeAgo: string;
+  createdAtMillis: number;
+}
+
+export function subscribeToIncomingFriendRequests(
+  userId: string | undefined,
+  onUpdate: (requests: IncomingFriendRequestItem[]) => void
+): () => void {
+  if (!userId || userId === 'user-me') {
+    onUpdate([]);
+    return () => {};
+  }
+  try {
+    const q = query(collection(db, 'follows'), where('targetId', '==', userId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const items: IncomingFriendRequestItem[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.type !== 'friend_request') return;
+          if (data.status && data.status !== 'pending') return;
+          const senderId = String(data.followerId || '').trim();
+          if (!senderId || senderId === userId) return;
+          const parsedTime = data.createdAt ? Date.parse(String(data.createdAt)) : 0;
+          const createdAtMillis = Number(
+            data.createdAtMillis || (Number.isFinite(parsedTime) ? parsedTime : Date.now())
+          );
+          const senderName = String(data.followerName || 'Peaceverse User').trim();
+          const senderAvatar =
+            String(data.followerAvatar || '').trim() ||
+            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+              senderName
+            )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+
+          items.push({
+            id: docSnap.id,
+            senderId,
+            senderName,
+            senderAvatar,
+            timeAgo: 'Just now',
+            createdAtMillis: Number.isFinite(createdAtMillis) ? createdAtMillis : Date.now(),
+          });
+        });
+        items.sort((a, b) => b.createdAtMillis - a.createdAtMillis);
+        onUpdate(items);
+      },
+      (err) => {
+        if (!isOfflineOrUnavailableError(err)) {
+          console.warn('Notice subscribing to incoming friend requests:', err);
+        }
+        onUpdate([]);
+      }
+    );
+  } catch {
+    onUpdate([]);
+    return () => {};
+  }
+}
+
+export function subscribeToAcceptedOutgoingFriendRequests(
+  userId: string | undefined,
+  onSyncedFriend?: (friend: UserFriendItem) => void
+): () => void {
+  if (!userId || userId === 'user-me') return () => {};
+  try {
+    const q = query(collection(db, 'follows'), where('followerId', '==', userId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          if (data.type !== 'friend_request') return;
+          const targetId = String(data.targetId || '').trim();
+          const targetName = String(data.targetName || 'Friend').trim();
+          const targetAvatar = String(data.targetAvatar || '').trim();
+          if (!targetId) return;
+
+          if (data.status === 'pending') {
+            setFriendRequestSentLocally(true, targetId, targetName);
+          } else if (data.status === 'accepted') {
+            addLocalFriend({ id: targetId, name: targetName, avatar: targetAvatar });
+            setFriendRequestSentLocally(false, targetId, targetName);
+            void setDoc(
+              doc(db, 'users', userId, 'friends', targetId),
+              {
+                id: targetId,
+                name: targetName,
+                avatar: targetAvatar,
+                addedAt: new Date().toISOString(),
+                addedAtMillis: Date.now(),
+              },
+              { merge: true }
+            ).catch(() => {});
+            onSyncedFriend?.({ id: targetId, name: targetName, avatar: targetAvatar });
+          }
+        });
+      },
+      () => {}
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export async function acceptFriendRequestInFirestore(
+  currentUser: { id: string; name: string; avatar: string },
+  sender: { id: string; name: string; avatar: string },
+  followDocId?: string,
+  notifId?: string
+): Promise<boolean> {
+  if (!currentUser.id || !sender.id || currentUser.id === 'user-me') return false;
+  const resolvedFollowId = followDocId || `${sender.id}_${currentUser.id}`;
+  const defaultNotifId = `fr-${sender.id}-${currentUser.id}`;
+  const now = Date.now();
+  const iso = new Date(now).toISOString();
+
+  try {
+    await setDoc(
+      doc(db, 'follows', resolvedFollowId),
+      {
+        id: resolvedFollowId,
+        type: 'friend_request',
+        status: 'accepted',
+        followerId: sender.id,
+        followerName: sender.name,
+        followerAvatar: sender.avatar,
+        targetId: currentUser.id,
+        targetName: currentUser.name,
+        targetAvatar: currentUser.avatar,
+        acceptedAt: iso,
+        acceptedAtMillis: now,
+      },
+      { merge: true }
+    );
+
+    await Promise.allSettled([
+      setDoc(
+        doc(db, 'users', currentUser.id, 'friends', sender.id),
+        {
+          id: sender.id,
+          name: sender.name,
+          avatar: sender.avatar,
+          addedAt: iso,
+          addedAtMillis: now,
+        },
+        { merge: true }
+      ),
+      setDoc(
+        doc(db, 'users', sender.id, 'friends', currentUser.id),
+        {
+          id: currentUser.id,
+          name: currentUser.name,
+          avatar: currentUser.avatar,
+          addedAt: iso,
+          addedAtMillis: now,
+        },
+        { merge: true }
+      ),
+      deleteDoc(doc(db, 'notifications', defaultNotifId)).catch(() => {}),
+      notifId && notifId !== defaultNotifId
+        ? deleteDoc(doc(db, 'notifications', notifId)).catch(() => {})
+        : Promise.resolve(),
+    ]);
+
+    addLocalFriend({
+      id: sender.id,
+      name: sender.name,
+      avatar: sender.avatar,
+    });
+
+    await sendRealtimeNotification({
+      id: `fr-acc-${currentUser.id}-${sender.id}`,
+      type: 'general',
+      from: currentUser.id,
+      to: sender.id,
+      avatar: currentUser.avatar,
+      title: `${currentUser.name} আপনার ফ্রেন্ড রিকোয়েস্ট গ্রহণ করেছেন`,
+      subtitle: 'আপনারা এখন Peaceverse24-এ বন্ধু',
+      timeAgo: 'Just now',
+      isUnread: true,
+      badgeType: 'friend',
+    });
+
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `follows/${resolvedFollowId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice accepting friend request:', err);
+    }
+    return false;
+  }
+}
+
+export async function declineFriendRequestInFirestore(
+  currentUserId: string,
+  senderId: string,
+  followDocId?: string,
+  notifId?: string
+): Promise<boolean> {
+  if (!currentUserId || !senderId || currentUserId === 'user-me') return false;
+  const resolvedFollowId = followDocId || `${senderId}_${currentUserId}`;
+  const defaultNotifId = `fr-${senderId}-${currentUserId}`;
+
+  try {
+    await Promise.allSettled([
+      deleteDoc(doc(db, 'follows', resolvedFollowId)),
+      deleteDoc(doc(db, 'notifications', defaultNotifId)),
+      notifId && notifId !== defaultNotifId
+        ? deleteDoc(doc(db, 'notifications', notifId))
+        : Promise.resolve(),
+    ]);
+    return true;
+  } catch (err: any) {
+    if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice declining friend request:', err);
+    }
+    return false;
+  }
+}
+
+// ==========================================
+// REAL-TIME USER-TO-USER DIRECT MESSAGING
+// ==========================================
+
+export function getChatRoomId(uid1: string, uid2: string): string {
+  return [uid1.trim(), uid2.trim()].sort().join('__');
+}
+
+export interface RealtimeChatThread {
+  roomId: string;
+  partnerId: string;
+  partnerName: string;
+  partnerAvatar: string;
+  lastMessageText: string;
+  lastSenderId: string;
+  updatedAtMillis: number;
+  unreadCount: number;
+}
+
+export function subscribeToUserChats(
+  userId: string | undefined,
+  onUpdate: (threads: RealtimeChatThread[]) => void
+): () => void {
+  if (!userId || userId === 'user-me') {
+    onUpdate([]);
+    return () => {};
+  }
+  try {
+    const q = query(collection(db, 'chats'), where('participants', 'array-contains', userId));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const threads: RealtimeChatThread[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          const participants: string[] = Array.isArray(data.participants)
+            ? data.participants.map(String)
+            : [];
+          const partnerId = participants.find((p) => p !== userId) || '';
+          if (!partnerId) return;
+          const meta = data.participantMeta?.[partnerId] || {};
+          const partnerName = String(meta.name || 'Peaceverse User').trim();
+          const partnerAvatar =
+            String(meta.avatar || '').trim() ||
+            `https://api.dicebear.com/7.x/initials/svg?seed=${encodeURIComponent(
+              partnerName
+            )}&backgroundColor=1877f2,0ea5e9,3b82f6`;
+          const lastSenderId = String(data.lastSenderId || '');
+          const updatedAtMillis = Number(data.updatedAtMillis || 0);
+          const unreadForMe =
+            typeof data.unreadBy?.[userId] === 'number'
+              ? Number(data.unreadBy[userId])
+              : lastSenderId && lastSenderId !== userId
+              ? 1
+              : 0;
+
+          threads.push({
+            roomId: docSnap.id,
+            partnerId,
+            partnerName,
+            partnerAvatar,
+            lastMessageText: String(data.lastMessageText || ''),
+            lastSenderId,
+            updatedAtMillis,
+            unreadCount: unreadForMe,
+          });
+        });
+        threads.sort((a, b) => b.updatedAtMillis - a.updatedAtMillis);
+        onUpdate(threads);
+      },
+      (err) => {
+        if (!isOfflineOrUnavailableError(err)) {
+          console.warn('Notice subscribing to user chats:', err);
+        }
+      }
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export function subscribeToChatMessages(
+  roomId: string | undefined,
+  currentUserId: string | undefined,
+  onUpdate: (messages: ChatMessage[]) => void
+): () => void {
+  if (!roomId || !currentUserId) {
+    onUpdate([]);
+    return () => {};
+  }
+  try {
+    const msgsRef = collection(db, 'chats', roomId, 'messages');
+    const q = query(msgsRef, limit(100));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const msgs: (ChatMessage & { createdAtMillis: number })[] = [];
+        snap.forEach((docSnap) => {
+          const data = docSnap.data();
+          const senderId = String(data.senderId || '');
+          const createdAtMillis = Number(data.createdAtMillis || 0);
+          msgs.push({
+            id: docSnap.id,
+            sender: senderId === currentUserId ? 'me' : 'them',
+            text: String(data.text || ''),
+            time: String(data.timeLabel || 'Just now'),
+            createdAtMillis,
+          });
+        });
+        msgs.sort((a, b) => a.createdAtMillis - b.createdAtMillis);
+        onUpdate(msgs.map(({ id, sender, text, time }) => ({ id, sender, text, time })));
+      },
+      (err) => {
+        if (!isOfflineOrUnavailableError(err)) {
+          console.warn('Notice subscribing to chat messages:', err);
+        }
+      }
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export async function markChatThreadRead(roomId: string, currentUserId: string): Promise<void> {
+  if (!roomId || !currentUserId) return;
+  try {
+    await setDoc(
+      doc(db, 'chats', roomId),
+      {
+        unreadBy: { [currentUserId]: 0 },
+      },
+      { merge: true }
+    );
+  } catch {}
+}
+
+export async function sendRealtimeDirectMessage(
+  sender: { id: string; name: string; avatar: string },
+  recipient: { id: string; name: string; avatar: string },
+  encryptedText: string
+): Promise<boolean> {
+  if (!sender.id || !recipient.id || !encryptedText) return false;
+  const roomId = getChatRoomId(sender.id, recipient.id);
+  const now = Date.now();
+  const iso = new Date(now).toISOString();
+  const msgId = `msg-${now}-${Math.random().toString(36).slice(2, 7)}`;
+  const timeLabel = new Date(now).toLocaleTimeString([], {
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+
+  try {
+    await setDoc(
+      doc(db, 'chats', roomId),
+      {
+        id: roomId,
+        participants: [sender.id, recipient.id].sort(),
+        participantMeta: {
+          [sender.id]: { name: sender.name, avatar: sender.avatar },
+          [recipient.id]: { name: recipient.name, avatar: recipient.avatar },
+        },
+        lastMessageText: encryptedText,
+        lastSenderId: sender.id,
+        unreadBy: {
+          [sender.id]: 0,
+          [recipient.id]: 1,
+        },
+        updatedAtMillis: now,
+        updatedAt: iso,
+      },
+      { merge: true }
+    );
+
+    await setDoc(doc(db, 'chats', roomId, 'messages', msgId), {
+      id: msgId,
+      senderId: sender.id,
+      senderName: sender.name,
+      text: encryptedText,
+      timeLabel,
+      createdAtMillis: now,
+      createdAt: iso,
+    });
+
+    return true;
+  } catch (err: any) {
+    if (err?.code === 'permission-denied') {
+      handleFirestoreError(err, OperationType.WRITE, `chats/${roomId}`);
+    } else if (!isOfflineOrUnavailableError(err)) {
+      console.warn('Notice sending direct message:', err);
+    }
+    return false;
+  }
+}
+
 
 

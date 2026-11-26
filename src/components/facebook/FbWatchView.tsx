@@ -43,6 +43,7 @@ import {
   isFriendRequestSentLocally,
   toggleLocalFriendRequestAndSync,
 } from '../../lib/firebase';
+import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 
 interface FbWatchViewProps {
@@ -157,6 +158,7 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
   }, [filteredVideos.length, currentIndex]);
 
   const currentPost: PostItem | undefined = filteredVideos[currentIndex];
+  const resolvedCurrentMediaUrl = useResolvedMediaUrl(currentPost?.mediaUrl);
 
   const scheduleHideControls = useCallback(() => {
     if (hideControlsTimerRef.current) {
@@ -207,7 +209,7 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
             });
         });
     }
-  }, [currentIndex, currentPost?.id]);
+  }, [currentIndex, currentPost?.id, resolvedCurrentMediaUrl]);
 
   useEffect(() => {
     return () => {
@@ -571,7 +573,7 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                 <video
                   key={currentPost.id}
                   ref={videoRef}
-                  src={currentPost.mediaUrl}
+                  src={resolvedCurrentMediaUrl || undefined}
                   poster={currentPost.author.avatar}
                   className={`w-full h-full ${
                     isLandscapeVideo ? 'object-contain' : 'object-cover'
