@@ -15,10 +15,9 @@ import { auth, db } from './firebase';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { compressDataUrlUnderLimit } from '../utils/imageCompress';
 
-// TEST MODE: Temporarily route video uploads through Firebase Storage only (10s–1m, max 50 MB).
-// To re-enable Bunny.net for 2GB+ production uploads at launch, set this to false and uncomment Bunny blocks below.
-export const VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY = true;
-export const VIDEO_TEST_MODE_MAX_BYTES = 50 * 1024 * 1024; // 50 MB max for test videos
+// Bunny Stream enabled for video uploads (up to 2GB / 2h+). Set true only to restrict to Firebase Storage Test Mode.
+export const VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY = false;
+export const VIDEO_TEST_MODE_MAX_BYTES = 50 * 1024 * 1024;
 export const VIDEO_TEST_MODE_MIN_SECONDS = 10;
 export const VIDEO_TEST_MODE_MAX_SECONDS = 60;
 
@@ -28,7 +27,7 @@ const MAX_SINGLE_SERVER_UPLOAD_BYTES = 4 * 1024 * 1024; // Single POST up to 4 M
 const EXPRESS_STREAM_CHUNK_BYTES = 6 * 1024 * 1024; // 6 MB chunks: safe for Cloud Run (32MB), Cloudflare (100MB), and R2 Multipart (5MB+ parts)
 const EXPRESS_LARGE_STREAM_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB chunks for > 1 GB videos
 const MAX_BUNNY_EDGE_SINGLE_BYTES = 90 * 1024 * 1024; // Safe under Cloudflare Workers 100 MB single-request limit
-// const BUNNY_TUS_CHUNK_BYTES = 5 * 1024 * 1024; // Re-enable when Bunny Stream is turned back on
+const BUNNY_TUS_CHUNK_BYTES = 5 * 1024 * 1024; // 5 MB TUS chunks directly to Bunny Stream
 const MAX_DATA_URL_INLINE_BYTES = 240 * 1024;
 
 let cachedCapabilities: { data: MediaServerCapabilities | null; fetchedAt: number } = {
@@ -346,10 +345,9 @@ async function getMediaCapabilities(): Promise<MediaServerCapabilities | null> {
   return null;
 }
 
-/* BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE: Re-enable sendXhrBinary / uploadSingleBlobWithProgress / tryUploadToBunnyStreamTus for 2GB+ Bunny.net production launch
 function sendXhrBinary(
   url: string,
-  method: 'POST' | 'PATCH',
+  method: 'POST' | 'PATCH' | 'PUT',
   headers: Record<string, string>,
   body: Blob,
   timeoutMs: number,
@@ -461,6 +459,50 @@ async function uploadSingleBlobWithProgress(
   };
 }
 
+async function tryUploadToBunnyStreamProxy(
+  blob: Blob,
+  videoId: string,
+  embedUrl: string,
+  activeToken: string,
+  onProgress?: (pct: number) => void
+): Promise<BackendStorageResult> {
+  try {
+    const res = await sendXhrBinary(
+      `/api/bunny/upload/${encodeURIComponent(videoId)}`,
+      'PUT',
+      {
+        Authorization: `Bearer ${activeToken}`,
+        'Content-Type': 'application/octet-stream',
+      },
+      blob,
+      300_000,
+      (loaded, total) => {
+        if (onProgress && total > 0) {
+          onProgress(Math.min(98, Math.round((loaded / total) * 84) + 14));
+        }
+      }
+    );
+    let parsed: any = null;
+    try {
+      parsed = res.responseText ? JSON.parse(res.responseText) : null;
+    } catch {}
+    if (res.status >= 200 && res.status < 300 && parsed?.ok) {
+      return { url: String(parsed.embedUrl || parsed.playbackUrl || embedUrl), status: res.status };
+    }
+    return {
+      url: null,
+      status: res.status || undefined,
+      errorMessage: String(parsed?.error || `Bunny proxy upload failed (${res.status}).`),
+    };
+  } catch (err: any) {
+    return {
+      url: null,
+      errorMessage: String(err?.message || 'Bunny proxy upload network error.'),
+      isNetworkFailure: true,
+    };
+  }
+}
+
 async function tryUploadToBunnyStreamTus(
   blob: Blob,
   title: string,
@@ -482,7 +524,7 @@ async function tryUploadToBunnyStreamTus(
     }
     try {
       const resp = await fetchWithTimeout(
-        '/api/media/bunny-stream/init',
+        '/api/bunny',
         {
           method: 'POST',
           headers: {
@@ -532,13 +574,19 @@ async function tryUploadToBunnyStreamTus(
   const videoId = String(initData.videoId);
   const expirationTime = String(initData.expirationTime);
   const signature = String(initData.signature);
-  const playbackUrl = String(initData.playbackUrl || '');
+  const playbackUrl = String(
+    initData.embedUrl ||
+      initData.playbackUrl ||
+      `https://iframe.mediadelivery.net/play/${libraryId}/${videoId}`
+  );
 
   const encoder = new TextEncoder();
   const titleB64 = bytesToBase64(encoder.encode(safeTitle));
   const typeB64 = bytesToBase64(encoder.encode(safeMime));
 
   let uploadUrl = '';
+  let tusFailedError = '';
+  let tusFailedStatus = 0;
   try {
     const createTus = await fetchWithTimeout(
       tusEndpoint,
@@ -560,18 +608,25 @@ async function tryUploadToBunnyStreamTus(
     const loc = createTus.headers.get('location') || createTus.headers.get('Location');
     if (!createTus.ok || !loc) {
       const text = await createTus.text().catch(() => '');
-      return {
-        url: null,
-        status: createTus.status,
-        errorMessage: text || `Bunny Stream TUS create failed (${createTus.status}).`,
-      };
+      tusFailedStatus = createTus.status;
+      tusFailedError = text || `Bunny Stream TUS create failed (${createTus.status}).`;
+    } else {
+      uploadUrl = new URL(loc, tusEndpoint).toString();
     }
-    uploadUrl = new URL(loc, tusEndpoint).toString();
   } catch (err: any) {
+    tusFailedError = String(err?.message || 'Failed to connect to Bunny Stream TUS server.');
+  }
+
+  if (!uploadUrl) {
+    if (blob.size <= MAX_BUNNY_EDGE_SINGLE_BYTES) {
+      console.warn('[Bunny Stream] TUS init fallback to server proxy:', tusFailedError);
+      return tryUploadToBunnyStreamProxy(blob, videoId, playbackUrl, activeToken, onProgress);
+    }
     return {
       url: null,
-      errorMessage: String(err?.message || 'Failed to connect to Bunny Stream TUS server.'),
-      isNetworkFailure: true,
+      status: tusFailedStatus || undefined,
+      errorMessage: tusFailedError,
+      isNetworkFailure: !tusFailedStatus,
     };
   }
 
@@ -619,6 +674,10 @@ async function tryUploadToBunnyStreamTus(
     }
 
     if (!chunkUploaded) {
+      if (offset === 0 && blob.size <= MAX_BUNNY_EDGE_SINGLE_BYTES) {
+        console.warn('[Bunny Stream] TUS PATCH fallback to server proxy:', lastChunkErr);
+        return tryUploadToBunnyStreamProxy(blob, videoId, playbackUrl, activeToken, onProgress);
+      }
       return {
         url: null,
         status: lastChunkStatus || undefined,
@@ -633,7 +692,6 @@ async function tryUploadToBunnyStreamTus(
 
   return playbackUrl ? { url: playbackUrl, status: 200 } : { url: null };
 }
-BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE */
 
 async function tryUploadToExpressServer(
   blob: Blob,
@@ -642,18 +700,16 @@ async function tryUploadToExpressServer(
   mimeType: string,
   initialIdToken: string,
   onProgress?: (pct: number) => void,
-  _caps?: MediaServerCapabilities | null
+  caps?: MediaServerCapabilities | null
 ): Promise<BackendStorageResult> {
   let activeToken = initialIdToken;
   const safeMime = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
 
   try {
-    // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
-    // const singleLimit =
-    //   _caps?.bunnyStorage && _caps?.expressDisk
-    //     ? Math.min(25 * 1024 * 1024, _caps.maxEdgeSingleBytes || 25 * 1024 * 1024)
-    //     : MAX_SINGLE_SERVER_UPLOAD_BYTES;
-    const singleLimit = MAX_SINGLE_SERVER_UPLOAD_BYTES;
+    const singleLimit =
+      caps?.bunnyStorage && caps?.expressDisk
+        ? Math.min(25 * 1024 * 1024, caps.maxEdgeSingleBytes || 25 * 1024 * 1024)
+        : MAX_SINGLE_SERVER_UPLOAD_BYTES;
 
     if (blob.size <= singleLimit) {
       const payloadBytes = await blob.arrayBuffer();
@@ -980,9 +1036,9 @@ export async function uploadMediaFile(
   }
 
   const caps = await getMediaCapabilities();
-  // const baseTitle =
-  //   options?.fileName ||
-  //   (fileOrBlob instanceof File && fileOrBlob.name ? fileOrBlob.name : `PeaceVerse_${Date.now()}`);
+  const baseTitle =
+    options?.fileName ||
+    (fileOrBlob instanceof File && fileOrBlob.name ? fileOrBlob.name : `PeaceVerse_${Date.now()}`);
 
   let serverResult: BackendStorageResult = { url: null };
   let storageResult: BackendStorageResult = { url: null };
@@ -995,12 +1051,7 @@ export async function uploadMediaFile(
     }
 
     if (idToken) {
-      /* BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE: Re-enable Bunny Stream / Bunny Storage edge routing when going live
-      const shouldUseBunnyStreamTus =
-        isVideo &&
-        Boolean(caps?.bunnyStream) &&
-        (fileOrBlob.size > MAX_SINGLE_SERVER_UPLOAD_BYTES ||
-          (!caps?.expressDisk && !caps?.r2 && !caps?.bunnyStorage));
+      const shouldUseBunnyStreamTus = isVideo && Boolean(caps?.bunnyStream);
 
       if (shouldUseBunnyStreamTus) {
         serverResult = await tryUploadToBunnyStreamTus(
@@ -1038,7 +1089,6 @@ export async function uploadMediaFile(
           };
         }
       } else {
-      */
         serverResult = await tryUploadToExpressServer(
           fileOrBlob,
           mediaId,
@@ -1048,18 +1098,27 @@ export async function uploadMediaFile(
           reportProgress,
           caps
         );
-      /* } */
+      }
 
       if (serverResult.url) {
-        cacheUploadedLocalUrl(serverResult.url);
-
-        // Mirror <= 18 MB media to Firestore in background for cross-container redundancy
-        if (fileOrBlob.size <= 18 * 1024 * 1024) {
-          void tryReplicateToFirestoreChunks(fileOrBlob, mediaId, mimeType, user.uid);
+        const isBunnyPlayer = isBunnyEmbedUrl(serverResult.url);
+        if (!isBunnyPlayer) {
+          cacheUploadedLocalUrl(serverResult.url);
+          if (fileOrBlob.size <= 18 * 1024 * 1024) {
+            void tryReplicateToFirestoreChunks(fileOrBlob, mediaId, mimeType, user.uid);
+          }
         }
 
         reportProgress(100);
         return serverResult.url;
+      }
+
+      if (shouldUseBunnyStreamTus) {
+        console.error('[Bunny Stream] Upload failed:', {
+          status: serverResult.status,
+          code: serverResult.code,
+          errorMessage: serverResult.errorMessage,
+        });
       }
     }
 
@@ -1393,7 +1452,7 @@ export function isHlsPlaylistUrl(url?: string | null): boolean {
 
 export function isBunnyEmbedUrl(url?: string | null): boolean {
   if (!url) return false;
-  return /iframe\.mediadelivery\.net\/embed\//i.test(url.trim());
+  return /iframe\.mediadelivery\.net\/(?:embed|play)\//i.test(url.trim());
 }
 
 export function useAttachVideoSrc(

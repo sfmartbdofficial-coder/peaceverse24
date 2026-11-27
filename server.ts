@@ -11,10 +11,11 @@ import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
 import { GoogleGenAI } from '@google/genai';
 
-dotenv.config();
-
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+dotenv.config({ path: path.resolve(__dirname, '.env.local') });
+dotenv.config({ path: path.resolve(__dirname, '.env') });
 
 const app = express();
 const PORT =
@@ -95,7 +96,11 @@ const chunkRateMap = new Map<string, number[]>();
 app.use('/api', (req, res, next) => {
   const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
-  if (req.path === '/media/upload-chunk' || req.path === '/media/upload') {
+  if (
+    req.path === '/media/upload-chunk' ||
+    req.path === '/media/upload' ||
+    req.path.startsWith('/bunny/upload/')
+  ) {
     const chunkWindowMs = 5 * 60 * 1000;
     const recentChunks = (chunkRateMap.get(clientIp) || []).filter((ts) => now - ts < chunkWindowMs);
     if (recentChunks.length >= 2500) {
@@ -2194,10 +2199,23 @@ function resolveServerBunnyStorage() {
 }
 
 function resolveServerBunnyStream() {
-  const libraryId = (process.env.BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_LIBRARY_ID || '').trim();
-  const apiKey = (process.env.BUNNY_STREAM_API_KEY || '').trim();
+  const libraryId = (
+    process.env.BUNNY_STREAM_LIBRARY_ID ||
+    process.env.BUNNY_LIBRARY_ID ||
+    ''
+  ).trim();
+  const apiKey = (
+    process.env.BUNNY_STREAM_API_KEY ||
+    process.env.BUNNY_API_KEY ||
+    ''
+  ).trim();
   if (!libraryId || !apiKey) return null;
-  const cdnHost = (process.env.BUNNY_STREAM_CDN_HOST || process.env.BUNNY_STREAM_CDN_HOSTNAME || '')
+  const cdnHost = (
+    process.env.BUNNY_STREAM_CDN_HOST ||
+    process.env.BUNNY_STREAM_CDN_HOSTNAME ||
+    process.env.BUNNY_CDN_HOST ||
+    ''
+  )
     .trim()
     .replace(/^https?:\/\//, '')
     .replace(/\/+$/, '');
@@ -2236,25 +2254,14 @@ app.get('/api/media/capabilities', (_req, res) => {
     ok: true,
     expressDisk: true,
     r2: false,
-    // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
-    // bunnyStorage: Boolean(resolveServerBunnyStorage()),
-    // bunnyStream: Boolean(resolveServerBunnyStream()),
-    bunnyStorage: false,
-    bunnyStream: false,
-    testModeFirebaseStorageVideo: true,
+    bunnyStorage: Boolean(resolveServerBunnyStorage()),
+    bunnyStream: Boolean(resolveServerBunnyStream()),
+    testModeFirebaseStorageVideo: false,
     maxEdgeSingleBytes: 25 * 1024 * 1024,
   });
 });
 
-app.post('/api/media/bunny-stream/init', async (_req, res) => {
-  // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE: Re-enable Bunny Stream init when launching in market
-  void resolveServerBunnyStream;
-  return res.status(501).json({
-    ok: false,
-    code: 'BUNNY_TEMPORARILY_DISABLED',
-    error: 'Bunny.net Stream is temporarily disabled in Test Mode. Using Firebase Storage.',
-  });
-  /*
+async function handleServerBunnyCreateVideo(req: express.Request, res: express.Response) {
   try {
     const streamCfg = resolveServerBunnyStream();
     if (!streamCfg) {
@@ -2302,23 +2309,95 @@ app.post('/api/media/bunny-stream/init', async (_req, res) => {
       .update(`${streamCfg.libraryId}${streamCfg.apiKey}${expirationTime}${videoId}`)
       .digest('hex');
 
-    const playbackUrl = streamCfg.cdnHost
-      ? `https://${streamCfg.cdnHost}/${videoId}/playlist.m3u8`
-      : `https://iframe.mediadelivery.net/embed/${streamCfg.libraryId}/${videoId}?autoplay=true&preload=true`;
+    const embedUrl = `https://iframe.mediadelivery.net/play/${streamCfg.libraryId}/${videoId}`;
+    const hlsUrl = streamCfg.cdnHost ? `https://${streamCfg.cdnHost}/${videoId}/playlist.m3u8` : '';
 
     return res.json({
       ok: true,
       libraryId: streamCfg.libraryId,
       videoId,
+      guid: videoId,
       expirationTime,
       signature,
       tusEndpoint: 'https://video.bunnycdn.com/tusupload',
-      playbackUrl,
+      embedUrl,
+      playbackUrl: embedUrl,
+      hlsUrl,
+      cdnHost: streamCfg.cdnHost,
     });
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || 'Failed to initialize Bunny Stream.' });
   }
-  */
+}
+
+app.post('/api/bunny', handleServerBunnyCreateVideo);
+app.post('/api/media/bunny-stream/init', handleServerBunnyCreateVideo);
+
+app.put('/api/bunny/upload/:videoId', async (req, res) => {
+  try {
+    const streamCfg = resolveServerBunnyStream();
+    if (!streamCfg) {
+      return res.status(501).json({
+        ok: false,
+        code: 'BUNNY_STREAM_NOT_CONFIGURED',
+        error: 'Bunny Stream credentials are not configured.',
+      });
+    }
+
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required to upload media.' });
+    }
+
+    const videoId = String(req.params.videoId || '').trim();
+    if (!/^[a-zA-Z0-9-]{8,64}$/.test(videoId)) {
+      return res.status(400).json({ ok: false, error: 'Invalid Bunny video ID.' });
+    }
+
+    const contentLengthHeader = req.headers['content-length'];
+    const declaredLength = contentLengthHeader ? Number(contentLengthHeader) : 0;
+    if (declaredLength > 500 * 1024 * 1024) {
+      return res.status(413).json({ ok: false, error: 'Proxy upload limit exceeded; use direct TUS upload.' });
+    }
+
+    const headers: Record<string, string> = {
+      AccessKey: streamCfg.apiKey,
+      'Content-Type': 'application/octet-stream',
+    };
+    if (declaredLength > 0) {
+      headers['Content-Length'] = String(declaredLength);
+    }
+
+    const webStream = Readable.toWeb(req) as unknown as BodyInit;
+    const uploadResp = await fetch(
+      `https://video.bunnycdn.com/library/${encodeURIComponent(streamCfg.libraryId)}/videos/${encodeURIComponent(videoId)}`,
+      {
+        method: 'PUT',
+        headers,
+        body: webStream,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' }
+    );
+
+    if (!uploadResp.ok) {
+      const errText = await uploadResp.text().catch(() => '');
+      return res.status(502).json({
+        ok: false,
+        error: errText || `Bunny Stream upload failed (${uploadResp.status}).`,
+      });
+    }
+
+    const embedUrl = `https://iframe.mediadelivery.net/play/${streamCfg.libraryId}/${videoId}`;
+    return res.json({
+      ok: true,
+      videoId,
+      guid: videoId,
+      embedUrl,
+      playbackUrl: embedUrl,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Failed to upload video to Bunny Stream.' });
+  }
 });
 
 app.post(
@@ -2367,10 +2446,7 @@ app.post(
       }
 
       fs.writeFileSync(resolvedPath, req.body);
-      // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
-      // const bunnyUrl = await mirrorFileToServerBunnyStorage(resolvedPath, filename);
-      void mirrorFileToServerBunnyStorage;
-      const bunnyUrl: string | null = null;
+      const bunnyUrl = await mirrorFileToServerBunnyStorage(resolvedPath, filename);
       return res.json({
         ok: true,
         provider: bunnyUrl ? 'bunny-storage' : 'express-disk',
@@ -2581,9 +2657,7 @@ app.post(
         const totalSize = session?.totalBytes || req.body.length;
         cleanupChunkSession(rawId, metaPath);
         fs.renameSync(partPath, finalPath);
-        // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
-        // const bunnyUrl = await mirrorFileToServerBunnyStorage(finalPath, finalFilename);
-        const bunnyUrl: string | null = null;
+        const bunnyUrl = await mirrorFileToServerBunnyStorage(finalPath, finalFilename);
         return res.json({
           ok: true,
           completed: true,
