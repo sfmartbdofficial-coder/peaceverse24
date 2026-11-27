@@ -54,6 +54,7 @@ import {
   readCommentLikesStore,
   toggleCommentLikeLocally,
 } from './FbCommentBottomSheet';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface HalalReactionMeta {
   type: ReactionType;
@@ -144,6 +145,11 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
   const [boostedCampaign, setBoostedCampaign] = useState<BoostedCampaign | null>(() =>
     getBoostedPostCampaign(post.id)
   );
+
+  useHistoryBack(menuOpen, () => setMenuOpen(false), `post-menu-${post.id}`);
+  useHistoryBack(isEditing, () => setIsEditing(false), `post-edit-${post.id}`);
+  useHistoryBack(showAppealModal, () => setShowAppealModal(false), `post-appeal-${post.id}`);
+  useHistoryBack(Boolean(boostModalMode), () => setBoostModalMode(null), `post-boost-${post.id}`);
 
   React.useEffect(() => {
     const syncBoost = () => {
@@ -943,11 +949,7 @@ export const FbPostCard: React.FC<FbPostCardProps> = ({
             title={post.contentBangla}
             duration={post.duration}
             videoKind={post.videoKind}
-            onOpenFullscreen={() => {
-              if (onOpenReel) {
-                onOpenReel(post);
-              }
-            }}
+            onOpenFullscreen={onOpenReel ? () => onOpenReel(post) : undefined}
           />
         )}
 

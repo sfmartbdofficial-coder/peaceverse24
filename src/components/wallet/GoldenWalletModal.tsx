@@ -18,6 +18,7 @@ import {
   Check,
 } from 'lucide-react';
 import { GoldenCashoutRequest } from '../../types';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface GoldenWalletModalProps {
   isOpen: boolean;
@@ -139,6 +140,13 @@ export const GoldenWalletModal: React.FC<GoldenWalletModalProps> = ({
   const [cashoutStatus, setCashoutStatus] = useState<'idle' | 'loading' | 'success' | 'error'>('idle');
   const [cashoutError, setCashoutError] = useState<string>('');
   const [showSuccessConfirmModal, setShowSuccessConfirmModal] = useState(false);
+
+  useHistoryBack(isOpen && showPaymentSetup, () => setShowPaymentSetup(false), 'wallet-payment-setup');
+  useHistoryBack(
+    isOpen && showSuccessConfirmModal,
+    () => setShowSuccessConfirmModal(false),
+    'wallet-cashout-confirm'
+  );
 
   // Buy State
   const [buyMethod, setBuyMethod] = useState<'paypal' | 'bkash' | 'nagad'>('bkash');

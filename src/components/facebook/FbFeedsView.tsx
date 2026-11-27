@@ -12,6 +12,7 @@ import {
   Send,
 } from 'lucide-react';
 import { PostItem, ReactionType, UserProfile } from '../../types';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 export type FeedsFilterTab = 'All' | 'Favorites' | 'Friends' | 'Groups' | 'Pages';
 
@@ -71,6 +72,16 @@ export const FbFeedsView: React.FC<FbFeedsViewProps> = ({
   >({});
   const [activeMenuId, setActiveMenuId] = useState<string | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  useHistoryBack(
+    showSearchBar,
+    () => {
+      setSearchQuery('');
+      setShowSearchBar(false);
+    },
+    'feeds-search'
+  );
+  useHistoryBack(Boolean(activeMenuId), () => setActiveMenuId(null), 'feeds-post-menu');
 
   const showToast = (msg: string) => {
     setToastMsg(msg);

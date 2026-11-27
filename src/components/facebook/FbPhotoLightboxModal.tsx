@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { PostItem, ReactionType } from '../../types';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbPhotoLightboxModalProps {
   isOpen: boolean;
@@ -76,10 +77,17 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
   const safeIndex = photoList.length > 0 ? Math.min(Math.max(0, activeIndex), photoList.length - 1) : 0;
   const displayPhoto = photoList[safeIndex] || photoUrl || post.mediaUrl;
 
+  useHistoryBack(isOpen, onClose, `photo-lightbox-${post.id}`);
+  useHistoryBack(isOpen && showMenu, () => setShowMenu(false), `photo-lightbox-menu-${post.id}`);
+
   useEffect(() => {
     if (isOpen) {
       setActiveIndex(initialIndex);
       setZoomLevel(1);
+    } else {
+      setShowMenu(false);
+      setShowCommentsDrawer(false);
+      setExpandedCaption(false);
     }
   }, [isOpen, initialIndex]);
 
@@ -92,7 +100,13 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
 
     const handleKeyDown = (e: KeyboardEvent) => {
       if (e.key === 'Escape') {
-        onClose();
+        if (showMenu) {
+          setShowMenu(false);
+        } else if (showCommentsDrawer) {
+          setShowCommentsDrawer(false);
+        } else {
+          onClose();
+        }
       } else if (e.key === 'ArrowRight' && photoList.length > 1) {
         setActiveIndex((prev) => (prev + 1) % photoList.length);
       } else if (e.key === 'ArrowLeft' && photoList.length > 1) {
@@ -105,7 +119,7 @@ export const FbPhotoLightboxModal: React.FC<FbPhotoLightboxModalProps> = ({
       document.body.style.overflow = originalOverflow;
       window.removeEventListener('keydown', handleKeyDown);
     };
-  }, [isOpen, onClose, photoList.length]);
+  }, [isOpen, onClose, photoList.length, showMenu, showCommentsDrawer]);
 
   if (!isOpen || !displayPhoto) return null;
 

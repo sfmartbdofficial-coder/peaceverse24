@@ -19,6 +19,7 @@ import {
 import { LegalTabType } from '../legal/LegalModal';
 import privacySettingsHeroImg from '../../assets/images/privacy_settings_hero_1794670506366.jpg';
 import privacyGenAiImg from '../../assets/images/privacy_genai_topic_1794670507092.jpg';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbPrivacyCenterViewProps {
   onClose: () => void;
@@ -54,6 +55,9 @@ export const FbPrivacyCenterView: React.FC<FbPrivacyCenterViewProps> = ({
   const [showAllTopics, setShowAllTopics] = useState(false);
   const [infoSheet, setInfoSheet] = useState<{ title: string; body: string } | null>(null);
   const [showQuickNav, setShowQuickNav] = useState(false);
+
+  useHistoryBack(Boolean(infoSheet), () => setInfoSheet(null), 'privacy-info-sheet');
+  useHistoryBack(showQuickNav, () => setShowQuickNav(false), 'privacy-quick-nav');
 
   const settingsSectionRef = useRef<HTMLDivElement | null>(null);
 

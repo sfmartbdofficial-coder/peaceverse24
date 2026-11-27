@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { ChevronLeft, ChevronDown, Check, X } from 'lucide-react';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface RecentBirthdayPerson {
   id: string;
@@ -54,6 +55,8 @@ export const FbBirthdaysModal: React.FC<FbBirthdaysModalProps> = ({
   const [postedIds, setPostedIds] = useState<Record<string, string>>({});
   const [cardTarget, setCardTarget] = useState<RecentBirthdayPerson | null>(null);
   const [toastMsg, setToastMsg] = useState<string | null>(null);
+
+  useHistoryBack(isOpen && Boolean(cardTarget), () => setCardTarget(null), 'birthday-card-picker');
 
   if (!isOpen) return null;
 

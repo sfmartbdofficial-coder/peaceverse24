@@ -35,6 +35,7 @@ import {
 } from '../../lib/firebase';
 import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbTikTokReelsModalProps {
   isOpen: boolean;
@@ -118,6 +119,33 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
   const touchStartY = useRef<number | null>(null);
   const lastTapRef = useRef<number>(0);
   const lastWheelRef = useRef<number>(0);
+
+  useHistoryBack(
+    isOpen && searchOpen,
+    () => {
+      setSearchTerm('');
+      setSearchOpen(false);
+    },
+    'reels-search'
+  );
+  useHistoryBack(
+    isOpen && showMoreSheet,
+    () => setShowMoreSheet(false),
+    'reels-more-sheet'
+  );
+
+  useEffect(() => {
+    if (!isOpen) {
+      setShowCommentDrawer(false);
+      setShowMoreSheet(false);
+      setSearchOpen(false);
+      setSearchTerm('');
+      setExpandedCaption(false);
+      if (typeof document !== 'undefined' && document.fullscreenElement) {
+        document.exitFullscreen?.().catch(() => {});
+      }
+    }
+  }, [isOpen]);
 
   // Sync index when initialPostId changes
   useEffect(() => {

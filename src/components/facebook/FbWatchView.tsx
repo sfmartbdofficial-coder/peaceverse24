@@ -45,6 +45,7 @@ import {
 } from '../../lib/firebase';
 import { useResolvedMediaUrl } from '../../lib/mediaStorage';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbWatchViewProps {
   posts: PostItem[];
@@ -119,6 +120,16 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
   const lastTapRef = useRef<number>(0);
   const lastWheelRef = useRef<number>(0);
   const hideControlsTimerRef = useRef<number | null>(null);
+
+  useHistoryBack(
+    searchOpen,
+    () => {
+      setSearchTerm('');
+      setSearchOpen(false);
+    },
+    'watch-search'
+  );
+  useHistoryBack(showMoreSheet, () => setShowMoreSheet(false), 'watch-more-sheet');
 
   const showToast = (msg: string) => {
     setToastMsg(msg);

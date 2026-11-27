@@ -8,6 +8,7 @@ import {
   X
 } from 'lucide-react';
 import { UserProfile } from '../../types';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 export interface ExtraProfileItem {
   id: string;
@@ -45,6 +46,12 @@ export const FbProfileSwitcherModal: React.FC<FbProfileSwitcherModalProps> = ({
   const [selectedId, setSelectedId] = useState<string>(activeProfileId);
   const [switchFeedback, setSwitchFeedback] = useState<string | null>(null);
   const [showAccountsCenter, setShowAccountsCenter] = useState<boolean>(false);
+
+  useHistoryBack(
+    showAccountsCenter,
+    () => setShowAccountsCenter(false),
+    'switcher-accounts-center'
+  );
 
   // Dynamic extra profiles (e.g. pages created by user, excluding demo mock IDs)
   const readOwnedExtraProfiles = (): ExtraProfileItem[] => {

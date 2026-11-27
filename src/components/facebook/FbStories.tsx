@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StoryItem } from '../../types';
 import { Plus, X, ChevronLeft, ChevronRight, Sparkles, Volume2, Film } from 'lucide-react';
+import { useHistoryBack } from '../../utils/backNavigation';
 
 interface FbStoriesProps {
   stories: StoryItem[];
@@ -23,6 +24,12 @@ export const FbStories: React.FC<FbStoriesProps> = ({
   const [replySentNotice, setReplySentNotice] = useState<string | null>(null);
   const selectedStory = selectedStoryIndex !== null ? viewableStories[selectedStoryIndex] || null : null;
   const userInitial = currentUserName.trim().charAt(0).toUpperCase() || 'P';
+
+  useHistoryBack(
+    selectedStoryIndex !== null,
+    () => setSelectedStoryIndex(null),
+    'story-viewer'
+  );
 
   return (
     <>
