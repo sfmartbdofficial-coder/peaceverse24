@@ -68,13 +68,15 @@ export function signBunnyCdnUrl(
   }
 
   try {
-    const envToken =
-      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BUNNY_TOKEN) || '';
-    const tokenValue = envToken || '{BUNNY_TOKEN}';
+    const envToken = (
+      (typeof import.meta !== 'undefined' && import.meta.env?.VITE_BUNNY_TOKEN) ||
+      ''
+    ).trim();
+    if (!envToken || envToken === '{BUNNY_TOKEN}') return cleanUrl;
     const expires = Math.floor(Date.now() / 1000) + (options?.ttlSeconds || 3600);
     const separator = cleanUrl.includes('?') ? '&' : '?';
     if (cleanUrl.includes('token=')) return cleanUrl;
-    return `${cleanUrl}${separator}token=${encodeURIComponent(tokenValue)}&expires=${expires}`;
+    return `${cleanUrl}${separator}token=${encodeURIComponent(envToken)}&expires=${expires}`;
   } catch {
     return cleanUrl;
   }

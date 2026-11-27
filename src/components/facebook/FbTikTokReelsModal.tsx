@@ -33,7 +33,7 @@ import {
   isTargetFollowedLocally,
   toggleFollowUser,
 } from '../../lib/firebase';
-import { useResolvedMediaUrl } from '../../lib/mediaStorage';
+import { useResolvedMediaUrl, useAttachVideoSrc, isBunnyEmbedUrl } from '../../lib/mediaStorage';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 import { useHistoryBack } from '../../utils/backNavigation';
 
@@ -71,7 +71,11 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
       posts.filter(
         (p) =>
           p.mediaType === 'video' ||
-          Boolean(p.mediaUrl && p.mediaUrl.match(/\.(mp4|webm|mov|ogg|m4v)($|\?)/i))
+          Boolean(
+            p.mediaUrl &&
+              (/\.(mp4|webm|mov|ogg|m4v|m3u8)($|\?)/i.test(p.mediaUrl) ||
+                /mediadelivery\.net\/embed\//i.test(p.mediaUrl))
+          )
       ),
     [posts]
   );
@@ -159,10 +163,12 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
 
   const currentPost: PostItem | undefined = activeList[currentIndex] || activeList[0];
   const resolvedCurrentMediaUrl = useResolvedMediaUrl(currentPost?.mediaUrl);
+  const isBunnyEmbed = isBunnyEmbedUrl(resolvedCurrentMediaUrl);
+  useAttachVideoSrc(videoRef, resolvedCurrentMediaUrl, `${currentPost?.id || ''}:${isOpen}`);
 
   // Auto-play and reset video on index change
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isBunnyEmbed) return;
     const video = videoRef.current;
     if (!video || !resolvedCurrentMediaUrl) return;
 
@@ -446,21 +452,39 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
           onClick={handleVideoTap}
           className="relative w-full h-full flex items-center justify-center cursor-pointer bg-black overflow-hidden"
         >
-          <video
-            ref={videoRef}
-            src={resolvedCurrentMediaUrl || undefined}
-            playsInline
-            muted={isMuted}
-            loop
-            preload="auto"
-            onTimeUpdate={handleTimeUpdate}
-            onEnded={goToNext}
-            onPlay={() => setIsPlaying(true)}
-            onPause={() => setIsPlaying(false)}
-            className="w-full h-full object-contain sm:object-cover"
-          />
+          {isBunnyEmbed ? (
+            <iframe
+              key={currentPost.id}
+              src={resolvedCurrentMediaUrl}
+              title={currentPost.contentBangla || 'Reel Video'}
+              className="w-full h-full border-0"
+              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+              allowFullScreen
+            />
+          ) : (
+            <video
+              key={currentPost.id}
+              ref={videoRef}
+              playsInline
+              muted={isMuted}
+              loop
+              preload="auto"
+              onCanPlay={() => {
+                if (isPlaying && videoRef.current?.paused) {
+                  videoRef.current.play().catch(() => {});
+                }
+              }}
+              onTimeUpdate={handleTimeUpdate}
+              onEnded={goToNext}
+              onPlay={() => setIsPlaying(true)}
+              onPause={() => setIsPlaying(false)}
+              className="w-full h-full object-contain sm:object-cover"
+            />
+          )}
           {activeList[currentIndex + 1]?.mediaUrl &&
-            !activeList[currentIndex + 1].mediaUrl?.startsWith('pv-media://') && (
+            !activeList[currentIndex + 1].mediaUrl?.startsWith('pv-media://') &&
+            !/\.(m3u8)($|\?)/i.test(activeList[currentIndex + 1].mediaUrl || '') &&
+            !isBunnyEmbedUrl(activeList[currentIndex + 1].mediaUrl) && (
               <video
                 src={activeList[currentIndex + 1].mediaUrl}
                 preload="metadata"
@@ -470,7 +494,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
               />
             )}
 
-          {showPlayPauseAnim && (
+          {!isBunnyEmbed && showPlayPauseAnim && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/15 z-20">
               <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white shadow-2xl animate-in zoom-in-75 duration-150">
                 {isPlaying ? (
@@ -482,7 +506,7 @@ export const FbTikTokReelsModal: React.FC<FbTikTokReelsModalProps> = ({
             </div>
           )}
 
-          {!isPlaying && !showPlayPauseAnim && (
+          {!isBunnyEmbed && !isPlaying && !showPlayPauseAnim && (
             <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20 z-10">
               <div className="w-16 h-16 rounded-full bg-black/55 backdrop-blur-md border border-white/20 flex items-center justify-center text-white shadow-2xl">
                 <Play className="w-8 h-8 fill-white translate-x-0.5" />

@@ -9,7 +9,8 @@ import {
   setDoc,
 } from 'firebase/firestore';
 import { getDownloadURL, getStorage, ref, uploadBytes, uploadBytesResumable } from 'firebase/storage';
-import { useEffect, useState } from 'react';
+import Hls from 'hls.js';
+import { RefObject, useEffect, useState } from 'react';
 import { auth, db } from './firebase';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { compressDataUrlUnderLimit } from '../utils/imageCompress';
@@ -19,9 +20,24 @@ const MAX_FIRESTORE_REPLICATED_BYTES = 45 * 1024 * 1024; // Up to 45 MB (10s-3mi
 const MAX_SINGLE_SERVER_UPLOAD_BYTES = 4 * 1024 * 1024; // Single POST up to 4 MB
 const EXPRESS_STREAM_CHUNK_BYTES = 6 * 1024 * 1024; // 6 MB chunks: safe for Cloud Run (32MB), Cloudflare (100MB), and R2 Multipart (5MB+ parts)
 const EXPRESS_LARGE_STREAM_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB chunks for > 1 GB videos
+const MAX_BUNNY_EDGE_SINGLE_BYTES = 90 * 1024 * 1024; // Safe under Cloudflare Workers 100 MB single-request limit
+const BUNNY_TUS_CHUNK_BYTES = 5 * 1024 * 1024; // 5 MB TUS chunks for Bunny Stream (supports up to 2+ hour / 2 GB videos)
 const MAX_DATA_URL_INLINE_BYTES = 240 * 1024;
 
 let firebaseStorageUnavailable = false;
+let cachedCapabilities: { data: MediaServerCapabilities | null; fetchedAt: number } = {
+  data: null,
+  fetchedAt: 0,
+};
+
+export interface MediaServerCapabilities {
+  ok: boolean;
+  expressDisk: boolean;
+  r2: boolean;
+  bunnyStorage: boolean;
+  bunnyStream: boolean;
+  maxEdgeSingleBytes: number;
+}
 
 const resolvedMediaCache = new Map<string, string>();
 const pendingResolutionMap = new Map<string, Promise<string>>();
@@ -249,7 +265,73 @@ async function fetchWithTimeout(
   }
 }
 
-async function tryUploadToExpressServer(
+async function getMediaCapabilities(): Promise<MediaServerCapabilities | null> {
+  if (cachedCapabilities.data && Date.now() - cachedCapabilities.fetchedAt < 30_000) {
+    return cachedCapabilities.data;
+  }
+  try {
+    const resp = await fetchWithTimeout('/api/media/capabilities', { method: 'GET' }, 3500);
+    const ct = (resp.headers.get('content-type') || '').toLowerCase();
+    if (!resp.ok || !ct.includes('application/json')) {
+      return null;
+    }
+    const json = await resp.json().catch(() => null);
+    if (json && json.ok) {
+      const caps: MediaServerCapabilities = {
+        ok: true,
+        expressDisk: Boolean(json.expressDisk),
+        r2: Boolean(json.r2),
+        bunnyStorage: Boolean(json.bunnyStorage),
+        bunnyStream: Boolean(json.bunnyStream),
+        maxEdgeSingleBytes: Number(json.maxEdgeSingleBytes) || MAX_BUNNY_EDGE_SINGLE_BYTES,
+      };
+      cachedCapabilities = { data: caps, fetchedAt: Date.now() };
+      return caps;
+    }
+  } catch {}
+  return null;
+}
+
+function sendXhrBinary(
+  url: string,
+  method: 'POST' | 'PATCH',
+  headers: Record<string, string>,
+  body: Blob,
+  timeoutMs: number,
+  onUploadProgress?: (loaded: number, total: number) => void
+): Promise<{ status: number; contentType: string; responseText: string; locationHeader: string }> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(method, url, true);
+    xhr.timeout = timeoutMs;
+    Object.entries(headers).forEach(([k, v]) => {
+      xhr.setRequestHeader(k, v);
+    });
+    if (onUploadProgress) {
+      xhr.upload.onprogress = (evt) => {
+        if (evt.lengthComputable && evt.total > 0) {
+          onUploadProgress(evt.loaded, evt.total);
+        } else {
+          onUploadProgress(evt.loaded, body.size || 1);
+        }
+      };
+    }
+    xhr.onload = () => {
+      resolve({
+        status: xhr.status,
+        contentType: (xhr.getResponseHeader('content-type') || '').toLowerCase(),
+        responseText: xhr.responseText || '',
+        locationHeader: xhr.getResponseHeader('location') || xhr.getResponseHeader('Location') || '',
+      });
+    };
+    xhr.onerror = () => reject(new Error('Network error during upload'));
+    xhr.ontimeout = () => reject(new Error('Upload request timed out'));
+    xhr.onabort = () => reject(new Error('Upload aborted'));
+    xhr.send(body);
+  });
+}
+
+async function uploadSingleBlobWithProgress(
   blob: Blob,
   mediaId: string,
   ext: string,
@@ -259,9 +341,266 @@ async function tryUploadToExpressServer(
 ): Promise<BackendStorageResult> {
   let activeToken = initialIdToken;
   const safeMime = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
+  let lastStatus = 0;
+  let lastMsg = '';
+  let sawNetworkErr = false;
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0 && auth.currentUser) {
+      activeToken = await auth.currentUser.getIdToken(lastStatus === 401).catch(() => activeToken);
+    }
+    try {
+      const res = await sendXhrBinary(
+        '/api/media/upload',
+        'POST',
+        {
+          Authorization: `Bearer ${activeToken}`,
+          'Content-Type': 'application/octet-stream',
+          'X-Media-Mime': safeMime,
+          'X-Media-Id': mediaId,
+          'X-Media-Ext': ext,
+        },
+        blob,
+        180_000,
+        (loaded, total) => {
+          if (onProgress && total > 0) {
+            onProgress(Math.min(96, Math.round((loaded / total) * 84) + 12));
+          }
+        }
+      );
+      lastStatus = res.status;
+      let parsed: any = null;
+      try {
+        parsed = res.responseText ? JSON.parse(res.responseText) : null;
+      } catch {}
+
+      if (res.contentType.includes('text/html') || res.status === 501) {
+        return {
+          url: null,
+          status: 501,
+          code: parsed?.code || 'MEDIA_STORAGE_NOT_CONFIGURED',
+          errorMessage: parsed?.error || 'Static edge host has no media bucket configured.',
+        };
+      }
+
+      if (res.status >= 200 && res.status < 300 && typeof parsed?.url === 'string' && parsed.url) {
+        return { url: parsed.url, status: res.status };
+      }
+
+      lastMsg = String(parsed?.error || '');
+      if (res.status >= 400 && res.status < 429 && res.status !== 401 && res.status !== 408) {
+        return { url: null, status: res.status, code: parsed?.code, errorMessage: lastMsg };
+      }
+    } catch (err: any) {
+      lastMsg = String(err?.message || '');
+      sawNetworkErr = true;
+    }
+    await new Promise((r) => window.setTimeout(r, 600 * (attempt + 1)));
+  }
+
+  return {
+    url: null,
+    status: lastStatus || undefined,
+    errorMessage: lastMsg,
+    isNetworkFailure: sawNetworkErr && !lastStatus,
+  };
+}
+
+async function tryUploadToBunnyStreamTus(
+  blob: Blob,
+  title: string,
+  mimeType: string,
+  initialIdToken: string,
+  onProgress?: (pct: number) => void
+): Promise<BackendStorageResult> {
+  let activeToken = initialIdToken;
+  const safeTitle = (title || `PeaceVerse_${Date.now()}`).slice(0, 120);
+  const safeMime = mimeType || 'video/mp4';
+
+  let initData: any = null;
+  let initStatus = 0;
+  let initErr = '';
+
+  for (let attempt = 0; attempt < 2; attempt++) {
+    if (attempt > 0 && auth.currentUser) {
+      activeToken = await auth.currentUser.getIdToken(initStatus === 401).catch(() => activeToken);
+    }
+    try {
+      const resp = await fetchWithTimeout(
+        '/api/media/bunny-stream/init',
+        {
+          method: 'POST',
+          headers: {
+            Authorization: `Bearer ${activeToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ title: safeTitle }),
+        },
+        15_000
+      );
+      initStatus = resp.status;
+      const ct = (resp.headers.get('content-type') || '').toLowerCase();
+      if (ct.includes('text/html') || resp.status === 501) {
+        const json = await resp.json().catch(() => null);
+        return {
+          url: null,
+          status: 501,
+          code: json?.code || 'BUNNY_STREAM_NOT_CONFIGURED',
+          errorMessage: json?.error || 'Bunny Stream is not configured.',
+        };
+      }
+      const json = await resp.json().catch(() => null);
+      if (resp.ok && json?.ok && json?.videoId && json?.signature) {
+        initData = json;
+        break;
+      }
+      initErr = String(json?.error || '');
+      if (resp.status !== 401 && resp.status < 500) {
+        return { url: null, status: resp.status, errorMessage: initErr };
+      }
+    } catch (err: any) {
+      initErr = String(err?.message || '');
+    }
+  }
+
+  if (!initData) {
+    return {
+      url: null,
+      status: initStatus || undefined,
+      errorMessage: initErr || 'Bunny Stream upload initialization failed.',
+      isNetworkFailure: !initStatus,
+    };
+  }
+
+  const tusEndpoint = String(initData.tusEndpoint || 'https://video.bunnycdn.com/tusupload');
+  const libraryId = String(initData.libraryId);
+  const videoId = String(initData.videoId);
+  const expirationTime = String(initData.expirationTime);
+  const signature = String(initData.signature);
+  const playbackUrl = String(initData.playbackUrl || '');
+
+  const encoder = new TextEncoder();
+  const titleB64 = bytesToBase64(encoder.encode(safeTitle));
+  const typeB64 = bytesToBase64(encoder.encode(safeMime));
+
+  let uploadUrl = '';
+  try {
+    const createTus = await fetchWithTimeout(
+      tusEndpoint,
+      {
+        method: 'POST',
+        headers: {
+          AuthorizationSignature: signature,
+          AuthorizationExpire: expirationTime,
+          VideoId: videoId,
+          LibraryId: libraryId,
+          'Tus-Resumable': '1.0.0',
+          'Upload-Length': String(blob.size),
+          'Upload-Metadata': `title ${titleB64},filetype ${typeB64}`,
+        },
+      },
+      20_000
+    );
+
+    const loc = createTus.headers.get('location') || createTus.headers.get('Location');
+    if (!createTus.ok || !loc) {
+      const text = await createTus.text().catch(() => '');
+      return {
+        url: null,
+        status: createTus.status,
+        errorMessage: text || `Bunny Stream TUS create failed (${createTus.status}).`,
+      };
+    }
+    uploadUrl = new URL(loc, tusEndpoint).toString();
+  } catch (err: any) {
+    return {
+      url: null,
+      errorMessage: String(err?.message || 'Failed to connect to Bunny Stream TUS server.'),
+      isNetworkFailure: true,
+    };
+  }
+
+  let offset = 0;
+  while (offset < blob.size) {
+    const end = Math.min(offset + BUNNY_TUS_CHUNK_BYTES, blob.size);
+    const slice = blob.slice(offset, end);
+    let chunkUploaded = false;
+    let lastChunkErr = '';
+    let lastChunkStatus = 0;
+
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        const res = await sendXhrBinary(
+          uploadUrl,
+          'PATCH',
+          {
+            AuthorizationSignature: signature,
+            AuthorizationExpire: expirationTime,
+            VideoId: videoId,
+            LibraryId: libraryId,
+            'Tus-Resumable': '1.0.0',
+            'Upload-Offset': String(offset),
+            'Content-Type': 'application/offset+octet-stream',
+          },
+          slice,
+          120_000,
+          (loaded) => {
+            if (onProgress && blob.size > 0) {
+              const totalLoaded = Math.min(blob.size, offset + loaded);
+              onProgress(Math.min(98, Math.round((totalLoaded / blob.size) * 86) + 12));
+            }
+          }
+        );
+        lastChunkStatus = res.status;
+        if (res.status >= 200 && res.status < 300) {
+          chunkUploaded = true;
+          break;
+        }
+        lastChunkErr = res.responseText || `Bunny Stream chunk failed (${res.status})`;
+      } catch (err: any) {
+        lastChunkErr = String(err?.message || 'Bunny Stream chunk network error');
+      }
+      await new Promise((r) => window.setTimeout(r, 700 * (attempt + 1)));
+    }
+
+    if (!chunkUploaded) {
+      return {
+        url: null,
+        status: lastChunkStatus || undefined,
+        errorMessage: lastChunkErr,
+        isNetworkFailure: !lastChunkStatus,
+      };
+    }
+
+    offset = end;
+    onProgress?.(Math.min(98, Math.round((offset / blob.size) * 86) + 12));
+  }
+
+  return playbackUrl ? { url: playbackUrl, status: 200 } : { url: null };
+}
+
+async function tryUploadToExpressServer(
+  blob: Blob,
+  mediaId: string,
+  ext: string,
+  mimeType: string,
+  initialIdToken: string,
+  onProgress?: (pct: number) => void,
+  caps?: MediaServerCapabilities | null
+): Promise<BackendStorageResult> {
+  let activeToken = initialIdToken;
+  const safeMime = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
 
   try {
-    if (blob.size <= MAX_SINGLE_SERVER_UPLOAD_BYTES) {
+    const singleLimit =
+      caps?.bunnyStorage && caps?.expressDisk
+        ? Math.min(25 * 1024 * 1024, caps.maxEdgeSingleBytes || 25 * 1024 * 1024)
+        : MAX_SINGLE_SERVER_UPLOAD_BYTES;
+
+    if (blob.size <= singleLimit) {
+      if (blob.size > MAX_SINGLE_SERVER_UPLOAD_BYTES) {
+        return await uploadSingleBlobWithProgress(blob, mediaId, ext, safeMime, initialIdToken, onProgress);
+      }
       const payloadBytes = await blob.arrayBuffer();
       let lastStatus = 0;
       let lastMsg = '';
@@ -531,6 +870,22 @@ export async function uploadMediaFile(
 
   reportProgress(10);
 
+  const isVideo = mimeType.startsWith('video/');
+  const caps = await getMediaCapabilities();
+  const baseTitle =
+    options?.fileName ||
+    (fileOrBlob instanceof File && fileOrBlob.name ? fileOrBlob.name : `PeaceVerse_${Date.now()}`);
+
+  const cacheUploadedLocalUrl = (finalUrl: string) => {
+    try {
+      const localBlobUrl = URL.createObjectURL(fileOrBlob);
+      resolvedMediaCache.set(mediaId, localBlobUrl);
+      if (finalUrl) {
+        resolvedMediaCache.set(finalUrl.trim(), localBlobUrl);
+      }
+    } catch {}
+  };
+
   let serverResult: BackendStorageResult = { url: null };
   let storageResult: BackendStorageResult = { url: null };
   let firestoreResult: { ok: boolean; errorCode?: string; errorMessage?: string } = { ok: false };
@@ -542,20 +897,61 @@ export async function uploadMediaFile(
     }
 
     if (idToken) {
-      serverResult = await tryUploadToExpressServer(
-        fileOrBlob,
-        mediaId,
-        ext,
-        mimeType,
-        idToken,
-        reportProgress
-      );
+      const shouldUseBunnyStreamTus =
+        isVideo &&
+        Boolean(caps?.bunnyStream) &&
+        (fileOrBlob.size > MAX_SINGLE_SERVER_UPLOAD_BYTES ||
+          (!caps?.expressDisk && !caps?.r2 && !caps?.bunnyStorage));
+
+      if (shouldUseBunnyStreamTus) {
+        serverResult = await tryUploadToBunnyStreamTus(
+          fileOrBlob,
+          baseTitle,
+          mimeType,
+          idToken,
+          reportProgress
+        );
+      } else if (caps?.bunnyStorage && !caps.expressDisk && !caps.r2) {
+        const edgeMax = Math.min(MAX_BUNNY_EDGE_SINGLE_BYTES, caps.maxEdgeSingleBytes || MAX_BUNNY_EDGE_SINGLE_BYTES);
+        if (fileOrBlob.size <= edgeMax) {
+          serverResult = await uploadSingleBlobWithProgress(
+            fileOrBlob,
+            mediaId,
+            ext,
+            mimeType,
+            idToken,
+            reportProgress
+          );
+        } else if (caps.bunnyStream) {
+          serverResult = await tryUploadToBunnyStreamTus(
+            fileOrBlob,
+            baseTitle,
+            mimeType,
+            idToken,
+            reportProgress
+          );
+        } else {
+          serverResult = {
+            url: null,
+            status: 413,
+            errorMessage:
+              'Bunny Storage দিয়ে একবারে সর্বোচ্চ ৯০ MB পর্যন্ত আপলোড করা যায়। বড় (২ ঘণ্টা/২ GB) ভিডিওর জন্য Bunny Stream অথবা Cloudflare R2 চালু করুন।',
+          };
+        }
+      } else {
+        serverResult = await tryUploadToExpressServer(
+          fileOrBlob,
+          mediaId,
+          ext,
+          mimeType,
+          idToken,
+          reportProgress,
+          caps
+        );
+      }
 
       if (serverResult.url) {
-        try {
-          const localBlobUrl = URL.createObjectURL(fileOrBlob);
-          resolvedMediaCache.set(mediaId, localBlobUrl);
-        } catch {}
+        cacheUploadedLocalUrl(serverResult.url);
 
         // Mirror <= 18 MB media to Firestore in background for cross-container redundancy
         if (fileOrBlob.size <= 18 * 1024 * 1024) {
@@ -577,6 +973,7 @@ export async function uploadMediaFile(
       reportProgress
     );
     if (storageResult.url) {
+      cacheUploadedLocalUrl(storageResult.url);
       reportProgress(100);
       return storageResult.url;
     }
@@ -591,10 +988,7 @@ export async function uploadMediaFile(
     );
 
     if (firestoreResult.ok) {
-      try {
-        const localBlobUrl = URL.createObjectURL(fileOrBlob);
-        resolvedMediaCache.set(mediaId, localBlobUrl);
-      } catch {}
+      cacheUploadedLocalUrl(`pv-media://${mediaId}`);
       reportProgress(100);
       return `pv-media://${mediaId}`;
     }
@@ -602,6 +996,7 @@ export async function uploadMediaFile(
     // Fallback 3: Supabase Storage (if configured)
     const supaResult = await tryUploadToSupabaseStorage(fileOrBlob, mediaId, ext, mimeType, user.uid);
     if (supaResult.url) {
+      cacheUploadedLocalUrl(supaResult.url);
       reportProgress(100);
       return supaResult.url;
     }
@@ -626,7 +1021,9 @@ export async function uploadMediaFile(
     throw new Error('লগইন সেশন রিফ্রেশ করা যায়নি। অনুগ্রহ করে আবার লগইন করে চেষ্টা করুন।');
   }
   if (serverResult.status === 413) {
-    throw new Error('ভিডিও ফাইলের সাইজ নির্ধারিত সীমার চেয়ে বড়। অনুগ্রহ করে ২ GB-এর কম ফাইল দিন।');
+    throw new Error(
+      serverResult.errorMessage || 'ভিডিও ফাইলের সাইজ নির্ধারিত সীমার চেয়ে বড়। অনুগ্রহ করে ২ GB-এর কম ফাইল দিন।'
+    );
   }
   if (serverResult.status === 415) {
     throw new Error('এই ভিডিও ফরম্যাটটি সাপোর্টেড নয়। অনুগ্রহ করে MP4, MOV বা WebM ভিডিও দিন।');
@@ -638,7 +1035,7 @@ export async function uploadMediaFile(
   }
   if (serverResult.status === 501 && fileOrBlob.size > MAX_FIRESTORE_REPLICATED_BYTES) {
     throw new Error(
-      '৪৫ MB-এর চেয়ে বড় (লং) ভিডিও আপলোড করতে Cloudflare R2 বা Firebase Storage চালু থাকা প্রয়োজন।'
+      '৪৫ MB-এর চেয়ে বড় (লং) ভিডিও আপলোড করতে Bunny.net Storage/Stream (BUNNY_STORAGE_ZONE ও BUNNY_STORAGE_API_KEY অথবা BUNNY_STREAM_LIBRARY_ID ও BUNNY_STREAM_API_KEY), Cloudflare R2 বা Firebase Storage চালু থাকা প্রয়োজন।'
     );
   }
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
@@ -756,6 +1153,8 @@ async function fetchBlobUrlFromFirestoreChunks(mediaId: string): Promise<string>
 export async function resolvePlayableMediaUrl(src?: string): Promise<string> {
   const clean = (src || '').trim();
   if (!clean) return '';
+  const directCached = resolvedMediaCache.get(clean);
+  if (directCached) return directCached;
   if (clean.startsWith('http://') || clean.startsWith('https://') || clean.startsWith('data:') || clean.startsWith('blob:')) {
     return clean;
   }
@@ -788,7 +1187,10 @@ export async function resolvePlayableMediaUrl(src?: string): Promise<string> {
 export function useResolvedMediaUrl(src?: string): string {
   const clean = (src || '').trim();
   const mediaId = extractMediaIdFromUrl(clean);
-  const initial = mediaId && resolvedMediaCache.has(mediaId)
+  const directCached = clean ? resolvedMediaCache.get(clean) : undefined;
+  const initial = directCached
+    ? directCached
+    : mediaId && resolvedMediaCache.has(mediaId)
     ? resolvedMediaCache.get(mediaId)!
     : clean.startsWith('pv-media://')
     ? ''
@@ -800,6 +1202,12 @@ export function useResolvedMediaUrl(src?: string): string {
     let active = true;
     if (!clean) {
       setResolved('');
+      return;
+    }
+
+    const cachedDirect = resolvedMediaCache.get(clean);
+    if (cachedDirect) {
+      setResolved(cachedDirect);
       return;
     }
 
@@ -840,9 +1248,11 @@ export function useResolvedMediaUrls(urls: string[]): string[] {
   const key = urls.join('|');
   const [resolvedUrls, setResolvedUrls] = useState<string[]>(() =>
     urls.map((u) => {
-      const id = extractMediaIdFromUrl(u);
+      const clean = (u || '').trim();
+      if (clean && resolvedMediaCache.has(clean)) return resolvedMediaCache.get(clean)!;
+      const id = extractMediaIdFromUrl(clean);
       if (id && resolvedMediaCache.has(id)) return resolvedMediaCache.get(id)!;
-      return u.startsWith('pv-media://') ? '' : u;
+      return clean.startsWith('pv-media://') ? '' : u;
     })
   );
 
@@ -854,9 +1264,11 @@ export function useResolvedMediaUrls(urls: string[]): string[] {
     }
     setResolvedUrls(
       urls.map((u) => {
-        const id = extractMediaIdFromUrl(u);
+        const clean = (u || '').trim();
+        if (clean && resolvedMediaCache.has(clean)) return resolvedMediaCache.get(clean)!;
+        const id = extractMediaIdFromUrl(clean);
         if (id && resolvedMediaCache.has(id)) return resolvedMediaCache.get(id)!;
-        return u.startsWith('pv-media://') ? '' : u;
+        return clean.startsWith('pv-media://') ? '' : u;
       })
     );
 
@@ -872,4 +1284,61 @@ export function useResolvedMediaUrls(urls: string[]): string[] {
   }, [key]);
 
   return resolvedUrls;
+}
+
+export function isHlsPlaylistUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /\.m3u8($|\?|#)/i.test(url.trim());
+}
+
+export function isBunnyEmbedUrl(url?: string | null): boolean {
+  if (!url) return false;
+  return /iframe\.mediadelivery\.net\/embed\//i.test(url.trim());
+}
+
+export function useAttachVideoSrc(
+  videoRef: RefObject<HTMLVideoElement | null>,
+  src?: string | null,
+  reattachKey?: string | number | boolean
+): void {
+  useEffect(() => {
+    const video = videoRef.current;
+    const cleanSrc = (src || '').trim();
+    if (!video) return;
+
+    let hlsInstance: Hls | null = null;
+
+    if (!cleanSrc || isBunnyEmbedUrl(cleanSrc)) {
+      if (video.getAttribute('src')) {
+        video.removeAttribute('src');
+        video.load();
+      }
+      return;
+    }
+
+    if (isHlsPlaylistUrl(cleanSrc)) {
+      if (video.canPlayType('application/vnd.apple.mpegurl')) {
+        video.src = cleanSrc;
+      } else if (Hls.isSupported()) {
+        hlsInstance = new Hls({
+          enableWorker: true,
+          lowLatencyMode: false,
+        });
+        hlsInstance.loadSource(cleanSrc);
+        hlsInstance.attachMedia(video);
+      } else {
+        video.src = cleanSrc;
+      }
+    } else if (video.src !== cleanSrc && video.getAttribute('src') !== cleanSrc) {
+      video.src = cleanSrc;
+    }
+
+    return () => {
+      if (hlsInstance) {
+        try {
+          hlsInstance.destroy();
+        } catch {}
+      }
+    };
+  }, [videoRef, src, reattachKey]);
 }

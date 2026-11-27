@@ -1,4 +1,14 @@
-import { BUILD_RESEND_API_KEY, BUILD_RESEND_FROM_EMAIL } from './build-env';
+import {
+  BUILD_RESEND_API_KEY,
+  BUILD_RESEND_FROM_EMAIL,
+  BUILD_BUNNY_STORAGE_ZONE,
+  BUILD_BUNNY_STORAGE_API_KEY,
+  BUILD_BUNNY_STORAGE_REGION,
+  BUILD_BUNNY_CDN_URL,
+  BUILD_BUNNY_STREAM_LIBRARY_ID,
+  BUILD_BUNNY_STREAM_API_KEY,
+  BUILD_BUNNY_STREAM_CDN_HOST,
+} from './build-env';
 
 interface WorkerAssetsBinding {
   fetch(request: Request): Promise<Response>;
@@ -67,6 +77,21 @@ interface WorkerEnv {
   RESEND_FROM_EMAIL?: string;
   OTP_SIGNING_SECRET?: string;
   GEMINI_API_KEY?: string;
+  BUNNY_STORAGE_ZONE?: string;
+  BUNNY_STORAGE_ZONE_NAME?: string;
+  BUNNY_STORAGE_API_KEY?: string;
+  BUNNY_STORAGE_PASSWORD?: string;
+  BUNNY_ACCESS_KEY?: string;
+  BUNNY_STORAGE_REGION?: string;
+  BUNNY_STORAGE_ENDPOINT?: string;
+  BUNNY_CDN_URL?: string;
+  BUNNY_CDN_HOSTNAME?: string;
+  BUNNY_PULL_ZONE_URL?: string;
+  BUNNY_STREAM_LIBRARY_ID?: string;
+  BUNNY_LIBRARY_ID?: string;
+  BUNNY_STREAM_API_KEY?: string;
+  BUNNY_STREAM_CDN_HOST?: string;
+  BUNNY_STREAM_CDN_HOSTNAME?: string;
 }
 
 const JSON_HEADERS: Record<string, string> = {
@@ -684,13 +709,99 @@ async function proxyMediaToOrigin(request: Request, url: URL, originBase: string
   return fetch(proxiedReq);
 }
 
-async function handleWorkerMediaUpload(request: Request, env: WorkerEnv): Promise<Response> {
-  if (!env.MEDIA_BUCKET) {
+const BUNNY_REGION_ENDPOINTS: Record<string, string> = {
+  de: 'storage.bunnycdn.com',
+  default: 'storage.bunnycdn.com',
+  ny: 'ny.storage.bunnycdn.com',
+  la: 'la.storage.bunnycdn.com',
+  sg: 'sg.storage.bunnycdn.com',
+  syd: 'syd.storage.bunnycdn.com',
+  uk: 'uk.storage.bunnycdn.com',
+  se: 'se.storage.bunnycdn.com',
+  br: 'br.storage.bunnycdn.com',
+  jh: 'jh.storage.bunnycdn.com',
+};
+
+function resolveWorkerBunnyStorage(env: WorkerEnv): {
+  zone: string;
+  apiKey: string;
+  endpoint: string;
+  cdnBase: string;
+} | null {
+  const zone = (env.BUNNY_STORAGE_ZONE || env.BUNNY_STORAGE_ZONE_NAME || BUILD_BUNNY_STORAGE_ZONE || '').trim();
+  const apiKey = (
+    env.BUNNY_STORAGE_API_KEY ||
+    env.BUNNY_STORAGE_PASSWORD ||
+    env.BUNNY_ACCESS_KEY ||
+    BUILD_BUNNY_STORAGE_API_KEY ||
+    ''
+  ).trim();
+  if (!zone || !apiKey) return null;
+
+  const rawRegion = (env.BUNNY_STORAGE_ENDPOINT || env.BUNNY_STORAGE_REGION || BUILD_BUNNY_STORAGE_REGION || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '');
+  const endpoint = !rawRegion
+    ? 'storage.bunnycdn.com'
+    : BUNNY_REGION_ENDPOINTS[rawRegion] || (rawRegion.includes('.') ? rawRegion : `${rawRegion}.storage.bunnycdn.com`);
+
+  const rawCdn = (
+    env.BUNNY_CDN_URL ||
+    env.BUNNY_CDN_HOSTNAME ||
+    env.BUNNY_PULL_ZONE_URL ||
+    BUILD_BUNNY_CDN_URL ||
+    ''
+  )
+    .trim()
+    .replace(/\/+$/, '');
+  const cdnBase = rawCdn
+    ? rawCdn.startsWith('http://') || rawCdn.startsWith('https://')
+      ? rawCdn
+      : `https://${rawCdn}`
+    : '';
+
+  return { zone, apiKey, endpoint, cdnBase };
+}
+
+function resolveWorkerBunnyStream(env: WorkerEnv): {
+  libraryId: string;
+  apiKey: string;
+  cdnHost: string;
+} | null {
+  const libraryId = (env.BUNNY_STREAM_LIBRARY_ID || env.BUNNY_LIBRARY_ID || BUILD_BUNNY_STREAM_LIBRARY_ID || '').trim();
+  const apiKey = (env.BUNNY_STREAM_API_KEY || BUILD_BUNNY_STREAM_API_KEY || '').trim();
+  if (!libraryId || !apiKey) return null;
+
+  const rawHost = (
+    env.BUNNY_STREAM_CDN_HOST ||
+    env.BUNNY_STREAM_CDN_HOSTNAME ||
+    BUILD_BUNNY_STREAM_CDN_HOST ||
+    ''
+  )
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '');
+
+  return { libraryId, apiKey, cdnHost: rawHost };
+}
+
+async function sha256HexWorker(input: string): Promise<string> {
+  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(input));
+  return Array.from(new Uint8Array(digest))
+    .map((b) => b.toString(16).padStart(2, '0'))
+    .join('');
+}
+
+async function handleWorkerBunnyStreamInit(request: Request, env: WorkerEnv): Promise<Response> {
+  const streamCfg = resolveWorkerBunnyStream(env);
+  if (!streamCfg) {
     return new Response(
       JSON.stringify({
         ok: false,
-        code: 'MEDIA_STORAGE_NOT_CONFIGURED',
-        error: 'Cloudflare R2 MEDIA_BUCKET is not bound on this worker.',
+        code: 'BUNNY_STREAM_NOT_CONFIGURED',
+        error: 'Bunny Stream credentials are not configured.',
       }),
       { status: 501, headers: JSON_HEADERS }
     );
@@ -705,12 +816,78 @@ async function handleWorkerMediaUpload(request: Request, env: WorkerEnv): Promis
     );
   }
 
-  const bodyBuf = await request.arrayBuffer();
-  if (!bodyBuf || bodyBuf.byteLength === 0) {
-    return new Response(JSON.stringify({ ok: false, error: 'Empty media payload.' }), {
-      status: 400,
-      headers: JSON_HEADERS,
-    });
+  const body: any = await request.json().catch(() => ({}));
+  const safeTitle =
+    typeof body?.title === 'string' && body.title.trim()
+      ? body.title.trim().slice(0, 120)
+      : `PeaceVerse_${Date.now()}`;
+
+  const createResp = await fetch(
+    `https://video.bunnycdn.com/library/${encodeURIComponent(streamCfg.libraryId)}/videos`,
+    {
+      method: 'POST',
+      headers: {
+        AccessKey: streamCfg.apiKey,
+        'Content-Type': 'application/json',
+        Accept: 'application/json',
+      },
+      body: JSON.stringify({ title: safeTitle }),
+    }
+  );
+  const created: any = await createResp.json().catch(() => null);
+  const videoId = typeof created?.guid === 'string' ? created.guid : '';
+  if (!createResp.ok || !videoId) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: created?.Message || created?.message || `Bunny Stream init failed (${createResp.status}).`,
+      }),
+      { status: 502, headers: JSON_HEADERS }
+    );
+  }
+
+  const expirationTime = Math.floor(Date.now() / 1000) + 7200;
+  const signature = await sha256HexWorker(
+    `${streamCfg.libraryId}${streamCfg.apiKey}${expirationTime}${videoId}`
+  );
+  const playbackUrl = streamCfg.cdnHost
+    ? `https://${streamCfg.cdnHost}/${videoId}/playlist.m3u8`
+    : `https://iframe.mediadelivery.net/embed/${streamCfg.libraryId}/${videoId}?autoplay=true&preload=true`;
+
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      libraryId: streamCfg.libraryId,
+      videoId,
+      expirationTime,
+      signature,
+      tusEndpoint: 'https://video.bunnycdn.com/tusupload',
+      playbackUrl,
+    }),
+    { status: 200, headers: JSON_HEADERS }
+  );
+}
+
+async function handleWorkerMediaUpload(request: Request, env: WorkerEnv): Promise<Response> {
+  const storageCfg = resolveWorkerBunnyStorage(env);
+  if (!env.MEDIA_BUCKET && !storageCfg) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        code: 'MEDIA_STORAGE_NOT_CONFIGURED',
+        error: 'Cloudflare R2 or Bunny.net Storage is not configured on this worker.',
+      }),
+      { status: 501, headers: JSON_HEADERS }
+    );
+  }
+
+  const projectId = env.FIREBASE_PROJECT_ID?.trim() || 'gen-lang-client-0936405543';
+  const verified = await verifyWorkerFirebaseToken(request.headers.get('authorization'), projectId);
+  if (!verified) {
+    return new Response(
+      JSON.stringify({ ok: false, error: 'Authentication required to upload media.' }),
+      { status: 401, headers: JSON_HEADERS }
+    );
   }
 
   const declaredMime = String(
@@ -732,20 +909,81 @@ async function handleWorkerMediaUpload(request: Request, env: WorkerEnv): Promis
   const filename = `${mediaId}.${ext}`;
   const mimeType = WORKER_ALLOWED_EXT_TO_MIME[ext] || 'application/octet-stream';
 
-  await env.MEDIA_BUCKET.put(`media/${filename}`, bodyBuf, {
-    httpMetadata: {
-      contentType: mimeType,
-      cacheControl: 'public, max-age=31536000, immutable',
-    },
-  });
+  if (env.MEDIA_BUCKET) {
+    const bodyBuf = await request.arrayBuffer();
+    if (!bodyBuf || bodyBuf.byteLength === 0) {
+      return new Response(JSON.stringify({ ok: false, error: 'Empty media payload.' }), {
+        status: 400,
+        headers: JSON_HEADERS,
+      });
+    }
+    await env.MEDIA_BUCKET.put(`media/${filename}`, bodyBuf, {
+      httpMetadata: {
+        contentType: mimeType,
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        provider: 'r2',
+        mediaId,
+        filename,
+        url: `/api/media/${filename}`,
+        size: bodyBuf.byteLength,
+      }),
+      { status: 200, headers: JSON_HEADERS }
+    );
+  }
+
+  // Stream directly into Bunny Storage without buffering video in Worker RAM
+  if (!storageCfg || !request.body) {
+    return new Response(JSON.stringify({ ok: false, error: 'Empty media payload.' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const contentLength = request.headers.get('content-length');
+  const bunnyPutHeaders: Record<string, string> = {
+    AccessKey: storageCfg.apiKey,
+    'Content-Type': 'application/octet-stream',
+  };
+  if (contentLength) {
+    bunnyPutHeaders['Content-Length'] = contentLength;
+  }
+
+  const bunnyRes = await fetch(
+    `https://${storageCfg.endpoint}/${encodeURIComponent(storageCfg.zone)}/media/${encodeURIComponent(filename)}`,
+    {
+      method: 'PUT',
+      headers: bunnyPutHeaders,
+      body: request.body,
+    }
+  );
+  if (!bunnyRes.ok) {
+    const errText = await bunnyRes.text().catch(() => '');
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        error: `Bunny Storage upload failed (${bunnyRes.status})${errText ? `: ${errText.slice(0, 120)}` : ''}`,
+      }),
+      { status: 502, headers: JSON_HEADERS }
+    );
+  }
+
+  const publicUrl = storageCfg.cdnBase
+    ? `${storageCfg.cdnBase}/media/${filename}`
+    : `/api/media/${filename}`;
 
   return new Response(
     JSON.stringify({
       ok: true,
+      provider: 'bunny-storage',
       mediaId,
       filename,
-      url: `/api/media/${filename}`,
-      size: bodyBuf.byteLength,
+      url: publicUrl,
+      size: contentLength ? Number(contentLength) : undefined,
     }),
     { status: 200, headers: JSON_HEADERS }
   );
@@ -971,7 +1209,8 @@ async function handleWorkerMediaGet(
   filename: string,
   env: WorkerEnv
 ): Promise<Response> {
-  if (!env.MEDIA_BUCKET) {
+  const storageCfg = resolveWorkerBunnyStorage(env);
+  if (!env.MEDIA_BUCKET && !storageCfg) {
     return new Response(JSON.stringify({ ok: false, error: 'Media not found.' }), {
       status: 404,
       headers: JSON_HEADERS,
@@ -988,8 +1227,54 @@ async function handleWorkerMediaGet(
     });
   }
 
+  const ext = extMatch[1].toLowerCase();
+
+  if (!env.MEDIA_BUCKET && storageCfg) {
+    const bunnyHeaders: Record<string, string> = {
+      AccessKey: storageCfg.apiKey,
+    };
+    const rangeReq = request.headers.get('range');
+    if (rangeReq) {
+      bunnyHeaders['Range'] = rangeReq;
+    }
+    const upstream = await fetch(
+      `https://${storageCfg.endpoint}/${encodeURIComponent(storageCfg.zone)}/media/${encodeURIComponent(filename)}`,
+      {
+        method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+        headers: bunnyHeaders,
+      }
+    );
+    if (!upstream.ok && upstream.status !== 206) {
+      return new Response(JSON.stringify({ ok: false, error: 'Media not found on Bunny Storage.' }), {
+        status: upstream.status === 404 ? 404 : 502,
+        headers: JSON_HEADERS,
+      });
+    }
+    const respHeaders = new Headers();
+    respHeaders.set('Content-Type', WORKER_ALLOWED_EXT_TO_MIME[ext] || 'application/octet-stream');
+    respHeaders.set('Accept-Ranges', 'bytes');
+    respHeaders.set('Cache-Control', 'public, max-age=31536000, immutable');
+    respHeaders.set('X-Content-Type-Options', 'nosniff');
+    const cr = upstream.headers.get('content-range');
+    const cl = upstream.headers.get('content-length');
+    if (cr) respHeaders.set('Content-Range', cr);
+    if (cl) respHeaders.set('Content-Length', cl);
+    return new Response(request.method === 'HEAD' ? null : upstream.body, {
+      status: upstream.status,
+      headers: respHeaders,
+    });
+  }
+
+  const bucket = env.MEDIA_BUCKET;
+  if (!bucket) {
+    return new Response(JSON.stringify({ ok: false, error: 'Media not found on this server.' }), {
+      status: 404,
+      headers: JSON_HEADERS,
+    });
+  }
+
   const key = `media/${filename}`;
-  const headObj = await env.MEDIA_BUCKET.head(key);
+  const headObj = await bucket.head(key);
   if (!headObj) {
     return new Response(JSON.stringify({ ok: false, error: 'Media not found on this server.' }), {
       status: 404,
@@ -997,7 +1282,6 @@ async function handleWorkerMediaGet(
     });
   }
 
-  const ext = extMatch[1].toLowerCase();
   const mimeType = headObj.httpMetadata?.contentType || WORKER_ALLOWED_EXT_TO_MIME[ext] || 'application/octet-stream';
   const totalSize = headObj.size;
   const baseHeaders: Record<string, string> = {
@@ -1029,7 +1313,7 @@ async function handleWorkerMediaGet(
         },
       });
     }
-    const rangedObj = await env.MEDIA_BUCKET.get(key, { range: { offset: start, length } });
+    const rangedObj = await bucket.get(key, { range: { offset: start, length } });
     if (!rangedObj || !rangedObj.body) {
       return new Response(null, { status: 404 });
     }
@@ -1050,7 +1334,7 @@ async function handleWorkerMediaGet(
     });
   }
 
-  const obj = await env.MEDIA_BUCKET.get(key);
+  const obj = await bucket.get(key);
   if (!obj || !obj.body) {
     return new Response(null, { status: 404 });
   }
@@ -1086,7 +1370,23 @@ export default {
       }
 
       if (url.pathname.startsWith('/api/media/')) {
-        if (!env.MEDIA_BUCKET && env.ORIGIN_API_URL?.trim()) {
+        if (url.pathname === '/api/media/capabilities' && request.method === 'GET') {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              expressDisk: false,
+              r2: Boolean(env.MEDIA_BUCKET),
+              bunnyStorage: Boolean(resolveWorkerBunnyStorage(env)),
+              bunnyStream: Boolean(resolveWorkerBunnyStream(env)),
+              maxEdgeSingleBytes: 95 * 1024 * 1024,
+            }),
+            { status: 200, headers: JSON_HEADERS }
+          );
+        }
+        if (url.pathname === '/api/media/bunny-stream/init' && request.method === 'POST') {
+          return handleWorkerBunnyStreamInit(request, env);
+        }
+        if (!env.MEDIA_BUCKET && !resolveWorkerBunnyStorage(env) && env.ORIGIN_API_URL?.trim()) {
           return proxyMediaToOrigin(request, url, env.ORIGIN_API_URL.trim());
         }
         if (url.pathname === '/api/media/upload' && request.method === 'POST') {

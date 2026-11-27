@@ -1,6 +1,6 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Volume2, VolumeX, Play, Pause, Maximize2, Film } from 'lucide-react';
-import { useResolvedMediaUrl } from '../../lib/mediaStorage';
+import { useResolvedMediaUrl, useAttachVideoSrc, isBunnyEmbedUrl } from '../../lib/mediaStorage';
 
 interface FbVideoPlayerProps {
   src: string;
@@ -22,6 +22,8 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   const resolvedSrc = useResolvedMediaUrl(src);
+  const isBunnyEmbed = isBunnyEmbedUrl(resolvedSrc);
+  useAttachVideoSrc(videoRef, resolvedSrc);
 
   const [isPlaying, setIsPlaying] = useState(false);
   const [isMuted, setIsMuted] = useState(true);
@@ -33,7 +35,7 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
   useEffect(() => {
     const video = videoRef.current;
     const container = containerRef.current;
-    if (!video || !container) return;
+    if (!video || !container || isBunnyEmbed) return;
 
     const observer = new IntersectionObserver(
       (entries) => {
@@ -137,20 +139,30 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
       className="relative w-full bg-black border-y border-[#393a3b] overflow-hidden group cursor-pointer select-none max-h-[640px] flex items-center justify-center"
       style={{ minHeight: '260px' }}
     >
-      <video
-        ref={videoRef}
-        src={resolvedSrc || undefined}
-        poster={poster}
-        playsInline
-        muted={isMuted}
-        loop
-        preload="metadata"
-        onTimeUpdate={handleTimeUpdate}
-        onPlay={() => setIsPlaying(true)}
-        onPause={() => setIsPlaying(false)}
-        className="w-full h-auto max-h-[640px] object-contain mx-auto"
-        title={title || 'Peaceverse Video'}
-      />
+      {isBunnyEmbed ? (
+        <iframe
+          src={resolvedSrc}
+          title={title || 'Peaceverse Video'}
+          className="w-full aspect-video max-h-[640px] border-0"
+          allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+          allowFullScreen
+          onClick={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <video
+          ref={videoRef}
+          poster={poster}
+          playsInline
+          muted={isMuted}
+          loop
+          preload="metadata"
+          onTimeUpdate={handleTimeUpdate}
+          onPlay={() => setIsPlaying(true)}
+          onPause={() => setIsPlaying(false)}
+          className="w-full h-auto max-h-[640px] object-contain mx-auto"
+          title={title || 'Peaceverse Video'}
+        />
+      )}
 
       {/* Top-Left Subtle Duration & Type Tag (Reels vs Long Video) */}
       {(duration || videoKind) && (
@@ -180,7 +192,7 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
       )}
 
       {/* Center Play/Pause Indicator Animation on click */}
-      {showControlsHint && (
+      {!isBunnyEmbed && showControlsHint && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/25 transition-opacity">
           <div className="w-16 h-16 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white shadow-2xl animate-in zoom-in-75">
             {isPlaying ? (
@@ -193,7 +205,7 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
       )}
 
       {/* Floating Center Play Button if paused and no recent click */}
-      {!isPlaying && !showControlsHint && (
+      {!isBunnyEmbed && !isPlaying && !showControlsHint && (
         <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-black/20">
           <div className="w-14 h-14 rounded-full bg-black/60 backdrop-blur-md flex items-center justify-center text-white shadow-xl">
             <Play className="w-7 h-7 fill-white translate-x-0.5" />
@@ -202,37 +214,41 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
       )}
 
       {/* Floating Bottom Sound Mute/Unmute & Fullscreen buttons */}
-      <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
-        <button
-          type="button"
-          onClick={handleToggleMute}
-          className="p-2 rounded-full bg-black/70 hover:bg-black/90 text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-all"
-          title={isMuted ? 'Unmute' : 'Mute'}
-        >
-          {isMuted ? (
-            <VolumeX className="w-4 h-4 text-white" />
-          ) : (
-            <Volume2 className="w-4 h-4 text-sky-400" />
-          )}
-        </button>
+      {!isBunnyEmbed && (
+        <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+          <button
+            type="button"
+            onClick={handleToggleMute}
+            className="p-2 rounded-full bg-black/70 hover:bg-black/90 text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-all"
+            title={isMuted ? 'Unmute' : 'Mute'}
+          >
+            {isMuted ? (
+              <VolumeX className="w-4 h-4 text-white" />
+            ) : (
+              <Volume2 className="w-4 h-4 text-sky-400" />
+            )}
+          </button>
 
-        <button
-          type="button"
-          onClick={handleFullscreen}
-          className="p-2 rounded-full bg-black/70 hover:bg-black/90 text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-all opacity-0 group-hover:opacity-100"
-          title="Fullscreen"
-        >
-          <Maximize2 className="w-4 h-4 text-white" />
-        </button>
-      </div>
+          <button
+            type="button"
+            onClick={handleFullscreen}
+            className="p-2 rounded-full bg-black/70 hover:bg-black/90 text-white backdrop-blur-md border border-white/10 shadow-lg active:scale-95 transition-all opacity-0 group-hover:opacity-100"
+            title="Fullscreen"
+          >
+            <Maximize2 className="w-4 h-4 text-white" />
+          </button>
+        </div>
+      )}
 
       {/* Bottom Slim Video Progress Bar */}
-      <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20">
-        <div
-          className="h-full bg-[#1877F2] transition-all duration-150"
-          style={{ width: `${progress}%` }}
-        />
-      </div>
+      {!isBunnyEmbed && (
+        <div className="absolute bottom-0 inset-x-0 h-1 bg-white/20">
+          <div
+            className="h-full bg-[#1877F2] transition-all duration-150"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      )}
     </div>
   );
 };

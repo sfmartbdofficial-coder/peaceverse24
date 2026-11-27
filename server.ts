@@ -5,6 +5,7 @@ import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
 import os from 'os';
+import { Readable } from 'stream';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
@@ -2143,6 +2144,170 @@ function resolveMediaExtFromMime(mimeType: string, requestedExt?: string): strin
   return null;
 }
 
+const SERVER_BUNNY_REGION_ENDPOINTS: Record<string, string> = {
+  de: 'storage.bunnycdn.com',
+  default: 'storage.bunnycdn.com',
+  ny: 'ny.storage.bunnycdn.com',
+  la: 'la.storage.bunnycdn.com',
+  sg: 'sg.storage.bunnycdn.com',
+  syd: 'syd.storage.bunnycdn.com',
+  uk: 'uk.storage.bunnycdn.com',
+  se: 'se.storage.bunnycdn.com',
+  br: 'br.storage.bunnycdn.com',
+  jh: 'jh.storage.bunnycdn.com',
+};
+
+function resolveServerBunnyStorage() {
+  const zone = (process.env.BUNNY_STORAGE_ZONE || process.env.BUNNY_STORAGE_ZONE_NAME || '').trim();
+  const apiKey = (
+    process.env.BUNNY_STORAGE_API_KEY ||
+    process.env.BUNNY_STORAGE_PASSWORD ||
+    process.env.BUNNY_ACCESS_KEY ||
+    ''
+  ).trim();
+  if (!zone || !apiKey) return null;
+
+  const rawRegion = (process.env.BUNNY_STORAGE_ENDPOINT || process.env.BUNNY_STORAGE_REGION || '')
+    .trim()
+    .toLowerCase()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '');
+  const endpoint = !rawRegion
+    ? 'storage.bunnycdn.com'
+    : SERVER_BUNNY_REGION_ENDPOINTS[rawRegion] || (rawRegion.includes('.') ? rawRegion : `${rawRegion}.storage.bunnycdn.com`);
+
+  const rawCdn = (
+    process.env.BUNNY_CDN_URL ||
+    process.env.BUNNY_CDN_HOSTNAME ||
+    process.env.BUNNY_PULL_ZONE_URL ||
+    ''
+  )
+    .trim()
+    .replace(/\/+$/, '');
+  const cdnBase = rawCdn
+    ? rawCdn.startsWith('http://') || rawCdn.startsWith('https://')
+      ? rawCdn
+      : `https://${rawCdn}`
+    : '';
+
+  return { zone, apiKey, endpoint, cdnBase };
+}
+
+function resolveServerBunnyStream() {
+  const libraryId = (process.env.BUNNY_STREAM_LIBRARY_ID || process.env.BUNNY_LIBRARY_ID || '').trim();
+  const apiKey = (process.env.BUNNY_STREAM_API_KEY || '').trim();
+  if (!libraryId || !apiKey) return null;
+  const cdnHost = (process.env.BUNNY_STREAM_CDN_HOST || process.env.BUNNY_STREAM_CDN_HOSTNAME || '')
+    .trim()
+    .replace(/^https?:\/\//, '')
+    .replace(/\/+$/, '');
+  return { libraryId, apiKey, cdnHost };
+}
+
+async function mirrorFileToServerBunnyStorage(localPath: string, filename: string): Promise<string | null> {
+  const storageCfg = resolveServerBunnyStorage();
+  if (!storageCfg) return null;
+  try {
+    const stat = fs.statSync(localPath);
+    const stream = Readable.toWeb(fs.createReadStream(localPath)) as unknown as BodyInit;
+    const bunnyRes = await fetch(
+      `https://${storageCfg.endpoint}/${encodeURIComponent(storageCfg.zone)}/media/${encodeURIComponent(filename)}`,
+      {
+        method: 'PUT',
+        headers: {
+          AccessKey: storageCfg.apiKey,
+          'Content-Type': 'application/octet-stream',
+          'Content-Length': String(stat.size),
+        },
+        body: stream,
+        duplex: 'half',
+      } as RequestInit & { duplex: 'half' }
+    );
+    if (!bunnyRes.ok) return null;
+    return storageCfg.cdnBase ? `${storageCfg.cdnBase}/media/${filename}` : `/api/media/${filename}`;
+  } catch (err) {
+    console.warn('Bunny Storage mirror notice:', err);
+    return null;
+  }
+}
+
+app.get('/api/media/capabilities', (_req, res) => {
+  res.json({
+    ok: true,
+    expressDisk: true,
+    r2: false,
+    bunnyStorage: Boolean(resolveServerBunnyStorage()),
+    bunnyStream: Boolean(resolveServerBunnyStream()),
+    maxEdgeSingleBytes: 25 * 1024 * 1024,
+  });
+});
+
+app.post('/api/media/bunny-stream/init', async (req, res) => {
+  try {
+    const streamCfg = resolveServerBunnyStream();
+    if (!streamCfg) {
+      return res.status(501).json({
+        ok: false,
+        code: 'BUNNY_STREAM_NOT_CONFIGURED',
+        error: 'Bunny Stream credentials are not configured.',
+      });
+    }
+
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required to upload media.' });
+    }
+
+    const safeTitle =
+      typeof req.body?.title === 'string' && req.body.title.trim()
+        ? req.body.title.trim().slice(0, 120)
+        : `PeaceVerse_${Date.now()}`;
+
+    const createResp = await fetch(
+      `https://video.bunnycdn.com/library/${encodeURIComponent(streamCfg.libraryId)}/videos`,
+      {
+        method: 'POST',
+        headers: {
+          AccessKey: streamCfg.apiKey,
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ title: safeTitle }),
+      }
+    );
+    const created: any = await createResp.json().catch(() => null);
+    const videoId = typeof created?.guid === 'string' ? created.guid : '';
+    if (!createResp.ok || !videoId) {
+      return res.status(502).json({
+        ok: false,
+        error: created?.Message || created?.message || `Bunny Stream init failed (${createResp.status}).`,
+      });
+    }
+
+    const expirationTime = Math.floor(Date.now() / 1000) + 7200;
+    const signature = crypto
+      .createHash('sha256')
+      .update(`${streamCfg.libraryId}${streamCfg.apiKey}${expirationTime}${videoId}`)
+      .digest('hex');
+
+    const playbackUrl = streamCfg.cdnHost
+      ? `https://${streamCfg.cdnHost}/${videoId}/playlist.m3u8`
+      : `https://iframe.mediadelivery.net/embed/${streamCfg.libraryId}/${videoId}?autoplay=true&preload=true`;
+
+    return res.json({
+      ok: true,
+      libraryId: streamCfg.libraryId,
+      videoId,
+      expirationTime,
+      signature,
+      tusEndpoint: 'https://video.bunnycdn.com/tusupload',
+      playbackUrl,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Failed to initialize Bunny Stream.' });
+  }
+});
+
 app.post(
   '/api/media/upload',
   express.raw({
@@ -2189,11 +2354,13 @@ app.post(
       }
 
       fs.writeFileSync(resolvedPath, req.body);
+      const bunnyUrl = await mirrorFileToServerBunnyStorage(resolvedPath, filename);
       return res.json({
         ok: true,
+        provider: bunnyUrl ? 'bunny-storage' : 'express-disk',
         mediaId,
         filename,
-        url: `/api/media/${filename}`,
+        url: bunnyUrl || `/api/media/${filename}`,
         size: req.body.length,
       });
     } catch (error: any) {
@@ -2398,12 +2565,14 @@ app.post(
         const totalSize = session?.totalBytes || req.body.length;
         cleanupChunkSession(rawId, metaPath);
         fs.renameSync(partPath, finalPath);
+        const bunnyUrl = await mirrorFileToServerBunnyStorage(finalPath, finalFilename);
         return res.json({
           ok: true,
           completed: true,
+          provider: bunnyUrl ? 'bunny-storage' : 'express-disk',
           mediaId: rawId,
           filename: finalFilename,
-          url: `/api/media/${finalFilename}`,
+          url: bunnyUrl || `/api/media/${finalFilename}`,
           size: totalSize,
         });
       }
@@ -2421,7 +2590,7 @@ app.post(
   }
 );
 
-app.all('/api/media/:filename', (req, res, next) => {
+app.all('/api/media/:filename', async (req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
 
   const filename = String(req.params.filename || '').trim();
@@ -2430,14 +2599,40 @@ app.all('/api/media/:filename', (req, res, next) => {
     return res.status(400).json({ ok: false, error: 'Invalid media filename.' });
   }
 
+  const ext = extMatch[1].toLowerCase();
   const resolvedPath = path.resolve(MEDIA_STORAGE_DIR, filename);
   if (!resolvedPath.startsWith(MEDIA_STORAGE_DIR + path.sep) || !fs.existsSync(resolvedPath)) {
+    const storageCfg = resolveServerBunnyStorage();
+    if (storageCfg) {
+      try {
+        const bunnyHeaders: Record<string, string> = { AccessKey: storageCfg.apiKey };
+        if (req.headers.range && typeof req.headers.range === 'string') {
+          bunnyHeaders['Range'] = req.headers.range;
+        }
+        const upstream = await fetch(
+          `https://${storageCfg.endpoint}/${encodeURIComponent(storageCfg.zone)}/media/${encodeURIComponent(filename)}`,
+          { method: req.method === 'HEAD' ? 'HEAD' : 'GET', headers: bunnyHeaders }
+        );
+        if (upstream.ok || upstream.status === 206) {
+          res.status(upstream.status);
+          res.setHeader('Content-Type', ALLOWED_MEDIA_EXT_TO_MIME[ext] || 'application/octet-stream');
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+          res.setHeader('X-Content-Type-Options', 'nosniff');
+          const cr = upstream.headers.get('content-range');
+          const cl = upstream.headers.get('content-length');
+          if (cr) res.setHeader('Content-Range', cr);
+          if (cl) res.setHeader('Content-Length', cl);
+          if (req.method === 'HEAD' || !upstream.body) return res.end();
+          return Readable.fromWeb(upstream.body as any).pipe(res);
+        }
+      } catch {}
+    }
     return res.status(404).json({ ok: false, error: 'Media not found on this server.' });
   }
 
   const stat = fs.statSync(resolvedPath);
   const totalSize = stat.size;
-  const ext = extMatch[1].toLowerCase();
   const mimeType = ALLOWED_MEDIA_EXT_TO_MIME[ext] || 'application/octet-stream';
 
   res.setHeader('Content-Type', mimeType);

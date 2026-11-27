@@ -43,7 +43,7 @@ import {
   isFriendRequestSentLocally,
   toggleLocalFriendRequestAndSync,
 } from '../../lib/firebase';
-import { useResolvedMediaUrl } from '../../lib/mediaStorage';
+import { useResolvedMediaUrl, useAttachVideoSrc, isBunnyEmbedUrl } from '../../lib/mediaStorage';
 import { FbCommentBottomSheet } from './FbCommentBottomSheet';
 import { useHistoryBack } from '../../utils/backNavigation';
 
@@ -142,7 +142,11 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
       (p) =>
         p.mediaType === 'video' ||
         Boolean(p.youtubeId) ||
-        Boolean(p.mediaUrl && /\.(mp4|webm|mov|ogg|m4v)($|\?)/i.test(p.mediaUrl))
+        Boolean(
+          p.mediaUrl &&
+            (/\.(mp4|webm|mov|ogg|m4v|m3u8)($|\?)/i.test(p.mediaUrl) ||
+              /mediadelivery\.net\/embed\//i.test(p.mediaUrl))
+        )
     );
     return [...matched].sort(
       (a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0)
@@ -183,6 +187,8 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
 
   const currentPost: PostItem | undefined = filteredVideos[currentIndex];
   const resolvedCurrentMediaUrl = useResolvedMediaUrl(currentPost?.mediaUrl);
+  const isBunnyEmbed = isBunnyEmbedUrl(resolvedCurrentMediaUrl);
+  useAttachVideoSrc(videoRef, resolvedCurrentMediaUrl, currentPost?.id);
 
   const scheduleHideControls = useCallback(() => {
     if (hideControlsTimerRef.current) {
@@ -204,8 +210,8 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
     setIsLandscapeVideo(false);
     setExpandedCaption(false);
 
-    if (!currentPost || !video) {
-      setShowCenterControls(true);
+    if (!currentPost || !video || isBunnyEmbed) {
+      setShowCenterControls(!isBunnyEmbed);
       return;
     }
 
@@ -593,11 +599,19 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                   allow="autoplay; encrypted-media; picture-in-picture"
                   allowFullScreen
                 />
+              ) : isBunnyEmbed ? (
+                <iframe
+                  key={currentPost.id}
+                  src={resolvedCurrentMediaUrl}
+                  title={currentPost.contentBangla || 'Reel Video'}
+                  className="w-full h-full border-0"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowFullScreen
+                />
               ) : (
                 <video
                   key={currentPost.id}
                   ref={videoRef}
-                  src={resolvedCurrentMediaUrl || undefined}
                   poster={currentPost.author.avatar}
                   className={`w-full h-full ${
                     isLandscapeVideo ? 'object-contain' : 'object-cover'
@@ -605,6 +619,11 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
                   playsInline
                   loop
                   muted={isMuted}
+                  onCanPlay={() => {
+                    if (isPlaying && videoRef.current?.paused) {
+                      videoRef.current.play().catch(() => {});
+                    }
+                  }}
                   onLoadedMetadata={() => {
                     const video = videoRef.current;
                     if (!video) return;
@@ -642,7 +661,7 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
               )}
 
               {/* CENTER PLAY / PAUSE / -5s / +5s CONTROLS (Exact Facebook Reels layout) */}
-              {!currentPost.youtubeId && (showCenterControls || !isPlaying) && (
+              {!currentPost.youtubeId && !isBunnyEmbed && (showCenterControls || !isPlaying) && (
                 <div className="absolute inset-0 z-20 flex items-center justify-center gap-6 pointer-events-none">
                   <button
                     type="button"
@@ -967,7 +986,7 @@ export const FbWatchView: React.FC<FbWatchViewProps> = ({
               </div>
 
               {/* BOTTOM INTERACTIVE SCRUBBER BAR (Flush above dark Bottom Nav) */}
-              {!currentPost.youtubeId && (
+              {!currentPost.youtubeId && !isBunnyEmbed && (
                 <div
                   className="absolute inset-x-0 bottom-0 z-30 px-2 pb-1.5 pt-2 flex items-center"
                   onClick={(e) => e.stopPropagation()}
