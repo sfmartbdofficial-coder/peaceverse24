@@ -15,9 +15,12 @@ import { compressDataUrlUnderLimit } from '../utils/imageCompress';
 
 const FIRESTORE_CHUNK_RAW_BYTES = 420 * 1024; // ~560 KB base64 per doc (well under Firestore 1 MB limit)
 const MAX_FIRESTORE_REPLICATED_BYTES = 18 * 1024 * 1024; // Replicate up to 18 MB cross-container via Firestore
-const MAX_SINGLE_SERVER_UPLOAD_BYTES = 45 * 1024 * 1024; // Single POST /api/media/upload threshold
-const EXPRESS_STREAM_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB chunks for long videos up to 2 GB
+const MAX_SINGLE_SERVER_UPLOAD_BYTES = 2 * 1024 * 1024; // Anything > 2 MB uses resilient chunked streaming
+const EXPRESS_STREAM_CHUNK_BYTES = 2 * 1024 * 1024; // 2 MB chunks (well below Cloud Run 32 MB & mobile timeouts)
+const EXPRESS_LARGE_STREAM_CHUNK_BYTES = 4 * 1024 * 1024; // 4 MB chunks for > 1 GB videos
 const MAX_DATA_URL_INLINE_BYTES = 240 * 1024;
+
+let firebaseStorageUnavailable = false;
 
 const resolvedMediaCache = new Map<string, string>();
 const pendingResolutionMap = new Map<string, Promise<string>>();
@@ -104,23 +107,30 @@ async function tryUploadToFirebaseStorage(
   uid: string,
   onProgress?: (pct: number) => void
 ): Promise<string | null> {
+  if (firebaseStorageUnavailable) return null;
   try {
     const storage = getStorage(db.app);
     const storageRef = ref(storage, `users/${uid}/media/${mediaId}.${ext}`);
     const contentType = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
 
     if (blob.size <= 12 * 1024 * 1024) {
-      const uploadPromise = uploadBytes(storageRef, blob, { contentType }).then((snap) =>
-        getDownloadURL(snap.ref)
-      );
+      const uploadPromise = uploadBytes(storageRef, blob, { contentType })
+        .then((snap) => getDownloadURL(snap.ref))
+        .catch(() => {
+          firebaseStorageUnavailable = true;
+          return null;
+        });
       const timeoutPromise = new Promise<null>((resolve) => {
-        window.setTimeout(() => resolve(null), 5000);
+        window.setTimeout(() => {
+          firebaseStorageUnavailable = true;
+          resolve(null);
+        }, 5000);
       });
       const url = await Promise.race([uploadPromise, timeoutPromise]);
       return typeof url === 'string' && url.startsWith('https://') ? url : null;
     }
 
-    // For large long videos (>12MB), use resumable upload with stall detection
+    // For large videos (>12MB), use resumable upload with stall detection (never emit 0-byte 5% stall)
     return await new Promise<string | null>((resolve) => {
       const task = uploadBytesResumable(storageRef, blob, { contentType });
       let lastMovedAt = Date.now();
@@ -130,24 +140,29 @@ async function tryUploadToFirebaseStorage(
         if (settled) return;
         settled = true;
         window.clearInterval(stallTimer);
+        if (!res) {
+          firebaseStorageUnavailable = true;
+        }
         resolve(res);
       };
 
       const stallTimer = window.setInterval(() => {
-        if (Date.now() - lastMovedAt > 6000) {
+        if (Date.now() - lastMovedAt > 5000) {
           try {
             task.cancel();
           } catch {}
           finish(null);
         }
-      }, 2000);
+      }, 1500);
 
       task.on(
         'state_changed',
         (snap) => {
-          lastMovedAt = Date.now();
-          if (snap.totalBytes > 0 && onProgress) {
-            onProgress(Math.min(98, Math.round((snap.bytesTransferred / snap.totalBytes) * 90) + 5));
+          if (snap.bytesTransferred > 0) {
+            lastMovedAt = Date.now();
+            if (snap.totalBytes > 0 && onProgress) {
+              onProgress(Math.min(98, Math.round((snap.bytesTransferred / snap.totalBytes) * 86) + 12));
+            }
           }
         },
         () => finish(null),
@@ -162,7 +177,28 @@ async function tryUploadToFirebaseStorage(
       );
     });
   } catch {
+    firebaseStorageUnavailable = true;
     return null;
+  }
+}
+
+interface ExpressUploadResult {
+  url: string | null;
+  status?: number;
+  errorMessage?: string;
+}
+
+async function fetchWithTimeout(
+  url: string,
+  init: RequestInit,
+  timeoutMs = 45_000
+): Promise<Response> {
+  const controller = new AbortController();
+  const timer = window.setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    return await fetch(url, { ...init, signal: controller.signal });
+  } finally {
+    window.clearTimeout(timer);
   }
 }
 
@@ -171,71 +207,130 @@ async function tryUploadToExpressServer(
   mediaId: string,
   ext: string,
   mimeType: string,
-  idToken: string,
+  initialIdToken: string,
   onProgress?: (pct: number) => void
-): Promise<string | null> {
+): Promise<ExpressUploadResult> {
+  let activeToken = initialIdToken;
+  const safeMime = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
+
   try {
     if (blob.size <= MAX_SINGLE_SERVER_UPLOAD_BYTES) {
-      const resp = await fetch('/api/media/upload', {
-        method: 'POST',
-        headers: {
-          Authorization: `Bearer ${idToken}`,
-          'Content-Type': mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg'),
-          'X-Media-Id': mediaId,
-          'X-Media-Ext': ext,
-        },
-        body: blob,
-      });
-      if (!resp.ok) return null;
-      const data = await resp.json().catch(() => null);
-      return typeof data?.url === 'string' && data.url ? data.url : null;
+      const payloadBytes = await blob.arrayBuffer();
+      let lastStatus = 0;
+      let lastMsg = '';
+      for (let attempt = 0; attempt < 3; attempt++) {
+        if (attempt > 0 && auth.currentUser) {
+          activeToken = await auth.currentUser.getIdToken(attempt === 1 && lastStatus === 401).catch(() => activeToken);
+        }
+        try {
+          onProgress?.(Math.min(90, 20 + attempt * 15));
+          const resp = await fetchWithTimeout(
+            '/api/media/upload',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${activeToken}`,
+                'Content-Type': 'application/octet-stream',
+                'X-Media-Mime': safeMime,
+                'X-Media-Id': mediaId,
+                'X-Media-Ext': ext,
+              },
+              body: payloadBytes,
+            },
+            45_000
+          );
+          lastStatus = resp.status;
+          if (resp.ok) {
+            const data = await resp.json().catch(() => null);
+            const url = typeof data?.url === 'string' && data.url ? data.url : null;
+            if (url) return { url, status: resp.status };
+          }
+          const errJson = await resp.json().catch(() => null);
+          lastMsg = String(errJson?.error || '');
+          // Retry on 401 (with refreshed token), 429, or 5xx; abort early on other 4xx
+          if (resp.status >= 400 && resp.status < 429 && resp.status !== 401 && resp.status !== 408) {
+            return { url: null, status: resp.status, errorMessage: lastMsg };
+          }
+        } catch (err: any) {
+          lastMsg = String(err?.message || '');
+        }
+        await new Promise((r) => window.setTimeout(r, 500 * (attempt + 1)));
+      }
+      return { url: null, status: lastStatus || undefined, errorMessage: lastMsg };
     }
 
-    // Chunked streaming upload for long videos (45MB -> 2GB)
-    const totalChunks = Math.max(1, Math.ceil(blob.size / EXPRESS_STREAM_CHUNK_BYTES));
+    // Chunked streaming upload for videos/media > 2 MB (supports up to 2 GB smoothly on mobile & Cloud Run)
+    const chunkSize =
+      blob.size > 1024 * 1024 * 1024 ? EXPRESS_LARGE_STREAM_CHUNK_BYTES : EXPRESS_STREAM_CHUNK_BYTES;
+    const totalChunks = Math.max(1, Math.ceil(blob.size / chunkSize));
     let finalUrl: string | null = null;
+
     for (let idx = 0; idx < totalChunks; idx++) {
-      const start = idx * EXPRESS_STREAM_CHUNK_BYTES;
-      const end = Math.min(start + EXPRESS_STREAM_CHUNK_BYTES, blob.size);
-      const chunk = blob.slice(start, end);
+      const start = idx * chunkSize;
+      const end = Math.min(start + chunkSize, blob.size);
+      const chunkBytes = await blob.slice(start, end).arrayBuffer();
 
       let chunkData: any = null;
-      for (let attempt = 0; attempt < 2; attempt++) {
-        const freshToken =
-          attempt > 0 && auth.currentUser
-            ? await auth.currentUser.getIdToken().catch(() => idToken)
-            : idToken;
-        const resp = await fetch('/api/media/upload-chunk', {
-          method: 'POST',
-          headers: {
-            Authorization: `Bearer ${freshToken}`,
-            'Content-Type': mimeType || 'video/mp4',
-            'X-Media-Id': mediaId,
-            'X-Media-Ext': ext,
-            'X-Chunk-Index': String(idx),
-            'X-Total-Chunks': String(totalChunks),
-          },
-          body: chunk,
-        });
-        if (resp.ok) {
-          chunkData = await resp.json().catch(() => null);
-          break;
+      let lastStatus = 0;
+      let lastMsg = '';
+
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt > 0 && auth.currentUser) {
+          activeToken = await auth.currentUser
+            .getIdToken(lastStatus === 401 || attempt >= 2)
+            .catch(() => activeToken);
         }
-        if (resp.status >= 400 && resp.status < 429) {
-          return null;
+
+        try {
+          const resp = await fetchWithTimeout(
+            '/api/media/upload-chunk',
+            {
+              method: 'POST',
+              headers: {
+                Authorization: `Bearer ${activeToken}`,
+                'Content-Type': 'application/octet-stream',
+                'X-Media-Mime': safeMime,
+                'X-Media-Id': mediaId,
+                'X-Media-Ext': ext,
+                'X-Chunk-Index': String(idx),
+                'X-Total-Chunks': String(totalChunks),
+              },
+              body: chunkBytes,
+            },
+            45_000
+          );
+          lastStatus = resp.status;
+          if (resp.ok) {
+            chunkData = await resp.json().catch(() => null);
+            if (chunkData?.ok) break;
+          } else {
+            const errJson = await resp.json().catch(() => null);
+            lastMsg = String(errJson?.error || '');
+            // Retry on 401 (token refresh), 408, 429, or 5xx; abort early on other 4xx (like 413/415/403)
+            if (resp.status >= 400 && resp.status < 429 && resp.status !== 401 && resp.status !== 408) {
+              return { url: null, status: resp.status, errorMessage: lastMsg };
+            }
+          }
+        } catch (err: any) {
+          lastMsg = String(err?.message || '');
         }
+        await new Promise((r) => window.setTimeout(r, 600 * (attempt + 1)));
       }
-      if (!chunkData?.ok) return null;
+
+      if (!chunkData?.ok) {
+        return { url: null, status: lastStatus || undefined, errorMessage: lastMsg };
+      }
       if (onProgress) {
-        onProgress(Math.min(98, Math.round(((idx + 1) / totalChunks) * 88) + 10));
+        onProgress(Math.min(96, Math.round(((idx + 1) / totalChunks) * 84) + 12));
       }
       if (typeof chunkData.url === 'string' && chunkData.url) {
         finalUrl = chunkData.url;
       }
     }
-    return finalUrl;
-  } catch {
-    return null;
+
+    return { url: finalUrl, status: 200 };
+  } catch (err: any) {
+    return { url: null, errorMessage: String(err?.message || '') };
   }
 }
 
@@ -264,7 +359,7 @@ async function tryReplicateToFirestoreChunks(
         bytes: chunkBytes.length,
       });
       if (onProgress) {
-        onProgress(Math.min(95, Math.round(((i + 1) / totalChunks) * 85) + 10));
+        onProgress(Math.min(95, Math.round(((i + 1) / totalChunks) * 82) + 12));
       }
     }
 
@@ -286,7 +381,8 @@ async function tryReplicateToFirestoreChunks(
 
 /**
  * Uploads any image or video File/Blob so it persists cleanly across devices & Cloud Run instances.
- * Priority: Firebase Storage -> Same-origin /api/media streaming + Firestore cross-container chunk mirror.
+ * Primary: Fast same-origin 2 MB chunked streaming (/api/media/upload-chunk) + background Firestore mirror.
+ * Fallback: Firebase Storage -> Firestore chunks -> small inline DataURL.
  */
 export async function uploadMediaFile(
   fileOrBlob: File | Blob,
@@ -296,62 +392,93 @@ export async function uploadMediaFile(
     onProgress?: (pct: number) => void;
   }
 ): Promise<string> {
+  if (!auth.currentUser && typeof auth.authStateReady === 'function') {
+    await auth.authStateReady().catch(() => {});
+  }
   const user = auth.currentUser;
   const mimeType =
     options?.mimeType ||
     fileOrBlob.type ||
-    (options?.fileName && /\.(mp4|webm|mov|m4v|ogg)$/i.test(options.fileName)
+    (options?.fileName && /\.(mp4|webm|mov|m4v|ogg|3gp|mkv)$/i.test(options.fileName)
       ? 'video/mp4'
       : 'image/jpeg');
   const ext = inferExtension(mimeType, options?.fileName || (fileOrBlob instanceof File ? fileOrBlob.name : undefined));
   const mediaId = generateMediaId();
 
-  options?.onProgress?.(10);
+  let highestProgress = 0;
+  const reportProgress = (pct: number) => {
+    const clamped = Math.max(highestProgress, Math.min(100, Math.round(pct)));
+    highestProgress = clamped;
+    options?.onProgress?.(clamped);
+  };
+
+  reportProgress(10);
+
+  let lastServerStatus: number | undefined;
 
   if (user) {
+    let idToken = await user.getIdToken().catch(() => '');
+    if (!idToken) {
+      idToken = await user.getIdToken(true).catch(() => '');
+    }
+
+    if (idToken) {
+      const serverResult = await tryUploadToExpressServer(
+        fileOrBlob,
+        mediaId,
+        ext,
+        mimeType,
+        idToken,
+        reportProgress
+      );
+      lastServerStatus = serverResult.status;
+
+      if (serverResult.url) {
+        try {
+          const localBlobUrl = URL.createObjectURL(fileOrBlob);
+          resolvedMediaCache.set(mediaId, localBlobUrl);
+        } catch {}
+
+        // Mirror <= 18 MB media to Firestore in background for cross-container redundancy without blocking UI
+        if (fileOrBlob.size <= MAX_FIRESTORE_REPLICATED_BYTES) {
+          void tryReplicateToFirestoreChunks(fileOrBlob, mediaId, mimeType, user.uid);
+        }
+
+        reportProgress(100);
+        return serverResult.url;
+      }
+    }
+
+    // Fallback when same-origin server storage is unavailable (e.g. static edge hosting)
     const storageUrl = await tryUploadToFirebaseStorage(
       fileOrBlob,
       mediaId,
       ext,
       mimeType,
       user.uid,
-      options?.onProgress
+      reportProgress
     );
     if (storageUrl) {
-      options?.onProgress?.(100);
+      reportProgress(100);
       return storageUrl;
     }
 
-    const idToken = await user.getIdToken().catch(() => '');
-    const [serverUrl, firestoreOk] = await Promise.all([
-      idToken
-        ? tryUploadToExpressServer(
-            fileOrBlob,
-            mediaId,
-            ext,
-            mimeType,
-            idToken,
-            options?.onProgress
-          )
-        : Promise.resolve(null),
-      tryReplicateToFirestoreChunks(
-        fileOrBlob,
-        mediaId,
-        mimeType,
-        user.uid,
-        fileOrBlob.size <= MAX_SINGLE_SERVER_UPLOAD_BYTES ? options?.onProgress : undefined
-      ),
-    ]);
+    const firestoreOk = await tryReplicateToFirestoreChunks(
+      fileOrBlob,
+      mediaId,
+      mimeType,
+      user.uid,
+      reportProgress
+    );
 
-    try {
-      const localBlobUrl = URL.createObjectURL(fileOrBlob);
-      resolvedMediaCache.set(mediaId, localBlobUrl);
-    } catch {}
-
-    options?.onProgress?.(100);
-
-    if (serverUrl) return serverUrl;
-    if (firestoreOk) return `pv-media://${mediaId}`;
+    if (firestoreOk) {
+      try {
+        const localBlobUrl = URL.createObjectURL(fileOrBlob);
+        resolvedMediaCache.set(mediaId, localBlobUrl);
+      } catch {}
+      reportProgress(100);
+      return `pv-media://${mediaId}`;
+    }
   }
 
   // Last-resort fallback for small blobs when offline
@@ -364,6 +491,16 @@ export async function uploadMediaFile(
       reader.onerror = () => resolve('');
       reader.readAsDataURL(fileOrBlob);
     });
+  }
+
+  if (!user) {
+    throw new Error('ভিডিও আপলোড করতে অনুগ্রহ করে আগে আপনার অ্যাকাউন্টে লগইন করুন।');
+  }
+  if (lastServerStatus === 401) {
+    throw new Error('লগইন সেশন রিফ্রেশ করা যায়নি। অনুগ্রহ করে আবার লগইন করে চেষ্টা করুন।');
+  }
+  if (lastServerStatus === 413) {
+    throw new Error('ভিডিও ফাইলের সাইজ নির্ধারিত সীমার চেয়ে বড়। অনুগ্রহ করে ২ GB-এর কম ফাইল দিন।');
   }
 
   throw new Error('মিডিয়া ফাইল আপলোড করা যায়নি। অনুগ্রহ করে ইন্টারনেট সংযোগ চেক করে আবার চেষ্টা করুন।');

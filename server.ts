@@ -87,16 +87,16 @@ app.get('/sitemap.xml', (_req, res) => {
   res.sendFile(path.resolve(__dirname, 'public', 'sitemap.xml'));
 });
 
-// Server-side Rate Limiter for /api/* (Max 60 requests per minute; chunked long-video uploads get a dedicated 600/5m window)
+// Server-side Rate Limiter for /api/* (Max 60 requests per minute; chunked long-video uploads get a generous 2500/5m window)
 const apiRateMap = new Map<string, number[]>();
 const chunkRateMap = new Map<string, number[]>();
 app.use('/api', (req, res, next) => {
   const clientIp = String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown').split(',')[0].trim();
   const now = Date.now();
-  if (req.path === '/media/upload-chunk') {
+  if (req.path === '/media/upload-chunk' || req.path === '/media/upload') {
     const chunkWindowMs = 5 * 60 * 1000;
     const recentChunks = (chunkRateMap.get(clientIp) || []).filter((ts) => now - ts < chunkWindowMs);
-    if (recentChunks.length >= 600) {
+    if (recentChunks.length >= 2500) {
       return res.status(429).json({ error: 'Chunk upload rate limit exceeded. Please pause briefly.' });
     }
     recentChunks.push(now);
@@ -1365,8 +1365,13 @@ async function verifyFirebaseBearerToken(authHeader?: string): Promise<{ uid: st
       return null;
     }
 
-    const certs = await getFirebasePublicCerts();
-    const certPem = certs[header.kid];
+    let certs = await getFirebasePublicCerts();
+    let certPem = certs[header.kid];
+    if (!certPem) {
+      cachedFirebaseCerts = null;
+      certs = await getFirebasePublicCerts();
+      certPem = certs[header.kid];
+    }
     if (!certPem) return null;
 
     const verifier = crypto.createVerify('RSA-SHA256');
@@ -2092,7 +2097,10 @@ function resolveMediaExtFromMime(mimeType: string, requestedExt?: string): strin
   ) {
     return null;
   }
-  if (cleanMime === 'video/mp4' || cleanMime === 'video/x-m4v') return 'mp4';
+  const safeReqExt = (requestedExt || '').trim().toLowerCase();
+  const normalizedReqExt = safeReqExt === 'jpeg' ? 'jpg' : safeReqExt;
+
+  if (cleanMime === 'video/mp4' || cleanMime === 'video/x-m4v' || cleanMime === 'application/mp4') return 'mp4';
   if (cleanMime === 'video/webm') return 'webm';
   if (cleanMime === 'video/quicktime') return 'mov';
   if (cleanMime === 'video/ogg') return 'ogg';
@@ -2102,19 +2110,20 @@ function resolveMediaExtFromMime(mimeType: string, requestedExt?: string): strin
   if (cleanMime === 'image/gif') return 'gif';
   if (cleanMime === 'audio/mpeg') return 'mp3';
   if (cleanMime === 'audio/mp4') return 'm4a';
-  if (requestedExt && ALLOWED_MEDIA_EXT_TO_MIME[requestedExt.toLowerCase()]) {
-    return requestedExt.toLowerCase();
+  if (normalizedReqExt && ALLOWED_MEDIA_EXT_TO_MIME[normalizedReqExt]) {
+    return normalizedReqExt;
   }
   if (cleanMime.startsWith('video/')) return 'mp4';
   if (cleanMime.startsWith('image/')) return 'jpg';
+  if (cleanMime.startsWith('audio/')) return 'mp3';
   return null;
 }
 
 app.post(
   '/api/media/upload',
   express.raw({
-    type: ['video/*', 'image/*', 'audio/*', 'application/octet-stream'],
-    limit: '55mb',
+    type: () => true,
+    limit: '35mb',
   }),
   async (req, res) => {
     try {
@@ -2127,15 +2136,15 @@ app.post(
         return res.status(400).json({ ok: false, error: 'Empty media payload.' });
       }
 
-      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const declaredMime = String(req.headers['x-media-mime'] || req.headers['content-type'] || '').toLowerCase();
       const requestedExt = String(req.headers['x-media-ext'] || '').replace(/[^a-z0-9]/gi, '');
-      const ext = resolveMediaExtFromMime(contentType, requestedExt);
+      const ext = resolveMediaExtFromMime(declaredMime, requestedExt);
       if (!ext) {
         return res.status(415).json({ ok: false, error: 'Unsupported or blocked media type.' });
       }
 
       const isVideo = ['mp4', 'm4v', 'webm', 'mov', 'ogg'].includes(ext);
-      const maxBytes = isVideo ? 55 * 1024 * 1024 : 6 * 1024 * 1024;
+      const maxBytes = isVideo ? 35 * 1024 * 1024 : 6 * 1024 * 1024;
       if (req.body.length > maxBytes) {
         return res.status(413).json({ ok: false, error: 'Media file exceeds maximum allowed size.' });
       }
@@ -2171,23 +2180,65 @@ app.post(
 );
 
 const MAX_CHUNKED_VIDEO_BYTES = 2 * 1024 * 1024 * 1024; // 2 GB max for long videos
-const chunkUploadSessions = new Map<
-  string,
-  {
-    ownerUid: string;
-    ext: string;
-    totalChunks: number;
-    expectedIndex: number;
-    totalBytes: number;
-    updatedAt: number;
-  }
->();
+interface ChunkUploadSession {
+  ownerUid: string;
+  ext: string;
+  totalChunks: number;
+  expectedIndex: number;
+  totalBytes: number;
+  updatedAt: number;
+}
+const chunkUploadSessions = new Map<string, ChunkUploadSession>();
+
+function readChunkSessionFromDiskOrMemory(mediaId: string, metaPath: string): ChunkUploadSession | null {
+  const mem = chunkUploadSessions.get(mediaId);
+  if (mem) return mem;
+  try {
+    if (!fs.existsSync(metaPath)) return null;
+    const raw = fs.readFileSync(metaPath, 'utf8');
+    const parsed = JSON.parse(raw);
+    if (
+      parsed &&
+      typeof parsed.ownerUid === 'string' &&
+      typeof parsed.ext === 'string' &&
+      Number.isInteger(parsed.totalChunks) &&
+      Number.isInteger(parsed.expectedIndex) &&
+      typeof parsed.totalBytes === 'number'
+    ) {
+      const restored: ChunkUploadSession = {
+        ownerUid: parsed.ownerUid,
+        ext: parsed.ext,
+        totalChunks: parsed.totalChunks,
+        expectedIndex: parsed.expectedIndex,
+        totalBytes: parsed.totalBytes,
+        updatedAt: Number(parsed.updatedAt) || Date.now(),
+      };
+      chunkUploadSessions.set(mediaId, restored);
+      return restored;
+    }
+  } catch {}
+  return null;
+}
+
+function writeChunkSession(mediaId: string, metaPath: string, session: ChunkUploadSession): void {
+  chunkUploadSessions.set(mediaId, session);
+  try {
+    fs.writeFileSync(metaPath, JSON.stringify(session), 'utf8');
+  } catch {}
+}
+
+function cleanupChunkSession(mediaId: string, metaPath: string): void {
+  chunkUploadSessions.delete(mediaId);
+  try {
+    if (fs.existsSync(metaPath)) fs.unlinkSync(metaPath);
+  } catch {}
+}
 
 app.post(
   '/api/media/upload-chunk',
   express.raw({
-    type: ['video/*', 'image/*', 'audio/*', 'application/octet-stream'],
-    limit: '10mb',
+    type: () => true,
+    limit: '12mb',
   }),
   async (req, res) => {
     try {
@@ -2205,9 +2256,9 @@ app.post(
         return res.status(400).json({ ok: false, error: 'Invalid media ID.' });
       }
 
-      const contentType = String(req.headers['content-type'] || '').toLowerCase();
+      const declaredMime = String(req.headers['x-media-mime'] || req.headers['content-type'] || '').toLowerCase();
       const requestedExt = String(req.headers['x-media-ext'] || '').replace(/[^a-z0-9]/gi, '');
-      const ext = resolveMediaExtFromMime(contentType, requestedExt);
+      const ext = resolveMediaExtFromMime(declaredMime, requestedExt);
       if (!ext) {
         return res.status(415).json({ ok: false, error: 'Unsupported or blocked media type.' });
       }
@@ -2218,7 +2269,7 @@ app.post(
         !Number.isInteger(chunkIndex) ||
         !Number.isInteger(totalChunks) ||
         totalChunks < 1 ||
-        totalChunks > 512 ||
+        totalChunks > 2048 ||
         chunkIndex < 0 ||
         chunkIndex >= totalChunks
       ) {
@@ -2230,33 +2281,71 @@ app.post(
       }
 
       const partFilename = `${rawId}.${ext}.part`;
+      const metaFilename = `${rawId}.${ext}.meta.json`;
       const finalFilename = `${rawId}.${ext}`;
       const partPath = path.resolve(MEDIA_STORAGE_DIR, partFilename);
+      const metaPath = path.resolve(MEDIA_STORAGE_DIR, metaFilename);
       const finalPath = path.resolve(MEDIA_STORAGE_DIR, finalFilename);
       if (
         !partPath.startsWith(MEDIA_STORAGE_DIR + path.sep) ||
+        !metaPath.startsWith(MEDIA_STORAGE_DIR + path.sep) ||
         !finalPath.startsWith(MEDIA_STORAGE_DIR + path.sep)
       ) {
         return res.status(400).json({ ok: false, error: 'Invalid media file path.' });
       }
 
       if (chunkIndex === 0) {
-        const existingSession = chunkUploadSessions.get(rawId);
+        const existingSession = readChunkSessionFromDiskOrMemory(rawId, metaPath);
         if (existingSession && existingSession.ownerUid !== verified.uid) {
           return res.status(403).json({ ok: false, error: 'Media ID belongs to another user.' });
         }
-        chunkUploadSessions.set(rawId, {
+        if (
+          existingSession &&
+          existingSession.ownerUid === verified.uid &&
+          existingSession.expectedIndex >= 1 &&
+          fs.existsSync(partPath)
+        ) {
+          // Idempotent retry of chunk 0
+          if (totalChunks === 1 && fs.existsSync(finalPath)) {
+            return res.json({
+              ok: true,
+              completed: true,
+              mediaId: rawId,
+              filename: finalFilename,
+              url: `/api/media/${finalFilename}`,
+              size: fs.statSync(finalPath).size,
+            });
+          }
+          if (existingSession.expectedIndex === 1) {
+            return res.json({ ok: true, completed: false, mediaId: rawId, chunkIndex: 0 });
+          }
+        }
+        const initialSession: ChunkUploadSession = {
           ownerUid: verified.uid,
           ext,
           totalChunks,
           expectedIndex: 1,
           totalBytes: req.body.length,
           updatedAt: Date.now(),
-        });
+        };
         fs.writeFileSync(partPath, req.body);
+        writeChunkSession(rawId, metaPath, initialSession);
       } else {
-        const session = chunkUploadSessions.get(rawId);
-        if (!session || session.ownerUid !== verified.uid || session.ext !== ext || session.totalChunks !== totalChunks) {
+        const session = readChunkSessionFromDiskOrMemory(rawId, metaPath);
+        if (!session) {
+          if (chunkIndex === totalChunks - 1 && fs.existsSync(finalPath)) {
+            return res.json({
+              ok: true,
+              completed: true,
+              mediaId: rawId,
+              filename: finalFilename,
+              url: `/api/media/${finalFilename}`,
+              size: fs.statSync(finalPath).size,
+            });
+          }
+          return res.status(403).json({ ok: false, error: 'Invalid or expired upload session.' });
+        }
+        if (session.ownerUid !== verified.uid || session.ext !== ext || session.totalChunks !== totalChunks) {
           return res.status(403).json({ ok: false, error: 'Invalid or unauthorized upload session.' });
         }
         if (chunkIndex < session.expectedIndex) {
@@ -2267,7 +2356,7 @@ app.post(
         }
         const nextSize = session.totalBytes + req.body.length;
         if (nextSize > MAX_CHUNKED_VIDEO_BYTES) {
-          chunkUploadSessions.delete(rawId);
+          cleanupChunkSession(rawId, metaPath);
           try {
             if (fs.existsSync(partPath)) fs.unlinkSync(partPath);
           } catch {}
@@ -2277,12 +2366,13 @@ app.post(
         session.expectedIndex = chunkIndex + 1;
         session.totalBytes = nextSize;
         session.updatedAt = Date.now();
+        writeChunkSession(rawId, metaPath, session);
       }
 
       if (chunkIndex === totalChunks - 1) {
-        const session = chunkUploadSessions.get(rawId);
+        const session = readChunkSessionFromDiskOrMemory(rawId, metaPath);
         const totalSize = session?.totalBytes || req.body.length;
-        chunkUploadSessions.delete(rawId);
+        cleanupChunkSession(rawId, metaPath);
         fs.renameSync(partPath, finalPath);
         return res.json({
           ok: true,
