@@ -42,6 +42,10 @@ import {
   getPendingBlobMetadata,
   uploadDataUrlIfOversized,
   uploadMediaFile,
+  VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY,
+  VIDEO_TEST_MODE_MAX_BYTES,
+  VIDEO_TEST_MODE_MAX_SECONDS,
+  VIDEO_TEST_MODE_MIN_SECONDS,
 } from '../../lib/mediaStorage';
 import { readLocalFriendsStore } from '../../lib/firebase';
 
@@ -172,6 +176,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto)?.durationText || '' : ''
   );
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
+  const [uploadProgressPct, setUploadProgressPct] = useState<number | null>(null);
   const [pendingVideoFrames, setPendingVideoFrames] = useState<string[]>(() =>
     initialPhoto?.startsWith('blob:') ? getPendingBlobMetadata(initialPhoto)?.frames || [] : []
   );
@@ -261,15 +266,40 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
     if (videoFile) {
       const check = validateMediaUpload(videoFile, ['video']);
       if (!check.valid) {
+        console.error('[CreatePost] Video validation failed:', check.error);
         setModerationError({
           status: 'blocked',
-          reason: check.error || 'সর্বোচ্চ ২ GB সাইজের ভিডিও আপলোড করা যাবে।',
+          reason: check.error || 'সর্বোচ্চ ৫০ MB সাইজের ভিডিও আপলোড করা যাবে।',
+        });
+        return;
+      }
+      if (VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY && videoFile.size > VIDEO_TEST_MODE_MAX_BYTES) {
+        const sizeMb = (videoFile.size / (1024 * 1024)).toFixed(1);
+        const msg = `টেস্ট মোডে সর্বোচ্চ ৫০ MB পর্যন্ত ভিডিও আপলোড করা যাবে। (নির্বাচিত ফাইল: ${sizeMb} MB)`;
+        console.error('[CreatePost] Video size exceeded test limit:', msg);
+        setModerationError({
+          status: 'blocked',
+          reason: msg,
         });
         return;
       }
       setIsProcessingMedia(true);
       try {
         const meta = await extractVideoMetadataAndFrames(videoFile, 4);
+        if (VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY && meta.durationSeconds > 0) {
+          if (meta.durationSeconds < VIDEO_TEST_MODE_MIN_SECONDS) {
+            const msg = `টেস্ট মোডে কমপক্ষে ১০ সেকেন্ডের ভিডিও দিন। (নির্বাচিত ভিডিও: ${Math.round(meta.durationSeconds)} সেকেন্ড)`;
+            console.error('[CreatePost] Video too short for test mode:', msg);
+            setModerationError({ status: 'blocked', reason: msg });
+            return;
+          }
+          if (meta.durationSeconds > VIDEO_TEST_MODE_MAX_SECONDS) {
+            const msg = `টেস্ট মোডে সর্বোচ্চ ১ মিনিট (৬০ সেকেন্ড) পর্যন্ত ভিডিও আপলোড করা যাবে। (নির্বাচিত ভিডিও: ${meta.durationText})`;
+            console.error('[CreatePost] Video too long for test mode:', msg);
+            setModerationError({ status: 'blocked', reason: msg });
+            return;
+          }
+        }
         const visualCheck = await checkMediaVisualSafety({
           mediaDataUrls: meta.frames,
           caption: content,
@@ -297,7 +327,8 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         setPendingVideoFrames(meta.frames);
         setPendingFileNames([videoFile.name]);
         setSelectedPhotos([]);
-      } catch {
+      } catch (err: any) {
+        console.error('[CreatePost] Video metadata processing failed:', err);
         setModerationError({
           status: 'error',
           reason: 'ভিডিও ফাইলটি পড়া যায়নি। আবার চেষ্টা করুন।',
@@ -450,23 +481,32 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       let finalPhotoUrls: string[] = [];
 
       if (selectedVideoFile) {
-        setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+        setUploadProgressPct(10);
+        setUploadProgressText('ভিডিও আপলোড হচ্ছে (10%)...');
         finalVideoUrl = await uploadMediaFile(selectedVideoFile, {
           mimeType: selectedVideoFile.type || 'video/mp4',
           fileName: selectedVideoFile.name,
-          onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+          onProgress: (pct) => {
+            setUploadProgressPct(pct);
+            setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`);
+          },
         });
       } else if (selectedVideo) {
         if (selectedVideo.startsWith('blob:')) {
-          setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+          setUploadProgressPct(10);
+          setUploadProgressText('ভিডিও আপলোড হচ্ছে (10%)...');
           const blobResp = await fetch(selectedVideo);
           const blob = await blobResp.blob();
           finalVideoUrl = await uploadMediaFile(blob, {
             mimeType: blob.type || 'video/mp4',
-            onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+            onProgress: (pct) => {
+              setUploadProgressPct(pct);
+              setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`);
+            },
           });
         } else if (selectedVideo.startsWith('data:')) {
-          setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+          setUploadProgressPct(10);
+          setUploadProgressText('ভিডিও আপলোড হচ্ছে (10%)...');
           finalVideoUrl = await uploadDataUrlIfOversized(selectedVideo, 'video', true);
         } else {
           finalVideoUrl = selectedVideo;
@@ -565,6 +605,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
           .catch(() => {});
       }
     } catch (err: any) {
+      console.error('[CreatePost] Video upload or post submit failed:', err);
       const rawMsg = String(err?.message || '');
       const isNetworkOrFetchErr = /failed to fetch|networkerror|load failed/i.test(rawMsg);
       setModerationError({
@@ -577,6 +618,7 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
       setIsVerifyingHalal(false);
       setIsSubmitting(false);
       setUploadProgressText(null);
+      setUploadProgressPct(null);
     }
   };
 
@@ -628,14 +670,16 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
             {selectedVideo ? (
               <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F0F2F5]">
                 <video src={selectedVideo} controls className="w-full h-auto max-h-[420px] object-contain mx-auto" />
-                {videoDurationSeconds > 0 && (
-                  <div className="px-3 py-1.5 bg-white border-t border-[#E4E6EB] flex items-center justify-between text-[11px] font-bold">
-                    <span className={classifyVideoDuration(videoDurationSeconds).kind === 'long' ? 'text-emerald-700' : 'text-[#0866FF]'}>
-                      {classifyVideoDuration(videoDurationSeconds).badgeText}
-                    </span>
-                    <span className="text-[#65676B]">XXX/অশ্লীলতা নিষিদ্ধ</span>
-                  </div>
-                )}
+                <div className="px-3 py-1.5 bg-white border-t border-[#E4E6EB] flex items-center justify-between text-[11px] font-bold">
+                  <span className="text-[#0866FF]">
+                    {VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY
+                      ? `Firebase Test (${videoDurationText || '10s–1m'} • Max 50MB)`
+                      : videoDurationSeconds > 0
+                      ? classifyVideoDuration(videoDurationSeconds).badgeText
+                      : 'শর্ট ভিডিও'}
+                  </span>
+                  <span className="text-[#65676B]">XXX/অশ্লীলতা নিষিদ্ধ</span>
+                </div>
               </div>
             ) : selectedPhotos.length === 1 ? (
               <div className="w-full max-w-[380px] mx-auto rounded-2xl overflow-hidden border border-[#E4E6EB] bg-[#F7F8FA]">
@@ -973,7 +1017,29 @@ export const FbCreatePostModal: React.FC<FbCreatePostModalProps> = ({
         </div>
 
         {/* Bottom Full-Width Blue "Post" Button matching Screenshot 1 */}
-        <div className="shrink-0 bg-white border-t border-[#E4E6EB] px-4 py-3">
+        <div className="shrink-0 bg-white border-t border-[#E4E6EB] px-4 py-3 space-y-2.5">
+          {moderationError && (
+            <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-300 flex items-start gap-2 text-xs text-rose-800">
+              <ShieldAlert className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+              <span className="font-semibold leading-snug">{moderationError.reason}</span>
+            </div>
+          )}
+
+          {isSubmitting && uploadProgressPct !== null && (
+            <div className="space-y-1">
+              <div className="flex items-center justify-between text-xs font-bold text-[#0866FF]">
+                <span>{uploadProgressText || 'ভিডিও আপলোড হচ্ছে...'}</span>
+                <span className="tabular-nums">{uploadProgressPct}%</span>
+              </div>
+              <div className="w-full h-2 rounded-full bg-[#E4E6EB] overflow-hidden">
+                <div
+                  className="h-full bg-[#0866FF] transition-all duration-200"
+                  style={{ width: `${Math.min(100, Math.max(0, uploadProgressPct))}%` }}
+                />
+              </div>
+            </div>
+          )}
+
           <button
             type="button"
             onClick={handleSubmit}

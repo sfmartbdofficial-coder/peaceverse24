@@ -31,7 +31,14 @@ import {
   extractVideoMetadataAndFrames,
   readFileAsDataUrl,
 } from '../../utils/imageCompress';
-import { uploadDataUrlIfOversized, uploadMediaFile } from '../../lib/mediaStorage';
+import {
+  uploadDataUrlIfOversized,
+  uploadMediaFile,
+  VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY,
+  VIDEO_TEST_MODE_MAX_BYTES,
+  VIDEO_TEST_MODE_MAX_SECONDS,
+  VIDEO_TEST_MODE_MIN_SECONDS,
+} from '../../lib/mediaStorage';
 import { FbBoostPostModal } from './FbBoostPostModal';
 
 interface FbCreateReelModalProps {
@@ -124,6 +131,7 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
   const [isCheckingMedia, setIsCheckingMedia] = useState(false);
   const [isPublishingReel, setIsPublishingReel] = useState(false);
   const [uploadProgressText, setUploadProgressText] = useState<string | null>(null);
+  const [uploadProgressPct, setUploadProgressPct] = useState<number | null>(null);
   const [reelInfoNotice, setReelInfoNotice] = useState<string | null>(null);
 
   // Step 3 (Boost Confirmation & Boost Page)
@@ -150,10 +158,18 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       return;
     }
 
+    const isImageFile = file.type.startsWith('image/');
+    if (!isImageFile && VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY && file.size > VIDEO_TEST_MODE_MAX_BYTES) {
+      const sizeMb = (file.size / (1024 * 1024)).toFixed(1);
+      const msg = `টেস্ট মোডে সর্বোচ্চ ৫০ MB পর্যন্ত ভিডিও আপলোড করা যাবে। (নির্বাচিত ফাইল: ${sizeMb} MB)`;
+      console.error('[CreateReel] Video size exceeded test limit:', msg);
+      setUploadError(msg);
+      return;
+    }
+
     setUploadError(null);
     setIsCheckingMedia(true);
     try {
-      const isImageFile = file.type.startsWith('image/');
       let frames: string[] = [];
       let detectedDurationSeconds = 0;
       let detectedDurationText: string = selectedDuration;
@@ -167,6 +183,20 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
         detectedDurationSeconds = meta.durationSeconds;
         if (meta.durationSeconds > 0) {
           detectedDurationText = meta.durationText;
+        }
+        if (VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY && meta.durationSeconds > 0) {
+          if (meta.durationSeconds < VIDEO_TEST_MODE_MIN_SECONDS) {
+            const msg = `টেস্ট মোডে কমপক্ষে ১০ সেকেন্ডের ভিডিও দিন। (নির্বাচিত ভিডিও: ${Math.round(meta.durationSeconds)} সেকেন্ড)`;
+            console.error('[CreateReel] Video too short for test mode:', msg);
+            setUploadError(msg);
+            return;
+          }
+          if (meta.durationSeconds > VIDEO_TEST_MODE_MAX_SECONDS) {
+            const msg = `টেস্ট মোডে সর্বোচ্চ ১ মিনিট (৬০ সেকেন্ড) পর্যন্ত ভিডিও আপলোড করা যাবে। (নির্বাচিত ভিডিও: ${meta.durationText})`;
+            console.error('[CreateReel] Video too long for test mode:', msg);
+            setUploadError(msg);
+            return;
+          }
         }
       }
 
@@ -294,23 +324,32 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
 
     let persistentMediaUrl = previewMedia.url;
     if (previewMedia.file) {
-      setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+      setUploadProgressPct(10);
+      setUploadProgressText('ভিডিও আপলোড হচ্ছে (10%)...');
       persistentMediaUrl = await uploadMediaFile(previewMedia.file, {
         mimeType:
           previewMedia.file.type || (previewMedia.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
         fileName: previewMedia.file.name,
-        onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+        onProgress: (pct) => {
+          setUploadProgressPct(pct);
+          setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`);
+        },
       });
     } else if (previewMedia.url.startsWith('blob:')) {
-      setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+      setUploadProgressPct(10);
+      setUploadProgressText('ভিডিও আপলোড হচ্ছে (10%)...');
       const resp = await fetch(previewMedia.url);
       const blob = await resp.blob();
       persistentMediaUrl = await uploadMediaFile(blob, {
         mimeType: blob.type || (previewMedia.mediaType === 'video' ? 'video/mp4' : 'image/jpeg'),
-        onProgress: (pct) => setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`),
+        onProgress: (pct) => {
+          setUploadProgressPct(pct);
+          setUploadProgressText(`ভিডিও আপলোড হচ্ছে (${pct}%)...`);
+        },
       });
     } else if (previewMedia.url.startsWith('data:')) {
-      setUploadProgressText('ভিডিও আপলোড হচ্ছে...');
+      setUploadProgressPct(10);
+      setUploadProgressText('ভিডিও আপলোড হচ্ছে (10%)...');
       persistentMediaUrl = await uploadDataUrlIfOversized(
         previewMedia.url,
         previewMedia.mediaType,
@@ -380,10 +419,12 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
       setPendingReelForBoost(draft);
       setShowBoostPrompt(true);
     } catch (err: any) {
+      console.error('[CreateReel] Video upload failed:', err);
       setUploadError(err?.message || 'ভিডিও আপলোড করা যায়নি। আবার চেষ্টা করুন।');
     } finally {
       setIsPublishingReel(false);
       setUploadProgressText(null);
+      setUploadProgressPct(null);
     }
   };
 
@@ -670,7 +711,21 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
           </div>
 
           {/* BOTTOM LARGE POST BUTTON */}
-          <div className="shrink-0 p-3.5 bg-white border-t border-[#E4E6EB] shadow-[0_-4px_12px_rgba(0,0,0,0.04)]">
+          <div className="shrink-0 p-3.5 bg-white border-t border-[#E4E6EB] shadow-[0_-4px_12px_rgba(0,0,0,0.04)] space-y-2">
+            {isPublishingReel && uploadProgressPct !== null && (
+              <div className="space-y-1">
+                <div className="flex items-center justify-between text-xs font-bold text-[#0866FF]">
+                  <span>{uploadProgressText || 'ভিডিও আপলোড হচ্ছে...'}</span>
+                  <span className="tabular-nums">{uploadProgressPct}%</span>
+                </div>
+                <div className="w-full h-2 rounded-full bg-[#E4E6EB] overflow-hidden">
+                  <div
+                    className="h-full bg-[#0866FF] transition-all duration-200"
+                    style={{ width: `${Math.min(100, Math.max(0, uploadProgressPct))}%` }}
+                  />
+                </div>
+              </div>
+            )}
             <button
               type="button"
               disabled={isPublishingReel}

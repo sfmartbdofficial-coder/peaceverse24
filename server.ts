@@ -2236,13 +2236,25 @@ app.get('/api/media/capabilities', (_req, res) => {
     ok: true,
     expressDisk: true,
     r2: false,
-    bunnyStorage: Boolean(resolveServerBunnyStorage()),
-    bunnyStream: Boolean(resolveServerBunnyStream()),
+    // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
+    // bunnyStorage: Boolean(resolveServerBunnyStorage()),
+    // bunnyStream: Boolean(resolveServerBunnyStream()),
+    bunnyStorage: false,
+    bunnyStream: false,
+    testModeFirebaseStorageVideo: true,
     maxEdgeSingleBytes: 25 * 1024 * 1024,
   });
 });
 
-app.post('/api/media/bunny-stream/init', async (req, res) => {
+app.post('/api/media/bunny-stream/init', async (_req, res) => {
+  // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE: Re-enable Bunny Stream init when launching in market
+  void resolveServerBunnyStream;
+  return res.status(501).json({
+    ok: false,
+    code: 'BUNNY_TEMPORARILY_DISABLED',
+    error: 'Bunny.net Stream is temporarily disabled in Test Mode. Using Firebase Storage.',
+  });
+  /*
   try {
     const streamCfg = resolveServerBunnyStream();
     if (!streamCfg) {
@@ -2306,6 +2318,7 @@ app.post('/api/media/bunny-stream/init', async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({ ok: false, error: err?.message || 'Failed to initialize Bunny Stream.' });
   }
+  */
 });
 
 app.post(
@@ -2354,7 +2367,10 @@ app.post(
       }
 
       fs.writeFileSync(resolvedPath, req.body);
-      const bunnyUrl = await mirrorFileToServerBunnyStorage(resolvedPath, filename);
+      // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
+      // const bunnyUrl = await mirrorFileToServerBunnyStorage(resolvedPath, filename);
+      void mirrorFileToServerBunnyStorage;
+      const bunnyUrl: string | null = null;
       return res.json({
         ok: true,
         provider: bunnyUrl ? 'bunny-storage' : 'express-disk',
@@ -2565,7 +2581,9 @@ app.post(
         const totalSize = session?.totalBytes || req.body.length;
         cleanupChunkSession(rawId, metaPath);
         fs.renameSync(partPath, finalPath);
-        const bunnyUrl = await mirrorFileToServerBunnyStorage(finalPath, finalFilename);
+        // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
+        // const bunnyUrl = await mirrorFileToServerBunnyStorage(finalPath, finalFilename);
+        const bunnyUrl: string | null = null;
         return res.json({
           ok: true,
           completed: true,

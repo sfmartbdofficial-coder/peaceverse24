@@ -8,12 +8,19 @@ import {
   query,
   setDoc,
 } from 'firebase/firestore';
-import { getDownloadURL, getStorage, ref, uploadBytes, uploadBytesResumable } from 'firebase/storage';
+import { getDownloadURL, getStorage, ref, uploadBytesResumable } from 'firebase/storage';
 import Hls from 'hls.js';
 import { RefObject, useEffect, useState } from 'react';
 import { auth, db } from './firebase';
 import { isSupabaseConfigured, supabase } from './supabase';
 import { compressDataUrlUnderLimit } from '../utils/imageCompress';
+
+// TEST MODE: Temporarily route video uploads through Firebase Storage only (10s–1m, max 50 MB).
+// To re-enable Bunny.net for 2GB+ production uploads at launch, set this to false and uncomment Bunny blocks below.
+export const VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY = true;
+export const VIDEO_TEST_MODE_MAX_BYTES = 50 * 1024 * 1024; // 50 MB max for test videos
+export const VIDEO_TEST_MODE_MIN_SECONDS = 10;
+export const VIDEO_TEST_MODE_MAX_SECONDS = 60;
 
 const FIRESTORE_CHUNK_RAW_BYTES = 420 * 1024; // ~560 KB base64 per doc (well under Firestore 1 MB limit)
 const MAX_FIRESTORE_REPLICATED_BYTES = 45 * 1024 * 1024; // Up to 45 MB (10s-3min Reels even without R2/Firebase Storage)
@@ -21,10 +28,9 @@ const MAX_SINGLE_SERVER_UPLOAD_BYTES = 4 * 1024 * 1024; // Single POST up to 4 M
 const EXPRESS_STREAM_CHUNK_BYTES = 6 * 1024 * 1024; // 6 MB chunks: safe for Cloud Run (32MB), Cloudflare (100MB), and R2 Multipart (5MB+ parts)
 const EXPRESS_LARGE_STREAM_CHUNK_BYTES = 8 * 1024 * 1024; // 8 MB chunks for > 1 GB videos
 const MAX_BUNNY_EDGE_SINGLE_BYTES = 90 * 1024 * 1024; // Safe under Cloudflare Workers 100 MB single-request limit
-const BUNNY_TUS_CHUNK_BYTES = 5 * 1024 * 1024; // 5 MB TUS chunks for Bunny Stream (supports up to 2+ hour / 2 GB videos)
+// const BUNNY_TUS_CHUNK_BYTES = 5 * 1024 * 1024; // Re-enable when Bunny Stream is turned back on
 const MAX_DATA_URL_INLINE_BYTES = 240 * 1024;
 
-let firebaseStorageUnavailable = false;
 let cachedCapabilities: { data: MediaServerCapabilities | null; fetchedAt: number } = {
   data: null,
   fetchedAt: 0,
@@ -126,6 +132,51 @@ interface BackendStorageResult {
   isNetworkFailure?: boolean;
 }
 
+function resolveStorageContentType(mimeType: string, ext: string): string {
+  const clean = (mimeType || '').toLowerCase().trim();
+  if (clean.startsWith('video/') || clean.startsWith('image/') || clean.startsWith('audio/')) {
+    return clean;
+  }
+  const videoMap: Record<string, string> = {
+    mp4: 'video/mp4',
+    m4v: 'video/mp4',
+    webm: 'video/webm',
+    mov: 'video/quicktime',
+    ogg: 'video/ogg',
+    '3gp': 'video/3gpp',
+    mkv: 'video/x-matroska',
+  };
+  if (videoMap[ext]) return videoMap[ext];
+  if (ext === 'png') return 'image/png';
+  if (ext === 'webp') return 'image/webp';
+  if (ext === 'gif') return 'image/gif';
+  if (ext === 'mp3') return 'audio/mpeg';
+  if (ext === 'm4a') return 'audio/mp4';
+  return 'image/jpeg';
+}
+
+function formatFirebaseStorageError(code: string, message: string): string {
+  const cleanCode = code || 'storage/unknown';
+  if (cleanCode.includes('unauthorized') || cleanCode.includes('permission-denied')) {
+    return `Firebase Storage আপলোড পারমিশন নেই (${cleanCode})। অনুগ্রহ করে লগইন করুন বা Firebase Storage Rules চেক করুন।`;
+  }
+  if (cleanCode.includes('unauthenticated')) {
+    return `ভিডিও আপলোড করতে অনুগ্রহ করে আগে আপনার অ্যাকাউন্টে লগইন করুন (${cleanCode})।`;
+  }
+  if (cleanCode.includes('bucket-not-found') || cleanCode.includes('project-not-found')) {
+    return `Firebase Storage বাকেট পাওয়া যায়নি (${cleanCode})। Firebase Console থেকে Storage চালু করুন।`;
+  }
+  if (cleanCode.includes('timeout')) {
+    return `Firebase Storage আপলোড সময়সীমা শেষ হয়েছে (${cleanCode})। ইন্টারনেট সংযোগ বা Storage বাকেট/CORS চেক করুন।`;
+  }
+  if (cleanCode.includes('canceled')) {
+    return `ভিডিও আপলোড বাতিল করা হয়েছে (${cleanCode})।`;
+  }
+  return message
+    ? `Firebase Storage আপলোড ব্যর্থ হয়েছে (${cleanCode}): ${message}`
+    : `Firebase Storage আপলোড ব্যর্থ হয়েছে (${cleanCode})।`;
+}
+
 async function tryUploadToFirebaseStorage(
   blob: Blob,
   mediaId: string,
@@ -134,91 +185,94 @@ async function tryUploadToFirebaseStorage(
   uid: string,
   onProgress?: (pct: number) => void
 ): Promise<BackendStorageResult> {
-  if (firebaseStorageUnavailable) {
-    return { url: null, code: 'storage/unavailable', errorMessage: 'Firebase Storage bucket not provisioned.' };
-  }
   try {
     const storage = getStorage(db.app);
-    const storageRef = ref(storage, `users/${uid}/media/${mediaId}.${ext}`);
-    const contentType = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
+    const objectPath = `users/${uid}/media/${mediaId}.${ext}`;
+    const storageRef = ref(storage, objectPath);
+    const contentType = resolveStorageContentType(mimeType, ext);
 
-    if (blob.size <= 12 * 1024 * 1024) {
-      let errCode = '';
-      let errMsg = '';
-      const uploadPromise = uploadBytes(storageRef, blob, { contentType })
-        .then((snap) => getDownloadURL(snap.ref))
-        .catch((err: any) => {
-          errCode = String(err?.code || 'storage/error');
-          errMsg = String(err?.message || '');
-          firebaseStorageUnavailable = true;
-          return null;
-        });
-      const timeoutPromise = new Promise<null>((resolve) => {
-        window.setTimeout(() => {
-          errCode = errCode || 'storage/timeout';
-          firebaseStorageUnavailable = true;
-          resolve(null);
-        }, 6000);
-      });
-      const url = await Promise.race([uploadPromise, timeoutPromise]);
-      if (typeof url === 'string' && url.startsWith('https://')) {
-        return { url };
-      }
-      return { url: null, code: errCode, errorMessage: errMsg };
-    }
+    console.info('[Firebase Storage] Starting upload:', {
+      bucket: storage.app.options.storageBucket,
+      objectPath,
+      contentType,
+      sizeBytes: blob.size,
+    });
 
     return await new Promise<BackendStorageResult>((resolve) => {
       const task = uploadBytesResumable(storageRef, blob, { contentType });
       let lastMovedAt = Date.now();
       let settled = false;
+      let lastLoggedPct = 0;
 
       const finish = (res: BackendStorageResult) => {
         if (settled) return;
         settled = true;
         window.clearInterval(stallTimer);
-        if (!res.url) {
-          firebaseStorageUnavailable = true;
-        }
         resolve(res);
       };
 
       const stallTimer = window.setInterval(() => {
-        if (Date.now() - lastMovedAt > 6000) {
+        if (Date.now() - lastMovedAt > 45_000) {
+          console.error('[Firebase Storage] Upload stalled for 45s:', {
+            objectPath,
+            bucket: storage.app.options.storageBucket,
+          });
           try {
             task.cancel();
           } catch {}
-          finish({ url: null, code: 'storage/timeout', errorMessage: 'Firebase Storage stalled' });
+          finish({
+            url: null,
+            code: 'storage/timeout',
+            errorMessage: 'Firebase Storage stalled without transferring data for 45 seconds.',
+          });
         }
-      }, 1500);
+      }, 2000);
 
       task.on(
         'state_changed',
         (snap) => {
           if (snap.bytesTransferred > 0) {
             lastMovedAt = Date.now();
-            if (snap.totalBytes > 0 && onProgress) {
-              onProgress(Math.min(98, Math.round((snap.bytesTransferred / snap.totalBytes) * 86) + 12));
+          }
+          if (snap.totalBytes > 0) {
+            const pct = Math.min(98, Math.max(10, Math.round((snap.bytesTransferred / snap.totalBytes) * 88) + 10));
+            if (pct - lastLoggedPct >= 10 || pct === 98) {
+              lastLoggedPct = pct;
+              console.info(`[Firebase Storage] Upload progress: ${pct}% (${snap.bytesTransferred}/${snap.totalBytes})`);
             }
+            onProgress?.(pct);
           }
         },
-        (err: any) => finish({ url: null, code: String(err?.code || 'storage/error'), errorMessage: String(err?.message || '') }),
+        (err: any) => {
+          const code = String(err?.code || 'storage/error');
+          const message = String(err?.message || 'Unknown Firebase Storage error');
+          console.error('[Firebase Storage] Upload failed:', { code, message, err });
+          finish({ url: null, code, errorMessage: message });
+        },
         async () => {
           try {
             const dlUrl = await getDownloadURL(task.snapshot.ref);
-            finish(
-              typeof dlUrl === 'string' && dlUrl.startsWith('https://')
-                ? { url: dlUrl }
-                : { url: null, code: 'storage/no-url' }
-            );
+            if (typeof dlUrl === 'string' && dlUrl.startsWith('https://')) {
+              console.info('[Firebase Storage] Upload complete (100%):', dlUrl);
+              finish({ url: dlUrl });
+            } else {
+              console.error('[Firebase Storage] Missing download URL after completion');
+              finish({ url: null, code: 'storage/no-url', errorMessage: 'Missing download URL.' });
+            }
           } catch (err: any) {
-            finish({ url: null, code: String(err?.code || 'storage/error'), errorMessage: String(err?.message || '') });
+            const code = String(err?.code || 'storage/error');
+            const message = String(err?.message || 'Failed to get download URL');
+            console.error('[Firebase Storage] getDownloadURL failed:', { code, message, err });
+            finish({ url: null, code, errorMessage: message });
           }
         }
       );
     });
   } catch (err: any) {
-    firebaseStorageUnavailable = true;
-    return { url: null, code: String(err?.code || 'storage/unavailable'), errorMessage: String(err?.message || '') };
+    const code = String(err?.code || 'storage/unavailable');
+    const message = String(err?.message || 'Failed to initialize Firebase Storage');
+    console.error('[Firebase Storage] Initialization failed:', { code, message, err });
+    return { url: null, code, errorMessage: message };
   }
 }
 
@@ -292,6 +346,7 @@ async function getMediaCapabilities(): Promise<MediaServerCapabilities | null> {
   return null;
 }
 
+/* BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE: Re-enable sendXhrBinary / uploadSingleBlobWithProgress / tryUploadToBunnyStreamTus for 2GB+ Bunny.net production launch
 function sendXhrBinary(
   url: string,
   method: 'POST' | 'PATCH',
@@ -578,6 +633,7 @@ async function tryUploadToBunnyStreamTus(
 
   return playbackUrl ? { url: playbackUrl, status: 200 } : { url: null };
 }
+BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE */
 
 async function tryUploadToExpressServer(
   blob: Blob,
@@ -586,21 +642,20 @@ async function tryUploadToExpressServer(
   mimeType: string,
   initialIdToken: string,
   onProgress?: (pct: number) => void,
-  caps?: MediaServerCapabilities | null
+  _caps?: MediaServerCapabilities | null
 ): Promise<BackendStorageResult> {
   let activeToken = initialIdToken;
   const safeMime = mimeType || (ext === 'mp4' ? 'video/mp4' : 'image/jpeg');
 
   try {
-    const singleLimit =
-      caps?.bunnyStorage && caps?.expressDisk
-        ? Math.min(25 * 1024 * 1024, caps.maxEdgeSingleBytes || 25 * 1024 * 1024)
-        : MAX_SINGLE_SERVER_UPLOAD_BYTES;
+    // BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE:
+    // const singleLimit =
+    //   _caps?.bunnyStorage && _caps?.expressDisk
+    //     ? Math.min(25 * 1024 * 1024, _caps.maxEdgeSingleBytes || 25 * 1024 * 1024)
+    //     : MAX_SINGLE_SERVER_UPLOAD_BYTES;
+    const singleLimit = MAX_SINGLE_SERVER_UPLOAD_BYTES;
 
     if (blob.size <= singleLimit) {
-      if (blob.size > MAX_SINGLE_SERVER_UPLOAD_BYTES) {
-        return await uploadSingleBlobWithProgress(blob, mediaId, ext, safeMime, initialIdToken, onProgress);
-      }
       const payloadBytes = await blob.arrayBuffer();
       let lastStatus = 0;
       let lastMsg = '';
@@ -871,10 +926,6 @@ export async function uploadMediaFile(
   reportProgress(10);
 
   const isVideo = mimeType.startsWith('video/');
-  const caps = await getMediaCapabilities();
-  const baseTitle =
-    options?.fileName ||
-    (fileOrBlob instanceof File && fileOrBlob.name ? fileOrBlob.name : `PeaceVerse_${Date.now()}`);
 
   const cacheUploadedLocalUrl = (finalUrl: string) => {
     try {
@@ -885,6 +936,53 @@ export async function uploadMediaFile(
       }
     } catch {}
   };
+
+  // TEST MODE: Upload videos strictly through Firebase Storage (max 50MB).
+  if (isVideo && VIDEO_TEST_MODE_FIREBASE_STORAGE_ONLY) {
+    if (fileOrBlob.size > VIDEO_TEST_MODE_MAX_BYTES) {
+      const sizeMb = (fileOrBlob.size / (1024 * 1024)).toFixed(1);
+      const errMsg = `টেস্ট মোডে সর্বোচ্চ ৫০ MB পর্যন্ত ভিডিও আপলোড করা যাবে। (আপনার ফাইল: ${sizeMb} MB)`;
+      console.error('[Video Test Mode] Size exceeded:', errMsg);
+      throw new Error(errMsg);
+    }
+    if (!user) {
+      const errMsg = 'ভিডিও আপলোড করতে অনুগ্রহ করে আগে আপনার অ্যাকাউন্টে লগইন করুন।';
+      console.error('[Video Test Mode] User not authenticated:', errMsg);
+      throw new Error(errMsg);
+    }
+
+    const videoMime = resolveStorageContentType(mimeType, ext);
+    const fbVideoResult = await tryUploadToFirebaseStorage(
+      fileOrBlob,
+      mediaId,
+      ext,
+      videoMime,
+      user.uid,
+      reportProgress
+    );
+
+    if (fbVideoResult.url) {
+      cacheUploadedLocalUrl(fbVideoResult.url);
+      reportProgress(100);
+      return fbVideoResult.url;
+    }
+
+    const friendlyErr = formatFirebaseStorageError(
+      fbVideoResult.code || 'storage/error',
+      fbVideoResult.errorMessage || ''
+    );
+    console.error('[Video Test Mode] Firebase Storage upload failed:', {
+      code: fbVideoResult.code,
+      errorMessage: fbVideoResult.errorMessage,
+      friendlyErr,
+    });
+    throw new Error(friendlyErr);
+  }
+
+  const caps = await getMediaCapabilities();
+  // const baseTitle =
+  //   options?.fileName ||
+  //   (fileOrBlob instanceof File && fileOrBlob.name ? fileOrBlob.name : `PeaceVerse_${Date.now()}`);
 
   let serverResult: BackendStorageResult = { url: null };
   let storageResult: BackendStorageResult = { url: null };
@@ -897,6 +995,7 @@ export async function uploadMediaFile(
     }
 
     if (idToken) {
+      /* BUNNY_TEMPORARILY_DISABLED_FOR_TEST_MODE: Re-enable Bunny Stream / Bunny Storage edge routing when going live
       const shouldUseBunnyStreamTus =
         isVideo &&
         Boolean(caps?.bunnyStream) &&
@@ -939,6 +1038,7 @@ export async function uploadMediaFile(
           };
         }
       } else {
+      */
         serverResult = await tryUploadToExpressServer(
           fileOrBlob,
           mediaId,
@@ -948,7 +1048,7 @@ export async function uploadMediaFile(
           reportProgress,
           caps
         );
-      }
+      /* } */
 
       if (serverResult.url) {
         cacheUploadedLocalUrl(serverResult.url);

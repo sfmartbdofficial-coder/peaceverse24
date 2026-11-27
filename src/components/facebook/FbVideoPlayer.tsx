@@ -159,6 +159,9 @@ export const FbVideoPlayer: React.FC<FbVideoPlayerProps> = ({
           onTimeUpdate={handleTimeUpdate}
           onPlay={() => setIsPlaying(true)}
           onPause={() => setIsPlaying(false)}
+          onError={(e) => {
+            console.error('[FbVideoPlayer] Failed to load video:', resolvedSrc, e);
+          }}
           className="w-full h-auto max-h-[640px] object-contain mx-auto"
           title={title || 'Peaceverse Video'}
         />
