@@ -1,7 +1,7 @@
 /* Peaceverse24 Offline Caching + Firebase Cloud Messaging & Instant Push Service Worker */
 
-const STATIC_CACHE = 'peaceverse24-shell-v8';
-const RUNTIME_CACHE = 'peaceverse24-runtime-v8';
+const STATIC_CACHE = 'peaceverse24-shell-v9';
+const RUNTIME_CACHE = 'peaceverse24-runtime-v9';
 const ACTIVE_CACHES = [STATIC_CACHE, RUNTIME_CACHE];
 
 const SHELL_ASSETS = [

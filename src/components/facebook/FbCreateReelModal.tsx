@@ -444,7 +444,9 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
               <ChevronLeft className="w-6 h-6 stroke-[2.3]" />
             </button>
 
-            <h1 className="text-base font-bold text-black">Reel Preview</h1>
+            <h1 className="text-base font-bold text-black">
+              {previewMedia.videoKind === 'long' ? 'Long Video Preview' : 'Reel Preview'}
+            </h1>
 
             <button
               type="button"
@@ -491,7 +493,9 @@ export const FbCreateReelModal: React.FC<FbCreateReelModalProps> = ({
                       ? classifyVideoDuration(previewMedia.durationSeconds).badgeText
                       : `রিলস (${previewMedia.duration})`}
                   </span>
-                  <span className="text-white/70 shrink-0">ভালো ভিডিও চলবে</span>
+                  <span className="text-white/70 shrink-0">
+                    {previewMedia.videoKind === 'long' ? '২ ঘণ্টা+ সাপোর্টেড' : 'ভালো ভিডিও চলবে'}
+                  </span>
                 </div>
               )}
 

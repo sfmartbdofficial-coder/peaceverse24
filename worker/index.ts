@@ -4,8 +4,65 @@ interface WorkerAssetsBinding {
   fetch(request: Request): Promise<Response>;
 }
 
+interface WorkerR2Range {
+  offset?: number;
+  length?: number;
+}
+
+interface WorkerR2Object {
+  body: ReadableStream | null;
+  size: number;
+  etag: string;
+  httpMetadata?: {
+    contentType?: string;
+    cacheControl?: string;
+  };
+  text(): Promise<string>;
+}
+
+interface WorkerR2UploadedPart {
+  partNumber: number;
+  etag: string;
+}
+
+interface WorkerR2MultipartUpload {
+  uploadId: string;
+  uploadPart(partNumber: number, value: ArrayBuffer | Uint8Array): Promise<WorkerR2UploadedPart>;
+  complete(parts: WorkerR2UploadedPart[]): Promise<WorkerR2Object>;
+  abort(): Promise<void>;
+}
+
+interface WorkerR2Bucket {
+  get(key: string, options?: { range?: WorkerR2Range }): Promise<WorkerR2Object | null>;
+  head(key: string): Promise<WorkerR2Object | null>;
+  put(
+    key: string,
+    value: ArrayBuffer | Uint8Array | string,
+    options?: {
+      httpMetadata?: {
+        contentType?: string;
+        cacheControl?: string;
+      };
+    }
+  ): Promise<WorkerR2Object | null>;
+  delete(key: string): Promise<void>;
+  createMultipartUpload(
+    key: string,
+    options?: {
+      httpMetadata?: {
+        contentType?: string;
+        cacheControl?: string;
+      };
+    }
+  ): Promise<WorkerR2MultipartUpload>;
+  resumeMultipartUpload(key: string, uploadId: string): WorkerR2MultipartUpload;
+}
+
 interface WorkerEnv {
   ASSETS: WorkerAssetsBinding;
+  MEDIA_BUCKET?: WorkerR2Bucket;
+  ORIGIN_API_URL?: string;
+  FIREBASE_PROJECT_ID?: string;
   RESEND_API_KEY?: string;
   RESEND_FROM_EMAIL?: string;
   OTP_SIGNING_SECRET?: string;
@@ -15,7 +72,145 @@ interface WorkerEnv {
 const JSON_HEADERS: Record<string, string> = {
   'Content-Type': 'application/json; charset=utf-8',
   'Cache-Control': 'no-cache, no-store, must-revalidate',
+  'X-Content-Type-Options': 'nosniff',
 };
+
+const WORKER_ALLOWED_EXT_TO_MIME: Record<string, string> = {
+  mp4: 'video/mp4',
+  m4v: 'video/mp4',
+  webm: 'video/webm',
+  mov: 'video/quicktime',
+  ogg: 'video/ogg',
+  '3gp': 'video/3gpp',
+  mkv: 'video/x-matroska',
+  jpg: 'image/jpeg',
+  jpeg: 'image/jpeg',
+  png: 'image/png',
+  webp: 'image/webp',
+  gif: 'image/gif',
+  mp3: 'audio/mpeg',
+  m4a: 'audio/mp4',
+};
+
+let cachedWorkerJwks: { keys: Record<string, JsonWebKey>; expiresAt: number } | null = null;
+
+async function getFirebasePublicJwks(): Promise<Record<string, JsonWebKey>> {
+  const now = Date.now();
+  if (cachedWorkerJwks && now < cachedWorkerJwks.expiresAt) {
+    return cachedWorkerJwks.keys;
+  }
+  const resp = await fetch(
+    'https://www.googleapis.com/service_accounts/v1/jwk/securetoken@system.gserviceaccount.com'
+  );
+  if (!resp.ok) {
+    throw new Error(`JWK fetch failed (${resp.status})`);
+  }
+  const payload: any = await resp.json();
+  const keys: Record<string, JsonWebKey> = {};
+  if (Array.isArray(payload?.keys)) {
+    for (const k of payload.keys) {
+      if (k && typeof k.kid === 'string') {
+        keys[k.kid] = k;
+      }
+    }
+  }
+  const cacheControl = resp.headers.get('cache-control') || '';
+  const maxAgeMatch = cacheControl.match(/max-age=(\d+)/i);
+  const ttlMs = maxAgeMatch ? Math.min(Number(maxAgeMatch[1]) * 1000, 6 * 3600 * 1000) : 3600 * 1000;
+  cachedWorkerJwks = { keys, expiresAt: now + ttlMs };
+  return keys;
+}
+
+async function verifyWorkerFirebaseToken(
+  authHeader: string | null,
+  projectId: string
+): Promise<{ uid: string } | null> {
+  if (!authHeader) return null;
+  const match = authHeader.match(/^Bearer\s+([A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)$/);
+  if (!match) return null;
+  const token = match[1];
+  const [headerB64, payloadB64, sigB64] = token.split('.');
+
+  try {
+    const decoder = new TextDecoder();
+    const header = JSON.parse(decoder.decode(fromBase64Url(headerB64)));
+    const payload = JSON.parse(decoder.decode(fromBase64Url(payloadB64)));
+    if (header?.alg !== 'RS256' || typeof header?.kid !== 'string') return null;
+
+    const nowSec = Math.floor(Date.now() / 1000);
+    if (
+      typeof payload?.sub !== 'string' ||
+      !payload.sub ||
+      payload.aud !== projectId ||
+      payload.iss !== `https://securetoken.google.com/${projectId}` ||
+      typeof payload.exp !== 'number' ||
+      payload.exp <= nowSec
+    ) {
+      return null;
+    }
+
+    let jwks = await getFirebasePublicJwks();
+    let jwk = jwks[header.kid];
+    if (!jwk) {
+      cachedWorkerJwks = null;
+      jwks = await getFirebasePublicJwks();
+      jwk = jwks[header.kid];
+    }
+    if (!jwk) return null;
+
+    const cryptoKey = await crypto.subtle.importKey(
+      'jwk',
+      jwk,
+      { name: 'RSASSA-PKCS1-v1_5', hash: 'SHA-256' },
+      false,
+      ['verify']
+    );
+    const sigBytes = fromBase64Url(sigB64);
+    const dataBytes = new TextEncoder().encode(`${headerB64}.${payloadB64}`);
+    const sigCopy = new Uint8Array(sigBytes.length);
+    sigCopy.set(sigBytes);
+    const dataCopy = new Uint8Array(dataBytes.length);
+    dataCopy.set(dataBytes);
+
+    const ok = await crypto.subtle.verify('RSASSA-PKCS1-v1_5', cryptoKey, sigCopy.buffer, dataCopy.buffer);
+    return ok ? { uid: payload.sub } : null;
+  } catch {
+    return null;
+  }
+}
+
+function resolveWorkerMediaExt(mimeType: string, requestedExt?: string): string | null {
+  const cleanMime = (mimeType || '').split(';')[0].trim().toLowerCase();
+  if (
+    cleanMime.includes('svg') ||
+    cleanMime.includes('html') ||
+    cleanMime.includes('javascript') ||
+    cleanMime.includes('php') ||
+    cleanMime.includes('msdownload')
+  ) {
+    return null;
+  }
+  const safeReqExt = (requestedExt || '').trim().toLowerCase();
+  const normalizedReqExt = safeReqExt === 'jpeg' ? 'jpg' : safeReqExt;
+
+  if (cleanMime === 'video/mp4' || cleanMime === 'video/x-m4v' || cleanMime === 'application/mp4') return 'mp4';
+  if (cleanMime === 'video/webm') return 'webm';
+  if (cleanMime === 'video/quicktime') return 'mov';
+  if (cleanMime === 'video/ogg') return 'ogg';
+  if (cleanMime === 'video/3gpp') return '3gp';
+  if (cleanMime === 'video/x-matroska') return 'mkv';
+  if (cleanMime === 'image/jpeg' || cleanMime === 'image/jpg') return 'jpg';
+  if (cleanMime === 'image/png') return 'png';
+  if (cleanMime === 'image/webp') return 'webp';
+  if (cleanMime === 'image/gif') return 'gif';
+  if (cleanMime === 'audio/mpeg') return 'mp3';
+  if (cleanMime === 'audio/mp4') return 'm4a';
+  if (normalizedReqExt && WORKER_ALLOWED_EXT_TO_MIME[normalizedReqExt]) return normalizedReqExt;
+  if (cleanMime.startsWith('video/')) return 'mp4';
+  if (cleanMime.startsWith('image/')) return 'jpg';
+  if (cleanMime.startsWith('audio/')) return 'mp3';
+  return null;
+}
 
 function toBase64Url(bytes: Uint8Array): string {
   let binary = '';
@@ -478,6 +673,393 @@ async function handleModerateMedia(request: Request, env: WorkerEnv): Promise<Re
   }
 }
 
+async function proxyMediaToOrigin(request: Request, url: URL, originBase: string): Promise<Response> {
+  const cleanOrigin = originBase.replace(/\/+$/, '');
+  const targetUrl = `${cleanOrigin}${url.pathname}${url.search}`;
+  const proxiedReq = new Request(targetUrl, {
+    method: request.method,
+    headers: request.headers,
+    body: request.method === 'GET' || request.method === 'HEAD' ? undefined : request.body,
+  });
+  return fetch(proxiedReq);
+}
+
+async function handleWorkerMediaUpload(request: Request, env: WorkerEnv): Promise<Response> {
+  if (!env.MEDIA_BUCKET) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        code: 'MEDIA_STORAGE_NOT_CONFIGURED',
+        error: 'Cloudflare R2 MEDIA_BUCKET is not bound on this worker.',
+      }),
+      { status: 501, headers: JSON_HEADERS }
+    );
+  }
+
+  const projectId = env.FIREBASE_PROJECT_ID?.trim() || 'gen-lang-client-0936405543';
+  const verified = await verifyWorkerFirebaseToken(request.headers.get('authorization'), projectId);
+  if (!verified) {
+    return new Response(
+      JSON.stringify({ ok: false, error: 'Authentication required to upload media.' }),
+      { status: 401, headers: JSON_HEADERS }
+    );
+  }
+
+  const bodyBuf = await request.arrayBuffer();
+  if (!bodyBuf || bodyBuf.byteLength === 0) {
+    return new Response(JSON.stringify({ ok: false, error: 'Empty media payload.' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const declaredMime = String(
+    request.headers.get('x-media-mime') || request.headers.get('content-type') || ''
+  ).toLowerCase();
+  const requestedExt = String(request.headers.get('x-media-ext') || '').replace(/[^a-z0-9]/gi, '');
+  const ext = resolveWorkerMediaExt(declaredMime, requestedExt);
+  if (!ext) {
+    return new Response(JSON.stringify({ ok: false, error: 'Unsupported or blocked media type.' }), {
+      status: 415,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const rawId = String(request.headers.get('x-media-id') || '').trim();
+  const mediaId = /^[a-zA-Z0-9_-]{8,64}$/.test(rawId)
+    ? rawId
+    : `pv_${Date.now()}_${crypto.randomUUID().slice(0, 8)}`;
+  const filename = `${mediaId}.${ext}`;
+  const mimeType = WORKER_ALLOWED_EXT_TO_MIME[ext] || 'application/octet-stream';
+
+  await env.MEDIA_BUCKET.put(`media/${filename}`, bodyBuf, {
+    httpMetadata: {
+      contentType: mimeType,
+      cacheControl: 'public, max-age=31536000, immutable',
+    },
+  });
+
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      mediaId,
+      filename,
+      url: `/api/media/${filename}`,
+      size: bodyBuf.byteLength,
+    }),
+    { status: 200, headers: JSON_HEADERS }
+  );
+}
+
+interface WorkerChunkMeta {
+  ownerUid: string;
+  ext: string;
+  totalChunks: number;
+  uploadId: string;
+  parts: WorkerR2UploadedPart[];
+  totalBytes: number;
+}
+
+async function handleWorkerMediaUploadChunk(request: Request, env: WorkerEnv): Promise<Response> {
+  if (!env.MEDIA_BUCKET) {
+    return new Response(
+      JSON.stringify({
+        ok: false,
+        code: 'MEDIA_STORAGE_NOT_CONFIGURED',
+        error: 'Cloudflare R2 MEDIA_BUCKET is not bound on this worker.',
+      }),
+      { status: 501, headers: JSON_HEADERS }
+    );
+  }
+
+  const projectId = env.FIREBASE_PROJECT_ID?.trim() || 'gen-lang-client-0936405543';
+  const verified = await verifyWorkerFirebaseToken(request.headers.get('authorization'), projectId);
+  if (!verified) {
+    return new Response(
+      JSON.stringify({ ok: false, error: 'Authentication required to upload media.' }),
+      { status: 401, headers: JSON_HEADERS }
+    );
+  }
+
+  const rawId = String(request.headers.get('x-media-id') || '').trim();
+  if (!/^[a-zA-Z0-9_-]{8,64}$/.test(rawId)) {
+    return new Response(JSON.stringify({ ok: false, error: 'Invalid media ID.' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const declaredMime = String(
+    request.headers.get('x-media-mime') || request.headers.get('content-type') || ''
+  ).toLowerCase();
+  const requestedExt = String(request.headers.get('x-media-ext') || '').replace(/[^a-z0-9]/gi, '');
+  const ext = resolveWorkerMediaExt(declaredMime, requestedExt);
+  if (!ext) {
+    return new Response(JSON.stringify({ ok: false, error: 'Unsupported or blocked media type.' }), {
+      status: 415,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const chunkIndex = Number(request.headers.get('x-chunk-index'));
+  const totalChunks = Number(request.headers.get('x-total-chunks'));
+  if (
+    !Number.isInteger(chunkIndex) ||
+    !Number.isInteger(totalChunks) ||
+    totalChunks < 1 ||
+    totalChunks > 2048 ||
+    chunkIndex < 0 ||
+    chunkIndex >= totalChunks
+  ) {
+    return new Response(JSON.stringify({ ok: false, error: 'Invalid chunk index metadata.' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const bodyBuf = await request.arrayBuffer();
+  if (!bodyBuf || bodyBuf.byteLength === 0) {
+    return new Response(JSON.stringify({ ok: false, error: 'Empty chunk payload.' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const finalFilename = `${rawId}.${ext}`;
+  const objectKey = `media/${finalFilename}`;
+  const metaKey = `chunks-meta/${rawId}.json`;
+  const mimeType = WORKER_ALLOWED_EXT_TO_MIME[ext] || 'application/octet-stream';
+
+  if (totalChunks === 1) {
+    await env.MEDIA_BUCKET.put(objectKey, bodyBuf, {
+      httpMetadata: {
+        contentType: mimeType,
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        completed: true,
+        mediaId: rawId,
+        filename: finalFilename,
+        url: `/api/media/${finalFilename}`,
+        size: bodyBuf.byteLength,
+      }),
+      { status: 200, headers: JSON_HEADERS }
+    );
+  }
+
+  let meta: WorkerChunkMeta | null = null;
+  if (chunkIndex === 0) {
+    const existingObj = await env.MEDIA_BUCKET.get(metaKey);
+    if (existingObj) {
+      try {
+        const parsed = JSON.parse(await existingObj.text()) as WorkerChunkMeta;
+        if (parsed.ownerUid !== verified.uid) {
+          return new Response(JSON.stringify({ ok: false, error: 'Media ID belongs to another user.' }), {
+            status: 403,
+            headers: JSON_HEADERS,
+          });
+        }
+        if (parsed.parts.some((p) => p.partNumber === 1)) {
+          return new Response(
+            JSON.stringify({ ok: true, completed: false, mediaId: rawId, chunkIndex: 0 }),
+            { status: 200, headers: JSON_HEADERS }
+          );
+        }
+      } catch {}
+    }
+
+    const multipart = await env.MEDIA_BUCKET.createMultipartUpload(objectKey, {
+      httpMetadata: {
+        contentType: mimeType,
+        cacheControl: 'public, max-age=31536000, immutable',
+      },
+    });
+    const part1 = await multipart.uploadPart(1, bodyBuf);
+    meta = {
+      ownerUid: verified.uid,
+      ext,
+      totalChunks,
+      uploadId: multipart.uploadId,
+      parts: [part1],
+      totalBytes: bodyBuf.byteLength,
+    };
+    await env.MEDIA_BUCKET.put(metaKey, JSON.stringify(meta));
+  } else {
+    const metaObj = await env.MEDIA_BUCKET.get(metaKey);
+    if (!metaObj) {
+      const doneHead = await env.MEDIA_BUCKET.head(objectKey);
+      if (chunkIndex === totalChunks - 1 && doneHead) {
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            completed: true,
+            mediaId: rawId,
+            filename: finalFilename,
+            url: `/api/media/${finalFilename}`,
+            size: doneHead.size,
+          }),
+          { status: 200, headers: JSON_HEADERS }
+        );
+      }
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Invalid or expired upload session.' }),
+        { status: 403, headers: JSON_HEADERS }
+      );
+    }
+
+    meta = JSON.parse(await metaObj.text()) as WorkerChunkMeta;
+    if (meta.ownerUid !== verified.uid || meta.ext !== ext || meta.totalChunks !== totalChunks) {
+      return new Response(
+        JSON.stringify({ ok: false, error: 'Unauthorized upload session.' }),
+        { status: 403, headers: JSON_HEADERS }
+      );
+    }
+
+    const partNumber = chunkIndex + 1;
+    const alreadyUploaded = meta.parts.find((p) => p.partNumber === partNumber);
+    if (!alreadyUploaded) {
+      const nextTotal = meta.totalBytes + bodyBuf.byteLength;
+      if (nextTotal > 2 * 1024 * 1024 * 1024) {
+        await env.MEDIA_BUCKET.delete(metaKey).catch(() => {});
+        return new Response(
+          JSON.stringify({ ok: false, error: 'Video exceeds maximum 2GB size limit.' }),
+          { status: 413, headers: JSON_HEADERS }
+        );
+      }
+      const multipart = env.MEDIA_BUCKET.resumeMultipartUpload(objectKey, meta.uploadId);
+      const uploadedPart = await multipart.uploadPart(partNumber, bodyBuf);
+      meta.parts.push(uploadedPart);
+      meta.totalBytes = nextTotal;
+      await env.MEDIA_BUCKET.put(metaKey, JSON.stringify(meta));
+    }
+  }
+
+  if (chunkIndex === totalChunks - 1 && meta) {
+    const multipart = env.MEDIA_BUCKET.resumeMultipartUpload(objectKey, meta.uploadId);
+    const orderedParts = [...meta.parts].sort((a, b) => a.partNumber - b.partNumber);
+    await multipart.complete(orderedParts);
+    await env.MEDIA_BUCKET.delete(metaKey).catch(() => {});
+    return new Response(
+      JSON.stringify({
+        ok: true,
+        completed: true,
+        mediaId: rawId,
+        filename: finalFilename,
+        url: `/api/media/${finalFilename}`,
+        size: meta.totalBytes,
+      }),
+      { status: 200, headers: JSON_HEADERS }
+    );
+  }
+
+  return new Response(
+    JSON.stringify({
+      ok: true,
+      completed: false,
+      mediaId: rawId,
+      chunkIndex,
+    }),
+    { status: 200, headers: JSON_HEADERS }
+  );
+}
+
+async function handleWorkerMediaGet(
+  request: Request,
+  filename: string,
+  env: WorkerEnv
+): Promise<Response> {
+  if (!env.MEDIA_BUCKET) {
+    return new Response(JSON.stringify({ ok: false, error: 'Media not found.' }), {
+      status: 404,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const extMatch = filename.match(
+    /^[a-zA-Z0-9_-]{4,80}\.(mp4|m4v|webm|mov|ogg|3gp|mkv|jpg|jpeg|png|webp|gif|mp3|m4a)$/i
+  );
+  if (!extMatch) {
+    return new Response(JSON.stringify({ ok: false, error: 'Invalid media filename.' }), {
+      status: 400,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const key = `media/${filename}`;
+  const headObj = await env.MEDIA_BUCKET.head(key);
+  if (!headObj) {
+    return new Response(JSON.stringify({ ok: false, error: 'Media not found on this server.' }), {
+      status: 404,
+      headers: JSON_HEADERS,
+    });
+  }
+
+  const ext = extMatch[1].toLowerCase();
+  const mimeType = headObj.httpMetadata?.contentType || WORKER_ALLOWED_EXT_TO_MIME[ext] || 'application/octet-stream';
+  const totalSize = headObj.size;
+  const baseHeaders: Record<string, string> = {
+    'Content-Type': mimeType,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'public, max-age=31536000, immutable',
+    'X-Content-Type-Options': 'nosniff',
+  };
+
+  const rangeHeader = request.headers.get('range');
+  if (rangeHeader && rangeHeader.startsWith('bytes=')) {
+    const parts = rangeHeader.replace(/bytes=/, '').split('-');
+    const start = Math.max(0, parseInt(parts[0], 10) || 0);
+    const end = parts[1] ? Math.min(totalSize - 1, parseInt(parts[1], 10)) : totalSize - 1;
+    if (start >= totalSize || start > end) {
+      return new Response(null, {
+        status: 416,
+        headers: { 'Content-Range': `bytes */${totalSize}` },
+      });
+    }
+    const length = end - start + 1;
+    if (request.method === 'HEAD') {
+      return new Response(null, {
+        status: 206,
+        headers: {
+          ...baseHeaders,
+          'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+          'Content-Length': String(length),
+        },
+      });
+    }
+    const rangedObj = await env.MEDIA_BUCKET.get(key, { range: { offset: start, length } });
+    if (!rangedObj || !rangedObj.body) {
+      return new Response(null, { status: 404 });
+    }
+    return new Response(rangedObj.body, {
+      status: 206,
+      headers: {
+        ...baseHeaders,
+        'Content-Range': `bytes ${start}-${end}/${totalSize}`,
+        'Content-Length': String(length),
+      },
+    });
+  }
+
+  if (request.method === 'HEAD') {
+    return new Response(null, {
+      status: 200,
+      headers: { ...baseHeaders, 'Content-Length': String(totalSize) },
+    });
+  }
+
+  const obj = await env.MEDIA_BUCKET.get(key);
+  if (!obj || !obj.body) {
+    return new Response(null, { status: 404 });
+  }
+  return new Response(obj.body, {
+    status: 200,
+    headers: { ...baseHeaders, 'Content-Length': String(totalSize) },
+  });
+}
+
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
@@ -501,6 +1083,22 @@ export default {
 
       if (url.pathname === '/api/ai/moderate-media' && request.method === 'POST') {
         return handleModerateMedia(request, env);
+      }
+
+      if (url.pathname.startsWith('/api/media/')) {
+        if (!env.MEDIA_BUCKET && env.ORIGIN_API_URL?.trim()) {
+          return proxyMediaToOrigin(request, url, env.ORIGIN_API_URL.trim());
+        }
+        if (url.pathname === '/api/media/upload' && request.method === 'POST') {
+          return handleWorkerMediaUpload(request, env);
+        }
+        if (url.pathname === '/api/media/upload-chunk' && request.method === 'POST') {
+          return handleWorkerMediaUploadChunk(request, env);
+        }
+        const mediaFilename = decodeURIComponent(url.pathname.slice('/api/media/'.length));
+        if (mediaFilename && (request.method === 'GET' || request.method === 'HEAD')) {
+          return handleWorkerMediaGet(request, mediaFilename, env);
+        }
       }
 
       if (url.pathname === '/api/users/directory' && request.method === 'GET') {
@@ -537,6 +1135,11 @@ export default {
           { status: 200, headers: JSON_HEADERS }
         );
       }
+
+      return new Response(JSON.stringify({ ok: false, error: 'API route not found.' }), {
+        status: 404,
+        headers: JSON_HEADERS,
+      });
     }
 
     return env.ASSETS.fetch(request);

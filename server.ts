@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import path from 'path';
 import fs from 'fs';
+import os from 'os';
 import { fileURLToPath } from 'url';
 import nodemailer from 'nodemailer';
 import { createServer as createViteServer } from 'vite';
@@ -1172,7 +1173,26 @@ const FIREBASE_PROJECT_ID_FOR_TOKEN =
   process.env.FIREBASE_PROJECT_ID?.trim() ||
   process.env.VITE_FIREBASE_PROJECT_ID?.trim() ||
   'gen-lang-client-0936405543';
-const USER_DIRECTORY_DATA_DIR = path.resolve(__dirname, '.peaceverse-data');
+function resolveWritableDataDir(): string {
+  const candidates = [
+    process.env.PEACEVERSE_DATA_DIR?.trim(),
+    path.resolve(__dirname, '.peaceverse-data'),
+    path.resolve(os.tmpdir(), 'peaceverse-data'),
+  ].filter((p): p is string => Boolean(p));
+
+  for (const dir of candidates) {
+    try {
+      fs.mkdirSync(dir, { recursive: true });
+      const probe = path.join(dir, `.write-test-${process.pid}`);
+      fs.writeFileSync(probe, '1');
+      fs.unlinkSync(probe);
+      return dir;
+    } catch {}
+  }
+  return path.resolve(os.tmpdir(), 'peaceverse-data');
+}
+
+const USER_DIRECTORY_DATA_DIR = resolveWritableDataDir();
 const USER_DIRECTORY_FILE_PATH = path.resolve(USER_DIRECTORY_DATA_DIR, 'users-directory.json');
 const PAGE_DIRECTORY_FILE_PATH = path.resolve(USER_DIRECTORY_DATA_DIR, 'pages-directory.json');
 
@@ -2077,6 +2097,8 @@ const ALLOWED_MEDIA_EXT_TO_MIME: Record<string, string> = {
   webm: 'video/webm',
   mov: 'video/quicktime',
   ogg: 'video/ogg',
+  '3gp': 'video/3gpp',
+  mkv: 'video/x-matroska',
   jpg: 'image/jpeg',
   jpeg: 'image/jpeg',
   png: 'image/png',
@@ -2104,6 +2126,8 @@ function resolveMediaExtFromMime(mimeType: string, requestedExt?: string): strin
   if (cleanMime === 'video/webm') return 'webm';
   if (cleanMime === 'video/quicktime') return 'mov';
   if (cleanMime === 'video/ogg') return 'ogg';
+  if (cleanMime === 'video/3gpp') return '3gp';
+  if (cleanMime === 'video/x-matroska') return 'mkv';
   if (cleanMime === 'image/jpeg' || cleanMime === 'image/jpg') return 'jpg';
   if (cleanMime === 'image/png') return 'png';
   if (cleanMime === 'image/webp') return 'webp';
@@ -2123,7 +2147,7 @@ app.post(
   '/api/media/upload',
   express.raw({
     type: () => true,
-    limit: '35mb',
+    limit: '25mb',
   }),
   async (req, res) => {
     try {
@@ -2143,8 +2167,8 @@ app.post(
         return res.status(415).json({ ok: false, error: 'Unsupported or blocked media type.' });
       }
 
-      const isVideo = ['mp4', 'm4v', 'webm', 'mov', 'ogg'].includes(ext);
-      const maxBytes = isVideo ? 35 * 1024 * 1024 : 6 * 1024 * 1024;
+      const isVideo = ['mp4', 'm4v', 'webm', 'mov', 'ogg', '3gp', 'mkv'].includes(ext);
+      const maxBytes = isVideo ? 25 * 1024 * 1024 : 6 * 1024 * 1024;
       if (req.body.length > maxBytes) {
         return res.status(413).json({ ok: false, error: 'Media file exceeds maximum allowed size.' });
       }
@@ -2238,7 +2262,7 @@ app.post(
   '/api/media/upload-chunk',
   express.raw({
     type: () => true,
-    limit: '12mb',
+    limit: '16mb',
   }),
   async (req, res) => {
     try {
@@ -2401,7 +2425,7 @@ app.all('/api/media/:filename', (req, res, next) => {
   if (req.method !== 'GET' && req.method !== 'HEAD') return next();
 
   const filename = String(req.params.filename || '').trim();
-  const extMatch = filename.match(/^[a-zA-Z0-9_-]{4,80}\.(mp4|m4v|webm|mov|ogg|jpg|jpeg|png|webp|gif|mp3|m4a)$/i);
+  const extMatch = filename.match(/^[a-zA-Z0-9_-]{4,80}\.(mp4|m4v|webm|mov|ogg|3gp|mkv|jpg|jpeg|png|webp|gif|mp3|m4a)$/i);
   if (!extMatch) {
     return res.status(400).json({ ok: false, error: 'Invalid media filename.' });
   }
@@ -2480,6 +2504,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   }
+
+  httpServer.requestTimeout = 10 * 60 * 1000;
+  httpServer.headersTimeout = 65 * 1000;
+  httpServer.keepAliveTimeout = 65 * 1000;
 
   httpServer.listen(PORT, '0.0.0.0', () => {
     console.log(`Qalby Server running on http://0.0.0.0:${PORT}`);

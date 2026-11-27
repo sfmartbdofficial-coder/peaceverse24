@@ -261,7 +261,7 @@ export function extractVideoMetadataAndFrames(
       });
     };
 
-    const hardTimer = window.setTimeout(finish, 7500);
+    const hardTimer = window.setTimeout(finish, 10000);
 
     video.muted = true;
     video.playsInline = true;
