@@ -3,6 +3,8 @@ export type ReactionType = 'like' | 'love' | 'subhanallah' | 'mashaallah' | 'car
 export type FacebookMainTab =
   | 'home'
   | 'reels'
+  | 'shorts'
+  | 'live'
   | 'friends'
   | 'marketplace'
   | 'notifications'
@@ -78,6 +80,11 @@ export interface PostItem {
   aiLabeled?: boolean;
   sharedGroups?: string[];
   isFreshUpload?: boolean;
+  thumbnailUrl?: string;
+  viewsCount?: number;
+  hashtags?: string[];
+  channelSubscribers?: number;
+  isShort?: boolean;
 }
 
 export interface StoryItem {
@@ -241,6 +248,9 @@ export interface UserProfile {
   hobbies?: string[];
   goldenCoins?: number;
   earnedCoins?: number;
+  beansBalance?: number;
+  nidVerification?: NidVerificationData;
+  blockedUserIds?: string[];
   accountStatus?: 'active' | 'deactivated' | 'pending_deletion';
   deletionScheduledAt?: string;
   deletionExecuteAt?: number;
@@ -279,8 +289,18 @@ export interface GoldenCashoutRequest {
   userAvatar?: string;
   userPhone?: string;
   coinsAmount: number;
-  moneyAmount: number; // In BDT
-  paymentMethod: 'bkash' | 'nagad' | 'rocket' | 'bank' | 'paypal' | 'payoneer';
+  moneyAmount: number; // In BDT or USD
+  currency?: 'BDT' | 'USD';
+  paymentMethod:
+    | 'bkash'
+    | 'nagad'
+    | 'rocket'
+    | 'bank'
+    | 'paypal'
+    | 'payoneer'
+    | 'visa_mastercard'
+    | 'google_play'
+    | 'apple_pay';
   accountNumber: string;
   status: 'pending' | 'approved' | 'rejected';
   requestedAt: string;
@@ -348,4 +368,84 @@ export interface Playlist {
   videoIds: string[];
   updatedAt: string;
   isPrivate: boolean;
+}
+
+export interface NidVerificationData {
+  status: 'unverified' | 'pending' | 'verified';
+  fullName: string;
+  nidNumber: string;
+  dateOfBirth: string;
+  isAdult18Plus: boolean;
+  frontImageUrl?: string;
+  backImageUrl?: string;
+  verifiedAt?: string;
+}
+
+export interface PeaceLiveSeat {
+  seatIndex: number; // 0 = Big Host, 1..5 = Small Guests
+  role: 'host' | 'guest';
+  userId?: string;
+  userName?: string;
+  userAvatar?: string;
+  micOn?: boolean;
+  camOn?: boolean;
+  beansEarned?: number;
+}
+
+export interface PeaceLiveChatMessage {
+  id: string;
+  userId: string;
+  userName: string;
+  userAvatar?: string;
+  text: string;
+  isGift?: boolean;
+  giftName?: string;
+  giftIcon?: string;
+  giftCoins?: number;
+  createdAtMillis: number;
+}
+
+export interface PeaceLivePkBattle {
+  active: boolean;
+  startedAtMillis: number;
+  endsAtMillis: number; // 5 minutes (300s)
+  hostScore: number;
+  challengerScore: number;
+  challengerName: string;
+  challengerAvatar?: string;
+}
+
+export interface PeaceLiveRoom {
+  id: string;
+  title: string;
+  category: string;
+  hostId: string;
+  hostName: string;
+  hostAvatar: string;
+  coverImage?: string;
+  isLive: boolean;
+  status?: 'live' | 'ended';
+  viewersCount: number;
+  totalBeans: number;
+  seats: PeaceLiveSeat[];
+  pkBattle?: PeaceLivePkBattle;
+  zegoRoomId?: string;
+  createdAtMillis: number;
+  startedAtMillis?: number;
+}
+
+export interface ContentReportRecord {
+  id: string;
+  targetType: 'video' | 'short' | 'live' | 'user' | 'channel';
+  targetId: string;
+  targetTitle?: string;
+  targetAuthorId?: string;
+  targetAuthorName?: string;
+  reason: string;
+  details?: string;
+  reporterId: string;
+  reporterName?: string;
+  createdAt?: string;
+  createdAtMillis?: number;
+  status?: 'pending' | 'reviewed' | 'resolved';
 }

@@ -94,6 +94,8 @@ interface WorkerEnv {
   BUNNY_STREAM_CDN_HOST?: string;
   BUNNY_STREAM_CDN_HOSTNAME?: string;
   BUNNY_CDN_HOST?: string;
+  ZEGO_APP_ID?: string;
+  ZEGO_SERVER_SECRET?: string;
 }
 
 const JSON_HEADERS: Record<string, string> = {
@@ -1463,6 +1465,124 @@ export default {
 
       if (url.pathname === '/api/ai/moderate-media' && request.method === 'POST') {
         return handleModerateMedia(request, env);
+      }
+
+      if (url.pathname === '/api/geo' && request.method === 'GET') {
+        const cfCountry = String(
+          request.headers.get('cf-ipcountry') || (request as any).cf?.country || ''
+        )
+          .trim()
+          .toUpperCase();
+        const acceptLang = String(request.headers.get('accept-language') || '').toLowerCase();
+        let countryCode = /^[A-Z]{2}$/.test(cfCountry) && cfCountry !== 'XX' && cfCountry !== 'T1' ? cfCountry : '';
+        let source = 'cf-ipcountry';
+        if (!countryCode) {
+          if (acceptLang.includes('bn-bd') || acceptLang.includes('bn_bd') || acceptLang.startsWith('bn')) {
+            countryCode = 'BD';
+            source = 'accept-language';
+          } else {
+            countryCode = 'US';
+            source = 'fallback';
+          }
+        }
+        const isBangladesh = countryCode === 'BD';
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            countryCode,
+            isBangladesh,
+            currency: isBangladesh ? 'BDT' : 'USD',
+            source,
+          }),
+          { status: 200, headers: JSON_HEADERS }
+        );
+      }
+
+      if (url.pathname === '/api/zego/token' && request.method === 'POST') {
+        const projectId = env.FIREBASE_PROJECT_ID?.trim() || 'gen-lang-client-0936405543';
+        const verified = await verifyWorkerFirebaseToken(request.headers.get('authorization'), projectId);
+        if (!verified) {
+          return new Response(
+            JSON.stringify({ ok: false, error: 'Authentication required for Live token.' }),
+            { status: 401, headers: JSON_HEADERS }
+          );
+        }
+        const body: any = await request.json().catch(() => ({}));
+        const roomId =
+          typeof body?.roomId === 'string' && body.roomId.trim()
+            ? body.roomId.replace(/[<>]/g, '').trim().slice(0, 120)
+            : 'peace-live-room';
+        const userId = verified.uid;
+        const rawAppId = env.ZEGO_APP_ID?.trim();
+        const serverSecret = env.ZEGO_SERVER_SECRET?.trim();
+        if (!rawAppId || !serverSecret || (serverSecret.length !== 16 && serverSecret.length !== 32)) {
+          return new Response(
+            JSON.stringify({
+              ok: true,
+              configured: false,
+              mode: 'firestore-stage',
+              roomId,
+              userId,
+            }),
+            { status: 200, headers: JSON_HEADERS }
+          );
+        }
+
+        const appId = Number(rawAppId);
+        const ctime = Math.floor(Date.now() / 1000);
+        const expire = ctime + 3600;
+        const nonceArr = new Uint32Array(1);
+        crypto.getRandomValues(nonceArr);
+        const payloadJson = JSON.stringify({
+          app_id: appId,
+          user_id: userId,
+          nonce: nonceArr[0],
+          ctime,
+          expire,
+          payload: JSON.stringify({
+            room_id: roomId,
+            privilege: { 1: 1, 2: 1 },
+            stream_id_list: null,
+          }),
+        });
+
+        const iv = new Uint8Array(16);
+        crypto.getRandomValues(iv);
+        const encoder = new TextEncoder();
+        const secretBytes = encoder.encode(serverSecret);
+        const aesKey = await crypto.subtle.importKey('raw', secretBytes, { name: 'AES-CBC' }, false, ['encrypt']);
+        const encryptedBuf = await crypto.subtle.encrypt(
+          { name: 'AES-CBC', iv },
+          aesKey,
+          encoder.encode(payloadJson)
+        );
+        const encrypted = new Uint8Array(encryptedBuf);
+
+        const out = new Uint8Array(8 + 2 + iv.length + 2 + encrypted.length);
+        const view = new DataView(out.buffer);
+        view.setBigInt64(0, BigInt(expire), false);
+        view.setUint16(8, iv.length, false);
+        out.set(iv, 10);
+        view.setUint16(10 + iv.length, encrypted.length, false);
+        out.set(encrypted, 12 + iv.length);
+
+        let bin = '';
+        for (let i = 0; i < out.length; i++) {
+          bin += String.fromCharCode(out[i]);
+        }
+        return new Response(
+          JSON.stringify({
+            ok: true,
+            configured: true,
+            mode: 'zegocloud',
+            appId,
+            roomId,
+            userId,
+            token: '04' + btoa(bin),
+            expiresAt: expire,
+          }),
+          { status: 200, headers: JSON_HEADERS }
+        );
       }
 
       if (url.pathname === '/api/bunny' && request.method === 'POST') {

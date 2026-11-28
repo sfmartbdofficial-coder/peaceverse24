@@ -25,9 +25,11 @@ import { StepByStepSignUpForm, StepSignUpPayload, SignUpWizardStep } from '../au
 import { sanitizeInput } from '../../utils/security';
 import { useHistoryBack } from '../../utils/backNavigation';
 import { requestEmailOtp, verifyEmailOtp } from '../../utils/emailOtp';
+import { Peaceverse24Logo } from '../youtube/Peaceverse24Logo';
 
 interface PeaceVerseLandingProps {
   onNavigateTo: (path: string) => void;
+  onEnterGuestMode?: () => void;
   onOpenDownloadModal?: () => void;
   onOpenLegalTab?: (tab: string) => void;
 }
@@ -47,6 +49,7 @@ const FOOTER_LANGS: { code: SupportedLanguage; label: string }[] = [
 
 export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   onNavigateTo,
+  onEnterGuestMode,
   onOpenLegalTab,
 }) => {
   const { currentLang, setLanguage } = useLanguage();
@@ -289,41 +292,40 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex flex-col justify-between bg-[#F0F2F5] text-[#1C1E21] font-sans">
-      {/* MAIN FACEBOOK SPLIT SCREEN (Left 40% Brand + Right 60% Login Card) */}
+    <div className="min-h-screen flex flex-col justify-between bg-white text-zinc-950 font-sans">
       <main className="flex-1 flex items-center justify-center px-4 py-10 sm:py-16">
         <div className="w-full max-w-[980px] flex flex-col lg:flex-row items-center lg:items-start justify-between gap-8 lg:gap-12">
           
-          {/* LEFT SIDE (40%): Logo PeaceVerse + Small Rocket Emblem + Tagline */}
-          <div className="w-full lg:w-[44%] flex flex-col items-center lg:items-start text-center lg:text-left lg:pt-10 space-y-4">
-            <div className="flex items-center gap-3">
-              <img
-                src="/assets/aistudio/IMG-20261019-WA2392_c6c5253a.jpg"
-                alt="PeaceVerse Logo"
-                className="w-11 h-11 rounded-xl object-cover shadow-md border border-[#0866FF]/20 shrink-0"
-              />
-              <h1 className="text-[40px] sm:text-[48px] font-black tracking-tight text-[#0866FF] leading-none">
-                Peaceverse24.com
-              </h1>
-            </div>
+          {/* LEFT SIDE: Peaceverse24 Play+Dove Brand + Tagline */}
+          <div className="w-full lg:w-[46%] flex flex-col items-center lg:items-start text-center lg:text-left lg:pt-8 space-y-5">
+            <Peaceverse24Logo showTagline />
 
-            <p className="text-[22px] sm:text-[26px] leading-[30px] sm:leading-[32px] text-black font-normal max-w-[460px]">
-              Peaceverse24.com — Building a peaceful community for everyone worldwide.
+            <h1 className="text-[32px] sm:text-[42px] font-extrabold tracking-tight text-zinc-950 leading-[1.12]">
+              Peace in Every <span className="text-[#DC2626]">Video</span>
+            </h1>
+
+            <p className="text-[16px] sm:text-[18px] leading-relaxed text-zinc-600 max-w-[460px]">
+              Watch 100% Halal videos, swipe-up Peace Shorts, and 6-Seat Peace Live rooms for Bangladesh &amp; International audiences.
             </p>
 
-            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2 pt-1">
-              <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 bg-emerald-100/80 border border-emerald-300 px-3 py-1 rounded-full">
-                <ShieldCheck className="w-3.5 h-3.5 text-emerald-600" />
-                <span>Peaceverse24.com — World&apos;s Most Peaceful Social Network for 8 Billion People</span>
-              </span>
+            <div className="flex flex-wrap items-center justify-center lg:justify-start gap-2.5 pt-1">
+              {onEnterGuestMode && (
+                <button
+                  type="button"
+                  onClick={onEnterGuestMode}
+                  className="h-11 px-5 rounded-full bg-[#DC2626] hover:bg-[#B91C1C] text-white text-sm font-extrabold shadow-md shadow-red-500/20 transition-all cursor-pointer"
+                >
+                  Watch Videos Now →
+                </button>
+              )}
 
               <button
                 type="button"
                 onClick={() => setShowWorldMapModal(true)}
-                className="inline-flex items-center gap-1.5 text-xs font-bold text-[#0866FF] bg-white hover:bg-[#E7F3FF] border border-[#DADDE1] px-3 py-1 rounded-full shadow-xs transition-colors cursor-pointer"
+                className="h-11 px-4 rounded-full text-xs font-bold text-[#16A34A] bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 inline-flex items-center gap-1.5 transition-colors cursor-pointer"
               >
-                <Globe className="w-3.5 h-3.5" />
-                <span>🌍 Live Global Users Map (196+ Countries Worldwide)</span>
+                <Globe className="w-4 h-4" />
+                <span>Bangladesh + Global Live Map</span>
               </button>
             </div>
           </div>
@@ -378,14 +380,13 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                 <button
                   type="submit"
                   disabled={loginLoading || googleLoading}
-                  className="w-full py-3 bg-[#0866FF] hover:bg-[#166FE5] active:scale-[0.99] disabled:opacity-60 text-white font-bold text-[19px] rounded-[6px] transition-all cursor-pointer flex items-center justify-center gap-2"
+                  className="w-full py-3 bg-[#DC2626] hover:bg-[#B91C1C] active:scale-[0.99] disabled:opacity-60 text-white font-bold text-[17px] rounded-xl transition-all cursor-pointer flex items-center justify-center gap-2"
                 >
                   {loginLoading && <Loader2 className="w-5 h-5 animate-spin" />}
                   <span>Log in</span>
                 </button>
               </form>
 
-              {/* Center Forgotten Password Link */}
               <div className="text-center pt-0.5">
                 <button
                   type="button"
@@ -395,33 +396,31 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
                     setResetFeedback(null);
                     setShowResetModal(true);
                   }}
-                  className="text-[14px] text-[#0866FF] hover:underline font-medium cursor-pointer"
+                  className="text-[14px] text-[#DC2626] hover:underline font-medium cursor-pointer"
                 >
                   Forgotten password?
                 </button>
               </div>
 
-              {/* Divider Line */}
-              <div className="border-t border-[#DADDE1] my-2" />
+              <div className="border-t border-zinc-200 my-2" />
 
-              {/* Center Green Create new account Button */}
               <div className="flex flex-col items-center gap-2.5 pt-1">
                 <button
                   type="button"
                   onClick={openSignUpWizardModal}
-                  className="px-6 py-3 bg-[#42B72A] hover:bg-[#36A420] active:scale-[0.99] text-white font-bold text-[17px] rounded-[6px] transition-all cursor-pointer shadow-xs"
+                  className="w-full py-3 bg-[#16A34A] hover:bg-[#15803D] active:scale-[0.99] text-white font-bold text-[16px] rounded-xl transition-all cursor-pointer shadow-xs"
                 >
-                  Create new account
+                  Create Peaceverse24 Channel
                 </button>
 
                 <button
                   type="button"
                   onClick={handleGoogleSignIn}
                   disabled={loginLoading || googleLoading}
-                  className="w-full py-2.5 px-3 bg-[#F5F6F7] hover:bg-[#EBEDF0] border border-[#DADDE1] rounded-[6px] text-[13px] font-semibold text-[#1C1E21] flex items-center justify-center gap-2 transition-colors cursor-pointer"
+                  className="w-full py-2.5 px-3 bg-zinc-50 hover:bg-zinc-100 border border-zinc-200 rounded-xl text-[13px] font-semibold text-zinc-900 flex items-center justify-center gap-2 transition-colors cursor-pointer"
                 >
                   {googleLoading ? (
-                    <Loader2 className="w-4 h-4 animate-spin text-[#0866FF]" />
+                    <Loader2 className="w-4 h-4 animate-spin text-[#DC2626]" />
                   ) : (
                     <svg className="w-4 h-4 shrink-0" viewBox="0 0 24 24">
                       <path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.82-2.4 3.68v3.05h3.88c2.27-2.09 3.665-5.17 3.665-9.17z" />
@@ -435,8 +434,8 @@ export const PeaceVerseLanding: React.FC<PeaceVerseLandingProps> = ({
               </div>
             </div>
 
-            <p className="mt-5 text-[13px] text-[#1C1E21] text-center">
-              <strong className="font-semibold">Create a Page</strong> for a halal brand, masjid, or Islamic creator.
+            <p className="mt-5 text-[13px] text-zinc-600 text-center">
+              <strong className="font-semibold text-zinc-900">Peaceverse24</strong> — Peace in Every Video (100% Halal).
             </p>
           </div>
         </div>

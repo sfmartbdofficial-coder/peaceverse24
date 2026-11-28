@@ -41,7 +41,21 @@ import {
   onAuthStateChanged,
   User as FirebaseUser,
 } from 'firebase/auth';
-import { PostItem, PostComment, NotificationItem, ReactionType, UserProfile, SearchedUserProfile, PageItem, ChatMessage } from '../types';
+import {
+  PostItem,
+  PostComment,
+  NotificationItem,
+  ReactionType,
+  UserProfile,
+  SearchedUserProfile,
+  PageItem,
+  ChatMessage,
+  NidVerificationData,
+  PeaceLiveRoom,
+  PeaceLiveSeat,
+  PeaceLiveChatMessage,
+  ContentReportRecord,
+} from '../types';
 import { LEGACY_DUMMY_POST_IDS, LEGACY_DUMMY_USER_IDS } from '../data/dummyCommunity';
 import { syncSupabaseProfile, fetchSupabaseProfiles } from './supabase';
 import {
@@ -341,6 +355,11 @@ function mapFirestoreDocToPostItem(id: string, data: Record<string, any>): PostI
     goldenGiftsCount: data.goldenGiftsCount,
     goldenGiftsAmount: data.goldenGiftsAmount,
     musicTitle: data.musicTitle,
+    thumbnailUrl: data.thumbnailUrl,
+    viewsCount: typeof data.viewsCount === 'number' ? data.viewsCount : undefined,
+    hashtags: Array.isArray(data.hashtags) ? data.hashtags : undefined,
+    isShort: typeof data.isShort === 'boolean' ? data.isShort : undefined,
+    channelSubscribers: typeof data.channelSubscribers === 'number' ? data.channelSubscribers : undefined,
     createdAtMillis: Number.isFinite(createdAtMillis) ? createdAtMillis : 0,
   };
 }
@@ -1924,6 +1943,11 @@ export async function saveUserProfileToFirestore(profile: UserProfile): Promise<
         messengerLink: sanitizeInput(profile.messengerLink || ''),
         contactPrivacy: profile.contactPrivacy || 'public',
         hobbies: Array.isArray(profile.hobbies) ? profile.hobbies.map((h) => sanitizeInput(String(h))) : [],
+        ...(typeof profile.goldenCoins === 'number' ? { goldenCoins: profile.goldenCoins } : {}),
+        ...(typeof profile.earnedCoins === 'number' ? { earnedCoins: profile.earnedCoins } : {}),
+        ...(typeof profile.beansBalance === 'number' ? { beansBalance: profile.beansBalance } : {}),
+        ...(profile.nidVerification ? { nidVerification: profile.nidVerification } : {}),
+        ...(Array.isArray(profile.blockedUserIds) ? { blockedUserIds: profile.blockedUserIds } : {}),
         updatedAt: new Date().toISOString(),
         updatedAtMillis: Date.now(),
       },
@@ -2024,6 +2048,11 @@ export async function fetchUserProfileFromFirestore(
       deletionScheduledAt: data.deletionScheduledAt ? String(data.deletionScheduledAt) : undefined,
       deletionExecuteAt:
         typeof data.deletionExecuteAt === 'number' ? data.deletionExecuteAt : undefined,
+      goldenCoins: typeof data.goldenCoins === 'number' ? data.goldenCoins : undefined,
+      earnedCoins: typeof data.earnedCoins === 'number' ? data.earnedCoins : undefined,
+      beansBalance: typeof data.beansBalance === 'number' ? data.beansBalance : undefined,
+      nidVerification: data.nidVerification && typeof data.nidVerification === 'object' ? (data.nidVerification as NidVerificationData) : undefined,
+      blockedUserIds: Array.isArray(data.blockedUserIds) ? data.blockedUserIds.map(String) : undefined,
     };
   } catch (err: any) {
     if (err?.code === 'permission-denied') {
@@ -4613,6 +4642,212 @@ export async function permanentlyDeletePageFromFirestore(pageId: string): Promis
     console.warn('Notice deleting page from Firestore:', err);
   }
 }
+
+// ==========================================
+// PEACEVERSE24 CREATOR WALLET, NID, 6-SEAT LIVE & REPORT HELPERS
+// ==========================================
+
+const BLOCKED_CREATORS_STORAGE_KEY = 'peaceverse24_blocked_creators_v1';
+
+export function getBlockedCreatorIds(): string[] {
+  try {
+    const raw = localStorage.getItem(BLOCKED_CREATORS_STORAGE_KEY);
+    const parsed = raw ? JSON.parse(raw) : [];
+    return Array.isArray(parsed) ? parsed.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+export function toggleBlockedCreatorId(creatorIdOrName: string): string[] {
+  const clean = creatorIdOrName.trim();
+  if (!clean) return getBlockedCreatorIds();
+  const current = getBlockedCreatorIds();
+  const exists = current.includes(clean);
+  const next = exists ? current.filter((id) => id !== clean) : [...current, clean];
+  try {
+    localStorage.setItem(BLOCKED_CREATORS_STORAGE_KEY, JSON.stringify(next));
+  } catch {}
+  const uid = auth.currentUser?.uid;
+  if (uid) {
+    setDoc(
+      doc(db, 'users', uid),
+      { blockedUserIds: next, updatedAtMillis: Date.now() },
+      { merge: true }
+    ).catch(() => {});
+  }
+  return next;
+}
+
+export async function saveUserWalletAndNidToFirestore(data: {
+  goldenCoins?: number;
+  earnedCoins?: number;
+  beansBalance?: number;
+  nidVerification?: NidVerificationData;
+}): Promise<boolean> {
+  const uid = auth.currentUser?.uid;
+  if (!uid) return false;
+  try {
+    const cleanPayload = stripUndefinedFields({
+      ...(typeof data.goldenCoins === 'number' ? { goldenCoins: Math.max(0, data.goldenCoins) } : {}),
+      ...(typeof data.earnedCoins === 'number' ? { earnedCoins: Math.max(0, data.earnedCoins) } : {}),
+      ...(typeof data.beansBalance === 'number' ? { beansBalance: Math.max(0, data.beansBalance) } : {}),
+      ...(data.nidVerification ? { nidVerification: data.nidVerification } : {}),
+      updatedAt: new Date().toISOString(),
+      updatedAtMillis: Date.now(),
+    });
+    await setDoc(doc(db, 'users', uid), cleanPayload, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('Notice saving wallet/NID to Firestore:', err);
+    return false;
+  }
+}
+
+export async function submitContentReportToFirestore(
+  report: Omit<ContentReportRecord, 'id' | 'createdAtMillis' | 'status'>
+): Promise<boolean> {
+  try {
+    const id = `rep-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const record: ContentReportRecord = {
+      ...report,
+      id,
+      reason: sanitizeInput(report.reason, 200),
+      details: report.details ? sanitizeInput(report.details, 600) : '',
+      createdAtMillis: Date.now(),
+      status: 'pending',
+    };
+    try {
+      const existing = JSON.parse(localStorage.getItem('peaceverse24_reports_v1') || '[]');
+      localStorage.setItem('peaceverse24_reports_v1', JSON.stringify([record, ...existing].slice(0, 100)));
+    } catch {}
+    if (auth.currentUser) {
+      await setDoc(doc(db, 'reports', id), stripUndefinedFields(record));
+    }
+    return true;
+  } catch (err) {
+    console.warn('Notice submitting content report:', err);
+    return false;
+  }
+}
+
+export function subscribeToPeaceLiveRooms(
+  onUpdate: (rooms: PeaceLiveRoom[]) => void
+): () => void {
+  try {
+    const q = query(collection(db, 'live_rooms'), orderBy('startedAtMillis', 'desc'), limit(25));
+    return onSnapshot(
+      q,
+      (snap) => {
+        const list: PeaceLiveRoom[] = [];
+        snap.forEach((d) => {
+          const data = d.data();
+          if (data && data.status !== 'ended') {
+            list.push({ ...(data as PeaceLiveRoom), id: d.id });
+          }
+        });
+        onUpdate(list);
+      },
+      (err) => {
+        if (!isOfflineOrUnavailableError(err)) {
+          console.warn('Peace Live rooms listener notice:', err);
+        }
+      }
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export async function createOrUpdatePeaceLiveRoom(room: PeaceLiveRoom): Promise<boolean> {
+  try {
+    if (!auth.currentUser) return false;
+    await setDoc(doc(db, 'live_rooms', room.id), stripUndefinedFields(room), { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('Notice creating Peace Live room:', err);
+    return false;
+  }
+}
+
+export async function updatePeaceLiveSeat(
+  roomId: string,
+  seats: PeaceLiveSeat[]
+): Promise<boolean> {
+  try {
+    if (!auth.currentUser) return false;
+    await setDoc(doc(db, 'live_rooms', roomId), { seats }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('Notice updating Peace Live seat:', err);
+    return false;
+  }
+}
+
+export async function togglePeaceLivePkBattle(
+  roomId: string,
+  pkBattle: PeaceLiveRoom['pkBattle']
+): Promise<boolean> {
+  try {
+    if (!auth.currentUser) return false;
+    await setDoc(doc(db, 'live_rooms', roomId), { pkBattle }, { merge: true });
+    return true;
+  } catch (err) {
+    console.warn('Notice toggling PK battle:', err);
+    return false;
+  }
+}
+
+export async function endPeaceLiveRoom(roomId: string): Promise<void> {
+  try {
+    if (!auth.currentUser) return;
+    await setDoc(doc(db, 'live_rooms', roomId), { status: 'ended' }, { merge: true });
+  } catch {}
+}
+
+export function subscribeToPeaceLiveChat(
+  roomId: string,
+  onUpdate: (messages: PeaceLiveChatMessage[]) => void
+): () => void {
+  try {
+    const q = query(
+      collection(db, 'live_rooms', roomId, 'chat'),
+      orderBy('createdAtMillis', 'asc'),
+      limit(80)
+    );
+    return onSnapshot(
+      q,
+      (snap) => {
+        const msgs: PeaceLiveChatMessage[] = [];
+        snap.forEach((d) => msgs.push({ ...(d.data() as PeaceLiveChatMessage), id: d.id }));
+        onUpdate(msgs);
+      },
+      () => {}
+    );
+  } catch {
+    return () => {};
+  }
+}
+
+export async function sendPeaceLiveChatMessage(
+  roomId: string,
+  msg: Omit<PeaceLiveChatMessage, 'id' | 'createdAtMillis'>
+): Promise<void> {
+  try {
+    if (!auth.currentUser) return;
+    const id = `lmsg-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    await setDoc(
+      doc(db, 'live_rooms', roomId, 'chat', id),
+      stripUndefinedFields({
+        ...msg,
+        id,
+        text: sanitizeInput(msg.text, 300),
+        createdAtMillis: Date.now(),
+      })
+    );
+  } catch {}
+}
+
 
 
 

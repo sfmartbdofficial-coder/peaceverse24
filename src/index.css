@@ -9,8 +9,8 @@
   }
 
   body {
-    @apply bg-white text-black antialiased selection:bg-[#0866FF] selection:text-white;
-    font-family: 'Inter', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
+    @apply bg-white text-[#0F0F0F] antialiased selection:bg-[#16A34A] selection:text-white;
+    font-family: 'Plus Jakarta Sans', 'DM Sans', 'Hind Siliguri', system-ui, -apple-system, sans-serif;
   }
 }
 

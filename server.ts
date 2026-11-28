@@ -2333,6 +2333,105 @@ async function handleServerBunnyCreateVideo(req: express.Request, res: express.R
 app.post('/api/bunny', handleServerBunnyCreateVideo);
 app.post('/api/media/bunny-stream/init', handleServerBunnyCreateVideo);
 
+app.get('/api/geo', (req, res) => {
+  const cfCountry = String(req.headers['cf-ipcountry'] || '').trim().toUpperCase();
+  const vercelCountry = String(req.headers['x-vercel-ip-country'] || '').trim().toUpperCase();
+  const genericCountry = String(req.headers['x-country-code'] || '').trim().toUpperCase();
+  const acceptLang = String(req.headers['accept-language'] || '').toLowerCase();
+
+  let countryCode = [cfCountry, vercelCountry, genericCountry].find(
+    (code) => /^[A-Z]{2}$/.test(code) && code !== 'XX' && code !== 'T1'
+  );
+  let source = 'header';
+  if (!countryCode) {
+    if (acceptLang.includes('bn-bd') || acceptLang.includes('bn_bd') || acceptLang.startsWith('bn')) {
+      countryCode = 'BD';
+      source = 'accept-language';
+    } else {
+      countryCode = 'US';
+      source = 'fallback';
+    }
+  }
+  const isBangladesh = countryCode === 'BD';
+  return res.json({
+    ok: true,
+    countryCode,
+    isBangladesh,
+    currency: isBangladesh ? 'BDT' : 'USD',
+    source,
+  });
+});
+
+app.post('/api/zego/token', async (req, res) => {
+  try {
+    const verified = await verifyFirebaseBearerToken(req.headers.authorization);
+    if (!verified) {
+      return res.status(401).json({ ok: false, error: 'Authentication required for Live token.' });
+    }
+    const roomId = sanitizeServerText(req.body?.roomId || 'peace-live-room', 120) || 'peace-live-room';
+    const userId = verified.uid;
+    const rawAppId = process.env.ZEGO_APP_ID?.trim();
+    const serverSecret = process.env.ZEGO_SERVER_SECRET?.trim();
+
+    if (!rawAppId || !serverSecret || (serverSecret.length !== 16 && serverSecret.length !== 24 && serverSecret.length !== 32)) {
+      return res.json({
+        ok: true,
+        configured: false,
+        mode: 'firestore-stage',
+        roomId,
+        userId,
+      });
+    }
+
+    const appId = Number(rawAppId);
+    const ctime = Math.floor(Date.now() / 1000);
+    const expire = ctime + 3600;
+    const nonce = crypto.randomInt(100000, 99999999);
+    const payloadJson = JSON.stringify({
+      app_id: appId,
+      user_id: userId,
+      nonce,
+      ctime,
+      expire,
+      payload: JSON.stringify({
+        room_id: roomId,
+        privilege: { 1: 1, 2: 1 },
+        stream_id_list: null,
+      }),
+    });
+
+    const iv = crypto.randomBytes(16);
+    const algo =
+      serverSecret.length === 16
+        ? 'aes-128-cbc'
+        : serverSecret.length === 24
+        ? 'aes-192-cbc'
+        : 'aes-256-cbc';
+    const cipher = crypto.createCipheriv(algo, Buffer.from(serverSecret, 'utf8'), iv);
+    const encrypted = Buffer.concat([cipher.update(payloadJson, 'utf8'), cipher.final()]);
+
+    const buf = Buffer.alloc(8 + 2 + iv.length + 2 + encrypted.length);
+    buf.writeBigInt64BE(BigInt(expire), 0);
+    buf.writeUInt16BE(iv.length, 8);
+    iv.copy(buf, 10);
+    buf.writeUInt16BE(encrypted.length, 10 + iv.length);
+    encrypted.copy(buf, 12 + iv.length);
+
+    return res.json({
+      ok: true,
+      configured: true,
+      mode: 'zegocloud',
+      appId,
+      roomId,
+      userId,
+      token: '04' + buf.toString('base64'),
+      expiresAt: expire,
+    });
+  } catch (err: any) {
+    return res.status(500).json({ ok: false, error: err?.message || 'Failed to issue Live token.' });
+  }
+});
+
 app.put('/api/bunny/upload/:videoId', async (req, res) => {
   try {
     const streamCfg = resolveServerBunnyStream();

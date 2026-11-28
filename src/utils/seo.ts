@@ -11,9 +11,9 @@ interface SeoMetadata {
   robots?: string;
 }
 
-const DEFAULT_TITLE = 'PeaceVerse24 - শান্তি, ভালোবাসা আর পজিটিভ কমিউনিটি';
+const DEFAULT_TITLE = 'Peaceverse24 — Peace in Every Video';
 const DEFAULT_DESCRIPTION =
-  'PeaceVerse24 হলো শান্তি আর ভালোবাসার কমিউনিটি। এখানে মনের কথা শেয়ার করো, নতুন বন্ধু বানাও, পজিটিভ থাকো।';
+  'Peaceverse24 — Peace in Every Video. Halal YouTube-style videos, Peace Shorts, and 6-seat Peace Live for Bangladesh & Worldwide.';
 
 const CANONICAL_PRODUCTION_ORIGIN = 'https://peaceverse24.com';
 

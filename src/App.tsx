@@ -20,7 +20,22 @@ import {
   UserProfile,
   GoldenCashoutRequest,
   PageItem,
+  NidVerificationData,
+  PeaceLiveRoom,
 } from './types';
+import { YtTopHeader } from './components/youtube/YtTopHeader';
+import { YtBottomNav } from './components/youtube/YtBottomNav';
+import { YtHomeFeed } from './components/youtube/YtHomeFeed';
+import { YtShortsView } from './components/youtube/YtShortsView';
+import { YtPeaceLiveView } from './components/youtube/YtPeaceLiveView';
+import { YtStudioProfileView, StudioTab } from './components/youtube/YtStudioProfileView';
+import { YtUploadModal } from './components/youtube/YtUploadModal';
+import { YtVideoWatchModal } from './components/youtube/YtVideoWatchModal';
+import { YtGiftModal } from './components/youtube/YtGiftModal';
+import { YtWalletModal } from './components/youtube/YtWalletModal';
+import { YtReportBlockModal } from './components/youtube/YtReportBlockModal';
+import { SHOWCASE_VIDEOS } from './data/youtubeShowcase';
+import { PeaceGift, calculateGiftSplit } from './data/peaceGifts';
 import { FbHeader } from './components/facebook/FbHeader';
 import { FbCreatePostBox } from './components/facebook/FbCreatePostBox';
 import { FbStories } from './components/facebook/FbStories';
@@ -144,6 +159,9 @@ import {
   reactivateCurrentUserAccount,
   permanentlyDeleteCurrentUserAccount,
   ACCOUNT_DELETION_GRACE_DAYS,
+  saveUserWalletAndNidToFirestore,
+  getBlockedCreatorIds,
+  toggleBlockedCreatorId,
 } from './lib/firebase';
 import { SearchedUserProfile } from './types';
 import {
@@ -181,6 +199,8 @@ import { applyPageSeo } from './utils/seo';
 
 const VALID_MAIN_TABS: FacebookMainTab[] = [
   'home',
+  'shorts',
+  'live',
   'reels',
   'friends',
   'marketplace',
@@ -229,6 +249,29 @@ export default function App() {
   const [showLive, setShowLive] = useState(false);
   const [showHalalPolicy, setShowHalalPolicy] = useState(false);
   const [activeReelPostId, setActiveReelPostId] = useState<string | null>(null);
+
+  // Peaceverse24 YouTube UI state
+  const [guestBrowseMode, setGuestBrowseMode] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('peaceverse24_guest_mode_v1') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [watchingVideoPost, setWatchingVideoPost] = useState<PostItem | null>(null);
+  const [showYtUpload, setShowYtUpload] = useState(false);
+  const [ytUploadMode, setYtUploadMode] = useState<'choose' | 'video' | 'short'>('choose');
+  const [studioTab, setStudioTab] = useState<StudioTab>('videos');
+  const [blockedCreatorIds, setBlockedCreatorIds] = useState<string[]>(() =>
+    getBlockedCreatorIds()
+  );
+  const [reportTarget, setReportTarget] = useState<{
+    targetType: 'video' | 'short' | 'live' | 'channel';
+    targetId: string;
+    targetTitle?: string;
+    creatorId: string;
+    creatorName: string;
+  } | null>(null);
   const { currentLang } = useLanguage();
   const [globalCity, setGlobalCity] = useState<GlobalCity>(
     () => GLOBAL_CITIES.find((c) => c.id === 'dhaka') || GLOBAL_CITIES[0]
@@ -753,7 +796,7 @@ export default function App() {
           setFirebaseUser(auth.currentUser);
         }
         setIsAuthChecking(false);
-        if (!auth.currentUser && !latestObservedUser) {
+        if (!auth.currentUser && !latestObservedUser && !guestBrowseMode) {
           const path = window.location.pathname;
           if (path === '/home') {
             navigateToPath('/' + window.location.search + window.location.hash);
@@ -1084,9 +1127,9 @@ export default function App() {
         }
       } else if (authReady) {
         clearSessionStart();
-        // Rule: If user is NOT logged in, redirect any /home visit back to "/"
+        // Rule: If user is NOT logged in and not in Guest Browse mode, redirect /home back to "/"
         const path = window.location.pathname;
-        if (path === '/home') {
+        if (path === '/home' && !guestBrowseMode) {
           navigateToPath('/' + window.location.search + window.location.hash);
         }
       }
@@ -1199,8 +1242,9 @@ export default function App() {
           hometown: parsed.hometown && parsed.hometown === 'Dhaka, Bangladesh' ? '' : (parsed.hometown || ''),
           birthDate: parsed.birthDate && parsed.birthDate === 'August 17, 1991' ? '' : (parsed.birthDate || ''),
           relationship: parsed.relationship && parsed.relationship === 'Married' ? '' : (parsed.relationship || ''),
-          goldenCoins: parsed.goldenCoins === 120 ? 0 : (parsed.goldenCoins ?? 0),
+          goldenCoins: parsed.goldenCoins === 120 ? 100 : (parsed.goldenCoins ?? 100),
           earnedCoins: parsed.earnedCoins === 65 ? 0 : (parsed.earnedCoins ?? 0),
+          beansBalance: parsed.beansBalance ?? parsed.earnedCoins ?? 0,
         };
       }
       return USER_PROFILE;
@@ -1845,50 +1889,56 @@ export default function App() {
     logUserActivity(userProfile.id, 'Share', `পোস্ট শেয়ার করেছেন`);
   };
 
-  // Handle sending golden gift coins
-  const handleSendGoldenGift = (postId: string, amount: number, message?: string) => {
+  // Handle sending 20 Peace Gifts (Host gets 60% Beans, App gets 40%)
+  const handleSendPeaceGiftAmount = (
+    amount: number,
+    isHostRecipient: boolean,
+    postId?: string,
+    message?: string
+  ) => {
     const currentCoins = userProfile.goldenCoins ?? 0;
     if (currentCoins < amount) {
       return false;
     }
 
-    // 1. Deduct coins from sender
+    const { hostBeans } = calculateGiftSplit(amount);
+    const nextCoins = Math.max(0, currentCoins - amount);
+    const nextBeans = (userProfile.beansBalance ?? userProfile.earnedCoins ?? 0) + (isHostRecipient ? hostBeans : 0);
+
     setUserProfile((prev) => ({
       ...prev,
-      goldenCoins: Math.max(0, (prev.goldenCoins ?? 0) - amount),
+      goldenCoins: nextCoins,
+      beansBalance: nextBeans,
+      earnedCoins: nextBeans,
     }));
+    void saveUserWalletAndNidToFirestore({
+      goldenCoins: nextCoins,
+      beansBalance: nextBeans,
+      earnedCoins: nextBeans,
+    });
 
-    // 2. Update post golden gifts count
-    setPosts((prev) =>
-      prev.map((p) => {
-        if (p.id === postId) {
-          return {
-            ...p,
-            goldenGiftsCount: (p.goldenGiftsCount || 0) + amount,
-            goldenGiftsAmount: (p.goldenGiftsAmount || 0) + amount,
-          };
-        }
-        return p;
-      })
-    );
-
-    // 3. If gifting own post, add to earnedCoins; or credit creator
-    const targetPost = posts.find((p) => p.id === postId);
-    if (targetPost && (targetPost.author.name === userProfile.name || targetPost.authorId === userProfile.id)) {
-      setUserProfile((prev) => ({
-        ...prev,
-        earnedCoins: (prev.earnedCoins ?? 0) + amount,
-      }));
+    if (postId) {
+      setPosts((prev) =>
+        prev.map((p) => {
+          if (p.id === postId) {
+            return {
+              ...p,
+              goldenGiftsCount: (p.goldenGiftsCount || 0) + 1,
+              goldenGiftsAmount: (p.goldenGiftsAmount || 0) + amount,
+            };
+          }
+          return p;
+        })
+      );
     }
 
-    // 4. Create in-app celebration notification
     const giftNotif: NotificationItem = {
       id: `notif-gift-${Date.now()}`,
       type: 'general',
       avatar: userProfile.avatar,
-      title: `${userProfile.name} ${amount}টি গোল্ডেন কয়েন হাদিয়া দিয়েছেন! 🪙✨`,
-      subtitle: message || 'মাশাআল্লাহ! চমৎকার ভিডিওটির জন্য হাদিয়া পাঠিয়েছেন।',
-      timeAgo: 'এখনই',
+      title: `${userProfile.name} sent ${amount.toLocaleString()} Coins Peace Gift!`,
+      subtitle: message || `Host received ${hostBeans.toLocaleString()} Beans (60%)`,
+      timeAgo: 'Just now',
       isUnread: true,
       badgeType: 'heart',
       postId,
@@ -1898,15 +1948,26 @@ export default function App() {
     return true;
   };
 
-  // Handle adding golden coins (recharge)
-  const handleAddGoldenCoins = (amount: number) => {
-    setUserProfile((prev) => ({
-      ...prev,
-      goldenCoins: (prev.goldenCoins ?? 0) + amount,
-    }));
+  // Handle sending golden gift coins (legacy wrapper)
+  const handleSendGoldenGift = (postId: string, amount: number, message?: string) => {
+    const targetPost = posts.find((p) => p.id === postId);
+    const isSelf = Boolean(
+      targetPost && (targetPost.author.name === userProfile.name || targetPost.authorId === userProfile.id)
+    );
+    return handleSendPeaceGiftAmount(amount, isSelf, postId, message);
   };
 
-  // Handle requesting cashout to bKash / Nagad
+  // Handle adding coins (Buy Coins)
+  const handleAddGoldenCoins = (amount: number) => {
+    const nextCoins = (userProfile.goldenCoins ?? 0) + amount;
+    setUserProfile((prev) => ({
+      ...prev,
+      goldenCoins: nextCoins,
+    }));
+    void saveUserWalletAndNidToFirestore({ goldenCoins: nextCoins });
+  };
+
+  // Handle requesting cashout / Beans withdrawal (bKash / Nagad / Visa / Mastercard)
   const handleRequestCashout = (reqData: Omit<GoldenCashoutRequest, 'id' | 'status'>) => {
     const newReq: GoldenCashoutRequest = {
       ...reqData,
@@ -1914,11 +1975,17 @@ export default function App() {
       status: 'pending',
     };
 
-    // Deduct coins from user's earnedCoins
+    const currentBeans = userProfile.beansBalance ?? userProfile.earnedCoins ?? 0;
+    const nextBeans = Math.max(0, currentBeans - reqData.coinsAmount);
     setUserProfile((prev) => ({
       ...prev,
-      earnedCoins: Math.max(0, (prev.earnedCoins ?? 0) - reqData.coinsAmount),
+      beansBalance: nextBeans,
+      earnedCoins: nextBeans,
     }));
+    void saveUserWalletAndNidToFirestore({
+      beansBalance: nextBeans,
+      earnedCoins: nextBeans,
+    });
 
     const updated = [newReq, ...cashoutRequests];
     persistCashouts(updated);
@@ -2608,6 +2675,79 @@ export default function App() {
     return notifications.filter((n) => n.isUnread).length;
   }, [notifications]);
 
+  // Peaceverse24 YouTube Feed (Showcase + Real-time Firestore/Uploaded videos)
+  const youtubeFeedPosts = React.useMemo(() => {
+    const map = new Map<string, PostItem>();
+    posts.forEach((p) => {
+      if (p && p.id) map.set(p.id, p);
+    });
+    SHOWCASE_VIDEOS.forEach((sv) => {
+      if (!map.has(sv.id)) {
+        map.set(sv.id, sv);
+      }
+    });
+    return Array.from(map.values()).sort(
+      (a, b) => (b.createdAtMillis || 0) - (a.createdAtMillis || 0)
+    );
+  }, [posts]);
+
+  const handleToggleSubscribeCreator = React.useCallback(
+    (post: PostItem) => {
+      if (!firebaseUser) {
+        setShowAuthModal(true);
+        return;
+      }
+      void toggleFollowUser(
+        firebaseUser.uid,
+        effectiveProfile.name,
+        effectiveProfile.avatar,
+        post.authorId || post.author.name,
+        post.author.name,
+        post.author.avatar
+      ).then(() => {
+        setFollowsTick((t) => t + 1);
+      });
+    },
+    [firebaseUser, effectiveProfile.name, effectiveProfile.avatar]
+  );
+
+  const handleNativeShareVideo = React.useCallback(async (post: PostItem) => {
+    handleSharePost(post.id);
+    const shareData = {
+      title: post.contentBangla || 'Peaceverse24 — Peace in Every Video',
+      text: `${post.author.name}: ${post.contentBangla || 'Watch on Peaceverse24'}`,
+      url: window.location.href,
+    };
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+      } else if (navigator.clipboard) {
+        await navigator.clipboard.writeText(window.location.href);
+      }
+    } catch {}
+  }, []);
+
+  const handleToggleBlockCreator = React.useCallback((creatorId: string) => {
+    const next = toggleBlockedCreatorId(creatorId);
+    setBlockedCreatorIds(next);
+    setUserProfile((prev) => ({ ...prev, blockedUserIds: next }));
+  }, []);
+
+  const requireAuthOrRun = React.useCallback(
+    (fn: () => void) => {
+      if (!firebaseUser) {
+        setShowAuthModal(true);
+        return;
+      }
+      fn();
+    },
+    [firebaseUser]
+  );
+
+  useHistoryBack(Boolean(watchingVideoPost), () => setWatchingVideoPost(null), 'yt-watch');
+  useHistoryBack(showYtUpload, () => setShowYtUpload(false), 'yt-upload');
+  useHistoryBack(Boolean(reportTarget), () => setReportTarget(null), 'yt-report');
+
   // Clean logout handler
   const handleLogout = async () => {
     clearSessionStart();
@@ -2752,12 +2892,19 @@ export default function App() {
     );
   }
 
-  // 4. Protected Route Gate: If visitor is NOT logged in with Firebase, show Landing Page
-  if (!firebaseUser) {
+  // 4. Protected Route Gate: If visitor is NOT logged in with Firebase and not browsing as Guest, show Landing Page
+  if (!firebaseUser && !guestBrowseMode) {
     return (
       <>
         <PeaceVerseLanding
           onNavigateTo={navigateToPath}
+          onEnterGuestMode={() => {
+            try {
+              localStorage.setItem('peaceverse24_guest_mode_v1', 'true');
+            } catch {}
+            setGuestBrowseMode(true);
+            navigateToPath('/home');
+          }}
           onOpenDownloadModal={() => {
             void installApp(() => setShowInstallModal(true));
           }}
@@ -2922,15 +3069,27 @@ export default function App() {
     return <GlobalPrayerQiblaView onBack={() => goAppBack(() => navigateToPath('/home'))} />;
   }
 
+  const activeWatchingPost = watchingVideoPost
+    ? youtubeFeedPosts.find((p) => p.id === watchingVideoPost.id) || watchingVideoPost
+    : null;
+  const isShortsTab = currentTab === 'shorts' || currentTab === 'reels';
+  const navActiveTab: 'home' | 'shorts' | 'live' | 'profile' =
+    currentTab === 'live'
+      ? 'live'
+      : isShortsTab
+      ? 'shorts'
+      : currentTab === 'profile'
+      ? 'profile'
+      : 'home';
+
   return (
     <div
-      className={`min-h-screen w-full overflow-x-clip font-sans selection:bg-[#0866FF] selection:text-white ${
-        currentTab === 'reels' ? 'bg-black text-white' : 'bg-white text-black'
+      className={`min-h-screen w-full overflow-x-clip font-sans selection:bg-[#DC2626] selection:text-white ${
+        isShortsTab ? 'bg-black text-white' : 'bg-white text-zinc-950'
       }`}
     >
-      
       {accountReactivatedToast && (
-        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-emerald-600 text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg">
+        <div className="fixed top-16 left-1/2 -translate-x-1/2 z-50 bg-[#16A34A] text-white text-xs font-bold px-4 py-2.5 rounded-full shadow-lg">
           {accountReactivatedToast}
         </div>
       )}
@@ -2951,10 +3110,10 @@ export default function App() {
         </div>
       )}
 
-      {/* 1. Facebook App Top Bar (shown on Home and Marketplace; Reels/Friends/Groups/Pages/Feeds/Profile/Notifications/Menu render their own exact FB headers) */}
-      {currentTab !== 'reels' && currentTab !== 'notifications' && currentTab !== 'profile' && currentTab !== 'menu' && currentTab !== 'groups' && currentTab !== 'friends' && currentTab !== 'pages' && currentTab !== 'feeds' && (
-        <FbHeader
-          userProfile={userProfile}
+      {/* 1. YouTube-Style Top Header (hidden during full-screen vertical Peace Shorts) */}
+      {!isShortsTab && (
+        <YtTopHeader
+          userProfile={effectiveProfile}
           searchQuery={searchQuery}
           onSearchChange={(q) => {
             setSearchQuery(q);
@@ -2962,1135 +3121,268 @@ export default function App() {
               navigateToTab('home');
             }
           }}
-          onSearchSubmit={handleUserSearchSubmit}
-          onOpenCreatePost={() => setShowCreatePost(true)}
-          onOpenCreateStory={() => setShowCreateStory(true)}
-          onOpenCreateReel={() => setShowCreateReel(true)}
-          onOpenLive={() => setShowLive(true)}
-          onOpenMessenger={() => {
-            setShowMessengerModal(true);
-            setActiveChatFriend(null);
+          onSearchSubmit={() => {
+            if (currentTab !== 'home') {
+              navigateToTab('home');
+            }
           }}
-          onOpenMenu={() => navigateToTab('menu')}
-          onOpenQibla={() => navigateToPath('/qibla')}
-          onBack={goBack}
-          showBackButton={currentTab !== 'home'}
-          unreadMessagesCount={unreadMessagesCount}
+          onLogoClick={() => {
+            setSearchQuery('');
+            navigateToTab('home');
+          }}
+          onOpenShorts={() => navigateToTab(isShortsTab ? 'home' : 'shorts')}
+          isShortsActive={isShortsTab}
+          onOpenWallet={() => setShowGoldenWallet(true)}
+          onOpenProfile={() => {
+            setStudioTab('videos');
+            navigateToTab('profile');
+          }}
         />
       )}
 
-      {/* 2. Main Tab Views */}
+      {/* 2. Main Views */}
       <main className="w-full">
-        
-        {/* TAB 1: Home (ফিড - Exact Facebook Style Container max-w-[500px]) */}
-        {currentTab === 'home' && (
-          <div
-            className="max-w-[500px] mx-auto pb-24 space-y-2"
-            onTouchStart={(e) => {
-              if (window.scrollY <= 0 && e.touches.length === 1) {
-                touchStartYRef.current = e.touches[0].clientY;
-              } else {
-                touchStartYRef.current = null;
-              }
-            }}
-            onTouchMove={(e) => {
-              if (touchStartYRef.current !== null && window.scrollY <= 0) {
-                const delta = e.touches[0].clientY - touchStartYRef.current;
-                if (delta > 0) {
-                  setPullDistance(Math.min(delta * 0.45, 64));
-                }
-              }
-            }}
-            onTouchEnd={async () => {
-              if (pullDistance >= 48 && !isPullRefreshing) {
-                setIsPullRefreshing(true);
-                await refreshFeedSilently();
-                setIsPullRefreshing(false);
-              }
-              touchStartYRef.current = null;
-              setPullDistance(0);
-            }}
-          >
-            {/* Mobile Pull-to-Refresh Spinner (visible only while pulling/refreshing) */}
-            {(pullDistance > 12 || isPullRefreshing) && (
-              <div
-                className="flex items-center justify-center overflow-hidden transition-all"
-                style={{ height: isPullRefreshing ? 40 : Math.max(24, pullDistance) }}
-              >
-                <Loader2
-                  className={`w-5 h-5 text-[#0866FF] ${isPullRefreshing ? 'animate-spin' : ''}`}
-                />
-              </div>
-            )}
-
-            {searchQuery.trim().length > 0 ? (
-              <FbUserSearchResults
-                query={searchQuery}
-                results={userSearchResults}
-                pageResults={pageSearchResults}
-                isLoading={isSearchingUsers}
-                currentUserId={firebaseUser?.uid || userProfile.id}
-                currentUserName={effectiveProfile.name}
-                currentUserAvatar={effectiveProfile.avatar}
-                sentRequestIds={sentFriendRequests}
-                onToggleFriendRequest={handleToggleFriendRequest}
-                onOpenPage={(page) => {
-                  try {
-                    localStorage.setItem('peaceverse_visited_page_v1', JSON.stringify(page));
-                    localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
-                  } catch {}
-                  setSelectedPageIdToOpen(page.id);
-                  setSearchQuery('');
-                  navigateToTab('pages');
-                }}
-                onToggleFollowPage={async (page) => {
-                  const nextFollowed = await toggleFollowUser(
-                    firebaseUser?.uid || userProfile.id || 'user-me',
-                    effectiveProfile.name,
-                    effectiveProfile.avatar,
-                    page.id,
-                    page.name,
-                    page.avatar || ''
-                  );
-                  setPageSearchResults((prev) =>
-                    prev.map((pg) =>
-                      pg.id === page.id
-                        ? {
-                            ...pg,
-                            isLiked: nextFollowed,
-                            followersCount: nextFollowed
-                              ? (pg.followersCount || 0) + (pg.isLiked ? 0 : 1)
-                              : Math.max(0, (pg.followersCount || 1) - (pg.isLiked ? 1 : 0)),
-                          }
-                        : pg
-                    )
-                  );
-                }}
-                onOpenUserProfile={openSearchedUserProfile}
-                onRefreshSearch={() => {
-                  void runUserSearch(searchQuery, true);
-                }}
-                onClearSearch={() => setSearchQuery('')}
-              />
-            ) : (
-              <>
-                {/* What's on your mind? Box (using effectiveProfile & activeSwitchedPage) */}
-                <FbCreatePostBox
-                  userProfile={effectiveProfile}
-                  activeSwitchedPage={activeSwitchedPage}
-                  onOpenCreateModal={(media?: string | string[]) => {
-                    if (Array.isArray(media)) {
-                      setInitialPostPhotos(media);
-                    } else if (media) {
-                      setInitialPostPhotos([media]);
-                    } else {
-                      setInitialPostPhotos([]);
-                    }
-                    setShowCreatePost(true);
-                  }}
-                  onOpenProfile={() => {
-                    if (activeSwitchedPage) {
-                      setSelectedPageIdToOpen(activeSwitchedPage.id);
-                      navigateToTab('pages');
-                    } else {
-                      setViewedProfile(null);
-                      navigateToTab('profile');
-                    }
-                  }}
-                />
-
-                {/* Stories & Reels Bar */}
-                <div className="bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] overflow-hidden">
-                  <FbStories
-                    stories={stories}
-                    onOpenCreateStory={() => setShowCreateStory(true)}
-                    onOpenCreateReel={() => setShowCreateReel(true)}
-                    currentUserAvatar={effectiveProfile.avatar}
-                    currentUserName={effectiveProfile.name}
-                  />
-                </div>
-
-                {/* Facebook-identical "Posting..." Circular Charging Banner right below Stories */}
-                {pendingUploadPost && (
-                  <div className="bg-white border border-[#E4E6EB] rounded-[8px] px-3 py-2.5 shadow-[0_1px_2px_rgba(0,0,0,0.08)] flex items-center justify-between gap-3 animate-in fade-in">
-                    <div className="flex items-center gap-3 min-w-0">
-                      <div className="w-10 h-10 rounded-[6px] overflow-hidden bg-[#F0F2F5] border border-[#E4E6EB] shrink-0 flex items-center justify-center">
-                        {(pendingUploadPost.post.mediaUrls?.[0] || pendingUploadPost.post.mediaUrl) &&
-                        pendingUploadPost.post.mediaType !== 'video' ? (
-                          <img
-                            src={pendingUploadPost.post.mediaUrls?.[0] || pendingUploadPost.post.mediaUrl}
-                            alt="Uploading"
-                            className="w-full h-full object-cover"
-                          />
-                        ) : (
-                          <img
-                            src={pendingUploadPost.post.author?.avatar || effectiveProfile.avatar}
-                            alt={pendingUploadPost.post.author?.name || 'Post'}
-                            className="w-full h-full object-cover"
-                          />
-                        )}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="text-[14px] font-bold text-[#050505] leading-tight">
-                          Posting...
-                        </p>
-                        <p className="text-[12px] text-[#65676B] truncate mt-0.5">
-                          Keep PeaceVerse open.
-                        </p>
-                      </div>
-                    </div>
-
-                    <svg
-                      className="w-6 h-6 -rotate-90 shrink-0"
-                      viewBox="0 0 24 24"
-                      aria-label="Upload progress"
-                    >
-                      <circle cx="12" cy="12" r="9.5" fill="none" stroke="#E4E6EB" strokeWidth="2.5" />
-                      <circle
-                        cx="12"
-                        cy="12"
-                        r="9.5"
-                        fill="none"
-                        stroke="#0866FF"
-                        strokeWidth="2.5"
-                        strokeLinecap="round"
-                        strokeDasharray={2 * Math.PI * 9.5}
-                        strokeDashoffset={
-                          2 * Math.PI * 9.5 * (1 - pendingUploadPost.progress / 100)
-                        }
-                        className="transition-all duration-300 ease-out"
-                      />
-                    </svg>
-                  </div>
-                )}
-
-                {/* Freshly uploaded post(s) (< 3 mins) pinned #1 directly below Stories matching Facebook */}
-                {freshTopPosts.length > 0 && (
-                  <div className="space-y-2.5">
-                    {freshTopPosts.map((post) => {
-                      const normAuthor = (s?: string) =>
-                        (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
-                      const isOwnedPagePost = (() => {
-                        const an = normAuthor(post.author?.name);
-                        const isPersonalAuthor =
-                          Boolean(post.authorId && userProfile.id && post.authorId === userProfile.id) ||
-                          (Boolean(post.authorId) && !post.authorId!.startsWith('page-'));
-                        if (isPersonalAuthor) return false;
-                        if (activeSwitchedPage && post.authorId && post.authorId === activeSwitchedPage.id) {
-                          return true;
-                        }
-                        if (activeSwitchedPage && an && an === normAuthor(activeSwitchedPage.name)) {
-                          return true;
-                        }
-                        try {
-                          const sp: PageItem[] = JSON.parse(localStorage.getItem('qalby_fb_pages') || '[]');
-                          return sp.some(
-                            (pg) =>
-                              pg.isOwner !== false &&
-                              ((post.authorId && pg.id === post.authorId) || (an && normAuthor(pg.name) === an))
-                          );
-                        } catch {
-                          return false;
-                        }
-                      })();
-                      return (
-                      <div key={post.id} id={`post-${post.id}`}>
-                        <FbPostCard
-                          post={post}
-                          onToggleReaction={handleToggleReaction}
-                          onToggleSave={handleToggleSave}
-                          onAddComment={handleAddComment}
-                          onEditPost={handleEditPost}
-                          onDeletePost={handleDeletePost}
-                          currentUserId={effectiveProfile.id || userProfile.id}
-                          currentUserName={effectiveProfile.name}
-                          currentUserAvatar={effectiveProfile.avatar}
-                          showBoostControls={isOwnedPagePost}
-                          onOpenProfile={async (authorName) => {
-                            const norm = (s?: string) =>
-                              (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
-                            try {
-                              const storedPages: PageItem[] = JSON.parse(
-                                localStorage.getItem('qalby_fb_pages') || '[]'
-                              );
-                              const matchedPage = storedPages.find(
-                                (pg) =>
-                                  (post.authorId && pg.id === post.authorId) ||
-                                  (authorName && norm(pg.name) === norm(authorName))
-                              );
-                              if (matchedPage) {
-                                setSelectedPageIdToOpen(matchedPage.id);
-                                navigateToTab('pages');
-                                return;
-                              }
-                            } catch {}
-                            if (
-                              activeSwitchedPage &&
-                              ((post.authorId && activeSwitchedPage.id === post.authorId) ||
-                                (authorName && norm(activeSwitchedPage.name) === norm(authorName)))
-                            ) {
-                              setSelectedPageIdToOpen(activeSwitchedPage.id);
-                              navigateToTab('pages');
-                              return;
-                            }
-                            if (!authorName || authorName === userProfile.name) {
-                              setViewedProfile(null);
-                              navigateToTab('profile');
-                              return;
-                            }
-                            const dummyMatch = findDummyCommunityUser(post.authorId || authorName);
-                            const baseAuthorProfile: UserProfile = {
-                              id: dummyMatch?.id || post.authorId || `author-${authorName}`,
-                              name: dummyMatch?.displayName || authorName,
-                              username: dummyMatch?.username,
-                              avatar: dummyMatch?.avatar || post.author.avatar,
-                              coverPhoto:
-                                dummyMatch?.coverPhoto ||
-                                'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                              friendsCount: 0,
-                              bio: dummyMatch?.bio || '',
-                              location: dummyMatch?.location || 'Dhaka, Bangladesh',
-                              hometown: 'Bangladesh',
-                              birthDate: '1994',
-                              verified: dummyMatch?.verified ?? post.author.verified,
-                              isCreator: dummyMatch?.allowFriendRequests === false,
-                              contactPrivacy: 'public',
-                            };
-                            setViewedProfile(baseAuthorProfile);
-                            navigateToTab('profile');
-                            const remote = await fetchUserProfileByNameFromFirestore(authorName);
-                            if (remote) {
-                              setViewedProfile((prev) =>
-                                prev && prev.name === authorName ? { ...prev, ...remote } : prev
-                              );
-                            }
-                          }}
-                          onTypingChange={handleTypingChange}
-                          onOpenReel={(p) => setActiveReelPostId(p.id)}
-                          onOpenGiftModal={(p) => setSelectedGiftPost(p)}
-                          onSharePost={handleSharePost}
-                        />
-                      </div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {/* Admin-Controlled Story Banner Ad */}
-                {adPlacementConfig.story_ad_enabled && storyAds.length > 0 && (
-                  <SponsoredAdCard
-                    ad={storyAds[0]}
-                    variant="banner"
-                    onAdClick={(ad) => trackAdClick(ad.id)}
-                  />
-                )}
-
-                {/* Global Prayer Times, Daily Quran Verse & Qibla Compass Strip */}
-                <div className="bg-white border border-[#E4E6EB] rounded-[8px] p-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] space-y-2">
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="w-7 h-7 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
-                        <Clock className="w-4 h-4" />
-                      </span>
-                      <div className="min-w-0">
-                        <p className="text-xs font-bold text-black truncate">
-                          {globalCity.flag} {globalCity.city} •{' '}
-                          {globalPrayerSchedule
-                            ? `Next: ${globalPrayerSchedule.nextPrayer.name} (${formatPrayerTime12h(globalPrayerSchedule.nextPrayer.time)})`
-                            : 'Global Prayer Times'}
-                        </p>
-                        <p className="text-[10px] text-[#65676B] truncate">
-                          Peaceverse24.com — World&apos;s Most Peaceful Social Network for 8 Billion People
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-1.5 shrink-0">
-                      <button
-                        type="button"
-                        onClick={handleToggleAdhan}
-                        aria-label={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
-                        title={adhanEnabled ? 'Adhan notifications ON' : 'Adhan notifications OFF'}
-                        className={`px-2.5 py-1.5 rounded-full text-[11px] font-bold flex items-center gap-1 transition-colors cursor-pointer border ${
-                          adhanEnabled
-                            ? 'bg-emerald-50 text-emerald-700 border-emerald-300 hover:bg-emerald-100'
-                            : 'bg-[#F0F2F5] text-[#65676B] border-[#E4E6EB] hover:bg-[#E4E6EB] hover:text-black'
-                        }`}
-                      >
-                        {adhanEnabled ? (
-                          <Bell className="w-3.5 h-3.5 text-emerald-600" />
-                        ) : (
-                          <BellOff className="w-3.5 h-3.5 text-[#65676B]" />
-                        )}
-                        <span>{adhanEnabled ? 'ON' : 'OFF'}</span>
-                      </button>
-
-                      <button
-                        type="button"
-                        onClick={() => navigateToPath('/qibla')}
-                        className="px-2.5 py-1.5 rounded-full bg-[#E7F3FF] text-[#0866FF] text-[11px] font-bold flex items-center gap-1 shrink-0 hover:bg-[#0866FF] hover:text-white transition-colors cursor-pointer"
-                      >
-                        <Compass className="w-3.5 h-3.5" />
-                        <span>Qibla</span>
-                      </button>
-                    </div>
-                  </div>
-
-                  <div className="p-2 rounded-lg bg-[#F0F2F5] flex items-start gap-2 text-[11px]">
-                    <BookOpen className="w-3.5 h-3.5 text-emerald-600 shrink-0 mt-0.5" />
-                    <p className="text-black leading-snug">
-                      <span className="font-bold text-emerald-700">
-                        {getDailyQuranVerse(currentLang).surahRef}:{' '}
-                      </span>
-                      {getDailyQuranVerse(currentLang).localized}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Filter Tabs + For You / Latest Toggle */}
-                <div className="flex items-center justify-between gap-2 px-[15px] py-2 bg-white border border-[#E4E6EB] rounded-[8px] shadow-[0_1px_2px_rgba(0,0,0,0.1)] text-sm overflow-x-auto no-scrollbar">
-                  <div className="flex items-center gap-[14px]">
-                    <button
-                      onClick={() => setFeedPrivacyFilter('all')}
-                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                        feedPrivacyFilter === 'all'
-                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                          : 'text-[#65676B] hover:text-black'
-                      }`}
-                    >
-                      সব পোস্ট
-                    </button>
-                    <button
-                      onClick={() => setFeedPrivacyFilter('public')}
-                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                        feedPrivacyFilter === 'public'
-                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                          : 'text-[#65676B] hover:text-black'
-                      }`}
-                    >
-                      পাবলিক
-                    </button>
-                    <button
-                      onClick={() => setFeedPrivacyFilter('friends')}
-                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                        feedPrivacyFilter === 'friends'
-                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                          : 'text-[#65676B] hover:text-black'
-                      }`}
-                    >
-                      বন্ধুরা
-                    </button>
-                    <button
-                      onClick={() => setFeedPrivacyFilter('private')}
-                      className={`transition-colors whitespace-nowrap cursor-pointer pb-[5px] ${
-                        feedPrivacyFilter === 'private'
-                          ? 'text-[#0866FF] border-b-[3px] border-[#0866FF] font-bold'
-                          : 'text-[#65676B] hover:text-black'
-                      }`}
-                    >
-                      শুধুমাত্র আমি
-                    </button>
-                  </div>
-
-                  <div className="flex items-center gap-1 bg-[#F0F2F5] p-0.5 rounded-full shrink-0">
-                    <button
-                      type="button"
-                      onClick={() => setFeedSortMode('for_you')}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
-                        feedSortMode === 'for_you'
-                          ? 'bg-emerald-600 text-white shadow-2xs'
-                          : 'text-[#65676B] hover:text-black'
-                      }`}
-                    >
-                      For You
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setFeedSortMode('latest')}
-                      className={`px-2.5 py-1 rounded-full text-[11px] font-bold transition-colors cursor-pointer whitespace-nowrap ${
-                        feedSortMode === 'latest'
-                          ? 'bg-emerald-600 text-white shadow-2xs'
-                          : 'text-[#65676B] hover:text-black'
-                      }`}
-                    >
-                      Latest
-                    </button>
-                  </div>
-                </div>
-
-                {/* Posts Feed */}
-                <div className="space-y-2.5">
-                  {filteredPosts.length === 0 && !pendingUploadPost ? (
-                    <div className="bg-white rounded-[8px] border border-[#E4E6EB] p-8 text-center space-y-3 shadow-[0_1px_2px_rgba(0,0,0,0.1)] my-2">
-                      <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-600 mx-auto shadow-sm">
-                        <Sparkles className="w-7 h-7" />
-                      </div>
-                      <h3 className="text-base font-bold text-black">
-                        No posts yet - Create first halal post
-                      </h3>
-                      <p className="text-xs text-[#65676B] max-w-sm mx-auto">
-                        Share uplifting reminders, photos, videos, or Quran verses with the ummah.
-                      </p>
-                      <button
-                        type="button"
-                        onClick={() => setShowCreatePost(true)}
-                        className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-sm transition-colors cursor-pointer whitespace-nowrap"
-                      >
-                        Create First Halal Post
-                      </button>
-                    </div>
-                  ) : (
-                    <>
-                  {regularVisiblePosts.map((post, postIndex) => {
-                    const adFreq = Math.max(1, adPlacementConfig.home_feed_frequency || 3);
-                    const shouldShowFeedAd =
-                      adPlacementConfig.home_feed_enabled &&
-                      homeFeedAds.length > 0 &&
-                      (postIndex + 1) % adFreq === 0;
-                    const feedAd = shouldShowFeedAd
-                      ? homeFeedAds[Math.floor(postIndex / adFreq) % homeFeedAds.length]
-                      : null;
-
-                    const isOwnedPagePost = (() => {
-                      const normAuthor = (s?: string) =>
-                        (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
-                      const an = normAuthor(post.author?.name);
-                      const isPersonalAuthor =
-                        Boolean(post.authorId && userProfile.id && post.authorId === userProfile.id) ||
-                        (Boolean(post.authorId) && !post.authorId!.startsWith('page-'));
-                      if (isPersonalAuthor) return false;
-                      if (activeSwitchedPage && post.authorId && post.authorId === activeSwitchedPage.id) {
-                        return true;
-                      }
-                      if (activeSwitchedPage && an && an === normAuthor(activeSwitchedPage.name)) {
-                        return true;
-                      }
-                      try {
-                        const sp: PageItem[] = JSON.parse(localStorage.getItem('qalby_fb_pages') || '[]');
-                        return sp.some(
-                          (pg) =>
-                            pg.isOwner !== false &&
-                            ((post.authorId && pg.id === post.authorId) || (an && normAuthor(pg.name) === an))
-                        );
-                      } catch {
-                        return false;
-                      }
-                    })();
-
-                    return (
-                      <React.Fragment key={post.id}>
-                        <div id={`post-${post.id}`}>
-                          <FbPostCard
-                            post={post}
-                            onToggleReaction={handleToggleReaction}
-                            onToggleSave={handleToggleSave}
-                            onAddComment={handleAddComment}
-                            onEditPost={handleEditPost}
-                            onDeletePost={handleDeletePost}
-                            currentUserId={effectiveProfile.id || userProfile.id}
-                            currentUserName={effectiveProfile.name}
-                            currentUserAvatar={effectiveProfile.avatar}
-                            showBoostControls={isOwnedPagePost}
-                            onOpenProfile={async (authorName) => {
-                              const norm = (s?: string) =>
-                                (s || '').normalize('NFC').replace(/\s+/g, ' ').trim().toLowerCase();
-                              try {
-                                const storedPages: PageItem[] = JSON.parse(
-                                  localStorage.getItem('qalby_fb_pages') || '[]'
-                                );
-                                const matchedPage = storedPages.find(
-                                  (pg) =>
-                                    (post.authorId && pg.id === post.authorId) ||
-                                    (authorName && norm(pg.name) === norm(authorName))
-                                );
-                                if (matchedPage) {
-                                  setSelectedPageIdToOpen(matchedPage.id);
-                                  navigateToTab('pages');
-                                  return;
-                                }
-                              } catch {}
-                                if (
-                                  activeSwitchedPage &&
-                                  ((post.authorId && activeSwitchedPage.id === post.authorId) ||
-                                    (authorName && norm(activeSwitchedPage.name) === norm(authorName)))
-                                ) {
-                                  setSelectedPageIdToOpen(activeSwitchedPage.id);
-                                  navigateToTab('pages');
-                                  return;
-                                }
-                                if (post.authorId?.startsWith('page-')) {
-                                  setSelectedPageIdToOpen(post.authorId);
-                                  navigateToTab('pages');
-                                  return;
-                                }
-                              if (!authorName || authorName === userProfile.name) {
-                                setViewedProfile(null);
-                                navigateToTab('profile');
-                                return;
-                              }
-                              const dummyMatch = findDummyCommunityUser(post.authorId || authorName);
-                              const baseAuthorProfile: UserProfile = {
-                                id: dummyMatch?.id || post.authorId || `author-${authorName}`,
-                                name: dummyMatch?.displayName || authorName,
-                                username: dummyMatch?.username,
-                                avatar: dummyMatch?.avatar || post.author.avatar,
-                                coverPhoto:
-                                  dummyMatch?.coverPhoto ||
-                                  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                                friendsCount: 0,
-                                bio: dummyMatch?.bio || '',
-                                location: dummyMatch?.location || 'Dhaka, Bangladesh',
-                                hometown: 'Bangladesh',
-                                birthDate: '1994',
-                              verified: dummyMatch?.verified ?? post.author.verified,
-                              isCreator: dummyMatch?.allowFriendRequests === false,
-                              contactPrivacy: 'public',
-                            };
-                            setViewedProfile(baseAuthorProfile);
-                            navigateToTab('profile');
-                            const remote = await fetchUserProfileByNameFromFirestore(authorName);
-                            if (remote) {
-                              setViewedProfile((prev) =>
-                                prev && prev.name === authorName ? { ...prev, ...remote } : prev
-                              );
-                            }
-                          }}
-                          onTypingChange={handleTypingChange}
-                          onOpenReel={(p) => setActiveReelPostId(p.id)}
-                          onOpenGiftModal={(p) => setSelectedGiftPost(p)}
-                          onSharePost={handleSharePost}
-                        />
-                        </div>
-                        {postIndex === 1 && (
-                          <FbPeopleYouMayKnowSection
-                            variant="feed"
-                            currentUserId={effectiveProfile.id || userProfile.id}
-                            currentUserName={effectiveProfile.name}
-                            currentUserAvatar={effectiveProfile.avatar}
-                            onSeeAllFriends={() => navigateToTab('friends')}
-                            onOpenUserProfile={openSearchedUserProfile}
-                          />
-                        )}
-                        {feedAd && (
-                          <SponsoredAdCard
-                            ad={feedAd}
-                            variant="feed"
-                            onAdClick={(ad) => trackAdClick(ad.id)}
-                          />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
-                  {regularVisiblePosts.length < 2 && (
-                    <FbPeopleYouMayKnowSection
-                      variant="feed"
-                      currentUserId={effectiveProfile.id || userProfile.id}
-                      currentUserName={effectiveProfile.name}
-                      currentUserAvatar={effectiveProfile.avatar}
-                      onSeeAllFriends={() => navigateToTab('friends')}
-                      onOpenUserProfile={openSearchedUserProfile}
-                    />
-                  )}
-
-                  {/* Infinite Scroll Sentinel: loads next 10 videos as user scrolls */}
-                  <div ref={bottomSentinelRef} className="py-4 flex items-center justify-center">
-                    {visibleCount < filteredPosts.length && (
-                      <div className="flex items-center gap-2 text-xs text-[#b0b3b8]">
-                        <Loader2 className="w-4 h-4 animate-spin text-[#1877F2]" />
-                        <span>Loading more videos & posts...</span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              )}
-
-              {/* Subtle Bottom-of-Home Blog Section (kept below feed, not at the top of Home) */}
-              <div className="mt-4 pt-3 border-t border-[#E4E6EB]">
-                <div className="bg-white border border-[#E4E6EB] rounded-xl p-3.5 flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2.5 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-emerald-50 text-emerald-700 flex items-center justify-center shrink-0">
-                      <BookOpen className="w-4 h-4" />
-                    </div>
-                    <div className="min-w-0">
-                      <p className="text-xs font-bold text-black truncate">
-                        PeaceVerse24 Blog
-                      </p>
-                      <p className="text-[11px] text-[#65676B] truncate">
-                        শান্তি, ভালোবাসা আর পজিটিভ গল্প পড়ুন
-                      </p>
-                    </div>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => navigateToPath('/blog')}
-                    className="px-3 py-1.5 rounded-lg bg-[#F0F2F5] hover:bg-[#E4E6EB] text-[#0866FF] text-xs font-bold shrink-0 cursor-pointer transition-colors"
-                  >
-                    ব্লগ দেখুন →
-                  </button>
-                </div>
-              </div>
-            </div>
-              </>
-            )}
-          </div>
-        )}
-
-        {/* TAB 2: Reels / Watch (সরাসরি ফুল-স্ক্রিন ফেসবুক রিলস প্লেয়ার) */}
-        {currentTab === 'reels' && (
-          <FbWatchView
-            posts={posts}
-            onToggleReaction={handleToggleReaction}
-            onToggleSave={handleToggleSave}
-            onAddComment={handleAddComment}
-            onBack={goBack}
-            onOpenReel={(p) => setActiveReelPostId(p.id)}
-            onOpenGiftModal={(p) => setSelectedGiftPost(p)}
-            onOpenLive={() => setShowLive(true)}
-            onOpenMenu={() => navigateToTab('menu')}
-            onOpenCreateReel={() => setShowCreateReel(true)}
-            onOpenProfile={async (name, avatar, subtitle) => {
-              if (!name || name === userProfile.name) {
-                setViewedProfile(null);
-                navigateToTab('profile');
-                return;
-              }
-              const dummyMatch = findDummyCommunityUser(name);
-              const baseAuthorProfile: UserProfile = {
-                id: dummyMatch?.id || `author-${name}`,
-                name: dummyMatch?.displayName || name,
-                username: dummyMatch?.username,
-                avatar: dummyMatch?.avatar || avatar,
-                bio: dummyMatch?.bio || subtitle,
-                coverPhoto:
-                  dummyMatch?.coverPhoto ||
-                  'https://images.unsplash.com/photo-1579546929518-9e396f3cc809?auto=format&fit=crop&w=1200&q=80',
-                friendsCount: 0,
-                location: dummyMatch?.location || 'Dhaka, Bangladesh',
-                hometown: 'Bangladesh',
-                birthDate: '1994',
-                verified: dummyMatch?.verified,
-                isCreator: dummyMatch?.allowFriendRequests === false,
-                contactPrivacy: 'public',
-              };
-              setViewedProfile(baseAuthorProfile);
-              navigateToTab('profile');
-              const remote = await fetchUserProfileByNameFromFirestore(name);
-              if (remote) {
-                setViewedProfile((prev) =>
-                  prev && prev.name === name ? { ...prev, ...remote } : prev
-                );
-              }
-            }}
-            currentUserName={effectiveProfile.name}
-            currentUserAvatar={effectiveProfile.avatar}
-          />
-        )}
-
-        {/* TAB 3: Friends (ফ্রেন্ডস ও উম্মাহ - matching FB Friends) */}
-        {currentTab === 'friends' && (
-          <div className="bg-white min-h-screen">
-            <FbFriendsView
-              onBack={goBack}
-              onConfirmRequest={handleConfirmRequest}
-              onDeleteRequest={handleDeleteRequest}
-              onCreatePageWithName={handleCreatePageWithName}
-              onOpenProfile={() => {
-                setViewedProfile(null);
-                navigateToTab('profile');
-              }}
-              onOpenUserProfile={openSearchedUserProfile}
-              onMessageFriend={openChatWithUser}
-              currentUserId={firebaseUser?.uid || userProfile.id || 'user-me'}
-              currentUserName={effectiveProfile.name}
-              currentUserAvatar={effectiveProfile.avatar}
-            />
-          </div>
-        )}
-
-        {/* TAB 4: Marketplace (মার্কেটপ্লেস ও হালাল শপ) */}
-        {currentTab === 'marketplace' && (
-          <div>
-            {adPlacementConfig.marketplace_top_enabled && marketplaceAds.length > 0 && (
-              <div className="px-2 pt-2">
-                <SponsoredAdCard
-                  ad={marketplaceAds[0]}
-                  variant="banner"
-                  onAdClick={(ad) => trackAdClick(ad.id)}
-                />
-              </div>
-            )}
-            <FbMarketplaceView
-              onBack={goBack}
-              userProfile={effectiveProfile}
-              onBroadcastNotification={addLocalBroadcastNotification}
-            />
-          </div>
-        )}
-
-        {/* TAB 5: Notifications (নোটিফিকেশন - Screenshot 2) */}
-        {currentTab === 'notifications' && (
-          <FbNotificationsView
-            notifications={notifications}
-            onOpenMenu={() => navigateToTab('menu')}
-            onBack={goBack}
-            onConfirmRequest={handleConfirmRequest}
-            onDeleteRequest={handleDeleteRequest}
-            onOpenNotification={handleOpenNotification}
-            onMarkAllRead={() => {
-              setNotifications((prev) => prev.map((n) => ({ ...n, isUnread: false, read: true })));
-              markAllRealtimeNotificationsRead(notifications);
-            }}
-          />
-        )}
-
-        {/* TAB 6: Profile (প্রোফাইল - Screenshot 4) */}
-        {currentTab === 'profile' && (
-          <FbProfileView
-            userProfile={userProfile}
-            userPosts={
-              viewedProfile
-                ? posts.filter((p) => matchesProfileAuthor(p, viewedProfile))
-                : userPosts
+        {/* SHORTS TAB */}
+        {isShortsTab ? (
+          <YtShortsView
+            posts={youtubeFeedPosts}
+            initialShortId={activeReelPostId}
+            userProfile={effectiveProfile}
+            blockedCreatorIds={blockedCreatorIds}
+            followsTick={followsTick}
+            onBack={() => navigateToTab('home')}
+            onOpenUploadShort={() =>
+              requireAuthOrRun(() => {
+                setYtUploadMode('short');
+                setShowYtUpload(true);
+              })
             }
-            viewedProfile={viewedProfile}
-            onBackToOwnProfile={() => setViewedProfile(null)}
-            onOpenMenu={() => navigateToTab('menu')}
-            onOpenPages={() => navigateToTab('pages')}
-            activeSwitchedPageId={activeSwitchedPage?.id || null}
-            onSwitchToPage={(page) => handleSwitchToPage(page)}
-            onSwitchToPersonal={handleSwitchToPersonal}
-            onBack={() => {
-              setViewedProfile(null);
-              goBack();
-            }}
-            onAddStory={() => setShowCreateStory(true)}
-            onToggleReaction={handleToggleReaction}
+            onToggleSubscribe={handleToggleSubscribeCreator}
+            onToggleLike={(postId) => handleToggleReaction(postId, 'like')}
             onToggleSave={handleToggleSave}
+            onShare={handleNativeShareVideo}
             onAddComment={handleAddComment}
-            onUpdateProfile={(updated) => {
-              setUserProfile(updated);
-              saveUserProfileToFirestore(updated);
-            }}
-            onEditPost={handleEditPost}
-            onDeletePost={handleDeletePost}
-            onOpenReel={(p) => setActiveReelPostId(p.id)}
-            onOpenGoldenWallet={() => setShowGoldenWallet(true)}
-            onMessageUser={openChatWithUser}
+            onOpenGift={(p) => requireAuthOrRun(() => setSelectedGiftPost(p))}
+            onOpenReportBlock={(p) =>
+              setReportTarget({
+                targetType: 'short',
+                targetId: p.id,
+                targetTitle: p.contentBangla,
+                creatorId: p.authorId || p.author.name,
+                creatorName: p.author.name,
+              })
+            }
           />
-        )}
-
-        {/* TAB 7: Menu (মেনু - Screenshot 5) */}
-        {currentTab === 'menu' && (
-          <FbMenuView
-            userProfile={userProfile}
-            onUpdateProfile={(updated) => {
-              setUserProfile(updated);
-              saveUserProfileToFirestore(updated);
-            }}
-            activeSwitchedPage={activeSwitchedPage}
-            onSwitchToPage={handleSwitchToPage}
-            onOpenSwitchedPage={(page) => {
-              setSelectedPageIdToOpen(page.id);
-              try {
-                localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
-              } catch {}
-              navigateToTab('pages');
-            }}
-            onOpenPageWithSwitch={(page) => {
-              setSelectedPageIdToOpen(page.id);
-              setOpenPageSwitchSheetOnOpen(true);
-              try {
-                localStorage.setItem('peaceverse_selected_page_id_v1', page.id);
-              } catch {}
-              navigateToTab('pages');
-            }}
-            onSwitchToPersonal={handleSwitchToPersonal}
-            onNavigateTab={navigateToTab}
-            onOpenProfile={() => {
-              setViewedProfile(null);
+        ) : currentTab === 'live' ? (
+          /* LIVE TAB: 6-Seat Likee-Style Peace Live + 5-Min PK Battle */
+          <YtPeaceLiveView
+            userProfile={effectiveProfile}
+            blockedCreatorIds={blockedCreatorIds}
+            onDeductCoinsAndAwardBeans={(coins, isHost) =>
+              handleSendPeaceGiftAmount(coins, isHost)
+            }
+            onOpenWallet={() => setShowGoldenWallet(true)}
+            onRequestNidVerification={() => {
+              setStudioTab('nid');
               navigateToTab('profile');
             }}
-            onOpenHalalPolicy={() => setShowHalalPolicy(true)}
+            onOpenReportBlockRoom={(room: PeaceLiveRoom) =>
+              setReportTarget({
+                targetType: 'live',
+                targetId: room.id,
+                targetTitle: room.title,
+                creatorId: room.hostId,
+                creatorName: room.hostName,
+              })
+            }
+          />
+        ) : currentTab === 'profile' ? (
+          /* STUDIO PROFILE TAB: My Videos, Coins, Beans 60%, Withdraw, 18+ NID, Report/Block */
+          <YtStudioProfileView
+            userProfile={effectiveProfile}
+            myPosts={userPosts}
+            initialTab={studioTab}
+            blockedCreatorIds={blockedCreatorIds}
+            isAdmin={isAdmin}
+            onBack={() => navigateToTab('home')}
+            onWatchVideo={(p) => setWatchingVideoPost(p)}
+            onOpenWallet={() => setShowGoldenWallet(true)}
+            onSaveNidVerification={async (nid: NidVerificationData) => {
+              setUserProfile((prev) => ({ ...prev, nidVerification: nid }));
+              await saveUserWalletAndNidToFirestore({ nidVerification: nid });
+            }}
+            onUnblockCreator={handleToggleBlockCreator}
             onOpenAdminPortal={() => {
               navigateToPath('/admin');
               setShowAdminPortal(true);
             }}
-            onOpenMonetization={() => setShowMonetizationModal(true)}
-            onOpenGoldenWallet={() => setShowGoldenWallet(true)}
-            onOpenLegalTab={(tab) => {
-              setLegalModalTab(tab);
-            }}
-            onOpenInstallModal={() => {
-              void installApp(() => setShowInstallModal(true));
-            }}
-            onOpenAuth={() => setShowAuthModal(true)}
+            onOpenLegalTab={(tab) => setLegalModalTab(tab)}
             onLogout={handleLogout}
-            onBack={goBack}
-            onBroadcastNotification={addLocalBroadcastNotification}
-            onOpenMessenger={() => {
-              setShowMessengerModal(true);
-              setActiveChatFriend(null);
+          />
+        ) : (
+          /* HOME TAB: YouTube-Style Video Feed + Peace Shorts Shelf */
+          <YtHomeFeed
+            posts={youtubeFeedPosts}
+            searchQuery={searchQuery}
+            blockedCreatorIds={blockedCreatorIds}
+            followsTick={followsTick}
+            onToggleSubscribe={handleToggleSubscribeCreator}
+            onWatchVideo={(p) => setWatchingVideoPost(p)}
+            onOpenShortsAt={(id) => {
+              setActiveReelPostId(id || null);
+              navigateToTab('shorts');
             }}
-            unreadMessagesCount={unreadMessagesCount}
-            onPublishReel={handleReelCreated}
-            onNavigatePath={navigateToPath}
-            onExportMyData={handleExportMyData}
+            onToggleLike={(postId) => handleToggleReaction(postId, 'like')}
+            onOpenComments={(p) => setWatchingVideoPost(p)}
+            onShare={handleNativeShareVideo}
+            onToggleSave={handleToggleSave}
+            onOpenGift={(p) => requireAuthOrRun(() => setSelectedGiftPost(p))}
+            onOpenReportBlock={(p) =>
+              setReportTarget({
+                targetType: p.isShort || p.videoKind === 'reel' ? 'short' : 'video',
+                targetId: p.id,
+                targetTitle: p.contentBangla,
+                creatorId: p.authorId || p.author.name,
+                creatorName: p.author.name,
+              })
+            }
+            onOpenUpload={() =>
+              requireAuthOrRun(() => {
+                setYtUploadMode('choose');
+                setShowYtUpload(true);
+              })
+            }
           />
         )}
-
-        {/* TAB 8: Saved Posts */}
-        {currentTab === 'saved' && (
-          <div className="pt-2 px-2 sm:px-0">
-            <FbSavedPostsView
-              posts={posts}
-              onToggleReaction={handleToggleReaction}
-              onToggleSave={handleToggleSave}
-              onAddComment={handleAddComment}
-              onBackToFeed={goBack}
-              onOpenReel={(p) => setActiveReelPostId(p.id)}
-            />
-          </div>
-        )}
-
-        {/* TAB 9: Groups */}
-        {currentTab === 'groups' && (
-          <div className="bg-white min-h-screen">
-            <FbGroupsView
-              onBack={goBack}
-              onOpenMenu={() => navigateToTab('menu')}
-              userProfile={userProfile}
-            />
-          </div>
-        )}
-
-        {/* TAB 10: Pages */}
-        {currentTab === 'pages' && (
-          <div className="bg-white min-h-screen">
-            <FbPagesView
-              onBack={() => {
-                setSelectedPageIdToOpen(null);
-                setOpenPageSwitchSheetOnOpen(false);
-                setInitialCreatePageName(null);
-                try {
-                  localStorage.removeItem('peaceverse_selected_page_id_v1');
-                } catch {}
-                goBack();
-              }}
-              userProfile={userProfile}
-              onSwitchToPage={handleSwitchToPage}
-              activeSwitchedPageId={activeSwitchedPage?.id || null}
-              onBroadcastNotification={addLocalBroadcastNotification}
-              initialSelectedPageId={selectedPageIdToOpen}
-              onClearInitialSelectedPageId={() => setSelectedPageIdToOpen(null)}
-              openSwitchSheetOnInitialOpen={openPageSwitchSheetOnOpen}
-              onClearOpenSwitchSheet={() => setOpenPageSwitchSheetOnOpen(false)}
-              initialCreatePageName={initialCreatePageName}
-              onClearInitialCreatePageName={() => setInitialCreatePageName(null)}
-              feedPosts={posts}
-              onToggleFeedReaction={handleToggleReaction}
-              onToggleFeedSave={handleToggleSave}
-              onAddFeedComment={handleAddComment}
-              onEditFeedPost={handleEditPost}
-              onDeleteFeedPost={handleDeletePost}
-              onOpenFeedReel={(p) => setActiveReelPostId(p.id)}
-              onOpenFeedGiftModal={(p) => setSelectedGiftPost(p)}
-              onPublishFeedPost={(newFeedPost) => {
-                setPosts((prev) => [newFeedPost, ...prev.filter((p) => p.id !== newFeedPost.id)]);
-                insertSupabasePost(newFeedPost, firebaseUser?.uid || userProfile.id);
-                createRealtimePost(newFeedPost);
-              }}
-            />
-          </div>
-        )}
-
-        {/* TAB 11: Feeds (Genuine Facebook White Full-Screen Feeds) */}
-        {currentTab === 'feeds' && (
-          <div className="bg-white min-h-screen">
-            <FbFeedsView
-              posts={posts}
-              userProfile={userProfile}
-              onBack={goBack}
-              onOpenProfile={() => {
-                setViewedProfile(null);
-                navigateToTab('profile');
-              }}
-              onToggleReaction={handleToggleReaction}
-              onAddComment={handleAddComment}
-            />
-          </div>
-        )}
-
-        {/* TAB 12: Memories */}
-        {currentTab === 'memories' && (
-          <FbMemoriesView onBack={goBack} posts={posts} />
-        )}
-
       </main>
 
-      {/* Bottom dark "Posting..." pill toast while upload charging ring is running */}
-      {pendingUploadPost && (
-        <div className="fixed bottom-16 inset-x-3 max-w-[660px] mx-auto z-40 bg-[#242526] text-white text-[13px] font-medium px-4 py-3 rounded-[8px] shadow-xl animate-in fade-in">
-          Posting...
-        </div>
+      {/* 3. STRICTLY 3 BUTTONS Bottom Navigation: Home | + | Live */}
+      {!isShortsTab && (
+        <YtBottomNav
+          activeTab={navActiveTab}
+          onSelectHome={() => navigateToTab('home')}
+          onOpenCreate={() =>
+            requireAuthOrRun(() => {
+              setYtUploadMode('choose');
+              setShowYtUpload(true);
+            })
+          }
+          onSelectLive={() => navigateToTab('live')}
+        />
       )}
 
-      {/* 3. Exact 6-Icon Bottom Navigation Bar */}
-      <FbBottomNav
-        currentTab={currentTab}
-        onTabChange={navigateToTab}
-        onOpenOwnProfile={() => {
-          if (activeSwitchedPage) {
-            setSelectedPageIdToOpen(activeSwitchedPage.id);
-            navigateToTab('pages');
+      {/* 4. Easy Upload Modal (Video / Peace Short 15s-1m / Go Live) */}
+      <YtUploadModal
+        isOpen={showYtUpload}
+        initialMode={ytUploadMode}
+        userProfile={effectiveProfile}
+        onClose={() => setShowYtUpload(false)}
+        onPostCreated={async (newPost) => {
+          await handlePostCreated(newPost);
+          setShowYtUpload(false);
+          if (newPost.isShort || newPost.videoKind === 'reel') {
+            setActiveReelPostId(newPost.id);
+            navigateToTab('shorts');
           } else {
-            setViewedProfile(null);
-            navigateToTab('profile');
+            navigateToTab('home');
           }
         }}
-        userProfile={userProfile}
-        activeSwitchedPage={activeSwitchedPage}
-        friendRequestsCount={pendingFriendRequestsCount}
-        notificationsCount={unreadNotificationsCount}
+        onSelectGoLive={() => {
+          setShowYtUpload(false);
+          navigateToTab('live');
+        }}
       />
 
-      {/* 4. Facebook Create Post Modal */}
-      {showCreatePost && (
-        <FbCreatePostModal
-          userProfile={effectiveProfile}
-          isPageAccount={Boolean(activeSwitchedPage)}
-          initialPhoto={
-            initialPostPhotos[0]?.startsWith('data:video/') ||
-            initialPostPhotos[0]?.startsWith('blob:')
-              ? initialPostPhotos[0]
-              : null
-          }
-          initialPhotos={initialPostPhotos.filter(
-            (item) => !item.startsWith('data:video/') && !item.startsWith('blob:')
-          )}
-          onClose={() => {
-            setShowCreatePost(false);
-            setInitialPostPhotos([]);
-          }}
-          onPostCreated={handlePostCreated}
-          onOpenLive={() => setShowLive(true)}
-        />
-      )}
+      {/* 5. Full YouTube Watch Modal (16:9 Video / Bunny iframe / Subscribe / Like / Comment / Save / Share / Gift / Report) */}
+      <YtVideoWatchModal
+        post={activeWatchingPost}
+        onClose={() => setWatchingVideoPost(null)}
+        userProfile={effectiveProfile}
+        isSubscribed={
+          activeWatchingPost
+            ? isTargetFollowedLocally(
+                activeWatchingPost.authorId || activeWatchingPost.author.name,
+                activeWatchingPost.author.name
+              )
+            : false
+        }
+        onToggleSubscribe={handleToggleSubscribeCreator}
+        onToggleLike={(postId) => handleToggleReaction(postId, 'like')}
+        onToggleSave={handleToggleSave}
+        onShare={handleNativeShareVideo}
+        onAddComment={handleAddComment}
+        onOpenGift={(p) => requireAuthOrRun(() => setSelectedGiftPost(p))}
+        onOpenReportBlock={(p) =>
+          setReportTarget({
+            targetType: p.isShort || p.videoKind === 'reel' ? 'short' : 'video',
+            targetId: p.id,
+            targetTitle: p.contentBangla,
+            creatorId: p.authorId || p.author.name,
+            creatorName: p.author.name,
+          })
+        }
+      />
 
-      {/* 5. Facebook Create Story Modal */}
-      {showCreateStory && (
-        <FbCreateStoryModal
-          userProfile={effectiveProfile}
-          onClose={() => setShowCreateStory(false)}
-          onStoryCreated={handleStoryCreated}
-        />
-      )}
+      {/* 6. 20 Peace Gifts Modal (Small, Medium, Big, Monster — 60% Host Beans / 40% App) */}
+      <YtGiftModal
+        isOpen={Boolean(selectedGiftPost)}
+        onClose={() => setSelectedGiftPost(null)}
+        recipientName={selectedGiftPost?.author.name || 'Creator'}
+        recipientAvatar={selectedGiftPost?.author.avatar}
+        contextLabel={selectedGiftPost?.contentBangla}
+        userCoins={userProfile.goldenCoins ?? 0}
+        onSendGift={(gift: PeaceGift, message?: string) => {
+          if (!selectedGiftPost) return false;
+          const isSelf =
+            selectedGiftPost.authorId === userProfile.id ||
+            selectedGiftPost.author.name === userProfile.name;
+          return handleSendPeaceGiftAmount(
+            gift.coins,
+            isSelf,
+            selectedGiftPost.id,
+            message
+          );
+        }}
+        onOpenWallet={() => {
+          setSelectedGiftPost(null);
+          setShowGoldenWallet(true);
+        }}
+      />
 
-      {/* 6. Facebook Create Reel Modal */}
-      {showCreateReel && (
-        <FbCreateReelModal
-          userProfile={effectiveProfile}
-          isPageAccount={Boolean(activeSwitchedPage)}
-          pageId={activeSwitchedPage?.id}
-          onClose={() => setShowCreateReel(false)}
-          onReelCreated={handleReelCreated}
-        />
-      )}
+      {/* 7. Geo-Detected Coins & Beans Wallet Modal (BD: bKash/Nagad, Intl: Google Play/Apple Pay/Cards) */}
+      <YtWalletModal
+        isOpen={showGoldenWallet}
+        onClose={() => setShowGoldenWallet(false)}
+        userCoins={userProfile.goldenCoins ?? 0}
+        userBeans={userProfile.beansBalance ?? userProfile.earnedCoins ?? 0}
+        userName={effectiveProfile.name}
+        userId={effectiveProfile.id || userProfile.id || 'guest-user'}
+        userAvatar={effectiveProfile.avatar}
+        onAddCoins={handleAddGoldenCoins}
+        onRequestCashout={handleRequestCashout}
+        cashoutRequests={cashoutRequests}
+      />
 
-      {/* 7. Facebook Live Modal */}
-      {showLive && (
-        <FbLiveModal
-          userProfile={effectiveProfile}
-          onClose={() => setShowLive(false)}
-          onLiveCreated={handleLiveCreated}
-        />
-      )}
+      {/* 8. Report & Block Creator Modal */}
+      <YtReportBlockModal
+        isOpen={Boolean(reportTarget)}
+        onClose={() => setReportTarget(null)}
+        targetType={reportTarget?.targetType || 'video'}
+        targetId={reportTarget?.targetId || ''}
+        targetTitle={reportTarget?.targetTitle}
+        creatorId={reportTarget?.creatorId || ''}
+        creatorName={reportTarget?.creatorName || ''}
+        reporterId={firebaseUser?.uid || userProfile.id || 'guest-user'}
+        isBlocked={Boolean(
+          reportTarget && blockedCreatorIds.includes(reportTarget.creatorId)
+        )}
+        onToggleBlockCreator={(cid) => handleToggleBlockCreator(cid)}
+      />
 
-      {/* 5. Messenger Inbox & Chat Modal */}
-      {showMessengerModal && (
-        <FbMessengerModal
-          chatFriends={chatFriends}
-          activeFriend={activeChatFriend}
-          onSelectFriend={(friend) => {
-            setActiveChatFriend(friend);
-            if (friend && friend.unreadCount) {
-              setChatFriends((prev) =>
-                prev.map((f) => (f.id === friend.id ? { ...f, unreadCount: 0 } : f))
-              );
-            }
-          }}
-          onClose={() => {
-            setShowMessengerModal(false);
-            setActiveChatFriend(null);
-          }}
-          onSendMessage={handleSendMessage}
-          isAuthenticated={Boolean(firebaseUser)}
-        />
-      )}
-
-      {/* 6. Halal Policy Modal */}
-      {showHalalPolicy && (
-        <HalalGuaranteeModal onClose={() => setShowHalalPolicy(false)} />
-      )}
-
-      {/* 7. International & Google Play Store Legal Modal */}
-      {legalModalTab && (
-        <LegalModal
-          initialTab={legalModalTab}
-          onClose={() => {
-            setLegalModalTab(null);
-          }}
-        />
-      )}
-
-      {/* 8. Offline Status Indicator, Adhan Toast & PWA Install Banner */}
-      <OfflineIndicator />
-      {adhanToast && (
-        <div
-          role="status"
-          aria-live="polite"
-          className="fixed bottom-[70px] left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-[430px] pointer-events-auto"
-        >
-          <div className="bg-white text-black border border-emerald-200 rounded-2xl px-4 py-2.5 shadow-xl flex items-center justify-between gap-2 text-xs font-semibold">
-            <span className="truncate">{adhanToast}</span>
-            <button
-              type="button"
-              onClick={() => setAdhanToast(null)}
-              className="text-[#65676B] hover:text-black text-xs font-bold px-1.5 cursor-pointer shrink-0"
-              aria-label="Dismiss notification toast"
-            >
-              ✕
-            </button>
-          </div>
-        </div>
-      )}
-      {currentTab !== 'profile' && (
-        <PWAInstallBanner onOpenGuide={() => setShowInstallModal(true)} />
-      )}
-
-      {/* 9. PWA Installation Guide Modal for All Platforms (Android / iOS / PC) */}
-      {showInstallModal && (
-        <PWAInstallModal
-          onClose={() => {
-            setShowInstallModal(false);
-          }}
-        />
-      )}
-
-      {/* 10. Creator Monetization Studio Modal */}
-      {showMonetizationModal && (
-        <CreatorMonetizationModal
-          userProfile={userProfile}
-          onClose={() => {
-            setShowMonetizationModal(false);
-          }}
-        />
-      )}
-
-      {/* 11. Firebase Authentication Modal (Google Sign-In, Email/Password, Password Reset) */}
+      {/* 9. Firebase Auth, Legal Policies, PWA Install & Offline Status */}
       <FirebaseAuthModal
         isOpen={showAuthModal}
-        onClose={() => {
-          setShowAuthModal(false);
-        }}
+        onClose={() => setShowAuthModal(false)}
         onSuccess={(usr) => {
           setUserProfile((prev) => ({
             ...prev,
@@ -4102,79 +3394,18 @@ export default function App() {
         }}
       />
 
-      {/* 12. Full-Screen Immersive TikTok / Facebook Reels Video Player */}
-      <FbTikTokReelsModal
-        isOpen={Boolean(activeReelPostId)}
-        onClose={() => setActiveReelPostId(null)}
-        initialPostId={activeReelPostId || undefined}
-        posts={posts}
-        onToggleReaction={handleToggleReaction}
-        onToggleSave={handleToggleSave}
-        onAddComment={handleAddComment}
-        currentUserName={userProfile.name}
-        currentUserAvatar={userProfile.avatar}
-        onOpenGiftModal={(post) => setSelectedGiftPost(post)}
-      />
-
-      {/* 13. Golden Hadia Gift Modal (Gifting Golden Coins to Creators) */}
-      {selectedGiftPost && (
-        <FbGoldenGiftModal
-          isOpen={Boolean(selectedGiftPost)}
-          onClose={() => setSelectedGiftPost(null)}
-          post={selectedGiftPost}
-          userGoldenCoins={userProfile.goldenCoins ?? 120}
-          onSendGift={handleSendGoldenGift}
-          onOpenWallet={() => setShowGoldenWallet(true)}
+      {legalModalTab && (
+        <LegalModal
+          initialTab={legalModalTab}
+          onClose={() => setLegalModalTab(null)}
         />
       )}
 
-      {/* 14. Golden Wallet & Cashout to bKash / Nagad Modal */}
-      <GoldenWalletModal
-        isOpen={showGoldenWallet}
-        onClose={() => setShowGoldenWallet(false)}
-        userGoldenCoins={userProfile.goldenCoins ?? 120}
-        userEarnedCoins={userProfile.earnedCoins ?? 65}
-        userName={userProfile.name}
-        userAvatar={userProfile.avatar}
-        onAddCoins={handleAddGoldenCoins}
-        onRequestCashout={handleRequestCashout}
-        cashoutRequests={cashoutRequests}
-      />
-
-      {/* 15. Daily Backup Reminder Pill (shown once every 24h unless dismissed/exported) */}
-      {currentTab === 'home' && !backupReminderDismissed && checkDailyBackupReminder().needsBackup && (
-        <div className="max-w-[500px] mx-auto px-2 pb-3">
-          <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 flex items-center justify-between gap-2 text-xs">
-            <div className="min-w-0">
-              <p className="font-bold text-emerald-900">Daily Data Backup Reminder</p>
-              <p className="text-[11px] text-emerald-700 truncate">
-                Save a JSON backup of your Peaceverse24.com profile &amp; posts.
-              </p>
-            </div>
-            <div className="flex items-center gap-1.5 shrink-0">
-              <button
-                type="button"
-                onClick={handleExportMyData}
-                className="px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold flex items-center gap-1 cursor-pointer"
-              >
-                <Download className="w-3 h-3" />
-                <span>Export My Data</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  dismissBackupReminderToday();
-                  setBackupReminderDismissed(true);
-                }}
-                className="px-2 py-1.5 rounded-lg bg-white border border-emerald-200 text-emerald-800 text-[11px] font-semibold cursor-pointer"
-              >
-                Later
-              </button>
-            </div>
-          </div>
-        </div>
+      {showInstallModal && (
+        <PWAInstallModal onClose={() => setShowInstallModal(false)} />
       )}
 
+      <OfflineIndicator />
     </div>
   );
 }
